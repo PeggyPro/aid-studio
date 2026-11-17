@@ -52,3 +52,13 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Keep local development documents out of source distributions.
+/doc/
+/docs/
+/AGENTS.md
+/CLAUDE.md
+/CODE_AUDIT_REPORT.md
+/DEVELOPMENT_GUIDE.md
+/design-system/MASTER.md
+/components/steps/*.md
