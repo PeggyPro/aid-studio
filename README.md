@@ -137,7 +137,7 @@ Open-source, self-hosted AI drama and motion comic creation — from scripts and
 下面的命令会把安装脚本保存到 `/root/aid-install.sh`，从 GitHub 下载；下载成功后才执行脚本。首次安装会先生成配置，**请检查并确认配置后再继续初始化和启动服务**。
 
 ```bash
-cd /root && if command -v curl >/dev/null 2>&1; then curl -fL --retry 3 --connect-timeout 15 -o /root/aid-install.sh https://raw.githubusercontent.com/shijue-aid/aid-studio/master/deploy/aid.sh; elif command -v wget >/dev/null 2>&1; then wget -O /root/aid-install.sh https://raw.githubusercontent.com/shijue-aid/aid-studio/master/deploy/aid.sh; else echo '请先安装 curl 或 wget'; exit 1; fi && sudo env AID_REMOTE_BOOTSTRAP=1 AID_RELEASE_CHANNEL=auto AID_MANIFEST_URL=https://raw.githubusercontent.com/shijue-aid/aid-studio/master/release/latest.json bash /root/aid-install.sh install
+cd /root && if command -v curl >/dev/null 2>&1; then curl -fL --retry 3 --connect-timeout 15 -o /root/aid-install.sh https://raw.githubusercontent.com/shijue-aid/aid-studio/main/deploy/aid.sh; elif command -v wget >/dev/null 2>&1; then wget -O /root/aid-install.sh https://raw.githubusercontent.com/shijue-aid/aid-studio/main/deploy/aid.sh; else echo '请先安装 curl 或 wget'; exit 1; fi && sudo env AID_REMOTE_BOOTSTRAP=1 AID_RELEASE_CHANNEL=auto AID_MANIFEST_URL=https://raw.githubusercontent.com/shijue-aid/aid-studio/main/release/latest.json bash /root/aid-install.sh install
 ```
 
 安装完成后运行 `sudo aid default` 查看访问地址，**首次登录立即修改管理员密码**。在后台配置并启用所需模型后，再按[第一个漫剧项目](#第一个漫剧项目)开始创作。
