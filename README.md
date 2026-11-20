@@ -25,6 +25,11 @@ Open-source, self-hosted AI drama and motion comic creation — from scripts and
   <sub>流程画布实拍 · <a href="#产品预览">查看更多产品截图</a></sub>
 </p>
 
+| 平台 | 仓库地址 |
+| --- | --- |
+| AtomGit | [shijue-aid/aid-studio](https://atomgit.com/shijue-aid/aid-studio) |
+| GitHub | [shijue-aid/aid-studio](https://github.com/shijue-aid/aid-studio) |
+
 <a id="community-and-feedback"></a>
 
 ## 交流与反馈
@@ -341,13 +346,6 @@ https://admin.example.com/Ab12Cd34Ef56
 ## 公开源码目录
 
 公开仓 `aid-studio` 是 AID 的统一源码与部署发布入口，包含服务端、管理端、用户创作端、版本清单、部署脚本、增量 SQL 和独立升级器。三端使用同一个版本标签。
-
-项目仓库
-
-
-- AtomGit：[shijue-aid/aid-studio](https://atomgit.com/shijue-aid/aid-studio)
-
-- GitHub：[shijue-aid/aid-studio](https://github.com/shijue-aid/aid-studio)
 
 版本发布见 [GitHub Releases](https://github.com/shijue-aid/aid-studio/releases)。
 
