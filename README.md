@@ -1,5 +1,13 @@
 # AID Studio — AI Drama & Motion Comic Creation
 
+<a id="source-repositories"></a>
+
+<p align="center">
+  <a href="https://atomgit.com/shijue-aid/aid-studio"><strong>AtomGit</strong></a>&nbsp;&nbsp;<a href="https://atomgit.com/shijue-aid/aid-studio"><img src="https://atomgit.com/shijue-aid/aid-studio/star/new_badge.svg" alt="AtomGit Stars" height="20" align="absmiddle"></a>
+  &ensp;·&ensp;
+  <a href="https://github.com/shijue-aid/aid-studio"><strong>GitHub</strong></a>&nbsp;&nbsp;<a href="https://github.com/shijue-aid/aid-studio/stargazers"><img src="https://img.shields.io/github/stars/shijue-aid/aid-studio?style=flat&amp;logo=github&amp;label=Stars" alt="GitHub Stars" height="20" align="absmiddle"></a>
+</p>
+
 **简体中文** | [English](README.en.md)
 
 **AID Studio：开源 AI 漫剧创作平台，支持 AI 短剧、电影与漫画，从剧本、分镜到视频配音的一站式创作。**
@@ -23,14 +31,6 @@ Open-source, self-hosted AI drama and motion comic creation — from scripts and
     <img src="references/web/2.png" alt="AID 流程画布：可视化编排剧本、素材、分镜与视频创作流程" width="100%">
   </a><br>
   <sub>流程画布实拍 · <a href="#产品预览">查看更多产品截图</a></sub>
-</p>
-
-<a id="source-repositories"></a>
-
-<p align="center">
-  <a href="https://atomgit.com/shijue-aid/aid-studio"><strong>AtomGit</strong></a>&nbsp;<a href="https://atomgit.com/shijue-aid/aid-studio"><img src="https://atomgit.com/shijue-aid/aid-studio/star/new_badge.svg" alt="AtomGit Stars" height="22" align="middle"></a>
-  &nbsp;&nbsp;·&nbsp;&nbsp;
-  <a href="https://github.com/shijue-aid/aid-studio"><strong>GitHub</strong></a>&nbsp;<a href="https://github.com/shijue-aid/aid-studio/stargazers"><img src="https://img.shields.io/github/stars/shijue-aid/aid-studio?style=flat&amp;logo=github&amp;label=Stars" alt="GitHub Stars" height="20" align="middle"></a>
 </p>
 
 <a id="community-and-feedback"></a>

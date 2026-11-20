@@ -1,5 +1,13 @@
 # AID Studio — AI Drama & Motion Comic Creation
 
+<a id="source-repositories"></a>
+
+<p align="center">
+  <a href="https://atomgit.com/shijue-aid/aid-studio"><strong>AtomGit</strong></a>&nbsp;&nbsp;<a href="https://atomgit.com/shijue-aid/aid-studio"><img src="https://atomgit.com/shijue-aid/aid-studio/star/new_badge.svg" alt="AtomGit Stars" height="20" align="absmiddle"></a>
+  &ensp;·&ensp;
+  <a href="https://github.com/shijue-aid/aid-studio"><strong>GitHub</strong></a>&nbsp;&nbsp;<a href="https://github.com/shijue-aid/aid-studio/stargazers"><img src="https://img.shields.io/github/stars/shijue-aid/aid-studio?style=flat&amp;logo=github&amp;label=Stars" alt="GitHub Stars" height="20" align="absmiddle"></a>
+</p>
+
 [简体中文](README.md) · **English** · [扫码加入开源交流群](#community-and-feedback)
 
 **AID Studio is an open-source AI motion comic creation platform for AI short dramas, films and comics, with an end-to-end workflow from scripts and storyboards to video and voiceovers.**
@@ -23,14 +31,6 @@ Open-source, self-hosted AI drama and motion comic creation — from scripts and
     <img src="references/web/2.png" alt="AID workflow canvas: visually organize scripts, assets, storyboards and video production" width="100%">
   </a><br>
   <sub>Actual workflow canvas screenshot · <a href="#product-preview">View more product screenshots</a></sub>
-</p>
-
-<a id="source-repositories"></a>
-
-<p align="center">
-  <a href="https://atomgit.com/shijue-aid/aid-studio"><strong>AtomGit</strong></a>&nbsp;<a href="https://atomgit.com/shijue-aid/aid-studio"><img src="https://atomgit.com/shijue-aid/aid-studio/star/new_badge.svg" alt="AtomGit Stars" height="22" align="middle"></a>
-  &nbsp;&nbsp;·&nbsp;&nbsp;
-  <a href="https://github.com/shijue-aid/aid-studio"><strong>GitHub</strong></a>&nbsp;<a href="https://github.com/shijue-aid/aid-studio/stargazers"><img src="https://img.shields.io/github/stars/shijue-aid/aid-studio?style=flat&amp;logo=github&amp;label=Stars" alt="GitHub Stars" height="20" align="middle"></a>
 </p>
 
 <a id="交流与反馈"></a>
