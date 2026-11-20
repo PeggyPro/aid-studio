@@ -25,10 +25,10 @@ Open-source, self-hosted AI drama and motion comic creation — from scripts and
   <sub>Actual workflow canvas screenshot · <a href="#product-preview">View more product screenshots</a></sub>
 </p>
 
-| Platform | Repository |
-| --- | --- |
-| AtomGit | [shijue-aid/aid-studio](https://atomgit.com/shijue-aid/aid-studio) |
-| GitHub | [shijue-aid/aid-studio](https://github.com/shijue-aid/aid-studio) |
+| Platform | Repository | Stars |
+| --- | --- | :---: |
+| AtomGit | [shijue-aid/aid-studio](https://atomgit.com/shijue-aid/aid-studio) | <a href="https://atomgit.com/shijue-aid/aid-studio"><img src="https://atomgit.com/shijue-aid/aid-studio/star/new_badge.svg" alt="AtomGit Stars" width="100"></a> |
+| GitHub | [shijue-aid/aid-studio](https://github.com/shijue-aid/aid-studio) | [![GitHub Stars](https://img.shields.io/github/stars/shijue-aid/aid-studio?style=flat&logo=github&label=Stars)](https://github.com/shijue-aid/aid-studio/stargazers) |
 
 <a id="交流与反馈"></a>
 
