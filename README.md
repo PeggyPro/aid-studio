@@ -25,10 +25,13 @@ Open-source, self-hosted AI drama and motion comic creation — from scripts and
   <sub>流程画布实拍 · <a href="#产品预览">查看更多产品截图</a></sub>
 </p>
 
-| 平台 | 仓库地址 | Stars |
-| --- | --- | :---: |
-| AtomGit | [shijue-aid/aid-studio](https://atomgit.com/shijue-aid/aid-studio) | <a href="https://atomgit.com/shijue-aid/aid-studio"><img src="https://atomgit.com/shijue-aid/aid-studio/star/new_badge.svg" alt="AtomGit Stars" height="22"></a> |
-| GitHub | [shijue-aid/aid-studio](https://github.com/shijue-aid/aid-studio) | [![GitHub Stars](https://img.shields.io/github/stars/shijue-aid/aid-studio?style=flat&logo=github&label=Stars)](https://github.com/shijue-aid/aid-studio/stargazers) |
+<a id="source-repositories"></a>
+
+<p align="center">
+  <a href="https://atomgit.com/shijue-aid/aid-studio"><strong>AtomGit</strong></a>&nbsp;<a href="https://atomgit.com/shijue-aid/aid-studio"><img src="https://atomgit.com/shijue-aid/aid-studio/star/new_badge.svg" alt="AtomGit Stars" height="22" align="middle"></a>
+  &nbsp;&nbsp;·&nbsp;&nbsp;
+  <a href="https://github.com/shijue-aid/aid-studio"><strong>GitHub</strong></a>&nbsp;<a href="https://github.com/shijue-aid/aid-studio/stargazers"><img src="https://img.shields.io/github/stars/shijue-aid/aid-studio?style=flat&amp;logo=github&amp;label=Stars" alt="GitHub Stars" height="20" align="middle"></a>
+</p>
 
 <a id="community-and-feedback"></a>
 
