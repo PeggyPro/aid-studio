@@ -342,7 +342,14 @@ https://admin.example.com/Ab12Cd34Ef56
 
 公开仓 `aid-studio` 是 AID 的统一源码与部署发布入口，包含服务端、管理端、用户创作端、版本清单、部署脚本、增量 SQL 和独立升级器。三端使用同一个版本标签。
 
-公开源码和版本发布统一在 [GitHub](https://github.com/shijue-aid/aid-studio)。
+项目仓库
+
+
+- AtomGit：[shijue-aid/aid-studio](https://atomgit.com/shijue-aid/aid-studio)
+
+- GitHub：[shijue-aid/aid-studio](https://github.com/shijue-aid/aid-studio)
+
+版本发布见 [GitHub Releases](https://github.com/shijue-aid/aid-studio/releases)。
 
 | 路径 | 内容 |
 |------|------|

@@ -351,7 +351,12 @@ The admin frontend covers platform overviews, user and work management, AI model
 
 The public `aid-studio` repository is AID's unified source code and deployment release entry point. It includes the backend, admin frontend, user creation frontend, version manifests, deployment scripts, incremental SQL and standalone updater. All three application components share the same version tag.
 
-Source code and releases are published on [GitHub](https://github.com/shijue-aid/aid-studio).
+Project repositories
+
+- AtomGit: [shijue-aid/aid-studio](https://atomgit.com/shijue-aid/aid-studio)
+- GitHub: [shijue-aid/aid-studio](https://github.com/shijue-aid/aid-studio)
+
+See [GitHub Releases](https://github.com/shijue-aid/aid-studio/releases) for official releases.
 
 | Path | Contents |
 |------|------|
