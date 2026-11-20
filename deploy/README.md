@@ -2,7 +2,7 @@
 
 **简体中文** | [English](README.en.md)
 
-本目录包含 AID 全部部署设施。**普通用户无需预先下载 `aid.sh`，复制一条官方命令即可安装或更新**：命令先从 Gitee 获取最新脚本，失败时可使用 GitHub 备用地址，再由 Bash 执行；脚本会读取签名版本清单，优先检查 Gitee 统一公开仓的版本标签，无法访问时整仓切换到 GitHub，然后在服务器临时目录构建服务端、后台管理端、Web 用户端和升级器。构建全部成功并通过包结构校验后才进入安装或升级。两种部署方式均可使用脚本或后台「一键在线升级」。
+本目录包含 AID 全部部署设施。**普通用户无需预先下载 `aid.sh`，复制一条官方命令即可安装或更新**：命令从 GitHub 的 `main` 下载脚本和签名版本清单，再按对应版本标签拉取统一公开源码，然后在服务器临时目录构建服务端、后台管理端、Web 用户端和升级器。构建全部成功并通过包结构校验后才进入安装或升级。两种部署方式均可使用脚本或后台「一键在线升级」。
 
 | 方式 | 适用场景 | 说明 |
 |------|---------|------|
@@ -33,22 +33,16 @@ deploy/
 
 ```bash
 # Docker 首次部署；curl 不可用时自动改用 wget
-if command -v curl >/dev/null 2>&1; then curl -fL --retry 3 -o aid-install.sh https://gitee.com/gzxx-2025/aid-studio/raw/master/deploy/aid.sh; elif command -v wget >/dev/null 2>&1; then wget -O aid-install.sh https://gitee.com/gzxx-2025/aid-studio/raw/master/deploy/aid.sh; else echo '请先安装 curl 或 wget'; false; fi && sudo env AID_REMOTE_BOOTSTRAP=1 bash aid-install.sh install
+if command -v curl >/dev/null 2>&1; then curl -fL --retry 3 -o aid-install.sh https://raw.githubusercontent.com/shijue-aid/aid-studio/main/deploy/aid.sh; elif command -v wget >/dev/null 2>&1; then wget -O aid-install.sh https://raw.githubusercontent.com/shijue-aid/aid-studio/main/deploy/aid.sh; else echo '请先安装 curl 或 wget'; false; fi && sudo env AID_REMOTE_BOOTSTRAP=1 AID_MANIFEST_URL=https://raw.githubusercontent.com/shijue-aid/aid-studio/main/release/latest.json bash aid-install.sh install
 ```
 
 这条命令不会把网络响应直接送入 Shell：只有 `curl/wget` 成功保存 `aid-install.sh` 后才执行。`AID_REMOTE_BOOTSTRAP=1` 表示本次必须使用刚下载的最新控制逻辑；在已部署服务器上不会被旧的受管脚本接管。`install` 是自动入口：未部署时执行推荐的 Docker 首次安装；检测到已经部署时自动改为检查并升级，不会重复初始化数据库。部署成功后还会安全创建 `sudo aid` 管理命令（如果系统已有同名命令则不覆盖）。随时执行 `sudo aid default` 可重新显示用户端、管理端、公网/内网、HTTPS 入口、数据库初始化管理员及 MySQL 连接信息；只查看 MySQL 时执行 `sudo aid mysql`。
 
-Gitee 原始文件访问失败时，可改用 GitHub 备用地址：
-
-```bash
-if command -v curl >/dev/null 2>&1; then curl -fL --retry 3 -o aid-install.sh https://raw.githubusercontent.com/gzxx-2025/aid-studio/master/deploy/aid.sh; elif command -v wget >/dev/null 2>&1; then wget -O aid-install.sh https://raw.githubusercontent.com/gzxx-2025/aid-studio/master/deploy/aid.sh; else echo '请先安装 curl 或 wget'; false; fi && sudo env AID_REMOTE_BOOTSTRAP=1 bash aid-install.sh install
-```
-
-首次执行会自动完成：读取官方签名版本清单 → 正式版/Beta 渠道判断 → 检测 Gitee 统一仓标签 → 失败时整仓回退 GitHub → 在独立临时目录构建三端与升级器 → 本地 SHA256 与包结构校验 → 提取受管安装器到 `/data/aid/installer` → 自动生成安全配置和强随机密钥 → 硬件检查 → 部署三端与中间件 → 初始化空数据库 → 安装在线升级器 → 健康检查。源码拉取或构建失败不会替换现有服务。
+首次执行会自动完成：读取官方签名版本清单 → 正式版/Beta 渠道判断 → 校验 GitHub 统一仓版本标签 → 在独立临时目录构建三端与升级器 → 本地 SHA256 与包结构校验 → 提取受管安装器到 `/data/aid/installer` → 自动生成安全配置和强随机密钥 → 硬件检查 → 部署三端与中间件 → 初始化空数据库 → 安装在线升级器 → 健康检查。源码拉取或构建失败不会替换现有服务。
 
 配置是首次部署的强制前置步骤：脚本先生成正式配置文件，要求管理员检查、校验并明确确认；在确认完成前不会检查或安装环境、拉取统一源码、构建程序、初始化数据库或启动服务。无人值守部署必须同时设置 `AID_ASSUME_YES=1` 与 `AID_CONFIG_CONFIRMED=1`，避免流水线误用默认配置直接上线。
 
-生成配置文件不等于已经部署。即使管理员在最终确认处选择 `n`，再次执行 `sudo env AID_REMOTE_BOOTSTRAP=1 bash aid-install.sh install` 仍会继续走首次部署，不会误进入升级流程；受管安装器一旦落盘就会创建 `sudo aid` 恢复命令，只有服务健康检查成功后才记录已部署状态。
+生成配置文件不等于已经部署。即使管理员在最终确认处选择 `n`，再次执行 `sudo env AID_REMOTE_BOOTSTRAP=1 AID_MANIFEST_URL=https://raw.githubusercontent.com/shijue-aid/aid-studio/main/release/latest.json bash aid-install.sh install` 仍会继续走首次部署，不会误进入升级流程；受管安装器一旦落盘就会创建 `sudo aid` 恢复命令，只有服务健康检查成功后才记录已部署状态。
 
 > 默认渠道为 `auto`：有正式版时安装正式版；尚无正式版时才选择最新 Beta，并用黄色/红色信息明确提醒。明确需要测试版时，在一行命令的 `sudo env` 后增加 `AID_RELEASE_CHANNEL=beta`。生产服务器不要长期使用 Beta 渠道。
 
@@ -57,7 +51,7 @@ if command -v curl >/dev/null 2>&1; then curl -fL --retry 3 -o aid-install.sh ht
 Docker 与手动 systemd 使用同一条更新命令，脚本会从部署描述文件自动识别当前方式：
 
 ```bash
-if command -v curl >/dev/null 2>&1; then curl -fL --retry 3 -o aid-install.sh https://gitee.com/gzxx-2025/aid-studio/raw/master/deploy/aid.sh; elif command -v wget >/dev/null 2>&1; then wget -O aid-install.sh https://gitee.com/gzxx-2025/aid-studio/raw/master/deploy/aid.sh; else echo '请先安装 curl 或 wget'; false; fi && sudo env AID_REMOTE_BOOTSTRAP=1 bash aid-install.sh update
+if command -v curl >/dev/null 2>&1; then curl -fL --retry 3 -o aid-install.sh https://raw.githubusercontent.com/shijue-aid/aid-studio/main/deploy/aid.sh; elif command -v wget >/dev/null 2>&1; then wget -O aid-install.sh https://raw.githubusercontent.com/shijue-aid/aid-studio/main/deploy/aid.sh; else echo '请先安装 curl 或 wget'; false; fi && sudo env AID_REMOTE_BOOTSTRAP=1 AID_MANIFEST_URL=https://raw.githubusercontent.com/shijue-aid/aid-studio/main/release/latest.json bash aid-install.sh update
 ```
 
 测试渠道更新时，将命令最后一段改为：
@@ -78,7 +72,7 @@ sudo env AID_REMOTE_BOOTSTRAP=1 AID_RELEASE_CHANNEL=beta bash aid-install.sh upd
 
 ### 自动化的安全边界
 
-- 脚本只接受 HTTPS 版本清单，并只拉取 AID 官方 GitHub/Gitee 统一公开仓；三端必须来自同一个 `v<版本>` 标签，禁止混用分支或平台。构建后的本地包仍会检查目录结构、路径穿越、特殊链接和内置脚本语法。
+- 脚本只接受 HTTPS 版本清单，并只拉取 AID 官方 GitHub 统一公开仓；三端必须来自同一个 `v<版本>` 标签，禁止混用分支或平台。构建后的本地包仍会检查目录结构、路径穿越、特殊链接和内置脚本语法。
 - OpenSSL 支持 Ed25519 `pkeyutl -rawin` 时会验证清单签名；较老的 OpenSSL 会以黄色信息明确提示。高安全环境建议升级 OpenSSL，后台在线升级器始终执行完整签名校验。
 - 脚本不会静默开放防火墙、修改 DNS/域名、配置 HTTPS 证书、删除已有数据库，也不会自动导入大体积官方资产包。Docker 缺失或版本过低时会先单独提示对现有容器的风险，只有管理员明确同意后才配置软件源并安装/升级。
 - 发现 `/data/aid` 已有非安装缓存内容、版本降级、数据库恢复、低于推荐硬件等情况时，默认拒绝或要求再次确认。`AID_ASSUME_YES=1` 只应在你已做好外部备份且明确授权的自动化环境使用。
@@ -183,7 +177,7 @@ MySQL 首次启动自动创建 `aid_test` 库并导入 `sql/` 初始化脚本（
 
 ## 一、版本标签源码构建
 
-正常部署和更新都由 `aid.sh` 自动处理，不需要用户访问发布页。版本清单、源码标签和小型升级器均以 Gitee 为主源、GitHub 为备用源；源码平台会先实际检测 `aid-server` 统一公开仓是否存在目标标签，失败后整仓切换到 GitHub。构建固定使用 `v<版本>` 标签，绝不拉取会继续变化的 `master`，也不会在同一次构建中混用两个平台。服务端位于仓库根目录，后台管理端与 Web 用户端分别位于 `frontend/admin` 和 `frontend/web`。
+正常部署和更新都由 `aid.sh` 自动处理，不需要用户访问发布页。公开版本清单、源码标签和升级器均可从 GitHub 获取。安装入口读取 `main` 的签名版本清单，业务源码构建固定使用统一仓的 `v<版本>` 标签。服务端位于仓库根目录，后台管理端与 Web 用户端分别位于 `frontend/admin` 和 `frontend/web`。
 
 源码构建按部署方式强制隔离，不以“服务器上是否恰好安装 Docker”自动判断：Docker 部署与 Docker 升级固定传入 `AID_SOURCE_BUILD_MODE=docker`，只使用容器完成三端构建；手动 systemd 部署与升级固定传入 `AID_SOURCE_BUILD_MODE=host`，只使用宿主机的 Git、JDK、Node.js、Maven 和 Go，**不会探测、拉取或调用 Docker**。该变量由官方 `aid.sh` 和在线升级器自动设置，管理员无需手工配置；`auto` 仅保留给直接运行构建器的开发调试场景。
 
@@ -241,7 +235,7 @@ sudo systemctl daemon-reload && sudo systemctl restart docker
 ### 部署步骤（自动拉取源码构建、自动创建安全配置）
 
 ```bash
-if command -v curl >/dev/null 2>&1; then curl -fL --retry 3 -o aid-install.sh https://gitee.com/gzxx-2025/aid-studio/raw/master/deploy/aid.sh; elif command -v wget >/dev/null 2>&1; then wget -O aid-install.sh https://gitee.com/gzxx-2025/aid-studio/raw/master/deploy/aid.sh; else echo '请先安装 curl 或 wget'; false; fi && sudo env AID_REMOTE_BOOTSTRAP=1 bash aid-install.sh install
+if command -v curl >/dev/null 2>&1; then curl -fL --retry 3 -o aid-install.sh https://raw.githubusercontent.com/shijue-aid/aid-studio/main/deploy/aid.sh; elif command -v wget >/dev/null 2>&1; then wget -O aid-install.sh https://raw.githubusercontent.com/shijue-aid/aid-studio/main/deploy/aid.sh; else echo '请先安装 curl 或 wget'; false; fi && sudo env AID_REMOTE_BOOTSTRAP=1 AID_MANIFEST_URL=https://raw.githubusercontent.com/shijue-aid/aid-studio/main/release/latest.json bash aid-install.sh install
 ```
 
 脚本会先从版本标签源码构建本地包，再从本地包提取部署套件，并由 `.env.example` 自动生成正式配置；内置 MySQL 的 root/业务密码留空时生成 12 位字母数字随机值，JWT 密钥仍生成 48 位随机值。单文件首次部署的配置真源是 `/data/aid/config/docker.env`，完成后脚本也会明确打印实际路径。默认采用内置 MySQL + Redis、关闭 RocketMQ 与 HTTPS 的保守组合。需要改端口、HTTPS、外部 MySQL/Redis 或 RocketMQ 时，编辑实际配置文件后执行 `sudo aid restart` 生效。
@@ -482,12 +476,12 @@ Redis 8.0.5 源码构建要求 GCC/G++ 7+。CentOS 7 自带 GCC 4.8 不满足时
 环境就绪后：
 
 ```bash
-if command -v curl >/dev/null 2>&1; then curl -fL --retry 3 -o aid-install.sh https://gitee.com/gzxx-2025/aid-studio/raw/master/deploy/aid.sh; elif command -v wget >/dev/null 2>&1; then wget -O aid-install.sh https://gitee.com/gzxx-2025/aid-studio/raw/master/deploy/aid.sh; else echo '请先安装 curl 或 wget'; false; fi && sudo env AID_REMOTE_BOOTSTRAP=1 bash aid-install.sh install-manual
+if command -v curl >/dev/null 2>&1; then curl -fL --retry 3 -o aid-install.sh https://raw.githubusercontent.com/shijue-aid/aid-studio/main/deploy/aid.sh; elif command -v wget >/dev/null 2>&1; then wget -O aid-install.sh https://raw.githubusercontent.com/shijue-aid/aid-studio/main/deploy/aid.sh; else echo '请先安装 curl 或 wget'; false; fi && sudo env AID_REMOTE_BOOTSTRAP=1 AID_MANIFEST_URL=https://raw.githubusercontent.com/shijue-aid/aid-studio/main/release/latest.json bash aid-install.sh install-manual
 ```
 
 脚本会自动生成 `/data/aid/aid-deploy.conf`。全新本机 MySQL 的 root/业务密码会生成强随机值写回配置；已有或外部 MySQL 无法安全猜测凭证，因此会要求输入真实密码（不回显）并当场校验。`TOKEN_SECRET` 留空同样自动生成。主机、端口或外部中间件拓扑不是默认值时，先按脚本提示编辑该配置再重试。
 
-手动部署始终使用宿主机隔离工具链，不因服务器碰巧存在 Docker 而改变构建方式。JDK、Nginx、Redis、Node.js、Maven、Go 与 MySQL 归档会从 AID 国内依赖镜像池或各组件官方地址完整下载，只有固定摘要校验通过才会解压或编译；中断后保留 `.part` 文件，重试时支持续传，已完成且版本匹配则直接跳过。Java 固定使用 Oracle JDK 17.0.8，Web 固定使用 Node.js 22.22.0。安装器会在当前进程立即导出 `JAVA_HOME/PATH`，同时持久化 `/etc/profile.d/aid-java.sh`；当前登录终端若要直接执行 `java`，重新登录或运行 `source /etc/profile.d/aid-java.sh`。脚本会先识别宿主机 glibc：glibc 2.28+ 使用 Node.js 官方构建；CentOS 7 等 x64/glibc 2.17 系统自动改用 Node.js `unofficial-builds` 社区兼容构建及 Gitee 国内字节镜像，并强制核对其发布的固定 SHA-256，不升级或替换系统 glibc。AArch64 的旧 glibc 系统没有对应兼容构建，脚本会明确阻止安装并提示升级操作系统或改用 Docker。配置调整后执行 `sudo aid restart` 只会重新校验现有版本和连通性，符合要求的组件全部跳过，不会重复安装或初始化。
+手动部署始终使用宿主机隔离工具链，不因服务器碰巧存在 Docker 而改变构建方式。JDK、Nginx、Redis、Node.js、Maven、Go 与 MySQL 归档会从 AID 国内依赖镜像池或各组件官方地址完整下载，只有固定摘要校验通过才会解压或编译；中断后保留 `.part` 文件，重试时支持续传，已完成且版本匹配则直接跳过。Java 固定使用 Oracle JDK 17.0.8，Web 固定使用 Node.js 22.22.0。安装器会在当前进程立即导出 `JAVA_HOME/PATH`，同时持久化 `/etc/profile.d/aid-java.sh`；当前登录终端若要直接执行 `java`，重新登录或运行 `source /etc/profile.d/aid-java.sh`。脚本会先识别宿主机 glibc：glibc 2.28+ 使用 Node.js 官方构建；CentOS 7 等 x64/glibc 2.17 系统自动改用 Node.js `unofficial-builds` 社区兼容构建，并强制核对其发布的固定 SHA-256，不升级或替换系统 glibc。AArch64 的旧 glibc 系统没有对应兼容构建，脚本会明确阻止安装并提示升级操作系统或改用 Docker。配置调整后执行 `sudo aid restart` 只会重新校验现有版本和连通性，符合要求的组件全部跳过，不会重复安装或初始化。
 
 脚本自动完成：依赖检测与按需安装 → 统一仓固定标签三端源码构建（后台 `build`、Web `generate`）→ 配置文件校验 → 硬件校验 → 数据库连通性校验 → 空库自动导入基线（已有表跳过）→ 本地构建包摆位到 `/data/aid/app` → 注册后端 `aid` systemd 服务（环境变量含 `LOG_PATH=/data/aid/logs`，日志统一落数据目录）→ 由 Nginx 直接托管 `web-dist` 静态站点 → 自动安装升级器 → 健康等待。升级旧部署时，脚本只会在确认 unit 带有当前 AID 根目录标记后安全停用并移除旧 `aid-web.service`，不会删除其他同名服务。
 
@@ -570,7 +564,7 @@ sudo bash /data/aid/installer/deploy/aid.sh setup-updater
 
 1. 后台左上角自动提示新版本（每天自动感知一次，手动「检查更新」立即感知）
 2. 如果「升级器」卡片提示存在新版本，先完成升级器在线升级并确认其恢复为「运行正常」；再点击「一键升级」。这是从旧版大包交付切换到源码标签构建时的兼容步骤，后续版本会保持同步
-3. 「项目升级配置 → 一键升级」：升级器自动完成 签名版本校验 → Gitee/GitHub 同标签源码构建 → 本地包校验 → 备份 → **执行增量 SQL（服务运行中）** → 停服 → 替换三端产物 → 启动 → 健康检查，失败自动回滚；首屏黑色终端会实时显示进度与日志，停机窗口只有「替换文件 + 启动」
+3. 「项目升级配置 → 一键升级」：升级器自动完成 签名版本校验 → GitHub 同标签源码构建 → 本地包校验 → 备份 → **执行增量 SQL（服务运行中）** → 停服 → 替换三端产物 → 启动 → 健康检查，失败自动回滚；首屏黑色终端会实时显示进度与日志，停机窗口只有「替换文件 + 启动」
 4. SQL 脚本由执行记录表 `aid_schema_history` 自动判重（Flyway 机制）：已执行过的自动跳过、失败的允许重试，重复升级不会重复执行
 5. Docker 与手动部署的升级动作完全一致（唯一区别是重启方式 `docker restart` / `systemctl restart`，由升级器配置决定，页面「部署方式」一栏自动显示）
 6. 「版本回退」可回退到清单允许的历史版本
