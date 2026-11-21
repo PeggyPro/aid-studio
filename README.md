@@ -1,4 +1,4 @@
-# AID Studio — AI Drama & Motion Comic Creation
+# AID Studio — 开源 AI 漫剧与影视创作工作台
 
 <a id="source-repositories"></a>
 
@@ -8,470 +8,185 @@
   <a href="https://github.com/shijue-aid/aid-studio"><strong>GitHub</strong></a>&nbsp;&nbsp;<a href="https://github.com/shijue-aid/aid-studio/stargazers"><img src="https://img.shields.io/github/stars/shijue-aid/aid-studio?style=flat&amp;logo=github&amp;label=Stars" alt="GitHub Stars" height="20" align="absmiddle"></a>
 </p>
 
-**English** · [简体中文](README.zh-CN.md) · [扫码加入开源交流群](#community-and-feedback)
+**简体中文** · [English](README.en.md)
 
-AID Studio is an open-source, self-hosted workspace for motion comics, short dramas and films.
+AID Studio 是可自托管的开源影视创作工作台，适合做漫剧、短剧和短片。
+
+[在线体验](https://www.aidstudio.com.cn/) · [快速开始](#快速开始) · [产品截图](#产品预览) · [使用教程](https://gzxxaitdb.feishu.cn/docx/LZ5zdesEgo1z4Mxc7OWc7zTHnJc) · [版本发布](https://github.com/gzxx-2025/aid-studio/releases) · [交流与反馈](#交流与反馈)
 
 <p align="center">
-  <a href="https://www.aidstudio.com.cn/"><strong>Try it online</strong></a>
-  &nbsp;&nbsp;·&nbsp;&nbsp;
-  <a href="#quick-start"><strong>Deploy AID</strong></a>
-  &nbsp;&nbsp;·&nbsp;&nbsp;
-  <a href="https://gzxxaitdb.feishu.cn/docx/LZ5zdesEgo1z4Mxc7OWc7zTHnJc"><strong>User tutorials</strong></a>
-  &nbsp;&nbsp;·&nbsp;&nbsp;
-  <a href="https://github.com/gzxx-2025/aid-studio/releases"><strong>Releases</strong></a>
-  &nbsp;&nbsp;·&nbsp;&nbsp;
-  <a href="SUPPORT.md"><strong>Get help</strong></a>
+  <a href="#产品预览"><img src="references/product/product-home.jpg" alt="AID Studio 当前首页，展示剧本成片和自由画布入口" width="100%"></a><br>
+  <sub>当前 AID Studio 首页 · <a href="#产品预览">查看工作台实景</a></sub>
 </p>
 
-<p align="center">
-  <a href="#product-preview">
-    <img src="references/product/product-home.jpg" alt="Current AID Studio home page with Script to Video and Free Canvas entry points" width="100%">
-  </a><br>
-  <sub>Current AID Studio home page · <a href="#product-preview">View more product screenshots</a></sub>
-</p>
+## 交流与反馈
 
-<a id="交流与反馈"></a>
+扫码加入 AID 开源交流群，交流部署、模型配置和使用问题。也可查看[获取帮助](SUPPORT.md)。
 
-## Community and Feedback
-
-For questions about deployment, model configuration, customization or integrating your creative workflow, use the channels in [Get help](SUPPORT.md), or scan the QR code to join the community chat.
-
-**扫码加入 AID 开源交流群（中文交流 / 技术支持入口）**
-
-本群仅仅为开源交流、技术支持群，无广告，无任何隐形消费。
-
-This group is exclusively for open-source discussion and technical support, with no advertising or hidden charges.
+**本群仅仅为开源交流、技术支持群，无广告，无任何隐形消费。**
 
 <p align="center">
-  <img src="https://img.shields.io/badge/交流群说明-%E6%9C%AC%E7%BE%A4%E4%BB%85%E4%BB%85%E4%B8%BA%E5%BC%80%E6%BA%90%E4%BA%A4%E6%B5%81%E3%80%81%E6%8A%80%E6%9C%AF%E6%94%AF%E6%8C%81%E7%BE%A4%EF%BC%8C%E6%97%A0%E5%B9%BF%E5%91%8A%EF%BC%8C%E6%97%A0%E4%BB%BB%E4%BD%95%E9%9A%90%E5%BD%A2%E6%B6%88%E8%B4%B9%E3%80%82-d93025?style=for-the-badge" alt="Open-source discussion and technical support only; no advertising or hidden charges. 本群仅仅为开源交流、技术支持群，无广告，无任何隐形消费。">
+  <img src="https://img.shields.io/badge/交流群说明-%E6%9C%AC%E7%BE%A4%E4%BB%85%E4%BB%85%E4%B8%BA%E5%BC%80%E6%BA%90%E4%BA%A4%E6%B5%81%E3%80%81%E6%8A%80%E6%9C%AF%E6%94%AF%E6%8C%81%E7%BE%A4%EF%BC%8C%E6%97%A0%E5%B9%BF%E5%91%8A%EF%BC%8C%E6%97%A0%E4%BB%BB%E4%BD%95%E9%9A%90%E5%BD%A2%E6%B6%88%E8%B4%B9%E3%80%82-d93025?style=for-the-badge" alt="本群仅仅为开源交流、技术支持群，无广告，无任何隐形消费。">
 </p>
 
 <p align="center">
   <a href="references/community-qr.png">
-    <img src="references/community-qr.png" alt="AID open-source community QR code — 扫码加入开源交流群" width="220">
+    <img src="references/community-qr.png" alt="AID 开源交流群二维码" width="220">
   </a><br>
-  <sub>扫码进群：如果二维码未直接显示，可点击二维码区域查看原图。<br>Scan to join the community chat. If the QR code does not appear, click the QR code area to open the original image.</sub>
+  <sub>二维码未显示时，可点击图片查看原图。</sub>
 </p>
 
-<a id="赞助商"></a>
+## 核心能力
 
-## Sponsors
-
-| | |
-|:---:|---|
-| <a href="https://metaso.cn/minimax-h3/?s=aid-studio"><img src="references/metasota-logo.jpg" alt="秘塔科技 Meta Sota" width="170"></a> | **MiniMax H3 视频生成 API｜秘塔科技**<br>秘塔科技提供高性价比的 MiniMax H3 视频生成服务：**768P 仅 0.09 元/秒，2K 仅 0.15 元/秒**。支持原生 2K、音画同步，API 兼容 **OpenAI 协议**，同时支持 **ComfyUI**，无需自行部署 GPU。<br>🎁 通过 [aid-studio 专属链接注册](https://metaso.cn/minimax-h3/?s=aid-studio)，即可领取赠送额度及专属优惠。 |
-
-<a id="核心能力"></a>
-
-## Core Capabilities
-
-| Workspace | What you can do |
+| 工作台 | 可以做什么 |
 | --- | --- |
-| **Script-to-video workflow** | Write or import a script, prepare assets, storyboard shots, then generate clips, sync sound and preview the edit. |
-| **Infinite canvas** | Connect text, images, clips and audio. Edit each node, reuse assets and collaborate on the same canvas. |
-| **Director workbench** | Position cameras, set framing and camera paths, and check the shot in the camera monitor. |
-| **3D previs** | Build a blockout, set lighting and movement, play it on the timeline and record a preview. |
-| **Admin dashboard** | Configure models and pricing, manage Agents and Skills, and monitor compute and jobs. |
+| **流程化创作** | 撰写或导入剧本，准备角色和场景素材，按分镜生成视频，再配音、同步音画并预览成片。 |
+| **无限画布** | 用节点和连线编排文本、图片、视频、音频，复用素材并多人协作。 |
+| **导演台** | 排机位、定构图和运镜轨迹，用机位监视器检查镜头。 |
+| **3D 预演台** | 搭白模、布灯光、排动作，在时间轴上回放并录制预演片段。 |
+| **管理后台** | 配置模型、计费和业务绑定，管理 Agent、Skill、计算节点和任务。 |
 
-> The source code is licensed under [MIT](LICENSE). Model calls, storage and compute may incur costs.
+项目代码采用 [MIT 协议](LICENSE)。模型调用、存储和计算资源可能产生费用。
 
-[First project](#your-first-motion-comic-project) · [Quick start](#quick-start) · [Screenshots](#product-preview) · [Documentation](#documentation)
+## 第一个漫剧项目
 
-<a id="aid-用来做什么"></a>
+1. 管理员在「配置中心 → 模型与计费 → 模型管理」配置需要的模型，确认可用能力、业务绑定和计费后启用。
+2. 在首页选择「剧本成片」，输入创作需求或导入已有剧本，再准备角色和场景素材。
+3. 先完成一个镜头，核对分镜脚本和参考图，再生成视频。需要时添加音频和配音，预览后再扩展为整集。
+4. 需要自由组合素材时，在「自由画布」用节点和连线组织文本、图像、视频和音频。需要推演空间关系时，可从画布打开 3D 预演台。
 
-## What Is AID For?
+## 功能特性
 
-Plan a story, build a set of reusable assets and turn shots into a finished video in the same project.
+- **素材与节点工具**：复用角色、场景和道具，可裁剪、打光、做分镜构图，也可截帧、裁音频和调速。
+- **场景助手**：配置兼容的计算节点并启用后，可用文字或参考图搭建三维场景。
+- **案例广场**：成片和画布可提交审核，审核通过后公开展示。
+- **自行部署**：支持 Docker 和 systemd，后台可配置供应商、计费和任务并发。
 
-<a id="三大核心创作方向"></a>
+## 产品预览
 
-## Three Main Creative Workflows
+点击小图查看原图。创作端为示例作品，后台为测试环境。
 
-- **Motion comics and short dramas** — episodes, recurring characters and voiceovers.
-- **Short films** — shot planning, reference assets and video editing.
-- **Comics** — character sheets and sequential panels.
+### 用户端创作工作台
 
-<a id="第一个漫剧项目"></a>
+#### 流程化创作
 
-## Your First Motion Comic Project
+| 分镜与视频生成 | 分镜片段回放 |
+| :---: | :---: |
+| <a href="references/product/workflow-stages.jpg"><img src="references/product/workflow-stages.jpg" alt="分镜与视频生成" width="420"></a> | <a href="references/product/workflow-video.jpg"><img src="references/product/workflow-video.jpg" alt="分镜片段回放" width="212"></a> |
 
-Complete one storyboard shot before expanding to a full episode:
+#### 无限画布
 
-1. **Prepare your models**: After deploying AID, configure text and image models in the admin panel. Add video and speech models when you need video and voiceovers. Check their capabilities, credentials and costs before enabling them.
-2. **Create a project**: Prepare a short script, create an episode, and organize its characters and scenes.
-3. **Prepare reference assets**: Generate or upload character and scene images that you have the right to use.
-4. **Complete one storyboard shot**: Review the storyboard script and image, then choose a configured video model to generate a clip.
-5. **Add voiceovers and preview**: Add voiceovers as needed, check the visuals and audio, then continue with more shots.
-
-For static comics, skip the video and voiceover steps. See the [user tutorials](https://gzxxaitdb.feishu.cn/docx/LZ5zdesEgo1z4Mxc7OWc7zTHnJc) for page-by-page instructions, the [deployment guide](deploy/README.md) for installation questions, and [Get help](SUPPORT.md) for other questions.
-
-<a id="功能特性"></a>
-
-## Features
-
-- **Assets and node tools** — Reuse character, prop and scene references. Crop or relight an image, lay out storyboard panels, take a video frame or adjust audio speed.
-- **Camera and scene tools** — Work with camera paths, keyframes and blockout previews. Enable the Scene Assistant with compatible compute to build scenes from text or image references.
-- **Showcase** — Submit finished videos or canvases for review and publication.
-- **Self-hosting** — Install with Docker or systemd. Configure providers, pricing and task concurrency.
-
-<a id="快速开始"></a>
-
-## Quick Start
-
-<a id="生产部署"></a>
-
-### Production Deployment
-
-Start with a fresh 64-bit Linux server. With RocketMQ disabled and middleware on the same host, the minimum is **2 CPU cores / 4 GB RAM / 40 GB disk**. See the [deployment guide](deploy/README.md) for further capacity requirements and installation options.
-
-The command below saves the installer to `/root/aid-install.sh`. It downloads from Gitee first and automatically falls back to GitHub if that fails; the script runs only after a successful download. On first installation, configuration is generated first. **Review and confirm the configuration before continuing with initialization and service startup.**
-
-```bash
-cd /root && if command -v curl >/dev/null 2>&1; then curl -fL --retry 3 --connect-timeout 15 -o /root/aid-install.sh https://gitee.com/gzxx-2025/aid-studio/raw/master/deploy/aid.sh || curl -fL --retry 3 --connect-timeout 15 -o /root/aid-install.sh https://raw.githubusercontent.com/gzxx-2025/aid-studio/master/deploy/aid.sh; elif command -v wget >/dev/null 2>&1; then wget -O /root/aid-install.sh https://gitee.com/gzxx-2025/aid-studio/raw/master/deploy/aid.sh || wget -O /root/aid-install.sh https://raw.githubusercontent.com/gzxx-2025/aid-studio/master/deploy/aid.sh; else echo 'Please install curl or wget first'; exit 1; fi && sudo env AID_REMOTE_BOOTSTRAP=1 AID_RELEASE_CHANNEL=auto bash /root/aid-install.sh install
-```
-
-After installation, run `sudo aid default` to view the access URLs. **Change the administrator password immediately after your first login.** Configure and enable the required models in the admin panel, then follow [Your first motion comic project](#your-first-motion-comic-project).
+| 「乌鸦喝水」画布与素材连线 | 添加节点 |
+| :---: | :---: |
+| <a href="references/product/infinite-canvas.jpg"><img src="references/product/infinite-canvas.jpg" alt="「乌鸦喝水」画布与素材连线" width="380"></a> | <a href="references/product/canvas-node-menu.jpg"><img src="references/product/canvas-node-menu.jpg" alt="添加节点" width="165"></a> |
 
 <details>
-<summary>Expand deployment options, resource requirements and management commands</summary>
+<summary>查看节点工具</summary>
 
-`install` is the automatic entry point: it defaults to a first-time Docker installation when AID is not deployed, and checks for updates when it is already deployed. You can also choose a deployment mode explicitly:
+| 文本编辑与节点菜单 | 图片工具栏与分镜构图 |
+| :---: | :---: |
+| <a href="references/product/canvas-text-tools.jpg"><img src="references/product/canvas-text-tools.jpg" alt="文本编辑与节点菜单" width="212"></a> | <a href="references/product/canvas-image-tools.jpg"><img src="references/product/canvas-image-tools.jpg" alt="图片工具栏与分镜构图" width="420"></a> |
 
-```bash
-sudo env AID_REMOTE_BOOTSTRAP=1 AID_RELEASE_CHANNEL=auto bash /root/aid-install.sh install-docker
-sudo env AID_REMOTE_BOOTSTRAP=1 AID_RELEASE_CHANNEL=auto bash /root/aid-install.sh install-manual
-```
+| 视频工具栏与生成设置 | 运镜广场 |
+| :---: | :---: |
+| <a href="references/product/canvas-video-tools.jpg"><img src="references/product/canvas-video-tools.jpg" alt="视频工具栏与生成设置" width="302"></a> | <a href="references/product/canvas-video-moves.jpg"><img src="references/product/canvas-video-moves.jpg" alt="运镜广场" width="212"></a> |
 
-`auto` prefers stable releases; it falls back to Beta with a notice only when no installable stable release is available. Use `stable` to stay on the stable channel, and `beta` only when you explicitly want to test prerelease versions.
-
-| Deployment mode | Suitable for | Authoritative configuration | Runtime |
-|---------|---------|---------|---------|
-| Docker (recommended) | New servers and isolated middleware/runtime environments | `/data/aid/config/docker.env` | Docker Compose |
-| Manual deployment | Existing hosts, BaoTa panels or systemd-based operations | `/data/aid/aid-deploy.conf` | systemd + Nginx |
-
-The first deployment generates configuration and requires an administrator to review and confirm it. **Until configuration is confirmed, the installer does not fetch the unified source code, build programs, initialize the database or start services.** It prefers China-accessible sources for code, dependencies and images, falling back to official sources when needed. The server, admin frontend, web frontend and updater are built from the same version tag; complete logs are written to `/data/aid/logs/`. Existing dependencies with compatible versions are reused, while incomplete cached downloads are revalidated and downloaded again.
-
-Docker mode supports built-in or external MySQL 5.7, built-in or external Redis, optional RocketMQ and optional HTTPS. Configuring external MySQL prevents the built-in MySQL service from starting. The Redis username, password and database index may all be empty. When RocketMQ is disabled, MQ is neither started nor validated; when enabled, you can configure an external NameServer and ACL. Manual mode prepares JDK, Git, Maven, Node.js, Go, Nginx, MySQL 5.7 and Redis as needed. External middleware is checked only for connectivity; administrators must provision RocketMQ themselves.
-
-HTTPS requires user-facing and admin domains, port 443, a complete certificate chain and a private key. Certificates default to `/data/aid/config/ssl/`. You can also upload certificates, configure domains and test DNS, certificates and HTTPS separately in the admin panel under “Project Upgrade Configuration → Runtime Configuration”. Setting only `HTTP_PORT=443` does not enable TLS automatically.
-
-After deployment, use the same management commands for either installation mode:
-
-| Command | Purpose |
-|------|------|
-| `sudo aid` | Open the interactive management menu |
-| `sudo aid default` | Show public/private-network user and admin URLs, plus initial account information |
-| `sudo aid status` | Check service, middleware and updater status |
-| `sudo aid logs` | View runtime logs |
-| `sudo aid config` | Edit the current deployment configuration and apply it as prompted |
-| `sudo aid restart` | Reload configuration and restart services |
-| `sudo aid update` | Check for and apply updates on the current channel |
-| `sudo aid progress` | View live progress for upgrades, updater updates or rollbacks |
-| `sudo aid rollback` | Select a historical version officially permitted for rollback |
-| `sudo aid backup` | Create a deployment backup |
-| `sudo aid mysql` | Show current MySQL connection information |
-| `sudo aid uninstall --keep` | Uninstall the program while retaining data and configuration |
-| `sudo aid uninstall --purge` | Completely remove AID data after a second confirmation |
-
-**Server resource requirements** (checked automatically by the installer; below the minimum, it shows the current resources and asks for `y/n` confirmation):
-
-| Deployment | Minimum | Recommended |
-|---------|---------|---------|
-| Full local Docker stack (RocketMQ disabled) | 2 cores, 4 GB RAM / 40 GB disk | 4 cores, 8 GB RAM / 100 GB+ disk |
-| Full local Docker stack (RocketMQ enabled) | 4 cores, 4 GB RAM / 40 GB disk | 6 cores, 12 GB RAM / 100 GB+ disk |
-| Local manual deployment (middleware on the same host) | 2 cores, 4 GB RAM / 40 GB disk | 4 cores, 8 GB RAM / 100 GB+ disk |
-| Local manual deployment (RocketMQ enabled) | 4 cores, 4 GB RAM / 40 GB disk | 6 cores, 12 GB RAM / 100 GB+ disk |
-
-The 4-core/4-GB minimum with RocketMQ enabled is intended only for local setup and functional validation, and requires reduced JVM/MQ settings. For higher message volumes and MQ-based dispatch, 6 cores/12 GB or more is recommended. See “Configuration Requirements” in the [deployment guide](deploy/README.md) for tuning. OSS/COS object storage is strongly recommended for media files; local disk serves only as a fallback.
-
+<p align="center">
+  <a href="references/product/canvas-audio-tools.jpg"><img src="references/product/canvas-audio-tools.jpg" alt="音频波形与变速" width="335"></a><br>
+  <sub>音频波形与变速</sub>
+</p>
 
 </details>
 
+#### 导演台与 3D 预演台
+
+| 导演视角与机位监视器 | 3D 预演时间轴 |
+| :---: | :---: |
+| <a href="references/product/previz-scene.jpg"><img src="references/product/previz-scene.jpg" alt="导演视角与机位监视器" width="315"></a> | <a href="references/product/previz-timeline.jpg"><img src="references/product/previz-timeline.jpg" alt="3D 预演时间轴" width="420"></a> |
+
+### 管理后台
+
+| 模型与计费 | Skill 管理 |
+| :---: | :---: |
+| <a href="references/product/admin-models.jpg"><img src="references/product/admin-models.jpg" alt="模型与计费" width="400"></a> | <a href="references/product/admin-skills.jpg"><img src="references/product/admin-skills.jpg" alt="Skill 管理" width="400"></a> |
+
 <details>
-<summary>Expand local development and admin access instructions</summary>
+<summary>查看算力、任务和 Agent 配置</summary>
 
-<a id="本地开发"></a>
+| 计算节点 | 异常任务 |
+| :---: | :---: |
+| <a href="references/product/admin-compute.jpg"><img src="references/product/admin-compute.jpg" alt="计算节点" width="420"></a> | <a href="references/product/admin-tasks.jpg"><img src="references/product/admin-tasks.jpg" alt="异常任务" width="285"></a> |
 
-### Local Development
+<p align="center">
+  <a href="references/product/admin-agents.jpg"><img src="references/product/admin-agents.jpg" alt="Agent 配置" width="300"></a><br>
+  <sub>Agent 配置</sub>
+</p>
 
-Requirements: JDK 17+, Maven 3.6+, Bash, OpenSSL and Docker.
+</details>
+
+## 快速开始
+
+### 生产部署
+
+选择 64 位 Linux。中间件同机部署且未启用 RocketMQ 时，最低需要 2 核 CPU、4 GB 内存、40 GB 磁盘。完整资源要求和外置中间件配置见[部署指南](deploy/README.md)。
+
+下列命令下载统一安装器并在下载成功后运行。首次部署会先生成配置，确认后才开始初始化和启动服务。
 
 ```bash
-# 1. Start MySQL and Redis. The first run saves generated credentials in deploy/docker/.middleware.env.
-bash deploy/docker/middleware.sh up -d
-# To include RocketMQ for integration testing:
-# COMPOSE_PROFILES=mq bash deploy/docker/middleware.sh up -d
+cd /root && if command -v curl >/dev/null 2>&1; then curl -fL --retry 3 --connect-timeout 15 -o /root/aid-install.sh https://gitee.com/gzxx-2025/aid-studio/raw/master/deploy/aid.sh || curl -fL --retry 3 --connect-timeout 15 -o /root/aid-install.sh https://raw.githubusercontent.com/gzxx-2025/aid-studio/master/deploy/aid.sh; elif command -v wget >/dev/null 2>&1; then wget -O /root/aid-install.sh https://gitee.com/gzxx-2025/aid-studio/raw/master/deploy/aid.sh || wget -O /root/aid-install.sh https://raw.githubusercontent.com/gzxx-2025/aid-studio/master/deploy/aid.sh; else echo '请先安装 curl 或 wget'; exit 1; fi && sudo env AID_REMOTE_BOOTSTRAP=1 AID_RELEASE_CHANNEL=auto bash /root/aid-install.sh install
+```
 
-# 2. Build and start the backend with the saved development credentials.
+安装后运行 `sudo aid default` 查看实际访问地址和后台访问码。首次登录后及时修改管理员密码，再配置自己使用的供应商、模型能力、计费和业务入口。需要 AI 搭建 3D 场景时，在「配置中心 → 画布与预演台 → 计算节点」配置并启用对应资源。
+
+### 本地开发
+
+使用 JDK 17、Maven、Bash、OpenSSL 和 Docker。从仓库根目录启动开发用 MySQL 和 Redis，再加载生成的凭证并启动后端。Web 和后台依赖、环境变量与外置服务配置见[部署指南](deploy/README.md)。
+
+```bash
+bash deploy/docker/middleware.sh up -d
 source deploy/docker/.middleware.env
 export DB_NAME=aid_test DB_USERNAME=root DB_PASSWORD="$MYSQL_ROOT_PASSWORD"
 mvn clean package -DskipTests
 java -jar aid-admin/target/aid-admin.jar
 ```
 
-Visit `http://localhost:8080` to verify the service. The database initialization creates the administrator account `admin / admin123`; change its password immediately after the first login.
+### 在线升级
 
-All backend environment settings support environment variable overrides: `DB_*`, `REDIS_*`, `TOKEN_SECRET` (**required when starting the backend directly**), `AID_PROFILE`, `ROCKETMQ_ENABLED` (set to `false` when RocketMQ is not deployed to disable MQ wiring entirely and use local task mode), and `ROCKETMQ_NAMESERVER`.
+可从后台版本入口升级，也可运行 `sudo aid update` 后用 `sudo aid progress` 查看进度。升级会校验发布清单、备份并执行相应增量 SQL。生产环境升级与回滚请按[部署指南](deploy/README.md)的备份、容量和版本要求执行。
 
-<a id="默认访问与后台访问码"></a>
+## 公开源码目录
 
-### Default URLs and the Admin Access Code
+公开版统一使用同一版本标签，包含服务端、Web、后台管理和升级相关文件。可从 [GitHub](https://github.com/gzxx-2025/aid-studio) 或 [Gitee](https://gitee.com/gzxx-2025/aid-studio) 获取源码。
 
-After production deployment, the default URLs are as follows (use the output of `sudo aid default` for the actual ports and random access code):
+| 位置 | 内容 |
+| --- | --- |
+| `/` | Java 服务端、官方初始化与升级 SQL |
+| `frontend/web/` | Web 创作端 |
+| `frontend/admin/` | React 管理后台 |
+| `deploy/` | 部署脚本、运行说明与独立升级器 |
 
-| Entry point | Default URL | Notes |
-|------|---------|------|
-| User frontend | `http://SERVER_IP/` | Port 80 by default; adjustable through `HTTP_PORT` |
-| Admin frontend | `http://SERVER_IP:8089/<RANDOM_ACCESS_CODE>` | Port 8089 by default; first deployment generates a 12-character random access code and prints the complete URL |
-| Backend API | `http://SERVER_IP:8080/` | Port 8080 by default; usually accessed through an Nginx reverse proxy |
+### 官方资产包
 
-The database initialization creates the admin account `admin / admin123`. First deployment does not use a publicly known fixed entry path: the installer generates a 12-character random access code. Change the administrator password immediately after the first login. You can regenerate the access code under “Global Business Configuration → Login and Authentication → Admin Login Entry”. `sudo aid default` displays only the initial account information; it does not look up or reset an administrator password that has already been changed.
+示例图片、音频和视频等官方素材随对应版本单独分发。资产包沿用原有对象键，可导入到本地存储、OSS 或 COS。下载入口和 SHA-256 以[官网](https://www.aidstudio.com.cn/)及对应版本说明为准。
 
-With the random admin entry enabled, construct the login URL as follows:
+## 文档导航
 
-```text
-http://SERVER_IP:8089/<ACCESS_CODE>
-```
-
-Example (use the actual access code printed after deployment):
-
-```text
-http://localhost:8089/Ab12Cd34Ef56
-```
-
-If you configure a domain and HTTPS, append the access code to the admin site's root path in the same way:
-
-```text
-https://admin.example.com/Ab12Cd34Ef56
-```
-
-After deployment, the installer prints the complete admin login URL currently stored in the database. If you forget the access code, query the record with `category = 'admin_entry'` and `config_name = 'access_code'` in the `aid_config` table, or regenerate and save it after logging in.
-
-
-</details>
-
-<a id="配置-ai-厂商"></a>
-
-### Configure AI Providers
-
-The public repository contains the admin frontend and user creation frontend source code in [`frontend/admin`](https://github.com/gzxx-2025/aid-studio/tree/main/frontend/admin) and [`frontend/web`](https://github.com/gzxx-2025/aid-studio/tree/main/frontend/web), respectively. After startup, use “Settings → Models and Pricing → Model Management” in the admin panel to configure provider credentials, model capabilities and billing rules, then enable the models. Video and voiceover workflows also require the corresponding video and speech models.
-
-<a id="产品预览"></a>
-
-## Product Preview
-
-Select a thumbnail to open the full-size capture. The admin screens come from a test environment.
-
-### User Creation Workbench
-
-#### Script-to-Video Workflow
-
-| Storyboard and video generation | Shot playback |
-| :---: | :---: |
-| <a href="references/product/workflow-stages.jpg"><img src="references/product/workflow-stages.jpg" alt="Storyboard and video generation" width="420"></a> | <a href="references/product/workflow-video.jpg"><img src="references/product/workflow-video.jpg" alt="Shot playback" width="212"></a> |
-
-#### Infinite Canvas
-
-| The Crow and the Pitcher canvas | Add a node |
-| :---: | :---: |
-| <a href="references/product/infinite-canvas.jpg"><img src="references/product/infinite-canvas.jpg" alt="The Crow and the Pitcher canvas" width="380"></a> | <a href="references/product/canvas-node-menu.jpg"><img src="references/product/canvas-node-menu.jpg" alt="Add a node" width="165"></a> |
-
-<details>
-<summary>Node tools</summary>
-
-| Text editor and node menu | Image tools and storyboard layouts |
-| :---: | :---: |
-| <a href="references/product/canvas-text-tools.jpg"><img src="references/product/canvas-text-tools.jpg" alt="Text editor and node menu" width="212"></a> | <a href="references/product/canvas-image-tools.jpg"><img src="references/product/canvas-image-tools.jpg" alt="Image tools and storyboard layouts" width="420"></a> |
-
-| Video tools and generation settings | Camera moves |
-| :---: | :---: |
-| <a href="references/product/canvas-video-tools.jpg"><img src="references/product/canvas-video-tools.jpg" alt="Video tools and generation settings" width="302"></a> | <a href="references/product/canvas-video-moves.jpg"><img src="references/product/canvas-video-moves.jpg" alt="Camera moves" width="212"></a> |
-
-<p align="center">
-  <a href="references/product/canvas-audio-tools.jpg"><img src="references/product/canvas-audio-tools.jpg" alt="Audio waveform and speed controls" width="335"></a><br>
-  <sub>Audio waveform and speed controls</sub>
-</p>
-
-</details>
-
-#### Director Workbench and 3D Previs
-
-| Director view and camera monitor | 3D previs timeline |
-| :---: | :---: |
-| <a href="references/product/previz-scene.jpg"><img src="references/product/previz-scene.jpg" alt="Director view and camera monitor" width="315"></a> | <a href="references/product/previz-timeline.jpg"><img src="references/product/previz-timeline.jpg" alt="3D previs timeline" width="420"></a> |
-
-### Admin Dashboard
-
-| Models and pricing | Skill management |
-| :---: | :---: |
-| <a href="references/product/admin-models.jpg"><img src="references/product/admin-models.jpg" alt="Models and pricing" width="400"></a> | <a href="references/product/admin-skills.jpg"><img src="references/product/admin-skills.jpg" alt="Skill management" width="400"></a> |
-
-<details>
-<summary>Compute, tasks and Agent settings</summary>
-
-| Compute nodes | Task exceptions |
-| :---: | :---: |
-| <a href="references/product/admin-compute.jpg"><img src="references/product/admin-compute.jpg" alt="Compute nodes" width="420"></a> | <a href="references/product/admin-tasks.jpg"><img src="references/product/admin-tasks.jpg" alt="Task exceptions" width="285"></a> |
-
-<p align="center">
-  <a href="references/product/admin-agents.jpg"><img src="references/product/admin-agents.jpg" alt="Agent settings" width="300"></a><br>
-  <sub>Agent settings</sub>
-</p>
-
-</details>
-
-<a id="公开源码目录"></a>
-
-## Public Source Layout
-
-The public `aid-studio` repository is AID's unified source code and deployment release entry point. It includes the backend, admin frontend, user creation frontend, version manifests, deployment scripts, incremental SQL and standalone updater. All three application components share the same version tag.
-
-The unified public source is published to [Gitee aid-studio](https://gitee.com/gzxx-2025/aid-studio) and [GitHub aid-studio](https://github.com/gzxx-2025/aid-studio), with identical commits and tags on both platforms.
-
-| Path | Contents |
-|------|------|
-| `/` | Java backend, initialization SQL, deployment scripts and updater |
-| `frontend/admin/` | Admin frontend (React) |
-| `frontend/web/` | User creation frontend |
-
-Starting with `v1.0.1`, new versions use matching version tags in this repository. Consult the relevant release notes before obtaining or migrating historical versions. See the [deployment guide](deploy/README.md) for upgrades, backups and available rollback ranges.
-
-<a id="官方资产包"></a>
-
-## Official Asset Bundle
-
-AID's initialization data references official media resources for the platform's initial presentation and creative examples after first deployment. These include characters, scenes, props, lighting, shot sizes/focal lengths, poses, expressions, effects, storyboard examples, agent and provider icons, voice avatars and MP3 samples, homepage images and demo videos. This large asset bundle is distributed separately from the source code. It is not downloaded automatically through GitHub/Gitee Releases or one-command deployment, to avoid consuming public code-hosting bandwidth or accidentally writing to the deployer's OSS/COS storage.
-
-- The bundle contains only official files actually referenced by the `aid_init` initialization database. It excludes user-generated content, accounts, keys, logs and other business data.
-- Original object keys used by the database are preserved under `files/aid/...`. Import the bundle into local storage, Alibaba Cloud OSS or Tencent Cloud COS in one operation without bulk rewriting the initialization SQL.
-- Each file is listed in `manifest.json` and `asset-checksums.txt` inside the bundle, allowing integrity checks by path, size and SHA-256.
-- Download entry points and version-specific checksums are published through the [official website](https://www.aidstudio.com.cn/) and release announcements. Choose `aid-official-assets_<VERSION>.tar.gz` matching your application version; import commands are in the bundle's `README.md`.
-
-<a id="系统架构"></a>
-
-## System Architecture
-
-<details>
-<summary>Expand the system architecture and technology stack</summary>
-
-<p>
-  <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License">
-  <img src="https://img.shields.io/badge/Java-17-orange.svg" alt="Java">
-  <img src="https://img.shields.io/badge/Spring%20Boot-3.5-brightgreen.svg" alt="Spring Boot">
-  <img src="https://img.shields.io/badge/MySQL-5.7-4479A1.svg" alt="MySQL">
-  <img src="https://img.shields.io/badge/MyBatis--Plus-3.5-red.svg" alt="MyBatis-Plus">
-  <a href="https://github.com/gzxx-2025/aid-studio/actions/workflows/backend-build.yml"><img src="https://github.com/gzxx-2025/aid-studio/actions/workflows/backend-build.yml/badge.svg?branch=main" alt="Backend build"></a>
-  <a href="https://github.com/gzxx-2025/aid-studio/actions/workflows/admin-build.yml"><img src="https://github.com/gzxx-2025/aid-studio/actions/workflows/admin-build.yml/badge.svg?branch=main" alt="Admin build"></a>
-  <a href="https://github.com/gzxx-2025/aid-studio/actions/workflows/web-build.yml"><img src="https://github.com/gzxx-2025/aid-studio/actions/workflows/web-build.yml/badge.svg?branch=main" alt="Web build"></a>
-</p>
-
-```text
-aid-studio (Maven multi-module monolith)
-├── aid-admin        Spring Boot entry point and configuration
-├── aid-common       Shared components (security/cache/storage/payments/SMS adapters)
-├── aid-business     Web layer
-│   ├── business-framework   Web framework, data sources, filters and AOP
-│   ├── business-system      Admin APIs (/system /aid /aidconfig)
-│   ├── business-main        User APIs (/auth /api/user /recharge)
-│   ├── business-quartz      Scheduled tasks
-│   └── business-generator   Code generation
-├── aid-interface    Domain layer
-│   ├── interface-core       Core interfaces
-│   ├── interface-system     Entities, Mappers and system services
-│   └── interface-main       Business services (media/storyboards/billing/upgrades, etc.)
-├── aid-consumer     MQ consumers
-├── deploy/updater   Standalone updater (Go)
-└── frontend
-    ├── admin        Admin frontend (React)
-    └── web          User creation frontend
-```
-
-Call chain: `Controller → Service → Mapper → MySQL`. Media generation is routed to each provider's implementation through the unified orchestration layer.
-
-<a id="技术栈"></a>
-
-## Technology Stack
-
-| Category | Technology | Version |
-|------|------|------|
-| Language | Java | 17 |
-| Framework | Spring Boot | 3.5.x |
-| ORM | MyBatis-Plus | 3.5.x |
-| Database | MySQL | 5.7 |
-| Cache | Redis + Redisson | 3.x |
-| Message queue | RocketMQ | 4.x/5.x |
-| Scheduled tasks | Quartz | 2.5.x |
-| Object storage | Alibaba Cloud OSS / Tencent Cloud COS | - |
-| API documentation | SpringDoc OpenAPI | 2.8.x |
-| Updater | Go | 1.22 |
-
-</details>
-
-<a id="文档导航"></a>
-
-## Documentation
-
-| Document | Description |
-|------|------|
-| [Deployment guide](deploy/README.md) | Docker / systemd deployment, configuration, HTTPS, middleware, upgrades, rollbacks and uninstallation |
-| [Simplified Chinese README](README.zh-CN.md) | Product overview, screenshots and setup in Chinese |
-| [Contributing guide](CONTRIBUTING.md) | Reporting issues, change scope, development validation and submitting PRs |
-| [Public Provider integration guide](doc/公开Provider接入指南.md) | Text/image/video/speech Provider entry points, capability declarations, unified tasks and billing, official protocol verification and submission checks ([English](doc/public-provider-integration.md)) |
-| [Get help](SUPPORT.md) | Support channels for usage, deployment and model configuration questions |
-| [Security reports](SECURITY.md) | Report vulnerabilities privately without exposing sensitive details |
-| [Code of Conduct](CODE_OF_CONDUCT.md) | Community communication and collaboration guidelines |
-| Swagger API documentation | Visit `http://localhost:8080/swagger-ui.html` after startup (disabled by default in production) |
-
-<a id="在线升级"></a>
-
-## Online Upgrades
-
-The admin panel under “System Management → Project Upgrade Configuration” and the CLI use the same standalone updater. The page displays the current version, online version, bilingual release notes, updater status, available rollback versions and a black live terminal. Duplicate submissions are blocked while a task is running. Below 4 cores/4 GB RAM, a high-risk warning appears before confirming an upgrade.
-
-The upgrade process first checks the updater version; an outdated updater must be upgraded before continuing. It then validates the signed manifest and the unified repository's version tag, backs up configuration and the database, builds all three application components locally, applies incremental SQL, replaces programs and performs health checks. New configuration settings are added only when missing; existing values are retained, and a backup is created in the same directory. On failure, programs and configuration are restored automatically within the defined safety boundaries. During an upgrade, view the same live logs in the UI or with `sudo aid progress`; pressing `q` exits the viewer without interrupting the background task.
-
-Updates compile all three components, back up the database and run health checks, which may briefly consume substantial CPU, memory and disk I/O. For production, create an off-host backup first and run updates during low-traffic hours. Test Beta versions in a test environment first. See the [deployment guide](deploy/README.md) for complete upgrade, SQL and rollback rules.
-
-<a id="参与贡献"></a>
-
-## Contributing
-
-Issues and Pull Requests in Chinese or English are welcome. Read the [contributing guide](CONTRIBUTING.md), [Public Provider integration guide](doc/公开Provider接入指南.md) and [Code of Conduct](CODE_OF_CONDUCT.md), then choose a contribution that suits you: reproducing issues, improving documentation, fixing bugs or adapting public model protocols.
-
-- [Report an issue / suggest an improvement](https://github.com/gzxx-2025/aid-studio/issues/new/choose)
-- [Find a good first issue](https://github.com/gzxx-2025/aid-studio/issues?q=is%3Aissue%20is%3Aopen%20label%3A%22good%20first%20issue%22)
-- [Report a security issue](SECURITY.md)
-
-If AID helps you, consider starring the repository. You are also welcome to share creative examples you have the right to publish, along with your deployment experience.
+| 文档 | 内容 |
+| --- | --- |
+| [部署指南](deploy/README.md) | 安装、HTTPS、中间件、升级、备份和回滚 |
+| [公开 Provider 接入指南](doc/公开Provider接入指南.md) | 模型能力声明、调用协议、任务与计费 |
+| [贡献指南](CONTRIBUTING.md) | 反馈问题、验证代码与提交 PR |
+| [帮助](SUPPORT.md) · [安全问题](SECURITY.md) | 部署与使用支持、私下报告漏洞 |
+| [行为准则](CODE_OF_CONDUCT.md) | 社区协作 |
 
 <a id="donate"></a>
 
-## 赞赏支持 / Donate
-
-如果 AID Studio 对你有帮助，欢迎自愿赞赏，支持项目持续维护与改进。
-
-If AID Studio is useful to you, consider a voluntary donation to support ongoing maintenance and improvements.
+## 赞赏支持
 
 <p align="center">
-  <a href="references/wechat-donation.jpg">
-    <img src="references/wechat-donation.jpg" alt="微信赞赏码 / WeChat donation code" width="320">
-  </a><br>
-  <sub>微信扫码赞赏 · Scan with WeChat to donate<br>点击图片查看原图 / Click the image to view full size</sub>
+  <a href="references/wechat-donation.jpg"><img src="references/wechat-donation.jpg" alt="AID 微信赞赏码" width="320"></a>
 </p>
 
-<a id="开源协议"></a>
+## 开源协议
 
-## License
-
-This project is open source under the [MIT License](LICENSE). Copyright belongs to 光子讯息(杭州)科技有限公司 (Guangzi Xunxi (Hangzhou) Technology Co., Ltd.). See [NOTICE](NOTICE) for third-party attribution. Original copyright and license notices are preserved.
-
-<a id="鸣谢"></a>
-
-## Acknowledgements
-
-Parts of the admin framework are based on [RuoYi-Vue](https://gitee.com/y_project/RuoYi-Vue) (MIT License). We gratefully acknowledge the original project.
-
-| Community | Thanks |
-|------|------|
-| <a href="https://linux.do/"><img src="https://cdn3.ldstatic.com/original/4X/c/c/d/ccd8c210609d498cbeb3d5201d4c259348447562.png" alt="Linux.do" width="64"></a> | Thank you to the [Linux.do](https://linux.do/) community for supporting Chinese-language technical discussion and the open-source ecosystem. |
+项目采用 [MIT 协议](LICENSE)。版权归光子讯息（杭州）科技有限公司所有，第三方声明见 [NOTICE](NOTICE)。感谢 [RuoYi-Vue](https://gitee.com/y_project/RuoYi-Vue) 和 [Linux.do](https://linux.do/) 社区。

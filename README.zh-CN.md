@@ -8,7 +8,7 @@
   <a href="https://github.com/shijue-aid/aid-studio"><strong>GitHub</strong></a>&nbsp;&nbsp;<a href="https://github.com/shijue-aid/aid-studio/stargazers"><img src="https://img.shields.io/github/stars/shijue-aid/aid-studio?style=flat&amp;logo=github&amp;label=Stars" alt="GitHub Stars" height="20" align="absmiddle"></a>
 </p>
 
-**简体中文** · [English](README.md)
+**简体中文** · [English](README.en.md)
 
 AID Studio 是可自托管的开源影视创作工作台，适合做漫剧、短剧和短片。
 
@@ -178,12 +178,6 @@ java -jar aid-admin/target/aid-admin.jar
 | [贡献指南](CONTRIBUTING.md) | 反馈问题、验证代码与提交 PR |
 | [帮助](SUPPORT.md) · [安全问题](SECURITY.md) | 部署与使用支持、私下报告漏洞 |
 | [行为准则](CODE_OF_CONDUCT.md) | 社区协作 |
-
-## 赞助商
-
-<a href="https://metaso.cn/minimax-h3/?s=aid-studio"><img src="references/metasota-logo.jpg" alt="秘塔科技 Meta Sota" width="170"></a>
-
-[秘塔科技 MiniMax H3 视频生成 API](https://metaso.cn/minimax-h3/?s=aid-studio) 的档位和活动以供应商页面为准。
 
 <a id="donate"></a>
 
