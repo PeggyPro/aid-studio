@@ -6081,6 +6081,9 @@ place_artifacts() { # place_artifacts <包路径>
     if [[ -d "${pkgRoot}/${dist}" ]]; then
       rm -rf "${DATA_ROOT}/app/${dist}"
       cp -r "${pkgRoot}/${dist}" "${DATA_ROOT}/app/${dist}"
+      # 只规范对外静态目录，兼容宿主机构建或旧发布包中 0700/0600 的产物。
+      chmod -R u=rwX,go=rX -- "${DATA_ROOT}/app/${dist}" \
+        || die "无法公开静态产物文件权限: ${dist}"
       ok "${dist} 已就位"
     else
       mkdir -p "${DATA_ROOT}/app/${dist}"

@@ -2506,6 +2506,9 @@ assemble_package() {
   cp -R "$ADMIN_DIR/dist" "$STAGING_DIR/admin-dist"
   mkdir -p "$STAGING_DIR/web-dist"
   cp -R "$web_output"/. "$STAGING_DIR/web-dist/"
+  # 宿主机隔离编译使用 umask 077；发布包中的前端静态文件由非 root 网关读取。
+  chmod -R u=rwX,go=rX -- "$STAGING_DIR/admin-dist" "$STAGING_DIR/web-dist" \
+    || die '公开静态产物权限规范失败'
   [ -f "$STAGING_DIR/web-dist/index.html" ] || die 'Web 静态产物装配失败：web-dist/index.html 不存在'
   [ -f "$STAGING_DIR/web-dist/200.html" ] || die 'Web 静态产物装配失败：web-dist/200.html 不存在'
 
