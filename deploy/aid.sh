@@ -2488,10 +2488,24 @@ verify_mysql_signature_at_release() { # <keyring> <signature> <archive> <name> <
 
   # Oracle's 2022 key has expired. The pinned 5.7.44 archive was signed while it was valid.
   [[ "$name" == mysql-5.7.44-linux-glibc2.12-x86_64.tar.gz ]] \
-    && grep -Eq '^\[GNUPG:\] EXPKEYSIG ' <<< "$status" \
-    && ! grep -Eq '^\[GNUPG:\] (REVKEYSIG|BADSIG|ERRSIG) ' <<< "$status" \
     && [[ "$(sha256_file "$archive")" == 798ff0a14cdc1ab259f8a3b6a7f683403e9bbaa85957d82e5370f82b27ba6805 ]] \
     || return 1
+  # Some GnuPG builds report an expired imported key as ERRSIG/NO_PUBKEY.
+  # Accept that shape only if it identifies this exact key and signed archive.
+  awk -v expected="$fingerprint" -v releaseTime="$releaseTime" '
+    BEGIN { keyid=substr(expected,length(expected)-15) }
+    $1!="[GNUPG:]" { next }
+    $2=="EXPKEYSIG" && $3==keyid { expiredSignature=1 }
+    $2=="KEYEXPIRED" { expiredKey=1 }
+    $2=="KEY_CONSIDERED" && $3==expected { considered=1 }
+    $2=="NO_PUBKEY" && $3==keyid { unavailable=1 }
+    $2=="ERRSIG" {
+      if ($3==keyid && $7==releaseTime && $8==9 && $9==expected) unavailableSignature=1
+      else rejected=1
+    }
+    $2~/^(REVKEYSIG|BADSIG)$/ { rejected=1 }
+    END { exit !(!rejected && (expiredSignature || (expiredKey && considered && unavailable && unavailableSignature))) }
+  ' <<< "$status" || return 1
 
   status="$(GNUPGHOME="$keyring" gpg --batch --faked-system-time "$((releaseTime+86400))" \
     --status-fd 1 --verify "$signature" "$archive" 2>/dev/null)" || return 1

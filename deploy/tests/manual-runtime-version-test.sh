@@ -12,6 +12,35 @@ export AID_JAVA_PROFILE_FILE="${TMP_ROOT}/profile.d/aid-java.sh"
 source "${ROOT_DIR}/deploy/aid.sh"
 unset AID_JDK_DOWNLOAD_URL AID_MANUAL_JDK_DOWNLOAD_URL
 
+(
+  oracle_fingerprint=859BE8D7C586F538430B19C2467B942D3A79BD29
+  name=mysql-5.7.44-linux-glibc2.12-x86_64.tar.gz
+  fixture_hash=798ff0a14cdc1ab259f8a3b6a7f683403e9bbaa85957d82e5370f82b27ba6805
+  fixture_revoked=no
+  sha256_file() { printf '%s\n' "$fixture_hash"; }
+  gpg() {
+    if [[ "$*" == *'--faked-system-time 1697201558'* ]]; then
+      printf '%s\n' "[GNUPG:] VALIDSIG $oracle_fingerprint 2023-10-12 1697115158 0 4 0 1 8 00 $oracle_fingerprint"
+      return
+    fi
+    printf '%s\n' '[GNUPG:] KEYEXPIRED 1702568375' "[GNUPG:] KEY_CONSIDERED $oracle_fingerprint 1" \
+      "[GNUPG:] ERRSIG 467B942D3A79BD29 1 8 00 1697115158 9 $oracle_fingerprint" \
+      '[GNUPG:] NO_PUBKEY 467B942D3A79BD29'
+    if [[ "$fixture_revoked" == yes ]]; then printf '%s\n' '[GNUPG:] REVKEYSIG 467B942D3A79BD29 MySQL'; fi
+    return 2
+  }
+  verify_mysql_signature_at_release "$TMP_ROOT" signature archive "$name" "$oracle_fingerprint"
+  fixture_revoked=yes
+  if verify_mysql_signature_at_release "$TMP_ROOT" signature archive "$name" "$oracle_fingerprint"; then
+    echo 'FAIL: historical validation accepted a revoked key' >&2; exit 1
+  fi
+  fixture_revoked=no
+  fixture_hash=wrong
+  if verify_mysql_signature_at_release "$TMP_ROOT" signature archive "$name" "$oracle_fingerprint"; then
+    echo 'FAIL: historical validation accepted an unpinned archive' >&2; exit 1
+  fi
+)
+
 [[ "${NGINX_VERSION}" == "1.30.4" ]] || { echo 'FAIL: manual Nginx version drifted' >&2; exit 1; }
 [[ "${MYSQL_VERSION}" == "5.7.44" ]] || { echo 'FAIL: manual MySQL version drifted' >&2; exit 1; }
 [[ "${REDIS_VERSION}" == "8.0.5" ]] || { echo 'FAIL: manual Redis version drifted' >&2; exit 1; }
