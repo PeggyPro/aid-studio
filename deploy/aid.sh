@@ -3575,8 +3575,7 @@ updater_runtime_ready() { # updater_runtime_ready <docker|manual>
     docker) docker_container_running_healthy aid-updater && updater_health_fresh ;;
     manual)
       [[ -x /usr/local/bin/aid-updater ]] \
-        && systemctl list-unit-files 2>/dev/null | grep -q '^aid-updater\.service' \
-        && systemctl is-active --quiet aid-updater \
+        && systemctl is-active --quiet aid-updater.service \
         && updater_health_fresh
       ;;
     *) return 1 ;;
@@ -7888,12 +7887,7 @@ start_manual_application_stack() {
   wait_manual_static_web_healthy || return 1
 
   if [[ "${AID_SKIP_UPDATER_RESTART:-0}" != "1" ]]; then
-    setup_updater manual
-    if systemctl list-unit-files 2>/dev/null | grep -q '^aid-updater\.service' \
-        && ! systemctl is-active --quiet aid-updater; then
-      manual_service_diagnostics aid-updater "在线升级器"
-      return 1
-    fi
+    setup_updater manual || return 1
   fi
   ok "AID 后端、Web 静态站点、Nginx 与升级器已按顺序启动"
 }

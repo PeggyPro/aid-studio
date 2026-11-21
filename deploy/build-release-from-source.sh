@@ -2530,11 +2530,8 @@ assemble_package() {
   [ -f "$manager_source" ] || die "缺少部署管理脚本: $manager_source"
   mkdir -p "$STAGING_DIR/installer/deploy"
   cp "$manager_source" "$STAGING_DIR/installer/deploy/aid.sh"
-  if [ -f "$SERVER_DIR/deploy/build-release-from-source.sh" ]; then
-    cp "$SERVER_DIR/deploy/build-release-from-source.sh" "$STAGING_DIR/installer/deploy/build-release-from-source.sh"
-  else
-    cp "$SCRIPT_PATH" "$STAGING_DIR/installer/deploy/build-release-from-source.sh"
-  fi
+  # 保留本次实际执行的构建器，受管升级不应退回业务标签中的旧构建脚本。
+  install -m 0755 "$SCRIPT_PATH" "$STAGING_DIR/installer/deploy/build-release-from-source.sh"
   [ -d "$SERVER_DIR/deploy/docker" ] || die '源码缺少 deploy/docker'
   cp -R "$SERVER_DIR/deploy/docker" "$STAGING_DIR/installer/deploy/docker"
   [ -d "$SERVER_DIR/deploy/nginx" ] || die '源码缺少 deploy/nginx'
