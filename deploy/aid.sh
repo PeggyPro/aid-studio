@@ -5345,7 +5345,7 @@ confirm_first_install() { # confirm_first_install <docker|manual>
     warn "非 Docker 部署会按配置检查或准备宿主机依赖、写入 AID systemd/Nginx 配置并占用以上端口；不会自动开放防火墙或修改域名解析"
   fi
   risk "后台初始账号为 admin / admin123，首次登录后必须立即修改密码"
-  warn "官方媒体资产包体积较大且存储目标因人而异，本步骤不会静默下载或写入 OSS/COS"
+  warn "安装成功后，本地存储可以选择自动导入官方资源包；云存储请参考教程手动上传"
   unmanagedEntry="$(first_install_unmanaged_entry "${mode}" || true)"
   if [[ -n "${unmanagedEntry}" ]]; then
     risk "${DATA_ROOT} 存在非 AID 安装缓存内容（检测到: ${unmanagedEntry}）；继续前请确认这里不是其他业务的数据目录"
@@ -7438,6 +7438,73 @@ confirm_reinstall() { # confirm_reinstall <目标模式 docker|manual>
   return 0
 }
 
+# 官方资源只在全新部署完成后按用户选择导入。SHA-256 固定为已发布的附件。
+OFFICIAL_ASSETS_ARCHIVE="aid-official-assets_1.0.0-beta.2.tar.gz"
+OFFICIAL_ASSETS_SHA256="92467930753bf8c3958908b71a4474b9705f3181d8c36810e0f40e894c3713d8"
+OFFICIAL_ASSETS_DOWNLOAD_URL="https://atomgit.com/shijue-aid/aid-studio/releases/download/v3.0.0/aid-official-assets_1.0.0-beta.2.tar.gz"
+OFFICIAL_ASSETS_GUIDE="https://github.com/shijue-aid/aid-studio/blob/main/deploy/README.md"
+
+import_official_assets_locally() (
+  umask 077
+  local root="$DATA_ROOT/uploadPath" final="$DATA_ROOT/uploadPath/aid"
+  local stage="" archive archiveRoot="aid-official-assets_1.0.0-beta.2"
+  [[ -d "$root" && ! -L "$root" && ! -L "$final" ]] || return 1
+  if [[ -e "$final" ]]; then
+    [[ -d "$final" ]] || return 1
+    if [[ -n "$(find "$final" -mindepth 1 -maxdepth 1 -print -quit)" ]]; then
+      log "本地已有官方资源，保留现有文件"
+      return 0
+    fi
+  fi
+  stage="$(mktemp -d "$root/.official-assets.XXXXXXXX")" || return 1
+  trap 'rm -rf -- "$stage"' EXIT
+  archive="$stage/$OFFICIAL_ASSETS_ARCHIVE"
+
+  log "下载官方资源包，约 681 MB"
+  curl --fail --location --proto '=https' --proto-redir '=https' --retry 0 \
+    --connect-timeout 15 --max-time 900 --max-filesize 680511888 \
+    --silent --show-error --output "$archive" "$OFFICIAL_ASSETS_DOWNLOAD_URL" || return 1
+  [[ "$(sha256_file "$archive")" == "$OFFICIAL_ASSETS_SHA256" ]] || { warn "官方资源包 SHA-256 校验失败"; return 1; }
+  tar --extract --gzip --file "$archive" --directory "$stage" --strip-components=1 \
+    --no-same-owner --no-same-permissions --wildcards -- \
+    "$archiveRoot/asset-checksums.txt" "$archiveRoot/files/aid/*" || return 1
+  [[ -d "$stage/files/aid" && -s "$stage/asset-checksums.txt" ]] || return 1
+  ( cd "$stage" && sha256sum --check --strict --quiet asset-checksums.txt ) || return 1
+  chown -R --reference="$root" -- "$stage/files/aid" || return 1
+  chmod -R u=rwX,go=rX -- "$stage/files/aid" || return 1
+  # 同一文件系统内提交。若后台已上传非空目录，安装器不会覆盖它。
+  mv --no-target-directory -- "$stage/files/aid" "$final" || return 1
+  ok "官方资源包已导入本地存储"
+)
+
+offer_official_assets_import() { # offer_official_assets_import <部署前的模式>
+  [[ "$1" == none ]] || return 0
+  local mode="" answer=""
+  mode="$(database_query "SELECT config_value FROM aid_config WHERE category='oss' AND config_name='uploadMode' AND del_flag=0;" 2>/dev/null)" \
+    || { warn "无法确认存储方式，可按官方教程手动导入资源包：$OFFICIAL_ASSETS_GUIDE"; return 0; }
+  if [[ "$mode" != local ]]; then
+    log "当前存储不是本地模式，请按官方教程手动上传资源包：$OFFICIAL_ASSETS_GUIDE"
+    return 0
+  fi
+
+  section "安装已完成"
+  echo "官方资源包约 681 MB。跳过后可以在后台「项目升级配置 → 官方资源」手动导入。"
+  if [[ "${AID_ASSUME_YES:-0}" == 1 || ( ! -t 0 && ! -t 1 && ! -t 2 ) ]]; then
+    return 0
+  fi
+  if ! IFS= read -r -p "现在自动下载并导入官方资源包？（y/n）[n]: " answer </dev/tty; then
+    return 0
+  fi
+  case "$answer" in
+    y|Y)
+      if ! import_official_assets_locally; then
+        warn "官方资源包自动导入失败，AID 已安装并可使用。请参考官方教程手动导入：$OFFICIAL_ASSETS_GUIDE"
+      fi
+      ;;
+  esac
+  return 0
+}
+
 # ----------------------------------------------------------------------------
 # 首次部署：Docker
 # ----------------------------------------------------------------------------
@@ -7502,7 +7569,8 @@ do_install_docker() {
     echo "在线升级器已随部署自动运行（后台「项目升级配置」页可查看状态并一键升级）"
   fi
   echo "配置调整: 编辑 ${ENV_FILE} 后执行菜单「重启服务」生效"
-  echo "后续: 登录改密 → 配置AI厂商密钥 → 配置OSS"
+  echo "后续: 登录改密 → 配置AI厂商密钥 → 配置存储"
+  offer_official_assets_import "$existingMode"
 }
 
 # ----------------------------------------------------------------------------
@@ -7833,6 +7901,7 @@ do_install_manual() {
   state_set RELEASE_CHANNEL "${targetChannel}"
   install_management_command
   print_access_info
+  offer_official_assets_import "$existingMode"
 }
 
 # ----------------------------------------------------------------------------

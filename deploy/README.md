@@ -54,6 +54,12 @@ if command -v curl >/dev/null 2>&1; then curl -fL --retry 3 -o aid-install.sh ht
 
 > 默认渠道为 `auto`：有正式版时安装正式版；尚无正式版时才选择最新 Beta，并用黄色/红色信息明确提醒。明确需要测试版时，在一行命令的 `sudo env` 后增加 `AID_RELEASE_CHANNEL=beta`。生产服务器不要长期使用 Beta 渠道。
 
+### 导入官方资源包
+
+Docker 和手动部署首次安装完成、服务健康检查通过后，本地存储用户可以选 **y** 下载并导入官方资源包。默认 **n**，直接回车或退出也会跳过本步骤。升级、重新部署和非交互安装均跳过提示。计划使用 COS、OSS 或其他对象存储时，请跳过自动导入，再按教程上传到所选存储。
+
+自动导入只尝试一次，校验归档和其中每个文件的 SHA-256。下载或校验失败时，系统仍可使用。需要手动导入时，下载资源包，通过后台「项目升级配置 → 官方资源」上传到本地存储；使用云存储时按你的存储配置上传包内资源。[下载官方资源包](https://atomgit.com/shijue-aid/aid-studio/releases/download/v3.0.0/aid-official-assets_1.0.0-beta.2.tar.gz)
+
 ### 使用最新远程脚本更新
 
 Docker 与手动 systemd 使用同一条更新命令，脚本会从部署描述文件自动识别当前方式：

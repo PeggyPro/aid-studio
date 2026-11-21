@@ -69,6 +69,12 @@ Config file locations (printed again at the end of install; `/data/aid/config/de
 
 Empty built-in MySQL passwords and JWT secrets are filled with generated values. External database passwords are never invented.
 
+### Import official assets
+
+After the first Docker or systemd installation passes its health checks, local-storage users can answer **y** to download and import the official asset bundle. Press Enter, answer **n**, or exit to skip it. Upgrades, reinstalls, and unattended runs skip the prompt. If you plan to use COS, OSS, or another object store, skip automatic import and upload the resources to the configured store.
+
+The installer makes one attempt and checks the archive and its individual files. The application stays available if the import fails. For a manual local import, download the archive and upload it under **Project Upgrade Settings → Official Assets**. [Download the official asset bundle](https://atomgit.com/shijue-aid/aid-studio/releases/download/v3.0.0/aid-official-assets_1.0.0-beta.2.tar.gz)
+
 ### Update with the latest remote script
 
 Docker and systemd share one update command. The script reads the current mode from the deployment descriptor:
