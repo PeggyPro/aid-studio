@@ -293,8 +293,8 @@ warn() { echo -e "[$(date '+%H:%M:%S')] ${C_YELLOW}[提示]${C_RESET} $1"; }
 err()  { echo -e "[$(date '+%H:%M:%S')] ${C_RED}[失败]${C_RESET} $1" >&2; }
 die()  { err "$1"; exit 1; }
 
-MANIFEST_PRIMARY_URL="${AID_MANIFEST_URL:-https://gitee.com/gzxx-2025/aid-studio/raw/master/release/latest.json}"
-MANIFEST_FALLBACK_URL="https://raw.githubusercontent.com/gzxx-2025/aid-studio/master/release/latest.json"
+MANIFEST_PRIMARY_URL="${AID_MANIFEST_URL:-https://api.atomgit.com/api/v5/repos/shijue-aid/aid-studio/raw/release%2Flatest.json?ref=master}"
+MANIFEST_FALLBACK_URL="https://raw.githubusercontent.com/shijue-aid/aid-studio/master/release/latest.json"
 TRUSTED_MANIFEST_PUBLIC_KEY="9Ez/VMofgjCU0CNmE6Jq8LKLNyfDQqbbvNTTGV5BYrk="
 INSTALLER_ROOT="${DATA_ROOT}/installer"
 MANAGED_SCRIPT="${INSTALLER_ROOT}/deploy/aid.sh"
@@ -1540,11 +1540,10 @@ ffmpeg_runtime_usable() {
 
 ffmpeg_runtime_download_urls() { # ffmpeg_runtime_download_urls <amd64|arm64>
   local arch="$1" name="" url="" seen=$'\n'
-  local custom="" gitee="" tencent="" aliyun="" github=""
+  local custom="" tencent="" aliyun="" github=""
   local -a candidates=()
   name="ffmpeg-${FFMPEG_RUNTIME_VERSION}-${arch}-static.tar.xz"
-  gitee="https://gitee.com/gzxx-2025/aid-studio/releases/download/${FFMPEG_RUNTIME_MIRROR_TAG}/${name}"
-  github="https://github.com/gzxx-2025/aid-studio/releases/download/${FFMPEG_RUNTIME_MIRROR_TAG}/${name}"
+  github="https://github.com/shijue-aid/aid-studio/releases/download/${FFMPEG_RUNTIME_MIRROR_TAG}/${name}"
   case "${arch}" in
     amd64)
       custom="${AID_FFMPEG_PRIMARY_URL_AMD64:-}"
@@ -1555,7 +1554,7 @@ ffmpeg_runtime_download_urls() { # ffmpeg_runtime_download_urls <amd64|arm64>
       tencent="${AID_FFMPEG_TENCENT_URL_ARM64:-}"
       aliyun="${AID_FFMPEG_ALIYUN_URL_ARM64:-}" ;;
   esac
-  candidates=("${custom}" "${gitee}" "${tencent}" "${aliyun}" "${github}")
+  candidates=("${custom}" "${tencent}" "${aliyun}" "${github}")
   for url in "${candidates[@]}"; do
     [[ -n "${url}" && "${seen}" != *$'\n'"${url}"$'\n'* ]] || continue
     printf '%s\n' "${url}"
@@ -4202,9 +4201,7 @@ prepare_exact_node() {
       # unofficial-builds 项目在 glibc 2.17 上构建的同版本产物；国内地址只做
       # 字节镜像，最终仍以该项目发布的固定 SHA256 为信任边界。
       officialUrl="https://unofficial-builds.nodejs.org/download/release/v${NODE_VERSION}/${name}"
-      # 国内兼容包固定随首个采用该工具链的正式 AID Release 发布，避免为了工具链
-      # 暴露额外 Git Tag；内容仍以 Node.js unofficial-builds 固定 SHA256 为信任边界。
-      cnUrl="https://gitee.com/gzxx-2025/aid-studio/releases/download/v1.0.0-beta.2/${name}"
+      cnUrl="${officialUrl}"
       warn "检测到 glibc ${glibcVersion}，将使用 Node.js ${NODE_VERSION} 的 glibc 2.17 兼容构建"
     else
       officialUrl="https://nodejs.org/dist/v${NODE_VERSION}/${name}"
@@ -4638,7 +4635,7 @@ fetch_release_manifest() {
       warn "版本清单下载失败，尝试备用地址"
     fi
   done
-  [[ "${downloaded}" == "yes" ]] || die "无法获取官方版本清单，请检查服务器能否访问 Gitee 或 GitHub"
+  [[ "${downloaded}" == "yes" ]] || die "无法获取官方版本清单，请检查服务器能否访问 AtomGit 或 GitHub"
 }
 
 release_fields_valid() { # release_fields_valid <版本> <URL> <SHA256>
@@ -4861,7 +4858,7 @@ bootstrap_source_builder() { # bootstrap_source_builder <docker|host>
       && warn "公开 master 构建工具不可用，回退版本内置构建器；业务源码仍固定使用 v${RESOLVED_VERSION} 标签"
     remoteRef="refs/tags/${sourceRef}"
     [[ "${sourceRef}" == "master" ]] && remoteRef="refs/heads/master"
-    for base in https://gitee.com/gzxx-2025 https://github.com/gzxx-2025; do
+    for base in https://atomgit.com/shijue-aid https://github.com/shijue-aid; do
       rm -rf "${tmpDir}/server"
       log "获取源码构建器 ${sourceRef}: ${base}"
       repoUrl="${base}/aid-studio.git"
@@ -4979,7 +4976,7 @@ ensure_source_package() {
   prepare_source_build_images "${sourceBuildMode}"
   builder="${SOURCE_BUILDER_PATH}"
   section "远程源码构建 AID v${RESOLVED_VERSION}"
-  warn "只拉取统一公开仓的 v${RESOLVED_VERSION} 标签；优先 Gitee，失败时整仓回退到 GitHub"
+  warn "只拉取统一公开仓的 v${RESOLVED_VERSION} 标签；优先 AtomGit，失败时整仓回退到 GitHub"
   if [[ "${sourceBuildMode}" == "docker" ]]; then
     log "源码构建模式：Docker 容器源码构建"
     warn "首次构建需要下载 Maven/npm/Go 依赖及 Docker 构建镜像，请预留至少 15GB 磁盘与足够时间"

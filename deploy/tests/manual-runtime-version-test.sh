@@ -25,16 +25,15 @@ unset AID_JDK_DOWNLOAD_URL AID_MANUAL_JDK_DOWNLOAD_URL
   || { echo 'FAIL: FFmpeg domestic mirror release drifted' >&2; exit 1; }
 unset AID_FFMPEG_PRIMARY_URL_AMD64 AID_FFMPEG_TENCENT_URL_AMD64 AID_FFMPEG_ALIYUN_URL_AMD64
 mapfile -t ffmpeg_amd64_urls < <(ffmpeg_runtime_download_urls amd64)
-[[ "${ffmpeg_amd64_urls[0]}" == 'https://gitee.com/gzxx-2025/aid-studio/releases/download/v1.0.0-beta.6/ffmpeg-8.1.2-amd64-static.tar.xz' \
-   && "${ffmpeg_amd64_urls[1]}" == 'https://github.com/gzxx-2025/aid-studio/releases/download/v1.0.0-beta.6/ffmpeg-8.1.2-amd64-static.tar.xz' ]] \
-  || { echo 'FAIL: FFmpeg download order must be Gitee then GitHub' >&2; exit 1; }
+[[ "${ffmpeg_amd64_urls[0]}" == 'https://github.com/shijue-aid/aid-studio/releases/download/v1.0.0-beta.6/ffmpeg-8.1.2-amd64-static.tar.xz' ]] \
+   || { echo 'FAIL: FFmpeg official attachment URL changed' >&2; exit 1; }
 AID_FFMPEG_PRIMARY_URL_AMD64="${ffmpeg_amd64_urls[0]}"
 mapfile -t ffmpeg_amd64_urls < <(ffmpeg_runtime_download_urls amd64)
-[[ "${#ffmpeg_amd64_urls[@]}" -eq 2 ]] \
+[[ "${#ffmpeg_amd64_urls[@]}" -eq 1 ]] \
   || { echo 'FAIL: duplicate FFmpeg mirror URLs must be attempted only once' >&2; exit 1; }
 unset AID_FFMPEG_PRIMARY_URL_AMD64
 ! sed -n '/install_ffmpeg_runtime_version()/,/^)/p' "${ROOT_DIR}/deploy/aid.sh" | grep -q 'rank_download_urls' \
-  || { echo 'FAIL: FFmpeg installer must preserve Gitee-first fallback order' >&2; exit 1; }
+  || { echo 'FAIL: FFmpeg installer must preserve configured mirror priority' >&2; exit 1; }
 configure_ffmpeg_runtime_paths
 [[ "${FFMPEG_RUNTIME_FFMPEG}" == '/opt/aid-ffmpeg/current/ffmpeg' \
    && "${FFMPEG_RUNTIME_FFPROBE}" == '/opt/aid-ffmpeg/current/ffprobe' ]] \

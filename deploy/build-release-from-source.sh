@@ -2,7 +2,7 @@
 # AID_SOURCE_BUILD_MODE_CAPABILITY=explicit-v1
 # AID_BUILD_RESOURCE_CONTROL_CAPABILITY=governor-v1
 # AID 远程源码构建器：从统一公开仓的版本标签拉取服务端、后台管理端与 Web 源码，
-# 在临时目录完成构建并组装本地安装包。Gitee 不可用时整仓回退到 GitHub。
+# 在临时目录完成构建并组装本地安装包。AtomGit 不可用时整仓回退到 GitHub。
 
 set -eu
 
@@ -35,8 +35,8 @@ MANAGED_SWAP_FILE="${AID_BUILD_MANAGED_SWAP_FILE:-$DATA_ROOT/build-cache/.aid-sw
 BUILD_IO_WEIGHT="${AID_BUILD_IO_WEIGHT:-100}"
 PAUSED_CPU_MILLI="${AID_BUILD_PAUSED_CPU_MILLI:-50}"
 
-GITHUB_BASE="https://github.com/gzxx-2025"
-GITEE_BASE="https://gitee.com/gzxx-2025"
+GITHUB_BASE="https://github.com/shijue-aid"
+ATOMGIT_BASE="https://atomgit.com/shijue-aid"
 SERVER_REPO="aid-studio"
 GIT_IMAGE="${AID_GIT_IMAGE:-alpine/git:2.47.2}"
 MAVEN_IMAGE="${AID_MAVEN_IMAGE:-maven:3.9.9-eclipse-temurin-17}"
@@ -1407,7 +1407,7 @@ run_host_stage() {
 
 usage() {
   cat <<'EOF'
-用法: build-release-from-source.sh --version <版本> --output <tar.gz> [--work-dir <目录>] [--forge auto|github|gitee]
+用法: build-release-from-source.sh --version <版本> --output <tar.gz> [--work-dir <目录>] [--forge auto|github|atomgit]
 
 环境变量:
   AID_DATA_ROOT               数据目录，默认 /data/aid
@@ -1459,7 +1459,7 @@ case "$VERSION" in
   [0-9]*.[0-9]*.[0-9]*) ;;
   *) die "版本号不符合 SemVer: $VERSION" ;;
 esac
-case "$FORGE" in auto|github|gitee) ;; *) die "源码平台仅支持 auto、github 或 gitee" ;; esac
+case "$FORGE" in auto|github|atomgit) ;; *) die "源码平台仅支持 auto、github 或 atomgit" ;; esac
 case "$SOURCE_BUILD_MODE" in auto|docker|host) ;; *) die 'AID_SOURCE_BUILD_MODE 仅支持 auto、docker 或 host' ;; esac
 case "$DEPENDENCY_INSTALL_MODE" in auto|manual) ;; *) die 'AID_DEPENDENCY_INSTALL_MODE 仅支持 auto 或 manual' ;; esac
 case "$DEPENDENCY_REGION" in auto|cn|global) ;; *) die 'AID_DEPENDENCY_REGION 仅支持 auto、cn 或 global' ;; esac
@@ -1523,7 +1523,7 @@ detect_dependency_region() {
         RESOLVED_DEPENDENCY_REGION=cn
       elif [ -n "$detected_country" ]; then
         RESOLVED_DEPENDENCY_REGION=global
-      elif [ "${SOURCE_FORGE:-}" = gitee ]; then
+      elif [ "${SOURCE_FORGE:-}" = atomgit ]; then
         RESOLVED_DEPENDENCY_REGION=cn
       elif [ "${SOURCE_FORGE:-}" = github ]; then
         RESOLVED_DEPENDENCY_REGION=global
@@ -1804,23 +1804,23 @@ select_forge() {
         SOURCE_PROBE_OK=no
         warn "GitHub 标签探测未通过，将在拉取阶段使用显式 refs/tags/$TAG 复核"
       fi ;;
-    gitee)
-      SOURCE_BASE="$GITEE_BASE"; SOURCE_FORGE=gitee
-      if probe_forge "$GITEE_BASE"; then
+    atomgit)
+      SOURCE_BASE="$ATOMGIT_BASE"; SOURCE_FORGE=atomgit
+      if probe_forge "$ATOMGIT_BASE"; then
         SOURCE_PROBE_OK=yes
       else
         SOURCE_PROBE_OK=no
-        warn "Gitee 标签探测未通过，将在拉取阶段使用显式 refs/tags/$TAG 复核"
+        warn "AtomGit 标签探测未通过，将在拉取阶段使用显式 refs/tags/$TAG 复核"
       fi ;;
     auto)
-      log "检测 Gitee 统一源码标签 $TAG"
-      SOURCE_BASE="$GITEE_BASE"; SOURCE_FORGE=gitee
-      if probe_forge "$GITEE_BASE"; then
+      log "检测 AtomGit 统一源码标签 $TAG"
+      SOURCE_BASE="$ATOMGIT_BASE"; SOURCE_FORGE=atomgit
+      if probe_forge "$ATOMGIT_BASE"; then
         SOURCE_PROBE_OK=yes
-        log 'Gitee 可用，使用 Gitee 主源'
+        log 'AtomGit 可用，使用 AtomGit 主源'
       else
         SOURCE_PROBE_OK=no
-        warn "Gitee 标签探测未通过，先在 Gitee 使用显式 refs/tags/$TAG 复核；复核失败后才切换 GitHub"
+        warn "AtomGit 标签探测未通过，先在 AtomGit 使用显式 refs/tags/$TAG 复核；复核失败后才切换 GitHub"
       fi ;;
   esac
 }
@@ -2606,8 +2606,8 @@ STAGING_DIR="$WORK_DIR/staging"
 
 log "按版本标签拉取统一公开源码: $TAG"
 if ! clone_release_set; then
-  if [ "$FORGE" = auto ] && [ "$SOURCE_FORGE" = gitee ]; then
-    warn 'Gitee 首次拉取与同源显式标签检出均失败，现在才切换 GitHub 备用源'
+  if [ "$FORGE" = auto ] && [ "$SOURCE_FORGE" = atomgit ]; then
+    warn 'AtomGit 首次拉取与同源显式标签检出均失败，现在才切换 GitHub 备用源'
     SOURCE_BASE="$GITHUB_BASE"
     SOURCE_FORGE=github
     if probe_forge "$GITHUB_BASE"; then
@@ -2617,7 +2617,7 @@ if ! clone_release_set; then
       warn "GitHub 标签探测未通过，仍使用显式 refs/tags/$TAG 做最后复核"
     fi
     prepare_dependency_mirrors
-    clone_release_set || die "Gitee 与 GitHub 均无法完整检出统一源码标签 $TAG；请根据上方诊断区分远程标签缺文件、本地检出不完整或网络故障"
+    clone_release_set || die "AtomGit 与 GitHub 均无法完整检出统一源码标签 $TAG；请根据上方诊断区分远程标签缺文件、本地检出不完整或网络故障"
   else
     die "从 $SOURCE_FORGE 拉取并校验统一源码失败"
   fi

@@ -19,7 +19,7 @@ AID Studio is an open-source, self-hosted workspace for motion comics, short dra
   &nbsp;&nbsp;·&nbsp;&nbsp;
   <a href="https://gzxxaitdb.feishu.cn/docx/LZ5zdesEgo1z4Mxc7OWc7zTHnJc"><strong>User tutorials</strong></a>
   &nbsp;&nbsp;·&nbsp;&nbsp;
-  <a href="https://github.com/gzxx-2025/aid-studio/releases"><strong>Releases</strong></a>
+  <a href="https://github.com/shijue-aid/aid-studio/releases"><strong>Releases</strong></a>
   &nbsp;&nbsp;·&nbsp;&nbsp;
   <a href="SUPPORT.md"><strong>Get help</strong></a>
 </p>
@@ -117,10 +117,10 @@ For static comics, skip the video and voiceover steps. See the [user tutorials](
 
 Start with a fresh 64-bit Linux server. With RocketMQ disabled and middleware on the same host, the minimum is **2 CPU cores / 4 GB RAM / 40 GB disk**. See the [deployment guide](deploy/README.md) for further capacity requirements and installation options.
 
-The command below saves the installer to `/root/aid-install.sh`. It downloads from Gitee first and automatically falls back to GitHub if that fails; the script runs only after a successful download. On first installation, configuration is generated first. **Review and confirm the configuration before continuing with initialization and service startup.**
+The command below saves the installer to `/root/aid-install.sh`. It downloads from AtomGit first and automatically falls back to GitHub if that fails; the script runs only after a successful download. On first installation, configuration is generated first. **Review and confirm the configuration before continuing with initialization and service startup.**
 
 ```bash
-cd /root && if command -v curl >/dev/null 2>&1; then curl -fL --retry 3 --connect-timeout 15 -o /root/aid-install.sh https://gitee.com/gzxx-2025/aid-studio/raw/master/deploy/aid.sh || curl -fL --retry 3 --connect-timeout 15 -o /root/aid-install.sh https://raw.githubusercontent.com/gzxx-2025/aid-studio/master/deploy/aid.sh; elif command -v wget >/dev/null 2>&1; then wget -O /root/aid-install.sh https://gitee.com/gzxx-2025/aid-studio/raw/master/deploy/aid.sh || wget -O /root/aid-install.sh https://raw.githubusercontent.com/gzxx-2025/aid-studio/master/deploy/aid.sh; else echo 'Please install curl or wget first'; exit 1; fi && sudo env AID_REMOTE_BOOTSTRAP=1 AID_RELEASE_CHANNEL=auto bash /root/aid-install.sh install
+cd /root && if command -v curl >/dev/null 2>&1; then curl -fL --retry 3 --connect-timeout 15 -o /root/aid-install.sh https://api.atomgit.com/api/v5/repos/shijue-aid/aid-studio/raw/deploy%2Faid.sh?ref=master || curl -fL --retry 3 --connect-timeout 15 -o /root/aid-install.sh https://raw.githubusercontent.com/shijue-aid/aid-studio/master/deploy/aid.sh; elif command -v wget >/dev/null 2>&1; then wget -O /root/aid-install.sh https://api.atomgit.com/api/v5/repos/shijue-aid/aid-studio/raw/deploy%2Faid.sh?ref=master || wget -O /root/aid-install.sh https://raw.githubusercontent.com/shijue-aid/aid-studio/master/deploy/aid.sh; else echo 'Please install curl or wget first'; exit 1; fi && sudo env AID_REMOTE_BOOTSTRAP=1 AID_RELEASE_CHANNEL=auto bash /root/aid-install.sh install
 ```
 
 After installation, run `sudo aid default` to view the access URLs. **Change the administrator password immediately after your first login.** Configure and enable the required models in the admin panel, then follow [Your first motion comic project](#your-first-motion-comic-project).
@@ -247,7 +247,7 @@ After deployment, the installer prints the complete admin login URL currently st
 
 ### Configure AI Providers
 
-The public repository contains the admin frontend and user creation frontend source code in [`frontend/admin`](https://github.com/gzxx-2025/aid-studio/tree/main/frontend/admin) and [`frontend/web`](https://github.com/gzxx-2025/aid-studio/tree/main/frontend/web), respectively. After startup, use “Settings → Models and Pricing → Model Management” in the admin panel to configure provider credentials, model capabilities and billing rules, then enable the models. Video and voiceover workflows also require the corresponding video and speech models.
+The public repository contains the admin frontend and user creation frontend source code in [`frontend/admin`](https://github.com/shijue-aid/aid-studio/tree/main/frontend/admin) and [`frontend/web`](https://github.com/shijue-aid/aid-studio/tree/main/frontend/web), respectively. After startup, use “Settings → Models and Pricing → Model Management” in the admin panel to configure provider credentials, model capabilities and billing rules, then enable the models. Video and voiceover workflows also require the corresponding video and speech models.
 
 <a id="产品预览"></a>
 
@@ -319,7 +319,7 @@ Select a thumbnail to open the full-size capture. The admin screens come from a 
 
 The public `aid-studio` repository is AID's unified source code and deployment release entry point. It includes the backend, admin frontend, user creation frontend, version manifests, deployment scripts, incremental SQL and standalone updater. All three application components share the same version tag.
 
-The unified public source is published to [Gitee aid-studio](https://gitee.com/gzxx-2025/aid-studio) and [GitHub aid-studio](https://github.com/gzxx-2025/aid-studio), with identical commits and tags on both platforms.
+The unified public source is published to [AtomGit aid-studio](https://atomgit.com/shijue-aid/aid-studio) and [GitHub aid-studio](https://github.com/shijue-aid/aid-studio), with identical commits and tags on both platforms.
 
 | Path | Contents |
 |------|------|
@@ -333,7 +333,7 @@ Starting with `v1.0.1`, new versions use matching version tags in this repositor
 
 ## Official Asset Bundle
 
-AID's initialization data references official media resources for the platform's initial presentation and creative examples after first deployment. These include characters, scenes, props, lighting, shot sizes/focal lengths, poses, expressions, effects, storyboard examples, agent and provider icons, voice avatars and MP3 samples, homepage images and demo videos. This large asset bundle is distributed separately from the source code. It is not downloaded automatically through GitHub/Gitee Releases or one-command deployment, to avoid consuming public code-hosting bandwidth or accidentally writing to the deployer's OSS/COS storage.
+AID's initialization data references official media resources for the platform's initial presentation and creative examples after first deployment. These include characters, scenes, props, lighting, shot sizes/focal lengths, poses, expressions, effects, storyboard examples, agent and provider icons, voice avatars and MP3 samples, homepage images and demo videos. This large asset bundle is distributed separately from the source code. It is not downloaded automatically through GitHub/AtomGit Releases or one-command deployment, to avoid consuming public code-hosting bandwidth or accidentally writing to the deployer's OSS/COS storage.
 
 - The bundle contains only official files actually referenced by the `aid_init` initialization database. It excludes user-generated content, accounts, keys, logs and other business data.
 - Original object keys used by the database are preserved under `files/aid/...`. Import the bundle into local storage, Alibaba Cloud OSS or Tencent Cloud COS in one operation without bulk rewriting the initialization SQL.
@@ -353,9 +353,9 @@ AID's initialization data references official media resources for the platform's
   <img src="https://img.shields.io/badge/Spring%20Boot-3.5-brightgreen.svg" alt="Spring Boot">
   <img src="https://img.shields.io/badge/MySQL-5.7-4479A1.svg" alt="MySQL">
   <img src="https://img.shields.io/badge/MyBatis--Plus-3.5-red.svg" alt="MyBatis-Plus">
-  <a href="https://github.com/gzxx-2025/aid-studio/actions/workflows/backend-build.yml"><img src="https://github.com/gzxx-2025/aid-studio/actions/workflows/backend-build.yml/badge.svg?branch=main" alt="Backend build"></a>
-  <a href="https://github.com/gzxx-2025/aid-studio/actions/workflows/admin-build.yml"><img src="https://github.com/gzxx-2025/aid-studio/actions/workflows/admin-build.yml/badge.svg?branch=main" alt="Admin build"></a>
-  <a href="https://github.com/gzxx-2025/aid-studio/actions/workflows/web-build.yml"><img src="https://github.com/gzxx-2025/aid-studio/actions/workflows/web-build.yml/badge.svg?branch=main" alt="Web build"></a>
+  <a href="https://github.com/shijue-aid/aid-studio/actions/workflows/backend-build.yml"><img src="https://github.com/shijue-aid/aid-studio/actions/workflows/backend-build.yml/badge.svg?branch=main" alt="Backend build"></a>
+  <a href="https://github.com/shijue-aid/aid-studio/actions/workflows/admin-build.yml"><img src="https://github.com/shijue-aid/aid-studio/actions/workflows/admin-build.yml/badge.svg?branch=main" alt="Admin build"></a>
+  <a href="https://github.com/shijue-aid/aid-studio/actions/workflows/web-build.yml"><img src="https://github.com/shijue-aid/aid-studio/actions/workflows/web-build.yml/badge.svg?branch=main" alt="Web build"></a>
 </p>
 
 ```text
@@ -431,8 +431,8 @@ Updates compile all three components, back up the database and run health checks
 
 Issues and Pull Requests in Chinese or English are welcome. Read the [contributing guide](CONTRIBUTING.md), [Public Provider integration guide](doc/公开Provider接入指南.md) and [Code of Conduct](CODE_OF_CONDUCT.md), then choose a contribution that suits you: reproducing issues, improving documentation, fixing bugs or adapting public model protocols.
 
-- [Report an issue / suggest an improvement](https://github.com/gzxx-2025/aid-studio/issues/new/choose)
-- [Find a good first issue](https://github.com/gzxx-2025/aid-studio/issues?q=is%3Aissue%20is%3Aopen%20label%3A%22good%20first%20issue%22)
+- [Report an issue / suggest an improvement](https://github.com/shijue-aid/aid-studio/issues/new/choose)
+- [Find a good first issue](https://github.com/shijue-aid/aid-studio/issues?q=is%3Aissue%20is%3Aopen%20label%3A%22good%20first%20issue%22)
 - [Report a security issue](SECURITY.md)
 
 If AID helps you, consider starring the repository. You are also welcome to share creative examples you have the right to publish, along with your deployment experience.

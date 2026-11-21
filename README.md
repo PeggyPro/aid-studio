@@ -12,7 +12,7 @@
 
 AID Studio 是可自托管的开源影视创作工作台，适合做漫剧、短剧和短片。
 
-[在线体验](https://www.aidstudio.com.cn/) · [快速开始](#快速开始) · [产品截图](#产品预览) · [使用教程](https://gzxxaitdb.feishu.cn/docx/LZ5zdesEgo1z4Mxc7OWc7zTHnJc) · [版本发布](https://github.com/gzxx-2025/aid-studio/releases) · [交流与反馈](#交流与反馈)
+[在线体验](https://www.aidstudio.com.cn/) · [快速开始](#快速开始) · [产品截图](#产品预览) · [使用教程](https://gzxxaitdb.feishu.cn/docx/LZ5zdesEgo1z4Mxc7OWc7zTHnJc) · [版本发布](https://github.com/shijue-aid/aid-studio/releases) · [交流与反馈](#交流与反馈)
 
 <p align="center">
   <a href="#产品预览"><img src="references/product/product-home.jpg" alt="AID Studio 当前首页，展示剧本成片和自由画布入口" width="100%"></a><br>
@@ -133,7 +133,7 @@ AID Studio 是可自托管的开源影视创作工作台，适合做漫剧、短
 下列命令下载统一安装器并在下载成功后运行。首次部署会先生成配置，确认后才开始初始化和启动服务。
 
 ```bash
-cd /root && if command -v curl >/dev/null 2>&1; then curl -fL --retry 3 --connect-timeout 15 -o /root/aid-install.sh https://gitee.com/gzxx-2025/aid-studio/raw/master/deploy/aid.sh || curl -fL --retry 3 --connect-timeout 15 -o /root/aid-install.sh https://raw.githubusercontent.com/gzxx-2025/aid-studio/master/deploy/aid.sh; elif command -v wget >/dev/null 2>&1; then wget -O /root/aid-install.sh https://gitee.com/gzxx-2025/aid-studio/raw/master/deploy/aid.sh || wget -O /root/aid-install.sh https://raw.githubusercontent.com/gzxx-2025/aid-studio/master/deploy/aid.sh; else echo '请先安装 curl 或 wget'; exit 1; fi && sudo env AID_REMOTE_BOOTSTRAP=1 AID_RELEASE_CHANNEL=auto bash /root/aid-install.sh install
+cd /root && if command -v curl >/dev/null 2>&1; then curl -fL --retry 3 --connect-timeout 15 -o /root/aid-install.sh https://api.atomgit.com/api/v5/repos/shijue-aid/aid-studio/raw/deploy%2Faid.sh?ref=master || curl -fL --retry 3 --connect-timeout 15 -o /root/aid-install.sh https://raw.githubusercontent.com/shijue-aid/aid-studio/master/deploy/aid.sh; elif command -v wget >/dev/null 2>&1; then wget -O /root/aid-install.sh https://api.atomgit.com/api/v5/repos/shijue-aid/aid-studio/raw/deploy%2Faid.sh?ref=master || wget -O /root/aid-install.sh https://raw.githubusercontent.com/shijue-aid/aid-studio/master/deploy/aid.sh; else echo '请先安装 curl 或 wget'; exit 1; fi && sudo env AID_REMOTE_BOOTSTRAP=1 AID_RELEASE_CHANNEL=auto bash /root/aid-install.sh install
 ```
 
 安装后运行 `sudo aid default` 查看实际访问地址和后台访问码。首次登录后及时修改管理员密码，再配置自己使用的供应商、模型能力、计费和业务入口。需要 AI 搭建 3D 场景时，在「配置中心 → 画布与预演台 → 计算节点」配置并启用对应资源。
@@ -156,7 +156,7 @@ java -jar aid-admin/target/aid-admin.jar
 
 ## 公开源码目录
 
-公开版统一使用同一版本标签，包含服务端、Web、后台管理和升级相关文件。可从 [GitHub](https://github.com/gzxx-2025/aid-studio) 或 [Gitee](https://gitee.com/gzxx-2025/aid-studio) 获取源码。
+公开版统一使用同一版本标签，包含服务端、Web、后台管理和升级相关文件。可从 [GitHub](https://github.com/shijue-aid/aid-studio) 或 [AtomGit](https://atomgit.com/shijue-aid/aid-studio) 获取源码。
 
 | 位置 | 内容 |
 | --- | --- |
