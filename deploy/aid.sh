@@ -294,6 +294,7 @@ err()  { echo -e "[$(date '+%H:%M:%S')] ${C_RED}[失败]${C_RESET} $1" >&2; }
 die()  { err "$1"; exit 1; }
 
 MANIFEST_PRIMARY_URL="${AID_MANIFEST_URL:-https://api.atomgit.com/api/v5/repos/shijue-aid/aid-studio/raw/release%2Flatest.json?ref=master}"
+MANIFEST_CDN_URL="https://cdn.aidstudio.com.cn/aid/release/latest.json"
 MANIFEST_FALLBACK_URL="https://raw.githubusercontent.com/shijue-aid/aid-studio/master/release/latest.json"
 TRUSTED_MANIFEST_PUBLIC_KEY="9Ez/VMofgjCU0CNmE6Jq8LKLNyfDQqbbvNTTGV5BYrk="
 INSTALLER_ROOT="${DATA_ROOT}/installer"
@@ -4659,8 +4660,10 @@ fetch_release_manifest() {
   mkdir -p "${DATA_ROOT}/packages"
   RESOLVED_MANIFEST_PATH="${DATA_ROOT}/packages/latest.json"
   local candidate="${RESOLVED_MANIFEST_PATH}.new" url downloaded="no"
-  for url in "${MANIFEST_PRIMARY_URL}" "${MANIFEST_FALLBACK_URL}"; do
+  for url in "${MANIFEST_PRIMARY_URL}" "${MANIFEST_CDN_URL}" "${MANIFEST_FALLBACK_URL}"; do
     [[ -n "${url}" ]] || continue
+    # 清单很小且内容会更新，切换来源前从头拉取。
+    rm -f -- "${candidate}" "${candidate}.part"
     if try_download "${url}" "${candidate}" "官方版本清单"; then
       if [[ "$(wc -c < "${candidate}")" -le 262144 ]] \
           && grep -q '"schemaVersion"' "${candidate}" \
@@ -4674,7 +4677,7 @@ fetch_release_manifest() {
       warn "版本清单下载失败，尝试备用地址"
     fi
   done
-  [[ "${downloaded}" == "yes" ]] || die "无法获取官方版本清单，请检查服务器能否访问 AtomGit 或 GitHub"
+  [[ "${downloaded}" == "yes" ]] || die "无法获取官方版本清单，请检查服务器能否访问 AtomGit、官方 CDN 或 GitHub"
 }
 
 release_fields_valid() { # release_fields_valid <版本> <URL> <SHA256>

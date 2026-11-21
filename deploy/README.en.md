@@ -11,6 +11,8 @@ This directory holds the AID installer and related deployment files. You do not 
 
 **AID's main data root defaults to `/data/aid`**: application files (`app/`), managed installer and Docker files (`installer/`), uploads (`uploadPath/` and private archive `uploadPath-private/`), logs (`logs/`), built-in MySQL/Redis/RocketMQ data, backups (`backups/`), local source-build packages (`packages/`), dependency cache (`build-cache/`) and the manual config file (`aid-deploy.conf`). For a complete host backup or migration, also account for the updater config and state in `/etc/aid-updater/` and `/var/lib/aid-updater/` (see below), plus any external middleware or object storage you configured. Copying `/data/aid` alone is not a complete backup in those cases.
 
+The installer reads the signed release manifest from AtomGit, then the official CDN and GitHub when needed. Source checkouts keep their AtomGit and GitHub order.
+
 ## Layout
 
 ```text

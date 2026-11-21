@@ -197,7 +197,7 @@ MySQL 首次启动会创建 `aid_test`。之后沿用已保存的凭证。升级
 
 ## 一、版本标签源码构建
 
-正常部署和更新都由 `aid.sh` 自动处理，不需要用户访问发布页。版本清单、源码标签和小型升级器均以 AtomGit 为主源、GitHub 为备用源；源码平台会先实际检测 `aid-server` 统一公开仓是否存在目标标签，失败后整仓切换到 GitHub。构建固定使用 `v<版本>` 标签，绝不拉取会继续变化的 `master`，也不会在同一次构建中混用两个平台。服务端位于仓库根目录，后台管理端与 Web 用户端分别位于 `frontend/admin` 和 `frontend/web`。
+正常部署和更新都由 `aid.sh` 自动处理，不需要用户访问发布页。签名版本清单优先从 AtomGit 读取，依次回退官方 CDN 和 GitHub。源码标签与小型升级器以 AtomGit 为主源、GitHub 为备用源；源码平台会先实际检测 `aid-server` 统一公开仓是否存在目标标签，失败后整仓切换到 GitHub。构建固定使用 `v<版本>` 标签，绝不拉取会继续变化的 `master`，也不会在同一次构建中混用两个平台。服务端位于仓库根目录，后台管理端与 Web 用户端分别位于 `frontend/admin` 和 `frontend/web`。
 
 源码构建按部署方式强制隔离，不以“服务器上是否恰好安装 Docker”自动判断：Docker 部署与 Docker 升级固定传入 `AID_SOURCE_BUILD_MODE=docker`，只使用容器完成三端构建；手动 systemd 部署与升级固定传入 `AID_SOURCE_BUILD_MODE=host`，只使用宿主机的 Git、JDK、Node.js、Maven 和 Go，**不会探测、拉取或调用 Docker**。该变量由官方 `aid.sh` 和在线升级器自动设置，管理员无需手工配置；`auto` 仅保留给直接运行构建器的开发调试场景。
 
