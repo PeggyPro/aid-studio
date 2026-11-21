@@ -6283,7 +6283,9 @@ write_updater_config() { # write_updater_config <docker|manual>
     write_deployment_descriptor systemd "${configPath}"
   fi
   # 密码等值经 python/awk 不可靠，凭证字符已由 validate_secret 约束（无引号反斜杠），可安全嵌入 JSON
-  cat > "${UPDATER_CONFIG_FILE}" <<EOF
+  local stagedConfig
+  stagedConfig="$(mktemp "${UPDATER_CONFIG_FILE}.tmp.XXXXXXXX")" || return 1
+  if ! cat > "${stagedConfig}" <<EOF
 {
   "healthFile": "${UPDATER_DATA_DIR}/health.json",
   "taskFile": "${UPDATER_DATA_DIR}/inbox/task.json",
@@ -6326,7 +6328,14 @@ write_updater_config() { # write_updater_config <docker|manual>
   }
   }
 EOF
-  chmod 600 "${UPDATER_CONFIG_FILE}"
+  then
+    rm -f -- "${stagedConfig}"
+    return 1
+  fi
+  if ! mv -f -- "${stagedConfig}" "${UPDATER_CONFIG_FILE}"; then
+    rm -f -- "${stagedConfig}"
+    return 1
+  fi
   write_aid_updater_markers
 }
 
@@ -7533,8 +7542,11 @@ offer_official_assets_import() { # offer_official_assets_import <部署前的模
 # ----------------------------------------------------------------------------
 # 首次部署：Docker
 # ----------------------------------------------------------------------------
-do_install_docker() {
+do_install_docker() (
   require_root
+  # 安装包、静态资源和数据库初始化文件由非 root 服务读取。
+  # 在部署子进程固定公开文件的默认权限，凭证文件继续单独使用 0600。
+  umask 022
   local existingMode package targetVersion targetChannel
   existingMode="$(detect_mode)"
   confirm_reinstall docker || return 0
@@ -7596,7 +7608,7 @@ do_install_docker() {
   echo "配置调整: 编辑 ${ENV_FILE} 后执行菜单「重启服务」生效"
   echo "后续: 登录改密 → 配置AI厂商密钥 → 配置存储"
   offer_official_assets_import "$existingMode"
-}
+)
 
 # ----------------------------------------------------------------------------
 # 首次部署：手动（systemd）
@@ -7866,8 +7878,11 @@ start_manual_application_stack() {
   ok "AID 后端、Web 静态站点、Nginx 与升级器已按顺序启动"
 }
 
-do_install_manual() {
+do_install_manual() (
   require_root
+  # 安装包、静态资源和数据库初始化文件由非 root 服务读取。
+  # 在部署子进程固定公开文件的默认权限，凭证文件继续单独使用 0600。
+  umask 022
   local existingMode package targetVersion targetChannel
   existingMode="$(detect_mode)"
   confirm_reinstall manual || return 0
@@ -7927,7 +7942,7 @@ do_install_manual() {
   install_management_command
   print_access_info
   offer_official_assets_import "$existingMode"
-}
+)
 
 # ----------------------------------------------------------------------------
 # 更新到指定版本（两种模式通用）
