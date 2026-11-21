@@ -3,7 +3,7 @@
 <a id="source-repositories"></a>
 
 <p align="center">
-  <a href="https://atomgit.com/shijue-aid/aid-studio"><strong>AtomGit</strong></a>&nbsp;&nbsp;<a href="https://atomgit.com/shijue-aid/aid-studio"><img src="https://atomgit.com/shijue-aid/aid-studio/star/new_badge.svg" alt="AtomGit Stars" height="20" align="absmiddle"></a>
+  <a href="https://atomgit.com/shijue-aid/aid-studio"><strong>AtomGit</strong></a>&nbsp;&nbsp;<a href="https://atomgit.com/shijue-aid/aid-studio"><img src="https://atomgit.com/shijue-aid/aid-studio/star/badge.svg" alt="AtomGit Stars" height="20" align="absmiddle"></a>
   &ensp;·&ensp;
   <a href="https://github.com/shijue-aid/aid-studio"><strong>GitHub</strong></a>&nbsp;&nbsp;<a href="https://github.com/shijue-aid/aid-studio/stargazers"><img src="https://img.shields.io/github/stars/shijue-aid/aid-studio?style=flat&amp;logo=github&amp;label=Stars" alt="GitHub Stars" height="20" align="absmiddle"></a>
 </p>
