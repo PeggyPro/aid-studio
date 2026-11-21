@@ -2478,6 +2478,31 @@ mysql_gpg_key_fingerprint() { # mysql_gpg_key_fingerprint <公钥文件>
   gpg_primary_key_fingerprint "$1"
 }
 
+verify_mysql_signature_at_release() { # <keyring> <signature> <archive> <name> <fingerprint>
+  local keyring="$1" signature="$2" archive="$3" name="$4" fingerprint="$5"
+  local status="" releaseTime=1697115158
+  if status="$(GNUPGHOME="$keyring" gpg --batch --status-fd 1 --verify "$signature" "$archive" 2>/dev/null)" \
+      && ! grep -Eq '^\[GNUPG:\] (EXPKEYSIG|REVKEYSIG|BADSIG|ERRSIG) ' <<< "$status"; then
+    return 0
+  fi
+
+  # Oracle's 2022 key has expired. The pinned 5.7.44 archive was signed while it was valid.
+  [[ "$name" == mysql-5.7.44-linux-glibc2.12-x86_64.tar.gz ]] \
+    && grep -Eq '^\[GNUPG:\] EXPKEYSIG ' <<< "$status" \
+    && ! grep -Eq '^\[GNUPG:\] (REVKEYSIG|BADSIG|ERRSIG) ' <<< "$status" \
+    && [[ "$(sha256_file "$archive")" == 798ff0a14cdc1ab259f8a3b6a7f683403e9bbaa85957d82e5370f82b27ba6805 ]] \
+    || return 1
+
+  status="$(GNUPGHOME="$keyring" gpg --batch --faked-system-time "$((releaseTime+86400))" \
+    --status-fd 1 --verify "$signature" "$archive" 2>/dev/null)" || return 1
+  awk -v expected="$fingerprint" -v releaseTime="$releaseTime" '
+    $1=="[GNUPG:]" && $2=="VALIDSIG" && $3==expected && $5==releaseTime { found=1 }
+    $1=="[GNUPG:]" && $2~/^(EXPKEYSIG|REVKEYSIG|BADSIG|ERRSIG)$/ { rejected=1 }
+    END { exit !(found && !rejected) }
+  ' <<< "$status" || return 1
+  ok "MySQL 官方归档 SHA-256 与签发时的 GPG 签名均已验证"
+}
+
 verify_mysql_archive_signature() { # verify_mysql_archive_signature <归档> <文件名> <缓存目录> [摘要说明]
   local archive="$1" name="$2" cacheDir="$3" digestLabel="${4:-Oracle 官方 MD5}"
   local keyFile signatureFile fingerprint gpgHome
@@ -2508,12 +2533,12 @@ verify_mysql_archive_signature() { # verify_mysql_archive_signature <归档> <�
     || { rm -rf -- "${gpgHome}"; die "MySQL GPG 公钥导入失败"; }
   # 临时 keyring 中只导入了上方已核对主指纹的 Oracle 公钥；签名可由其认证子密钥完成，
   # 因此以 gpg 的完整验签退出码为准，不能把 VALIDSIG 的签名子密钥指纹误当成主指纹。
-  if ! GNUPGHOME="${gpgHome}" gpg --batch --verify "${signatureFile}" "${archive}" >/dev/null 2>&1; then
+  if ! verify_mysql_signature_at_release "${gpgHome}" "${signatureFile}" "${archive}" "${name}" "${expected}"; then
     warn "MySQL GPG 签名缓存校验失败，删除缓存并重新下载官方签名"
     rm -f -- "${signatureFile}" "${signatureFile}.part"
     if ! try_download "https://downloads.mysql.com/archives/gpg/?file=${name}&p=23" \
         "${signatureFile}" "MySQL归档GPG签名" \
-        || ! GNUPGHOME="${gpgHome}" gpg --batch --verify "${signatureFile}" "${archive}" >/dev/null 2>&1; then
+        || ! verify_mysql_signature_at_release "${gpgHome}" "${signatureFile}" "${archive}" "${name}" "${expected}"; then
       rm -rf -- "${gpgHome}"
       die "MySQL ${MYSQL_VERSION} GPG 签名校验失败，已拒绝安装"
     fi

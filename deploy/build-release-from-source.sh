@@ -647,7 +647,7 @@ load_stage_profile() {
       STAGE_CPU_MILLI="$MAVEN_CPU_MILLI"; STAGE_MEMORY_HIGH_MB="$MAVEN_MEMORY_HIGH_MB"
       STAGE_MEMORY_MAX_MB="$MAVEN_MEMORY_MAX_MB"; STAGE_SWAP_MAX_MB="$MAVEN_SWAP_MAX_MB"; STAGE_PIDS_MAX="$MAVEN_PIDS_MAX"
       ;;
-    node)
+    node|web)
       STAGE_CPU_MILLI="$NODE_CPU_MILLI"; STAGE_MEMORY_HIGH_MB="$NODE_MEMORY_HIGH_MB"
       STAGE_MEMORY_MAX_MB="$NODE_MEMORY_MAX_MB"; STAGE_SWAP_MAX_MB="$NODE_SWAP_MAX_MB"; STAGE_PIDS_MAX="$NODE_PIDS_MAX"
       ;;
@@ -708,6 +708,17 @@ apply_realtime_stage_budget() {
       STAGE_NODE_HEAP_MB="$NODE_HEAP_MB"
       [ "$STAGE_NODE_HEAP_MB" -le "$runtime_heap_cap_mb" ] || STAGE_NODE_HEAP_MB="$runtime_heap_cap_mb"
       STAGE_NODE_OPTIONS_VALUE="--max-old-space-size=${STAGE_NODE_HEAP_MB}"
+      ;;
+    web)
+      # Next runs a webpack worker alongside npm/Next parent processes. Keep space
+      # for their native memory and use provisioned swap without raising the RAM cap.
+      runtime_heap_cap_mb=$((combined_budget_mb - 768))
+      [ "$runtime_heap_cap_mb" -ge 1536 ] \
+        || die "$stage_label 的内存和Swap不足；请增加可用Swap或内存后重试"
+      STAGE_NODE_HEAP_MB=3072
+      [ "$STAGE_NODE_HEAP_MB" -le "$runtime_heap_cap_mb" ] || STAGE_NODE_HEAP_MB="$runtime_heap_cap_mb"
+      STAGE_NODE_OPTIONS_VALUE="--max-old-space-size=${STAGE_NODE_HEAP_MB}"
+      log "[资源][$stage_label] Next.js V8 堆 ${STAGE_NODE_HEAP_MB}MiB，进程及原生内存预留 768MiB"
       ;;
     go)
       runtime_limit_cap_mb=$((combined_budget_mb - 128))
@@ -856,7 +867,7 @@ start_docker_stage() {
   set -- -e LANG=C.UTF-8 -e LC_ALL=C.UTF-8 "$@"
   case "$stage_name" in
     maven) set -- -e "MAVEN_OPTS=$STAGE_MAVEN_OPTS_VALUE" "$@" ;;
-    node) set -- -e "NODE_OPTIONS=$STAGE_NODE_OPTIONS_VALUE" "$@" ;;
+    node|web) set -- -e "NODE_OPTIONS=$STAGE_NODE_OPTIONS_VALUE" "$@" ;;
     go) set -- -e "GOMEMLIMIT=$STAGE_GO_MEMORY_LIMIT" -e "GOMAXPROCS=$STAGE_GO_MAX_PROCS" "$@" ;;
   esac
   STAGE_SEQUENCE=$((STAGE_SEQUENCE + 1))
@@ -1114,7 +1125,7 @@ start_host_stage() {
   apply_realtime_stage_budget "$stage_name" "$stage_label"
   case "$stage_name" in
     maven) set -- env LANG=C.UTF-8 LC_ALL=C.UTF-8 "MAVEN_OPTS=$STAGE_MAVEN_OPTS_VALUE" "$@" ;;
-    node) set -- env LANG=C.UTF-8 LC_ALL=C.UTF-8 "NODE_OPTIONS=$STAGE_NODE_OPTIONS_VALUE" "$@" ;;
+    node|web) set -- env LANG=C.UTF-8 LC_ALL=C.UTF-8 "NODE_OPTIONS=$STAGE_NODE_OPTIONS_VALUE" "$@" ;;
     go) set -- env LANG=C.UTF-8 LC_ALL=C.UTF-8 "GOMEMLIMIT=$STAGE_GO_MEMORY_LIMIT" "GOMAXPROCS=$STAGE_GO_MAX_PROCS" "$@" ;;
     *) set -- env LANG=C.UTF-8 LC_ALL=C.UTF-8 "$@" ;;
   esac
@@ -2363,7 +2374,9 @@ docker_npm_build() {
       || die "$label npm@$npm_version ci 失败；如日志出现 EUSAGE/Missing，请同步提交 package.json 与 package-lock.json"
   fi
   log "[构建][$label][编译] npm@$npm_version run $npm_script，使用源: $selected_registry"
-  run_docker_stage node "$label npm $npm_script" --user "$uid_gid" -e NUXT_TELEMETRY_DISABLED=1 \
+  compile_stage=node
+  [ "$npm_script" != generate ] || compile_stage=web
+  run_docker_stage "$compile_stage" "$label npm $npm_script" --user "$uid_gid" -e NUXT_TELEMETRY_DISABLED=1 \
     -e "AID_NPM_VERSION=$npm_version" -e "AID_NPM_SCRIPT=$npm_script" \
     -e "npm_config_registry=$selected_registry" -e npm_config_cache=/cache/npm \
     -v "$source_dir:/workspace" -v "$cache_dir:/cache/npm" \
@@ -2386,7 +2399,9 @@ host_npm_build() {
       || die "$label npm@$npm_version ci 失败；如日志出现 EUSAGE/Missing，请同步提交 package.json 与 package-lock.json"
   fi
   log "[构建][$label][编译] npm@$npm_version run $npm_script，使用源: $selected_registry"
-  run_host_stage node "$label npm $npm_script" "$source_dir" env NUXT_TELEMETRY_DISABLED=1 \
+  compile_stage=node
+  [ "$npm_script" != generate ] || compile_stage=web
+  run_host_stage "$compile_stage" "$label npm $npm_script" "$source_dir" env NUXT_TELEMETRY_DISABLED=1 \
     "npm_config_registry=$selected_registry" "npm_config_cache=$cache_dir" \
     npm exec --yes "--package=npm@$npm_version" -- npm run "$npm_script"
   log "[构建][$label][完成] 生产构建成功"
