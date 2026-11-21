@@ -29,7 +29,7 @@
   line-height: 1;
 }
 
-.composer-send-button.has-leading-content > img,
+.composer-send-button.has-leading-content > .composer-send-button__glyph,
 .composer-send-button.has-leading-content > .composer-send-button__spinner,
 .composer-send-button.has-leading-content > .composer-send-button__icon-layer {
   position: absolute;
@@ -77,7 +77,7 @@
   pointer-events: none;
 }
 
-.composer-send-button__icon-layer img {
+.composer-send-button__glyph {
   display: block;
   width: 32px;
   height: 32px;
@@ -89,14 +89,14 @@
   display: grid;
   place-items: center;
   border-radius: 16px;
-  background: rgba(28, 30, 34, 0.72);
+  background: var(--studio-ui-surface, rgba(28, 30, 34, 0.72));
 }
 
 .composer-send-button__spinner::after {
   width: 16px;
   height: 16px;
-  border: 2px solid rgba(142, 151, 165, 0.28);
-  border-top-color: #4ae7fd;
+  border: 2px solid var(--studio-ui-border, rgba(142, 151, 165, 0.28));
+  border-top-color: var(--studio-ui-border-strong, #4ae7fd);
   border-radius: 50%;
   animation: composer-send-spin 0.75s linear infinite;
   content: '';
@@ -114,7 +114,7 @@
 
 @keyframes composer-send-pause-ready {
   50% {
-    box-shadow: 0 0 0 4px rgba(74, 231, 253, 0.055);
+    box-shadow: var(--ui-no-shadow, 0 0 0 4px var(--studio-ui-shine, rgba(74, 231, 253, 0.055)));
   }
 }
 

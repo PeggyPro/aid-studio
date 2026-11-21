@@ -1,4 +1,4 @@
-/** 棣栭〉妗堜緥骞垮満锛氳繘鍏ヨ鎯呭墠淇濆瓨婊氬姩锛岃繑鍥炲悗鎭㈠鍒扮偣鍑讳綔鍝侀檮杩?*/
+/** 首页案例广场：进入详情前保存滚动，返回后恢复到点击作品附近 */
 
 export const HOME_GALLERY_SCROLL_STORAGE_KEY = 'aid:home-gallery-scroll:v1'
 
@@ -87,7 +87,9 @@ export function consumeHomeGalleryScrollSnapshot(
 }
 
 /**
- * 鍏堟仮澶嶇粷瀵?scrollTop锛堢€戝竷娴佽櫄鎷熷垪琛ㄦ湭鎸傝浇鐩爣鍗℃椂涔熷彲鐢級锛? * 鑻ュ崱鐗囧凡鍦?DOM 鍐嶅井璋冨埌灞呬腑銆? */
+ * 先恢复绝对 scrollTop（瀑布流虚拟列表未挂载目标卡时也可用），
+ * 若卡片已在 DOM 再微调到居中。
+ */
 export function restoreHomeGalleryScroll(snapshot: HomeGalleryScrollSnapshot): void {
   const el = getHomeMainScrollEl()
   if (!el) return

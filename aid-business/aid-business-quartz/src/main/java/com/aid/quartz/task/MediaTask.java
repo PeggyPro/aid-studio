@@ -1,9 +1,11 @@
 package com.aid.quartz.task;
 
+import com.aid.billing.service.AssistantBillingBudgetRecoveryService;
 import com.aid.billing.service.BillingFacadeService;
 import com.aid.media.service.IMediaBillingService;
 import com.aid.media.service.IMediaGenerationService;
 import com.aid.media.service.TaskDispatchService;
+import com.aid.media.reconciliation.MediaSubmissionReconciliationService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -41,7 +43,13 @@ public class MediaTask {
     private TaskDispatchService taskDispatchService;
 
     @Autowired
+    private MediaSubmissionReconciliationService mediaSubmissionReconciliationService;
+
+    @Autowired
     private IMediaBillingService mediaBillingService;
+
+    @Autowired
+    private AssistantBillingBudgetRecoveryService assistantBillingBudgetRecoveryService;
 
     @Autowired
     private com.aid.media.provider.impl.TencentMediaTemporaryCleanup tencentMediaTemporaryCleanup;
@@ -78,6 +86,7 @@ public class MediaTask {
             int limit = batchSize != null && batchSize > 0 ? batchSize : 50;
 
             // 1) 到期轮询：扫描 next_poll_time <= NOW() 的任务。
+            int submissionReconciled = mediaSubmissionReconciliationService.reconcileDueSubmissions(limit);
             int polled = taskDispatchService.dispatchDueTasks(limit);
 
             // 2) 回调超时转轮询：扫描 callback_deadline <= NOW() 的 WAIT_CALLBACK 任务。
@@ -92,7 +101,8 @@ public class MediaTask {
             // 5) 排队任务兜底拉起：完成事件丢失 / 重启后仍按 FIFO 扫描 QUEUED，尝试抢占并发坑位拉起（CAS 防重）。
             int queuedDrained = mediaGenerationService.drainQueuedCompensate(limit);
 
-            if (polled > 0 || expired > 0 || reconciled > 0 || staleClosed > 0 || queuedDrained > 0) {
+            if (submissionReconciled > 0 || polled > 0 || expired > 0 || reconciled > 0
+                    || staleClosed > 0 || queuedDrained > 0) {
                 log.info("调度中心执行完成, polled={}, expired={}, reconciled={}, staleClosed={}, queuedDrained={}",
                     polled, expired, reconciled, staleClosed, queuedDrained);
             }
@@ -150,9 +160,11 @@ public class MediaTask {
         }
         try {
             int limit = batchSize != null && batchSize > 0 ? batchSize : 50;
-            int handled = mediaBillingService.retryStaleBillings(limit);
-            if (handled > 0) {
-                log.info("媒体计费补偿完成, handled={}", handled);
+            int legacyHandled = mediaBillingService.retryStaleBillings(limit);
+            int budgetHandled = assistantBillingBudgetRecoveryService.reconcileTerminalMediaTasks(limit);
+            if (legacyHandled > 0 || budgetHandled > 0) {
+                log.info("media billing recovery completed, legacyHandled={}, budgetHandled={}",
+                        legacyHandled, budgetHandled);
             }
         } finally {
             billingCompensateRunning.set(false);

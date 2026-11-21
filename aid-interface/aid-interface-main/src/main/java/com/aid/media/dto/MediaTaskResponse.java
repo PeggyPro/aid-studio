@@ -1,6 +1,7 @@
 package com.aid.media.dto;
 
 import com.aid.common.aid.oss.annotation.MediaUrl;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.Builder;
 import lombok.Data;
 
@@ -12,6 +13,16 @@ public class MediaTaskResponse {
 
     // 平台任务ID：前端轮询主键。
     private Long taskId;
+
+    // 画布任务的绑定身份；其它媒体接口不填充这些字段。
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private String workspaceId;
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private String objectId;
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private Long inputObjectVersion;
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private String operationId;
 
     // 媒体类型：IMAGE / VIDEO / TEXT。
     private String mediaType;
@@ -31,6 +42,12 @@ public class MediaTaskResponse {
     // 预计进度与剩余时间；终态前最高 95%，终态才返回 100%。
     private TaskEtaVO eta;
 
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private String executionPhase;
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private String queueWaitReason;
+
+
     // 上游厂商任务ID：用于排查上游任务。
     private String providerTaskId;
 
@@ -47,6 +64,8 @@ public class MediaTaskResponse {
 
     /** 本轮函数调用；思考上下文只在首次同步结果中返回，历史查询不恢复。 */
     @lombok.ToString.Exclude
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    @com.alibaba.fastjson2.annotation.JSONField(serialize = false, deserialize = false)
     private MediaTextGenerateRequest.TextMessageItem toolMessage;
 
     /** true 表示带有本次工具续轮完整上下文；历史查询为 false，不可据此重新调用模型。 */
@@ -87,6 +106,9 @@ public class MediaTaskResponse {
     // 实际扣费金额（元）。
     private BigDecimal actualCost;
 
+    /** Optional composite billing audit: ESTIMATED / PARTIAL_PROVIDER_USAGE / PROVIDER_USAGE / UNVERIFIED_PROVIDER_USAGE. */
+    private String settlementUsageSource;
+
     // 计费模式：FIXED / SKU。
     private String billingMode;
 
@@ -95,4 +117,7 @@ public class MediaTaskResponse {
      * TTS 同步合成 / 合成任务成功时有值，其余场景为 null。
      */
     private Long outputDurationSeconds;
+
+    /** 全部音频变体、格式副本、分轨及附属文件；role与variantIndex保持原任务顺序。 */
+    private java.util.List<com.aid.media.provider.AudioOutputItem> audioOutputs;
 }

@@ -120,7 +120,7 @@ export const PROMPT_TYPE_OPTIONS: EnumOption<string>[] = [
 export const MODEL_TYPE_OPTIONS: EnumOption<string>[] = [
   { label: '生图', value: 'image', elTagType: 'primary' },
   { label: '生视频', value: 'video', elTagType: 'success' },
-  { label: '配音', value: 'audio', elTagType: 'warning' },
+  { label: '音频', value: 'audio', elTagType: 'warning' },
   { label: '文本', value: 'text', elTagType: '' }
 ];
 

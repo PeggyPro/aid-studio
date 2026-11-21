@@ -1,0 +1,115 @@
+@property --home-composer-angle {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+
+@keyframes home-composer-flow {
+  to {
+    --home-composer-angle: 360deg;
+  }
+}
+
+.home-composer-flow {
+  position: relative;
+  isolation: isolate;
+}
+
+.home-composer-flow::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  border-radius: inherit;
+  padding: 1.5px;
+  background: linear-gradient(
+    90deg,
+    rgba(110, 237, 246, 1) 0%,
+    rgba(70, 137, 245, 1) 50%,
+    rgba(116, 248, 197, 1) 100%
+  );
+  pointer-events: none;
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+}
+
+.home-composer-flow.is-flowing::before,
+.home-composer-flow:hover::before,
+.home-composer-flow:focus-within::before {
+  background: conic-gradient(
+    from var(--home-composer-angle),
+    rgba(110, 237, 246, 0) 0deg,
+    rgba(110, 237, 246, 0.25) 40deg,
+    rgba(110, 237, 246, 1) 80deg,
+    rgba(70, 137, 245, 1) 140deg,
+    rgba(116, 248, 197, 1) 200deg,
+    rgba(110, 237, 246, 0.2) 250deg,
+    rgba(110, 237, 246, 0) 310deg
+  );
+  box-shadow: 0 0 18px rgba(110, 237, 246, 0.28);
+  animation: home-composer-flow 2.4s linear infinite;
+}
+
+.home-composer-flow--dialog {
+  --home-composer-flow-from: rgba(38, 41, 49, 0.5);
+  --home-composer-flow-to: rgba(142, 151, 165, 0.5);
+}
+
+.home-composer-flow--dialog::before {
+  background: conic-gradient(
+    from 135deg,
+    rgba(38, 41, 49, 0.5),
+    rgba(142, 151, 165, 0.5),
+    rgba(38, 41, 49, 0.5)
+  );
+}
+
+.home-composer-flow--dialog.is-flowing::before,
+.home-composer-flow--dialog:hover::before,
+.home-composer-flow--dialog:focus-within::before {
+  background: conic-gradient(
+    from var(--home-composer-angle),
+    rgba(38, 41, 49, 0.5) 0deg,
+    rgba(142, 151, 165, 0.5) 120deg,
+    rgba(38, 41, 49, 0.5) 240deg,
+    rgba(142, 151, 165, 0.5) 300deg,
+    rgba(38, 41, 49, 0.5) 360deg
+  );
+  box-shadow: 0 0 18px rgba(142, 151, 165, 0.28);
+}
+
+.home-composer-flow > * {
+  position: relative;
+  z-index: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-composer-flow.is-flowing::before,
+  .home-composer-flow:hover::before,
+  .home-composer-flow:focus-within::before {
+    animation: none;
+    background: linear-gradient(
+      90deg,
+      rgba(110, 237, 246, 1),
+      rgba(70, 137, 245, 1),
+      rgba(116, 248, 197, 1)
+    );
+  }
+
+  .home-composer-flow--dialog.is-flowing::before,
+  .home-composer-flow--dialog:hover::before,
+  .home-composer-flow--dialog:focus-within::before {
+    background: conic-gradient(
+      from 135deg,
+      rgba(38, 41, 49, 0.5),
+      rgba(142, 151, 165, 0.5),
+      rgba(38, 41, 49, 0.5)
+    );
+  }
+}

@@ -1,0 +1,27 @@
+.director-actor-actions { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.director-actor-actions__hint { margin: 0; color: var(--studio-ui-muted, #aeb5bf); font-size: 12px; line-height: 1.65; }
+.director-actor-actions__toolbar, .director-action-form__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.director-actor-actions__empty { padding: 18px 12px; border-radius: 10px; color: var(--studio-ui-muted, #aeb5bf); background: var(--studio-ui-field, rgba(255,255,255,.04)); font-size: 12px; line-height: 1.65; }
+.director-actor-actions__list { display: flex; flex-direction: column; gap: 6px; }
+.director-actor-actions__list > button { display: grid; grid-template-columns: 22px minmax(0,1fr) auto; align-items: center; gap: 7px; min-height: 38px; padding: 8px; color: var(--studio-ui-text, #e9edf4); background: var(--studio-ui-field, rgba(255,255,255,.04)); border: 1px solid transparent; border-radius: 8px; text-align: left; cursor: pointer; }
+.director-actor-actions__list > button > span { color: var(--studio-ui-muted, #aeb5bf); font-size: 11px; }
+.director-actor-actions__list strong { font-size: 12px; font-weight: 600; overflow-wrap: anywhere; }
+.director-actor-actions__list small { color: var(--studio-ui-muted, #aeb5bf); font-size: 11px; font-variant-numeric: tabular-nums; }
+.director-actor-actions__list > button:hover { background: var(--studio-ui-hover, rgba(255,255,255,.06)); }
+.director-actor-actions__list > button.is-active { color: var(--studio-ui-selected-ink, #e9edf4); background: var(--studio-ui-selected); box-shadow: var(--studio-ui-selected-shadow); }
+.director-action-form { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; padding: 12px; border: 1px solid var(--studio-ui-border, rgba(255,255,255,.1)); border-radius: 12px; background: var(--studio-ui-popover, #25282d); }
+.director-action-field { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
+.director-action-field > span { color: var(--studio-ui-muted, #aeb5bf); font-size: 12px; }
+.director-action-field .ant-input-number { width: 100%; color: var(--studio-ui-text, #e9edf4); background: var(--studio-ui-field, rgba(255,255,255,.04)); border-color: var(--studio-ui-border, rgba(255,255,255,.1)); border-radius: 8px; }
+.director-action-field--wide, .director-action-form__actions, .director-action-form__snapshot { grid-column: 1/-1; }
+.director-action-field .studio-canvas-dropdown-popover__trigger { display: block; width: 100%; }
+.director-action-field .studio-image-ai-panel__select, .director-legacy-motion { display: flex; align-items: center; gap: 8px; width: 100%; padding: 9px 10px; color: var(--studio-ui-text, #e9edf4); background: var(--studio-ui-field, rgba(255,255,255,.04)); border: 1px solid var(--studio-ui-border, rgba(255,255,255,.1)); border-radius: 8px; cursor: pointer; }
+.director-action-field .studio-image-ai-panel__select em, .director-legacy-motion em { flex: 1; text-align: left; font-style: normal; font-size: 12px; }
+.director-actor-actions button:focus-visible { outline: 2px solid var(--studio-ui-accent, #3758b5); outline-offset: 2px; }
+.director-actor-actions__error { margin: 0; color: var(--studio-ui-text, #e9edf4); padding: 10px; border-left: 3px solid #c44b5a; background: color-mix(in srgb, #c44b5a 8%, transparent); border-radius: 6px; font-size: 12px; line-height: 1.6; }
+.director-action-modal :is(.ant-modal-content,.ant-modal-container) { color: var(--studio-ui-text, #e9edf4); background: var(--studio-ui-modal, #23262b); border-radius: var(--studio-theme-radius,18px); box-shadow: var(--studio-ui-popover-shadow); }
+.director-action-modal .ant-modal-header { background: transparent; }
+.director-action-modal :is(.ant-modal-title,.ant-modal-close) { color: var(--studio-ui-text, #e9edf4); }
+.director-action-modal .ant-modal-body { max-height: min(680px,calc(100dvh - 160px)); overflow-y: auto; padding-top: 12px; }
+.director-timeline__lane--action { --lane-color: var(--director-accent); background: var(--studio-ui-field,rgba(255,255,255,.025)); }
+.director-timeline__clip--action { background: var(--studio-ui-selected); color: var(--studio-ui-selected-ink,var(--director-text)); border-color: var(--director-line-strong); box-shadow: var(--studio-ui-selected-shadow); }

@@ -1,0 +1,2 @@
+html[data-studio-free-theme] { --recharge-surface:var(--studio-ui-modal); --recharge-control:var(--studio-ui-control); --recharge-text:var(--studio-ui-text); --recharge-muted:var(--studio-ui-muted); --recharge-accent:var(--studio-ui-accent); }
+html[data-studio-free-theme] :is(.recharge-orders-drawer,.recharge-consume-drawer) :is(.ant-drawer-header,.ant-drawer-body) { color:var(--studio-ui-text); background:var(--studio-ui-modal); }

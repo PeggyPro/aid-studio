@@ -14,6 +14,9 @@ public enum MeterType {
     /** 按视频秒数计费（阿里/即梦视频等） */
     PER_SECOND,
 
+    /** Whole minute units, rounded up; used by server-owned media processing quotes. */
+    PER_MINUTE,
+
     /** Upstream metered credits with a configured RMB unit price. */
     PER_CREDIT,
 

@@ -63,7 +63,18 @@ public class RocketMqConfigManager
     {
         log.info("刷新消息队列开关配置...");
 
-        Map<String, String> allConfig = configService.getConfigValues(CATEGORY);
+        // These two switches are optional. The required-category API throws when
+        // MQ has never been configured, preventing the documented defaults from applying.
+        // Read both before replacing the snapshot so database failures remain visible.
+        Map<String, String> allConfig = new HashMap<>();
+        for (String key : new String[] { "mqType", "enabled" })
+        {
+            String value = configService.getConfigValue(CATEGORY, key);
+            if (value != null)
+            {
+                allConfig.put(key, value);
+            }
+        }
         configCache.clear();
         if (allConfig != null)
         {

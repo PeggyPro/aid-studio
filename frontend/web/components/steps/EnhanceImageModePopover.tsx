@@ -303,7 +303,7 @@ export function EnhanceImageModePopover({
                     <div className="enhance-mode-title-row">
                       <span className="enhance-mode-title">{opt.title}</span>
                       <span className="enhance-mode-cost">
-                        （消耗
+                        （预估
                         <img src={assetUrl(coinIcon)} alt="" className="enhance-mode-coin" />
                         {opt.coins}/张）
                       </span>

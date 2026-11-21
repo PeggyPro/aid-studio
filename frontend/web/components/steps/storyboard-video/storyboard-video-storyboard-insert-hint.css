@@ -4,7 +4,7 @@
 .create-step-storyboard-video .storyboard-insert-hint {
   flex: 1 1 100%;
   font-size: 0.72rem;
-  color: var(--home-muted, #8e97a5);
+  color: var(--home-muted, var(--ui-muted, #8e97a5));
   margin-left: 36px;
   line-height: 1.3;
 }

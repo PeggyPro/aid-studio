@@ -51,7 +51,7 @@ import {
   parseStoryScriptAgentPrompt
 } from '~/utils/storyScriptAgentReference'
 import { normalizeUserSkillInputRequest } from '~/utils/storyScriptAgentClarification'
-import { resolveFlowShortcutSkillCode } from '~/utils/storyScriptAgentSkillPicker'
+import { resolveFlowShortcutSkillCode } from '@/config/studioCanvasEmptyGuide'
 import { bindRuntimeMessages, historyRunMessages, mergeHydratedMessages } from '~/utils/storyScriptAgentMessages'
 
 const RUN_POLL_INTERVAL_MS = 2400
@@ -87,7 +87,7 @@ interface UseStoryScriptAgentOptions {
   projectTitle: string
   projectStyle: string
   enabled?: boolean
-  /** 剧本步骤页只暴露当前创作所需的编剧 Skill。 */
+  /** 剧本步骤页只暴露编剧 Skill；流程画布需要完整 Runtime 目录，才能点卡片引入对应能力。 */
   catalogScope?: 'screenplay' | 'all'
 }
 

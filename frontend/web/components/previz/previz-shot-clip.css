@@ -1,0 +1,10 @@
+.pv-shot-lane > .pv-shot-clip { position: absolute; inset-block: 2px; min-width: 1px; margin-right: 2px; padding: 0; border: 1px solid var(--pv-border); border-radius: 5px; background: var(--pv-raised); overflow: hidden; }
+.pv-shot-clip .pv-shot-select { display: flex; align-items: center; gap: 8px; width: 100%; height: 100%; min-width: 0; padding: 4px 14px; border: 0; background: transparent; color: var(--pv-text); text-align: left; cursor: pointer; }
+.pv-shot-clip > .studio-canvas-tooltip-trigger { display: contents; }
+.pv-shot-clip .pv-shot-handle { position: absolute; top: 0; bottom: 0; width: 12px; max-width: 50%; padding: 0; border: 0; border-radius: 0; background: transparent; color: var(--pv-muted); cursor: ew-resize; touch-action: none; }
+.pv-shot-clip .pv-shot-handle.is-start { left: 0; }
+.pv-shot-clip .pv-shot-handle.is-end { right: 0; }
+.pv-shot-handle::after { content: ''; display: block; width: 3px; height: 55%; min-height: 8px; margin: auto; border-inline: 1px solid currentColor; }
+.pv-shot-handle:disabled { opacity: .25; cursor: default; }
+.pv-shot-clip .pv-shot-handle:hover:not(:disabled), .pv-shot-clip .pv-shot-handle:focus-visible { background: var(--pv-hover); color: var(--pv-text); outline: 1px solid var(--pv-accent); outline-offset: -1px; }
+.pv-shot-clip.is-dragging { border-color: var(--pv-accent); }

@@ -154,8 +154,10 @@ public class BillingQuoteServiceImpl implements BillingQuoteService
         }
         String meterType = result.getSnapshot() == null
                 ? null : result.getSnapshot().getMeterType();
+        BigDecimal amount = result.getAmount();
         if ("TOKEN".equalsIgnoreCase(meterType)
-                && (result.getAmount() == null || result.getAmount().compareTo(BigDecimal.ZERO) <= 0))
+                && (amount == null || amount.signum() < 0
+                    || (amount.signum() == 0 && !Boolean.TRUE.equals(modelConfig.getIsFree()))))
         {
             throw new ServiceException("暂无法预估");
         }

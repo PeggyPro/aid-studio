@@ -10,6 +10,7 @@
 }
 
 .asset-card-cancel-icon__img {
+  filter: var(--ui-icon-filter, none);
   display: block;
   width: 16px;
   height: 16px;
@@ -23,11 +24,11 @@
   padding: 6px 10px;
   font-size: 12px;
   line-height: 1.25;
-  color: rgba(255, 255, 255, 0.95);
+  color: var(--ui-text, rgba(255, 255, 255, 0.95));
   white-space: nowrap;
   border-radius: 8px;
-  border: 1px solid rgba(74, 231, 253, 0.3);
-  background: rgba(74, 231, 253, 0.3);
+  border: 1px solid var(--ui-hair, rgba(74, 231, 253, 0.3));
+  background: var(--ui-raised, rgba(74, 231, 253, 0.3));
   pointer-events: none;
   user-select: none;
 }

@@ -9,6 +9,7 @@ import { loadUploadLimits, resolveMaxSizeMb } from '@/utils/uploadLimits';
 interface Props {
   value?: string; // 逗号分隔
   onChange?: (value: string) => void;
+  disabled?: boolean;
   action?: string;
   maxCount?: number;
   maxSize?: number;
@@ -17,6 +18,12 @@ interface Props {
   name?: string;
   /** 自定义从单次上传响应体中解析出 url（兼容不同上传接口的返回结构） */
   parseResponse?: (resp: any) => string | undefined;
+  /** 随 multipart 上传提交的额外受控字段。 */
+  extraData?: UploadProps['data'];
+  /** 单个文件业务上传成功并解析出 URL 后触发。 */
+  onUploadSuccess?: (url: string, response: any) => void;
+  /** 上传请求开始或全部结束时触发，供外层表单与保存操作互斥。 */
+  onUploadingChange?: (uploading: boolean) => void;
 }
 
 const DEFAULT_ACTION = `${import.meta.env.VITE_APP_BASE_API || ''}/common/upload`;
@@ -33,12 +40,16 @@ function defaultParse(resp: any): string | undefined {
 export default function ImageUpload({
   value,
   onChange,
+  disabled = false,
   action = DEFAULT_ACTION,
   maxCount = 5,
   maxSize = 10,
   accept = 'image/*',
   name,
-  parseResponse
+  parseResponse,
+  extraData,
+  onUploadSuccess,
+  onUploadingChange
 }: Props) {
   const initial: UploadFile[] = (value ? value.split(',').filter(Boolean) : []).map(
     (url, idx) => ({
@@ -59,6 +70,14 @@ export default function ImageUpload({
    * 用于区分"外部回填（编辑/重置）"与"自身上传触发的变更"。
    */
   const lastEmittedRef = useRef<string | undefined>(value);
+  const reportedUploadRef = useRef(new Set<string>());
+  const uploadingRef = useRef(false);
+
+  const emitUploading = (uploading: boolean) => {
+    if (uploadingRef.current === uploading) return;
+    uploadingRef.current = uploading;
+    onUploadingChange?.(uploading);
+  };
 
   /**
    * 受控同步：当外部 value 变化（如编辑弹窗回填、表单重置）且并非本组件自身 onChange 引起时，
@@ -85,19 +104,28 @@ export default function ImageUpload({
     accept,
     maxCount,
     name,
+    disabled,
+    data: extraData,
     listType: 'picture-card',
     fileList,
     headers: { Authorization: getToken() ? `Bearer ${getToken()}` : '' },
     beforeUpload: async (file) => {
+      emitUploading(true);
       // 优先遵循后台「文件存储 → 上传大小限制」配置（按文件后缀命中类型）；拿不到再回退组件 maxSize
-      const limits = await loadUploadLimits();
-      const backendMax = resolveMaxSizeMb(file.name, limits);
-      const effectiveMax = backendMax ?? maxSize;
-      if (effectiveMax && file.size / 1024 / 1024 > effectiveMax) {
-        message.error(`文件大小不能超过 ${effectiveMax}MB`);
-        return Upload.LIST_IGNORE;
+      try {
+        const limits = await loadUploadLimits();
+        const backendMax = resolveMaxSizeMb(file.name, limits);
+        const effectiveMax = backendMax ?? maxSize;
+        if (effectiveMax && file.size / 1024 / 1024 > effectiveMax) {
+          message.error(`文件大小不能超过 ${effectiveMax}MB`);
+          emitUploading(false);
+          return Upload.LIST_IGNORE;
+        }
+        return true;
+      } catch (cause) {
+        emitUploading(false);
+        throw cause;
       }
-      return true;
     },
     onChange: ({ file, fileList: list }) => {
       // 上传失败提示：antd 对 HTTP 非 2xx 只标红不提示，nginx 413（请求体超 client_max_body_size）会返回
@@ -123,6 +151,7 @@ export default function ImageUpload({
         .map((item) => (item.uid === file.uid && businessFailed ? { ...item, status: 'error' as const } : item))
         .slice(-maxCount);
       setFileList(next);
+      emitUploading(next.some((item) => item.status === 'uploading'));
       const done = next.filter((f) => f.status === 'done');
       const parse = parseResponse || defaultParse;
       const urls = done
@@ -132,6 +161,13 @@ export default function ImageUpload({
       // 记录本次向外抛出的值，避免受控同步 useEffect 把上传结果又重置回去
       lastEmittedRef.current = urls;
       onChange?.(urls);
+      if (file.status === 'done' && !businessFailed && !reportedUploadRef.current.has(file.uid)) {
+        const uploadedUrl = parse(file.response) || file.url;
+        if (uploadedUrl) {
+          reportedUploadRef.current.add(file.uid);
+          onUploadSuccess?.(uploadedUrl, file.response);
+        }
+      }
     },
     onPreview: (file) => {
       setPreview({ visible: true, url: file.url || (file as any).thumbUrl });
@@ -141,7 +177,7 @@ export default function ImageUpload({
   return (
     <>
       <Upload {...props}>
-        {fileList.length < maxCount && (
+        {!disabled && fileList.length < maxCount && (
           <div>
             <PlusOutlined />
             <div style={{ marginTop: 4, fontSize: 12 }}>上传</div>

@@ -51,7 +51,7 @@
   }
 
   html.app-shell-create .select-asset-image-modal-wrap .saim-sidebar-scroll:hover::-webkit-scrollbar-thumb {
-    background: rgba(120, 140, 170, 0.45) !important;
+    background: var(--ui-raised, rgba(120, 140, 170, 0.45)) !important;
     border-radius: 4px !important;
   }
 
@@ -85,7 +85,7 @@
   }
 
   html.app-shell-create .select-asset-image-modal-wrap .saim-main-scroll:hover::-webkit-scrollbar-thumb {
-    background: rgba(120, 140, 170, 0.45) !important;
+    background: var(--ui-raised, rgba(120, 140, 170, 0.45)) !important;
     border-radius: 4px !important;
   }
 

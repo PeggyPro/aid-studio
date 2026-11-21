@@ -23,13 +23,16 @@ export interface CreateFlowGlobalSettingContext {
       'selectedStyle' | 'myStyles' | 'style' | 'styleSelectionTouched' | 'styleLocked'
     >
   ) => void
-  save: () => Promise<void>
+  save: () => Promise<boolean>
+  contentConfigLocked?: boolean
+  contentConfigLockReason?: 'storyboard' | 'assets'
 }
 
 /** 成品预览页注册到壳层的导出能力（顶栏「导出视频」下拉调用） */
 export interface PreviewExportBridge {
   exportFullVideo: () => Promise<{
     videoUrl: string
+    needReaudit?: boolean
     episodeEditorId?: number
   } | null>
   exportSegments: () => Promise<void>
@@ -60,7 +63,9 @@ export interface CreateFlowShellContext {
   registerPreviewExportBridge: (bridge: PreviewExportBridge | null) => void
   /** 完整导出成功通知（含刷新恢复场景）：壳层自动保存成片至本地 */
   notifyPreviewExportSuccess: (videoUrl: string) => void
+  /** 内嵌 Studio 用：注册“先提交最新编辑器内容再 flush”的剧本保存桥。 */
   registerStoryScriptFlush?: (flush: (() => Promise<StoryScriptFlushResult>) | null) => void
+  /** 内嵌 Studio 用：项目配置 hydrate 时保持当前显式剧集 scope。 */
   embeddedEpisodeId?: number | null
 }
 

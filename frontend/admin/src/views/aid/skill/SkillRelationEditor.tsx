@@ -4,7 +4,7 @@ import type { FormInstance } from 'antd';
 
 import {
   getSkillDependencyLabels, listSkillDependencyOptions, listSkillDependencyVersionOptions,
-  type SkillDependencyOption, type SkillDependencyVersionOption, type SkillPackagePayload
+  type SkillDependencyOption, type SkillDependencyVersionOption, type SkillId, type SkillPackagePayload
 } from '@/api/aid/skill';
 
 interface PagedResult<T> {
@@ -12,7 +12,7 @@ interface PagedResult<T> {
   total?: number;
 }
 
-function useRemotePages<T extends { id?: number; skillId?: number }>(
+function useRemotePages<T extends { id?: SkillId; skillId?: SkillId }>(
   enabled: boolean,
   loader: (pageNum: number, keyword?: string) => Promise<PagedResult<T>>
 ) {
@@ -38,8 +38,8 @@ function useRemotePages<T extends { id?: number; skillId?: number }>(
       const incoming = response.data || [];
       setItems((current) => {
         if (reset) return incoming;
-        const existing = new Set(current.map((item) => item.id ?? item.skillId));
-        return [...current, ...incoming.filter((item) => !existing.has(item.id ?? item.skillId))];
+        const existing = new Set(current.map((item) => String(item.id ?? item.skillId)));
+        return [...current, ...incoming.filter((item) => !existing.has(String(item.id ?? item.skillId)))];
       });
       setTotal(Number(response.total || 0));
       setPageNum(nextPage);
@@ -97,13 +97,13 @@ function reachedBottom(event: React.UIEvent<HTMLDivElement>) {
 
 interface SkillRelationEditorProps {
   name: number;
-  parentSkillId: number;
+  parentSkillId: SkillId;
   form: FormInstance<SkillPackagePayload>;
   disabled: boolean;
-  skillLabels: Record<number, string>;
-  versionLabels: Record<number, string>;
-  onSkillLabel: (skillId: number, label: string) => void;
-  onVersionLabel: (versionId: number, label: string) => void;
+  skillLabels: Record<string, string>;
+  versionLabels: Record<string, string>;
+  onSkillLabel: (skillId: SkillId, label: string) => void;
+  onVersionLabel: (versionId: SkillId, label: string) => void;
   onRemove: () => void;
 }
 
@@ -132,7 +132,7 @@ export default function SkillRelationEditor({
     const result = skills.items.map((item) => ({
       value: item.skillId, label: `${item.name}（${item.skillCode}）`
     }));
-    if (childSkillId && !result.some((item) => item.value === childSkillId)) {
+    if (childSkillId && !result.some((item) => String(item.value) === String(childSkillId))) {
       result.unshift({ value: childSkillId, label: skillLabels[childSkillId] || `Skill #${childSkillId}` });
     }
     return result;
@@ -142,38 +142,38 @@ export default function SkillRelationEditor({
     const result = versions.items.map((item) => ({
       value: item.id, label: `${item.versionCode}${item.current ? '（当前）' : ''}`
     }));
-    if (childVersionId && !result.some((item) => item.value === childVersionId)) {
+    if (childVersionId && !result.some((item) => String(item.value) === String(childVersionId))) {
       result.unshift({ value: childVersionId, label: versionLabels[childVersionId] || `版本 #${childVersionId}` });
     }
     return result;
   }, [childVersionId, versionLabels, versions.items]);
 
   useEffect(() => {
-    const selected = skills.items.find((item) => item.skillId === childSkillId);
+    const selected = skills.items.find((item) => String(item.skillId) === String(childSkillId));
     if (selected) onSkillLabel(selected.skillId, `${selected.name}（${selected.skillCode}）`);
   }, [childSkillId, onSkillLabel, skills.items]);
 
   useEffect(() => {
-    const selected = versions.items.find((item) => item.id === childVersionId);
+    const selected = versions.items.find((item) => String(item.id) === String(childVersionId));
     if (selected) onVersionLabel(selected.id, `${selected.versionCode}${selected.current ? '（当前）' : ''}`);
   }, [childVersionId, onVersionLabel, versions.items]);
 
   useEffect(() => {
     if (childVersionId) return;
-    const selectedSkill = skills.items.find((item) => item.skillId === childSkillId);
-    const current = versions.items.find((item) => item.id === selectedSkill?.currentVersionId);
+    const selectedSkill = skills.items.find((item) => String(item.skillId) === String(childSkillId));
+    const current = versions.items.find((item) => String(item.id) === String(selectedSkill?.currentVersionId));
     if (!current) return;
     form.setFieldValue(['relations', name, 'childVersionId'], current.id);
     onVersionLabel(current.id, `${current.versionCode}（当前）`);
   }, [childSkillId, childVersionId, form, name, onVersionLabel, skills.items, versions.items]);
 
-  const selectChild = (nextSkillId?: number) => {
+  const selectChild = (nextSkillId?: SkillId) => {
     form.setFieldValue(['relations', name, 'childVersionId'], undefined);
     if (!nextSkillId) {
       form.setFieldValue(['relations', name, 'relationKey'], undefined);
       return;
     }
-    const next = skills.items.find((item) => item.skillId === nextSkillId);
+    const next = skills.items.find((item) => String(item.skillId) === String(nextSkillId));
     if (!next) return;
     form.setFieldValue(['relations', name, 'relationKey'], next.skillCode);
     onSkillLabel(next.skillId, `${next.name}（${next.skillCode}）`);
@@ -188,15 +188,15 @@ export default function SkillRelationEditor({
     }
   };
 
-  const selectVersion = (nextVersionId?: number) => {
+  const selectVersion = (nextVersionId?: SkillId) => {
     if (!nextVersionId) return;
-    const next = versions.items.find((item) => item.id === nextVersionId);
+    const next = versions.items.find((item) => String(item.id) === String(nextVersionId));
     if (next) onVersionLabel(next.id, `${next.versionCode}${next.current ? '（当前）' : ''}`);
   };
 
   return <Card size="small">
     <Row gutter={12} align="middle">
-      <Col span={8}><Form.Item name={[name, 'childSkillId']} label="子 Skill"
+      <Col xs={24} md={8}><Form.Item name={[name, 'childSkillId']} label="子 Skill"
         rules={[{ required: true, message: '请选择子 Skill' }]}>
         <Select allowClear showSearch filterOption={false} disabled={disabled} loading={skills.loading}
           notFoundContent={skills.loading ? <Spin size="small" /> : skills.error || null}
@@ -204,7 +204,7 @@ export default function SkillRelationEditor({
           onPopupScroll={(event) => { if (reachedBottom(event)) skills.loadMore(); }}
           onChange={selectChild} />
       </Form.Item></Col>
-      <Col span={6}><Form.Item name={[name, 'childVersionId']} label="固定版本"
+      <Col xs={24} md={6}><Form.Item name={[name, 'childVersionId']} label="固定版本"
         rules={[{ required: true, message: '请选择子版本' }]}>
         <Select showSearch filterOption={false} disabled={disabled || !childSkillId}
           loading={versions.loading} notFoundContent={versions.loading ? <Spin size="small" /> : versions.error || null}
@@ -212,14 +212,14 @@ export default function SkillRelationEditor({
           onPopupScroll={(event) => { if (reachedBottom(event)) versions.loadMore(); }}
           onChange={selectVersion} />
       </Form.Item></Col>
-      <Col span={6}><Form.Item name={[name, 'relationKey']} label="关系标识"
+      <Col xs={24} md={6}><Form.Item name={[name, 'relationKey']} label="关系标识"
         tooltip="关系标识固定为子 Skill 的稳定编码，运行时据此确定性路由。"
         rules={[{ required: true }, { pattern: /^[a-z0-9][a-z0-9._-]{0,63}$/, message: '关系标识错误' }]}>
         <Input disabled />
       </Form.Item></Col>
-      <Col span={2}><Form.Item name={[name, 'requiredFlag']} label="必需" valuePropName="checked">
+      <Col xs={12} md={2}><Form.Item name={[name, 'requiredFlag']} label="必需" valuePropName="checked">
         <Switch disabled={disabled} /></Form.Item></Col>
-      <Col span={2}>{!disabled && <Button danger type="link" onClick={onRemove}>移除</Button>}</Col>
+      <Col xs={12} md={2}>{!disabled && <Button danger type="link" onClick={onRemove}>移除</Button>}</Col>
     </Row>
   </Card>;
 }

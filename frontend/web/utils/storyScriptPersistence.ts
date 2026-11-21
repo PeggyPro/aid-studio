@@ -289,6 +289,10 @@ export class StoryScriptAutoSaveCoordinator {
 
   acceptServerBaseline(row: ScriptDetailRow | null): void {
     this.baseline = writeBaseline(this.context, row)
+    if (this.dirtySince == null && !this.inFlight) {
+      this.currentText = this.baseline.originalText
+      return
+    }
     if (this.currentText === this.baseline.originalText) {
       this.dirtySince = null
       this.retryIndex = 0

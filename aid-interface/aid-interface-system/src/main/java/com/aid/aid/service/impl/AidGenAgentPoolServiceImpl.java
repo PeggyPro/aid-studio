@@ -4,6 +4,9 @@ import java.util.Arrays;
 import java.util.List;
 import cn.hutool.core.util.StrUtil;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.transaction.annotation.Transactional;
+import com.aid.aid.service.support.GenerationBindingGuard;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
@@ -24,6 +27,9 @@ public class AidGenAgentPoolServiceImpl extends ServiceImpl<AidGenAgentPoolMappe
 {
     /** 删除标志：正常（未删除） */
     private static final String DEL_FLAG_NORMAL = "0";
+
+    @Autowired
+    private GenerationBindingGuard bindingGuard;
 
     @Override
     public AidGenAgentPool selectAidGenAgentPoolById(Long id)
@@ -74,8 +80,10 @@ public class AidGenAgentPoolServiceImpl extends ServiceImpl<AidGenAgentPoolMappe
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public int insertAidGenAgentPool(AidGenAgentPool entity)
     {
+        bindingGuard.lock(java.util.Collections.singletonList(entity.getModelCode()), java.util.Collections.singletonList(entity.getAgentCode()));
         entity.setDelFlag(DEL_FLAG_NORMAL);
         entity.setCreateBy(currentUser());
         entity.setCreateTime(DateUtils.getNowDate());
@@ -83,8 +91,10 @@ public class AidGenAgentPoolServiceImpl extends ServiceImpl<AidGenAgentPoolMappe
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public int updateAidGenAgentPool(AidGenAgentPool entity)
     {
+        bindingGuard.lock(java.util.Collections.singletonList(entity.getModelCode()), java.util.Collections.singletonList(entity.getAgentCode()));
         entity.setUpdateBy(currentUser());
         entity.setUpdateTime(DateUtils.getNowDate());
         return this.updateById(entity) ? 1 : 0;

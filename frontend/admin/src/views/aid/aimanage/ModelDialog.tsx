@@ -12,38 +12,11 @@ import { mergeMaxConcurrency, parseMaxConcurrency } from './helpers';
 import type { Model, Provider } from './types';
 import { getModelBillingOverview, withEffectiveModelBilling } from './billingSummary';
 import { newApiManualImageDefinition, newApiManualModelCode, newApiManualTextDefinition } from './newApiManualModel';
-
-const IMAGE_PROXY_PLACEHOLDER = '{url}';
-
-const validateImageProxyTemplate = (enabled: boolean, value: unknown): string | null => {
-  const template = String(value || '').trim();
-  if (template.length > 1000) return '图片代理 URL 模板不能超过 1000 个字符';
-  if (!enabled) return null;
-  if (!template) return '启用图片代理拼接时必须填写 URL 模板';
-  const first = template.indexOf(IMAGE_PROXY_PLACEHOLDER);
-  if (first < 0 || first !== template.lastIndexOf(IMAGE_PROXY_PLACEHOLDER)) {
-    return '模板必须且只能包含一个 {url} 占位符';
-  }
-  const schemeEnd = template.indexOf('://');
-  if (schemeEnd < 0 || template.slice(0, schemeEnd).toLowerCase() !== 'https') {
-    return '模板必须使用绝对 HTTPS 地址';
-  }
-  const authorityStart = schemeEnd + 3;
-  const delimiters = ['/', '?', '#']
-    .map((delimiter) => template.indexOf(delimiter, authorityStart))
-    .filter((index) => index >= 0);
-  const authorityEnd = delimiters.length ? Math.min(...delimiters) : template.length;
-  if (first < authorityEnd) return '{url} 只能放在代理地址的路径或查询参数中';
-  try {
-    const parsed = new URL(template.replace(IMAGE_PROXY_PLACEHOLDER, 'encoded-source-url'));
-    if (parsed.protocol !== 'https:' || !parsed.hostname) return '模板必须使用绝对 HTTPS 地址';
-    if (parsed.username || parsed.password) return '模板不能包含账号或密码';
-    if (parsed.hash) return '模板不能包含 Fragment';
-  } catch {
-    return '图片代理 URL 模板格式无效';
-  }
-  return null;
-};
+import { modelMediaCapabilityErrors } from './mediaCapabilityValidation';
+import {
+  existingModelUpdatePayload, modelEditChanged, modelEditableBaseline,
+  modelEditSnapshot, type ModelEditableBaseline
+} from './modelUpdatePayload';
 
 interface Props {
   open: boolean;
@@ -63,17 +36,31 @@ export default function ModelDialog({ open, title, provider, data, onCancel, onO
   const [definitions, setDefinitions] = useState<ModelCapabilityDefinition[]>([]);
   const [tab, setTab] = useState('basic');
   const [saving, setSaving] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
+  const errorSummary = useRef<HTMLDivElement>(null);
   const savingRef = useRef(false);
+  const initialDefinitionsRef = useRef(modelEditSnapshot([]));
+  const initialBusinessBindingsRef = useRef(modelEditSnapshot(undefined));
+  const initialEditableFieldsRef = useRef<ModelEditableBaseline>({} as ModelEditableBaseline);
   const manualNewApi = provider?.integrationType === 'NEW_API' && !data?.id;
   const manualNewApiImage = manualNewApi && model.modelType === 'image';
 
   useEffect(() => {
     if (!open) return;
+    setValidationErrors([]);
     const next = { modelType: manualNewApi ? 'text' : '', priority: 1, status: '0', billingMultiplier: 1,
       ...(manualNewApi ? { newApiInputPrice: 1, newApiOutputPrice: 1, newApiImagePrice: 1 } : {}),
-      ...data, isFree: data?.isFree === true, imageUrlProxyEnabled: data?.imageUrlProxyEnabled === true } as Model;
+      ...data, isFree: data?.isFree === true } as Model;
+    const normalizedDefinitions = withEffectiveModelBilling(next);
     setModel(next);
-    setDefinitions(withEffectiveModelBilling(next));
+    setDefinitions(normalizedDefinitions);
+    initialDefinitionsRef.current = modelEditSnapshot(normalizedDefinitions);
+    initialBusinessBindingsRef.current = modelEditSnapshot(next.businessBindings);
+    initialEditableFieldsRef.current = modelEditableBaseline({
+      ...next,
+      scheduleStrategyJson: mergeMaxConcurrency(next.scheduleStrategyJson,
+        parseMaxConcurrency(next.scheduleStrategyJson))
+    });
     form.resetFields();
     form.setFieldsValue({ ...next, maxConcurrency: parseMaxConcurrency(next.scheduleStrategyJson) });
     setTab(data?.id ? 'capabilities' : 'basic');
@@ -82,6 +69,7 @@ export default function ModelDialog({ open, title, provider, data, onCancel, onO
   const save = async () => {
     if (savingRef.current) return;
     savingRef.current = true;
+    setValidationErrors([]);
     setSaving(true);
     try {
       let values;
@@ -96,8 +84,8 @@ export default function ModelDialog({ open, title, provider, data, onCancel, onO
           ? newApiManualImageDefinition(String(values.realModelCode).trim(), Number(values.newApiImagePrice))
           : newApiManualTextDefinition(String(values.realModelCode).trim(), Number(values.newApiInputPrice), Number(values.newApiOutputPrice))]
         : definitions;
-      const errors = definitionErrors(effectiveDefinitions);
-      if (errors.length) { message.error(errors[0]); setTab('capabilities'); return; }
+      const errors = [...definitionErrors(effectiveDefinitions), ...modelMediaCapabilityErrors(effectiveDefinitions)];
+      if (errors.length) { setValidationErrors(errors); setTab('capabilities'); requestAnimationFrame(() => errorSummary.current?.focus()); return; }
       const invalidOutputRange = effectiveDefinitions.some((definition) => definition.bindings.some((binding) => {
         const capability = binding.capability || {};
         const invalid = (minimum: unknown, maximum: unknown) => typeof minimum === 'number'
@@ -152,7 +140,13 @@ export default function ModelDialog({ open, title, provider, data, onCancel, onO
       delete (result as any).newApiOutputPrice;
       delete (result as any).newApiImagePrice;
       if (!canEditBindings) delete result.businessBindings;
-      await onOk(result);
+      const submitted = data?.id ? existingModelUpdatePayload(result, {
+        capabilitiesChanged: modelEditChanged(initialDefinitionsRef.current, effectiveDefinitions),
+        businessBindingsChanged: canEditBindings
+          && modelEditChanged(initialBusinessBindingsRef.current, model.businessBindings),
+        editableBaseline: initialEditableFieldsRef.current
+      }) : result;
+      await onOk(submitted);
     } finally { savingRef.current = false; setSaving(false); }
   };
 
@@ -168,6 +162,7 @@ export default function ModelDialog({ open, title, provider, data, onCancel, onO
   return <Modal open={open} title={title} width={1280} style={{ top: 24 }} destroyOnClose maskClosable={false}
     confirmLoading={saving} onOk={save} onCancel={() => { if (!savingRef.current) onCancel(); }}>
     <Form form={form} layout="vertical" onValuesChange={(changed) => setModel((current) => ({ ...current, ...changed }))}>
+      {validationErrors.length > 0 && <div ref={errorSummary} tabIndex={-1} role="alert" style={{ marginBottom: 16 }}><Alert type="error" showIcon message="请修正以下配置后保存" description={<ul>{validationErrors.map((error) => <li key={error}>{error}</li>)}</ul>} /></div>}
       <Tabs activeKey={tab} onChange={setTab} items={[
         { key: 'basic', label: '基本信息', forceRender: true, children: <div style={bodyStyle}>
           <Alert type="info" showIcon message={manualNewApi ? '填写本站真实模型标识并选择文本或图片；缺价默认文本每百万 Token 1 元、图片每张 1 元，均可修改。协议、能力和 SKU 自动初始化，保存前会实际调用。' : '一个真实模型只维护一行，首尾帧、多参考等用法在能力中配置。不同供应商和实际版本保持独立。'} style={{ marginBottom: 16 }} />
@@ -185,31 +180,6 @@ export default function ModelDialog({ open, title, provider, data, onCancel, onO
             <Col span={12}><Form.Item name="modelCode" label="平台模型编码" rules={[{ required: true, whitespace: true }]} tooltip="系统内唯一的稳定引用，不按业务能力添加后缀。"><Input disabled={Boolean(data?.id)} maxLength={100} placeholder="如：kling-3-omni" /></Form.Item></Col>
             <Col span={12}><Form.Item name="realModelCode" label="真实模型标识" rules={[{ required: true, whitespace: true }]} tooltip="填写原厂真实模型及版本标识。渠道 Endpoint ID、req_key 等路由信息在调用配置中维护。"><Input maxLength={255} placeholder="如：kling-3.0-omni" /></Form.Item></Col>
             </>}
-            <Col span={24}>
-              <div style={{ border: '1px solid #dbeafe', borderRadius: 8, background: '#f8fbff', padding: '14px 16px', marginBottom: 16 }}>
-                <div style={{ fontWeight: 600, marginBottom: 4 }}>上游图片访问兼容</div>
-                <div style={{ color: '#64748b', fontSize: 13, marginBottom: 14 }}>
-                  仅当上游无法读取当前对象存储地址时启用。系统自有图片会改用站长配置的资源访问域名，不生成临时签名且移除查询参数，再完整编码并代入代理模板。
-                </div>
-                <Form.Item name="imageUrlProxyEnabled" label="启用图片代理拼接" valuePropName="checked" style={{ marginBottom: 12 }}>
-                  <Switch checkedChildren="已启用" unCheckedChildren="已关闭" />
-                </Form.Item>
-                <Form.Item noStyle shouldUpdate={(previous, current) => previous.imageUrlProxyEnabled !== current.imageUrlProxyEnabled}>
-                  {({ getFieldValue }) => getFieldValue('imageUrlProxyEnabled') ? <>
-                    <Form.Item name="imageUrlProxyTemplate" label="图片代理 URL 模板" required
-                      dependencies={['imageUrlProxyEnabled']}
-                      rules={[{ validator: async (_, value) => {
-                        const error = validateImageProxyTemplate(Boolean(form.getFieldValue('imageUrlProxyEnabled')), value);
-                        if (error) throw new Error(error);
-                      } }]}
-                      extra="必须使用绝对 HTTPS 地址并包含唯一 {url} 占位符，例如：https://images.weserv.nl/?url={url}&output=jpg">
-                      <Input maxLength={1000} showCount placeholder="https://proxy.example.com/image?url={url}" />
-                    </Form.Item>
-                    <Alert type="warning" showIcon message="代理服务可以读取资源访问域名中的图片内容，请只填写可信服务。该配置仅处理发送给此模型的图片；视频、音频、文档、回调和生成结果地址不会处理。" />
-                  </> : null}
-                </Form.Item>
-              </div>
-            </Col>
             <Col span={24}><Form.Item name="logoUrl" label="模型图标" extra="可选。未上传时使用所属服务商图标；服务商也未上传时使用内置图标。"><ImageUpload maxCount={1} maxSize={5} accept="image/*" /></Form.Item>{!model.logoUrl && resolveProviderLogo(provider?.providerCode, provider?.logoUrl) && <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: -16, marginBottom: 12, color: '#64748b' }}><img src={resolveProviderLogo(provider?.providerCode, provider?.logoUrl)} width={24} height={24} alt="默认模型图标" style={{ objectFit: 'contain' }} />当前默认图标</div>}</Col>
             <Col span={24}><Form.Item name="remark" label="备注"><Input.TextArea rows={2} /></Form.Item></Col>
           </Row>

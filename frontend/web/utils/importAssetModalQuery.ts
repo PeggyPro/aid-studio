@@ -1,4 +1,5 @@
 import type { AssetCenterCategoryTreeVO, UserAssetRow } from '~/types/business-api'
+import { isMergedAssetOfficial } from '~/utils/mergedAssetSource'
 import {
   assetCenterItemToUserAssetRow,
   mergedAssetToUserAssetRow,
@@ -123,6 +124,7 @@ export function mapUserAssetRowToImportItem(row: UserAssetRow) {
 
   return {
     id: String(row.id),
+    categoryCode,
     name,
     type,
     updatedAt: formatApiDate(row.updateTime || row.createTime),
@@ -159,7 +161,6 @@ let officialMaterialAllInflight: Promise<UserAssetRow[]> | null = null
 
 export function clearOfficialMaterialAllCache() {
   officialMaterialAllCache.rows = null
-  officialMaterialAllInflight = null
 }
 
 /**
@@ -169,12 +170,11 @@ export function clearOfficialMaterialAllCache() {
 export async function fetchOfficialMaterialAllRows(
   options?: { force?: boolean }
 ): Promise<UserAssetRow[]> {
+  if (officialMaterialAllInflight) return officialMaterialAllInflight
   if (!options?.force && officialMaterialAllCache.rows) {
     return officialMaterialAllCache.rows
   }
-  if (!options?.force && officialMaterialAllInflight) {
-    return officialMaterialAllInflight
-  }
+  if (options?.force) officialMaterialAllCache.rows = null
 
   // 异步体首个 await 之后才回读 task 做在途校验，此时 const 已完成赋值
   const task: Promise<UserAssetRow[]> = (async () => {
@@ -182,15 +182,16 @@ export async function fetchOfficialMaterialAllRows(
     let pageNum = 1
     let total = Infinity
     const all: UserAssetRow[] = []
+    let scanned = 0
 
-    while (all.length < total) {
+    while (scanned < total) {
       const { list, total: t } = await userAssetMergedPage({
-        sourceFlag: 'OFFICIAL',
         pageNum,
         pageSize
       })
       total = Number.isFinite(t) ? t : list.length
-      all.push(...list.map(mergedAssetToUserAssetRow))
+      scanned += list.length
+      all.push(...list.filter(item => isMergedAssetOfficial(item.sourceFlag)).map(mergedAssetToUserAssetRow))
       if (!list.length || list.length < pageSize) break
       pageNum += 1
       if (pageNum > 50) break
@@ -255,18 +256,9 @@ export function buildMaterialFolderItems(
   }))
 }
 
-/** 官方素材列表：有全量缓存则本地过滤，否则按 assetType 单次请求 */
+/** 官方素材列表：扫描混合分页并按响应来源过滤，复用全量缓存后按 assetType 筛选 */
 export async function fetchOfficialAssetsAsRows(assetType: string): Promise<UserAssetRow[]> {
-  if (officialMaterialAllCache.rows) {
-    return filterRowsByAssetType(officialMaterialAllCache.rows, assetType)
-  }
-  const { list } = await userAssetMergedPage({
-    assetType,
-    sourceFlag: 'OFFICIAL',
-    pageNum: 1,
-    pageSize: 100
-  })
-  return list.map(mergedAssetToUserAssetRow)
+  return filterRowsByAssetType(await fetchOfficialMaterialAllRows(), assetType)
 }
 
 /** 本作品/历史个人资产列表（center/list）；不传 categoryCode 时拉该范围内全部分类混合 */
@@ -297,12 +289,10 @@ function personalCenterCacheKey(projectId: number, episodeId: number): string {
 export function clearPersonalCenterAllCache(projectId?: number, episodeId?: number) {
   if (projectId == null) {
     personalCenterAllCache.clear()
-    personalCenterAllInflight.clear()
     return
   }
   const key = personalCenterCacheKey(projectId, episodeId ?? 0)
   personalCenterAllCache.delete(key)
-  personalCenterAllInflight.delete(key)
 }
 
 /**
@@ -315,13 +305,13 @@ export async function fetchPersonalCenterAllRows(
   options?: { force?: boolean }
 ): Promise<UserAssetRow[]> {
   const key = personalCenterCacheKey(projectId, episodeId)
+  const inflight = personalCenterAllInflight.get(key)
+  if (inflight) return inflight
+
   if (!options?.force && personalCenterAllCache.has(key)) {
     return personalCenterAllCache.get(key)!
   }
-  if (!options?.force) {
-    const inflight = personalCenterAllInflight.get(key)
-    if (inflight) return inflight
-  }
+  if (options?.force) personalCenterAllCache.delete(key)
 
   const task: Promise<UserAssetRow[]> = (async () => {
     const pageSize = 100

@@ -16,7 +16,7 @@ export function isOfficialStyleLibraryCard(card: StyleLibraryCard): boolean {
 
 /**
  * 将合并资产分页行映射为风格卡片。
- * 个人风格无图跳过；官方前若干条（按已累计数量）打精选角标。
+ * 无封面的风格仍可使用；官方前若干条（按已累计数量）打精选角标。
  */
 export function mapMergedAssetsToStyleCards(
   list: MergedAssetVO[],
@@ -34,9 +34,6 @@ export function mapMergedAssetsToStyleCards(
     if (skipIds?.has(id)) return
 
     const imageUrl = String(row.imageUrl || '').trim()
-    // 个人风格无图多为历史项目封面复用同一 OSS 后被删导致的残留，跳过空白卡片
-    if (!isOfficial && !imageUrl) return
-
     const card: StyleLibraryCard = {
       id,
       name: row.assetName || `风格${index + 1}`,

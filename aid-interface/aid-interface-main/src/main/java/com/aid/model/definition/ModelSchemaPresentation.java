@@ -55,21 +55,27 @@ public final class ModelSchemaPresentation {
         Map<String, ModelParameter> fields = new LinkedHashMap<>();
         collect(definition.getParameters(), "", fields);
         project(target, capability, first(fields, "aspectRatio", "options.aspectRatio"), "aspectRatioOptions", "defaultAspectRatio", "supportsAspectRatio");
-        project(target, capability, first(fields, "size", "options.size", "options.resolution"), "sizeOptions", "defaultSizeCode", "supportsSizePreset");
+        // 像素宽高属于自定义尺寸，不能据此推断预设档位，也不能把预设默认值写回该字段。
+        Object sizePresetSupport=definition.getPresentation()==null?null:definition.getPresentation().get("supportsSizePreset");
+        if(sizePresetSupport==null)sizePresetSupport=BeanUtil.getProperty(target,"supportsSizePreset");
+        boolean presetsDisabled=Boolean.TRUE.equals(capability.get("allowCustomWH"))
+                && (Boolean.FALSE.equals(capability.get("supportsSizePreset"))
+                    || Boolean.FALSE.equals(sizePresetSupport));
+        if(!presetsDisabled)project(target, capability, firstPresetSize(fields,capability), "sizeOptions", "defaultSizeCode", "supportsSizePreset");
         project(target, capability, fields.get("durationSeconds"), "durationOptions", "defaultDurationSeconds", "supportsDuration");
         ModelParameter count = fields.get("expectedImageCount");
         if (count != null) {
             if (count.getMaximum() != null) BeanUtil.setProperty(target, "maxOutputCount", count.getMaximum().intValue());
             if (count.getDefaultValue() != null) BeanUtil.setProperty(target, "defaultOutputCount", count.getDefaultValue());
         }
-        if (fields.containsKey("audio")) capability.put("supportsAudio", true);
+        if (fields.containsKey("audio")&&!Boolean.FALSE.equals(capability.get("supportsAudio"))) capability.put("supportsAudio", true);
         for (var field : fields.values()) {
             if ("first_frame".equals(field.getMaterialRole())) BeanUtil.setProperty(target, "supportsFirstFrame", true);
             if ("last_frame".equals(field.getMaterialRole())) BeanUtil.setProperty(target, "supportsLastFrame", true);
             if ("reference_image".equals(field.getMaterialRole())) {
                 BeanUtil.setProperty(target, "supportsImageInput", true);
-                if (field.getMaximum() != null) capability.put("maxReferenceImages", field.getMaximum().intValue());
-                if (field.getMinimum() != null) capability.put("minReferenceImages", field.getMinimum().intValue());
+                if ("array".equals(field.getType())&&field.getMaximum() != null) capability.put("maxReferenceImages", field.getMaximum().intValue());
+                if ("array".equals(field.getType())&&field.getMinimum() != null) capability.put("minReferenceImages", field.getMinimum().intValue());
             }
         }
         BeanUtil.setProperty(target, "capabilityJson", JSON.toJSONString(capability));
@@ -77,6 +83,12 @@ public final class ModelSchemaPresentation {
 
     private static void project(Object target, Map<String, Object> capability, ModelParameter field, String optionsKey, String defaultKey, String supportedKey) {
         if (field == null) return;
+        if(capability.get(optionsKey) instanceof List<?> configured && configured.isEmpty()) {
+            BeanUtil.setProperty(target,supportedKey,false);
+            BeanUtil.setProperty(target,defaultKey,null);
+            capability.remove("defaultSizeCode".equals(defaultKey)?"defaultSize":defaultKey);
+            return;
+        }
         BeanUtil.setProperty(target, supportedKey, true);
         List<Object> choices = field.getChoices();
         if ((choices == null || choices.isEmpty()) && "integer".equals(field.getType()) && field.getMinimum() != null && field.getMaximum() != null) {
@@ -86,7 +98,14 @@ public final class ModelSchemaPresentation {
                 for (BigDecimal n = field.getMinimum(); n.compareTo(field.getMaximum()) <= 0; n = n.add(step)) choices.add(n.intValueExact());
             }
         }
-        if (choices != null && !choices.isEmpty()) capability.put(optionsKey, choices);
+        if (choices != null && !choices.isEmpty()) {
+            capability.put(optionsKey, choices);
+            Object current=BeanUtil.getProperty(target,defaultKey);
+            if(field.getDefaultValue()==null&&current!=null&&choices.stream().noneMatch(value->String.valueOf(value).equalsIgnoreCase(String.valueOf(current)))) {
+                BeanUtil.setProperty(target,defaultKey,null);
+                capability.remove("defaultSizeCode".equals(defaultKey)?"defaultSize":defaultKey);
+            }
+        }
         if (field.getDefaultValue() != null) {
             BeanUtil.setProperty(target, defaultKey, field.getDefaultValue());
             capability.put("defaultSizeCode".equals(defaultKey) ? "defaultSize" : defaultKey, field.getDefaultValue());
@@ -95,6 +114,13 @@ public final class ModelSchemaPresentation {
 
     private static ModelParameter first(Map<String, ModelParameter> fields, String... keys) {
         for (String key : keys) if (fields.containsKey(key)) return fields.get(key);
+        return null;
+    }
+    private static ModelParameter firstPresetSize(Map<String,ModelParameter> fields,Map<String,Object> capability) {
+        for(String path:List.of("size","options.size","options.resolution")) {
+            ModelParameter field=fields.get(path);
+            if(field!=null&&!ModelEffectiveParameterConstraints.isCustomPixelSize(path,field,capability))return field;
+        }
         return null;
     }
     private static void collect(List<ModelParameter> fields, String prefix, Map<String, ModelParameter> result) {

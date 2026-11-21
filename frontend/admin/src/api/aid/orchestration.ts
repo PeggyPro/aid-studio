@@ -31,7 +31,8 @@ export function retireModel(id: number, replacementCode?: string) {
   return request({
     url: `/aid/orchestration/models/${id}/retire`,
     method: 'post',
-    data: { confirmed: true, replacementCode: replacementCode || undefined }
+    data: { confirmed: true, replacementCode: replacementCode || undefined },
+    suppressConflictToast: true
   });
 }
 

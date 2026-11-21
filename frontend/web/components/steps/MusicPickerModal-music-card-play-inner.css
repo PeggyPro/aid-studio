@@ -39,7 +39,7 @@
   content: '';
   width: 4px;
   height: 14px;
-  background: #4ae7fd;
+  background: var(--ui-raised, #4ae7fd);
   border-radius: 1px;
 }
 
@@ -50,7 +50,7 @@
 
 .music-card-name {
   font-weight: 600;
-  color: #f1f5f9;
+  color: var(--ui-text, #f1f5f9);
   font-size: 14px;
   line-height: 1.35;
   overflow: hidden;
@@ -60,7 +60,7 @@
 
 .music-card-tags {
   font-size: 12px;
-  color: #8e97a5;
+  color: var(--ui-muted, #8e97a5);
   margin-top: 4px;
   line-height: 1.3;
 }
@@ -68,10 +68,10 @@
 .music-card-select-btn {
   flex-shrink: 0;
   padding: 4px 12px;
-  border: 1px solid rgba(96, 124, 158, 0.35);
+  border: 1px solid var(--ui-hair, rgba(96, 124, 158, 0.35));
   border-radius: 6px;
   background: transparent;
-  color: #e6edf3;
+  color: var(--ui-text, #e6edf3);
   font-size: 13px;
   line-height: 1.5;
   cursor: pointer;
@@ -83,13 +83,13 @@
 }
 
 .music-card-select-btn:hover {
-  background: rgba(74, 231, 253, 0.1);
-  color: #4ae7fd;
+  background: var(--ui-soft-hover, rgba(74, 231, 253, 0.1));
+  color: var(--ui-brand, #4ae7fd);
 }
 
 .music-card-select-btn.is-active {
-  background: rgba(74, 231, 253, 0.1);
-  color: #4ae7fd;
+  background: var(--ui-soft, rgba(74, 231, 253, 0.1));
+  color: var(--ui-brand, #4ae7fd);
 }
 
 .music-picker-audio {

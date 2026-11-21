@@ -385,7 +385,7 @@ export default function ComicAudit() {
   return (
     <div className="crud-page">
       <PageHeader
-        title="内容审核"
+        title="流程审核"
         desc="项目、电影、剧集的提审处理与审核记录查询"
       />
       <Tabs activeKey={activeTab} onChange={setActiveTab} items={tabItems} />

@@ -9,7 +9,7 @@
 
 import { forwardRef, useImperativeHandle, useMemo, useRef, type CSSProperties } from 'react'
 import { Button, Input } from 'antd'
-import { CopyOutlined, DeleteOutlined } from '@ant-design/icons'
+import { BulbOutlined, CopyOutlined, DeleteOutlined } from '@ant-design/icons'
 import { RichTextEditor, type RichTextEditorHandle } from '~/components/common/RichTextEditor'
 import { BillingQuoteHint } from '~/components/common/BillingQuoteHint'
 import { useBillingQuote } from '~/hooks/useBillingQuote'
@@ -448,16 +448,20 @@ export const StoryboardGeneratePanel = forwardRef<
             referenceDisplayMode={props.referenceDisplayMode}
             showGeneratePromptButton={props.showGeneratePromptButton}
             generatePromptLoading={props.generatePromptLoading}
+            generatePromptExtra={
+              props.showGeneratePromptButton ? (
+                <BillingQuoteHint
+                  quote={promptQuote.quote}
+                  loading={promptQuote.loading}
+                  error={promptQuote.error}
+                  active={Boolean(props.promptBillingRequest)}
+                />
+              ) : null
+            }
             sceneFileClickable={props.sceneFileClickable}
             onClickFile={onSceneFileClick}
             onImportReference={() => props.onImportReference?.()}
             onGeneratePrompt={() => props.onGeneratePrompt?.()}
-          />
-          <BillingQuoteHint
-            quote={promptQuote.quote}
-            loading={promptQuote.loading}
-            error={promptQuote.error}
-            active={props.showGeneratePromptButton && Boolean(props.promptBillingRequest)}
           />
         </div>
       ) : null}
@@ -589,9 +593,8 @@ export const StoryboardGeneratePanel = forwardRef<
                   className="param-settings-btn"
                   onClick={() => setParamSettingsOpen(true)}
                 >
-                  <div className="text-gradient">
-                    <span>灵感空间</span>
-                  </div>
+                  <BulbOutlined aria-hidden />
+                  <span>灵感空间</span>
                 </button>
               </div>
             ) : null}

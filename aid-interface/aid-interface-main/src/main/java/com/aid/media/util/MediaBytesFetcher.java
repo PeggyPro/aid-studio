@@ -3,10 +3,17 @@ package com.aid.media.util;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URI;
+import java.net.HttpURLConnection;
+import java.nio.file.Files;
+import java.nio.file.LinkOption;
+import java.nio.file.Path;
+
+import com.aid.common.config.AidAppConfig;
+import com.aid.common.constant.Constants;
+import com.aid.common.utils.spring.SpringUtils;
 
 import cn.hutool.core.util.StrUtil;
-import cn.hutool.http.HttpResponse;
-import cn.hutool.http.HttpUtil;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -39,7 +46,8 @@ public final class MediaBytesFetcher {
      * @param bytes     已读字节
      * @param truncated 是否在体积上限处截断（截断字节不构成完整文件）
      */
-    public record Content(byte[] bytes, boolean truncated) {
+    public record Content(byte[] bytes, boolean truncated, Integer httpStatus, String failureKind) {
+        public Content(byte[] bytes, boolean truncated) { this(bytes, truncated, null, null); }
 
         /**
          * @return true=未抓到任何字节
@@ -47,6 +55,10 @@ public final class MediaBytesFetcher {
         public boolean isEmpty() {
             return bytes.length == 0;
         }
+    }
+
+    private static Content failed(Integer status, String kind) {
+        return new Content(new byte[0], false, status, kind);
     }
 
     /**
@@ -75,14 +87,65 @@ public final class MediaBytesFetcher {
         if (StrUtil.isBlank(fullUrl) || maxBytes <= 0 || timeoutMs <= 0) {
             return EMPTY;
         }
-        try (HttpResponse response = HttpUtil.createGet(fullUrl).timeout(timeoutMs).execute()) {
-            if (!response.isOk()) {
-                log.warn("媒体字节下载失败, url={}, status={}", fullUrl, response.getStatus());
+        // 本站已授权的上传相对路径不依赖资源域名；绝不能把外部 URL 映射成本地文件。
+        if (fullUrl.startsWith(Constants.RESOURCE_PREFIX + "/")) {
+            return fetchLocalUpload(fullUrl, maxBytes);
+        }
+        try {
+            return PublicMediaHttp.get(fullUrl, timeoutMs, response -> {
+                if (response.getCode() != HttpURLConnection.HTTP_OK || response.getEntity() == null) {
+                    return failed(response.getCode(), "HTTP_STATUS_OR_EMPTY_BODY");
+                }
+                return readLimited(response.getEntity().getContent(), maxBytes);
+            });
+        } catch (Exception ex) {
+            log.warn("媒体字节下载异常, errorType={}", ex.getClass().getSimpleName());
+            return failed(null, ex.getClass().getSimpleName());
+        }
+    }
+
+    /**
+     * Read a server-authorized site media locator through the configured storage backend.
+     *
+     * <p>This method is intentionally separate from {@link #fetch(String, int, int)}. Callers may
+     * use it only after restoring a server-owned authorization snapshot; arbitrary external URLs
+     * and unmanaged relative paths remain rejected.</p>
+     */
+    public static Content fetchAuthorized(String locator, int maxBytes, int timeoutMs) {
+        try {
+            var result = SpringUtils.getBean(com.aid.common.aid.oss.core.ManagedStorageResourceReader.class)
+                    .read(locator, maxBytes, timeoutMs);
+            return new Content(result.bytes(), result.truncated(), result.httpStatus(), result.failureKind());
+        } catch (Exception failure) {
+            return failed(null, failure.getClass().getSimpleName());
+        }
+    }
+
+    private static Content fetchLocalUpload(String source, int maxBytes) {
+        try {
+            URI uri = URI.create(source);
+            String path = uri.getPath();
+            String prefix = Constants.RESOURCE_PREFIX + "/upload/";
+            if (uri.getRawQuery() != null || uri.getRawFragment() != null
+                    || path == null || !path.startsWith(prefix)
+                    || path.contains("..") || path.contains("\\")
+                    || StrUtil.isBlank(AidAppConfig.getProfile())) {
+                log.warn("本地媒体路径校验失败");
                 return EMPTY;
             }
-            return readLimited(response.bodyStream(), maxBytes);
-        } catch (Exception ex) {
-            log.warn("媒体字节下载异常, url={}, err={}", fullUrl, ex.getMessage());
+            Path base = Path.of(AidAppConfig.getProfile()).toRealPath();
+            Path file = base.resolve(path.substring(Constants.RESOURCE_PREFIX.length() + 1))
+                    .normalize().toRealPath();
+            // realPath 校验阻止上传目录内的符号链接越界，与网络下载共用流式体积限制。
+            if (!file.startsWith(base.resolve("upload")) || !Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS)) {
+                log.warn("本地媒体路径越界或文件不可用");
+                return EMPTY;
+            }
+            try (InputStream stream = Files.newInputStream(file)) {
+                return readLimited(stream, maxBytes);
+            }
+        } catch (IOException | IllegalArgumentException ex) {
+            log.warn("本地媒体读取失败, errorType={}", ex.getClass().getSimpleName());
             return EMPTY;
         }
     }

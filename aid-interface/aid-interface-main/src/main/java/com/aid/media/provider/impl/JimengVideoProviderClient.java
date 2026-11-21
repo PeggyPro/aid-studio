@@ -278,7 +278,7 @@ public class JimengVideoProviderClient implements VideoProviderClient {
 
     /**
      * 模型开启 Base64 传图时，把 image_urls 整体换成官方二选一的 binary_data_base64（裸 base64 数组）。
-     * 任一图转换失败则保持 image_urls 原样，避免 base64/URL 混填被官方拒收。
+     * 任一图转换失败则在发送前拒绝，禁止丢图或回退URL。
      */
     private void applyBase64FramesIfEnabled(Map<String, Object> body, AiModelConfigVo modelConfig) {
         if (!com.aid.media.provider.ReferenceImageBase64Support.isBase64Enabled(modelConfig)) {
@@ -290,18 +290,14 @@ public class JimengVideoProviderClient implements VideoProviderClient {
         }
         List<String> urls = new ArrayList<>();
         for (Object item : list) {
-            if (item != null) {
-                urls.add(String.valueOf(item));
-            }
+            if (!(item instanceof String value) || value.isBlank())
+                throw com.aid.media.provider.ProviderSubmissionFailures.notSent("参考图列表包含无效图片");
+            urls.add(value);
         }
         List<String> rawBase64s = com.aid.media.provider.ReferenceImageBase64Support.toRawBase64s(urls);
-        if (rawBase64s.size() == urls.size()) {
-            body.remove(JimengConstants.JSON_IMAGE_URLS);
-            body.put(JimengConstants.JSON_BINARY_DATA_BASE64, rawBase64s);
-            log.info("即梦视频帧图按 binary_data_base64 下发, count={}", rawBase64s.size());
-        } else {
-            log.warn("即梦视频帧图 base64 转换不完整({}→{}), 保持 image_urls", urls.size(), rawBase64s.size());
-        }
+        body.remove(JimengConstants.JSON_IMAGE_URLS);
+        body.put(JimengConstants.JSON_BINARY_DATA_BASE64, rawBase64s);
+        log.info("即梦视频帧图按 binary_data_base64 下发, count={}", rawBase64s.size());
     }
 
     /**

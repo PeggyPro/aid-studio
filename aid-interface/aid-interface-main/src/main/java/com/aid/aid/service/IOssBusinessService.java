@@ -21,4 +21,7 @@ public interface IOssBusinessService
      * @return 上传响应列表，顺序与入参一致
      */
     List<OssUploadResponse> uploadList(List<MultipartFile> files, String customDir);
+
+    /** 对已上传但未能登记的文件执行尽力清理；清理失败只记录日志。 */
+    void deleteListByUrl(List<String> fileUrls);
 }

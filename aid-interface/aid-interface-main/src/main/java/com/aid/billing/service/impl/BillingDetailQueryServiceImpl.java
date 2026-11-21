@@ -1,5 +1,6 @@
 package com.aid.billing.service.impl;
 
+import com.aid.aid.service.support.ModelBillingRuleValidator;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
@@ -256,6 +257,8 @@ public class BillingDetailQueryServiceImpl implements IBillingDetailQueryService
             BillingRule rule = parseRuleSafely(model);
             if (Objects.nonNull(rule))
             {
+                ModelBillingRuleValidator.requireCny(rule.getPriceCurrency());
+                vo.setPriceCurrency("CNY");
                 String fallbackMeterType = StrUtil.isNotBlank(rule.getMeterType())
                         ? rule.getMeterType().toUpperCase()
                         : inferMeterType(model.getModelType());

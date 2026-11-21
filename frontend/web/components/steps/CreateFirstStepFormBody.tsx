@@ -22,18 +22,6 @@ import {
   resolveCreationModeForScriptType,
   skipsStoryboardImageGeneration
 } from '~/utils/creationModeUiRules'
-import ratio16by9IconMod from '~/assets/img/createProcess/16-9.svg'
-import ratio9by16IconMod from '~/assets/img/createProcess/9-16.svg'
-import ratio4by3IconMod from '~/assets/img/createProcess/4-3.svg'
-import ratio3by4IconMod from '~/assets/img/createProcess/3-4.svg'
-import ratio1by1IconMod from '~/assets/img/createProcess/1-1.svg'
-import ratio21by9IconMod from '~/assets/img/createProcess/21-9.svg'
-import ratio21by9IconSelMod from '~/assets/img/createProcess/21-9-sel.svg'
-import ratio1by1IconSelMod from '~/assets/img/createProcess/1-1-sel.svg'
-import ratio4by3IconSelMod from '~/assets/img/createProcess/4-3-sel.svg'
-import ratio3by4IconSelMod from '~/assets/img/createProcess/3-4-sel.svg'
-import ratio9by16IconSelMod from '~/assets/img/createProcess/9-16-sel.svg'
-import ratio16by9IconSelMod from '~/assets/img/createProcess/16-9-sel.svg'
 import unionLeftIconMod from '~/assets/img/createProcess/Union-l.svg'
 import unionRightIconMod from '~/assets/img/createProcess/Union-r.svg'
 import { SERIES_PROJECT_CONFIG_STORYBOARD_LOCKED_HINT } from '~/utils/seriesProjectConfigGuard'
@@ -44,18 +32,6 @@ import {
 import { assetUrl } from '~/utils/assetUrl'
 import './create-first-step-form-body.css'
 
-const ratio16by9Icon = assetUrl(ratio16by9IconMod)
-const ratio9by16Icon = assetUrl(ratio9by16IconMod)
-const ratio4by3Icon = assetUrl(ratio4by3IconMod)
-const ratio3by4Icon = assetUrl(ratio3by4IconMod)
-const ratio1by1Icon = assetUrl(ratio1by1IconMod)
-const ratio21by9Icon = assetUrl(ratio21by9IconMod)
-const ratio21by9IconSel = assetUrl(ratio21by9IconSelMod)
-const ratio1by1IconSel = assetUrl(ratio1by1IconSelMod)
-const ratio4by3IconSel = assetUrl(ratio4by3IconSelMod)
-const ratio3by4IconSel = assetUrl(ratio3by4IconSelMod)
-const ratio9by16IconSel = assetUrl(ratio9by16IconSelMod)
-const ratio16by9IconSel = assetUrl(ratio16by9IconSelMod)
 const unionLeftIcon = assetUrl(unionLeftIconMod)
 const unionRightIcon = assetUrl(unionRightIconMod)
 
@@ -79,6 +55,7 @@ export interface CreateFirstStepFormBodyProps {
   contentConfigLocked?: boolean
   contentConfigLockReason?: 'storyboard' | 'assets'
   syncProjectTypeFromParent?: boolean
+  hideProjectType?: boolean
   /** 页面内嵌布局（非弹窗） */
   pageLayout?: boolean
   /** 原 Vue 组件外部 class 透传（弹窗侧 modal-body） */
@@ -94,13 +71,10 @@ export interface CreateFirstStepFormBodyProps {
 
 type EnumOption = { value: string; label: string }
 
-const ratioIconByValue: Record<RatioValue, { icon: string; iconSel: string; label: string }> = {
-  '16:9': { icon: ratio16by9Icon, iconSel: ratio16by9IconSel, label: '16 : 9' },
-  '9:16': { icon: ratio9by16Icon, iconSel: ratio9by16IconSel, label: '9 : 16' },
-  '4:3': { icon: ratio4by3Icon, iconSel: ratio4by3IconSel, label: '4 : 3' },
-  '3:4': { icon: ratio3by4Icon, iconSel: ratio3by4IconSel, label: '3 : 4' },
-  '1:1': { icon: ratio1by1Icon, iconSel: ratio1by1IconSel, label: '1 : 1' },
-  '21:9': { icon: ratio21by9Icon, iconSel: ratio21by9IconSel, label: '21 : 9' }
+const ratioIconByValue: Record<RatioValue, { width:number; height:number; label:string }> = {
+  '16:9': {width:18,height:10.125,label:'16 : 9'}, '9:16': {width:10.125,height:18,label:'9 : 16'},
+  '4:3': {width:18,height:13.5,label:'4 : 3'}, '3:4': {width:13.5,height:18,label:'3 : 4'},
+  '1:1': {width:16,height:16,label:'1 : 1'}, '21:9': {width:21,height:9,label:'21 : 9'}
 }
 
 function groupOptions(
@@ -159,6 +133,7 @@ export function CreateFirstStepFormBody({
   contentConfigLocked = false,
   contentConfigLockReason,
   syncProjectTypeFromParent = false,
+  hideProjectType = false,
   pageLayout = false,
   className,
   onTitleChange,
@@ -210,13 +185,13 @@ export function CreateFirstStepFormBody({
   const [enumOptionsLoaded, setEnumOptionsLoaded] = useState(false)
 
   const [ratioOptions, setRatioOptions] = useState<
-    Array<{ label: string; value: RatioValue; icon: string; iconSel: string }>
+    Array<{ label: string; value: RatioValue; width:number; height:number }>
   >(() =>
     Object.entries(ratioIconByValue).map(([value, meta]) => ({
       value: value as RatioValue,
       label: meta.label,
-      icon: meta.icon,
-      iconSel: meta.iconSel
+      width:meta.width,
+      height:meta.height
     }))
   )
 
@@ -311,7 +286,7 @@ export function CreateFirstStepFormBody({
       setRatioOptions(
         aspectRatios.map((v) => {
           const meta = ratioIconByValue[v]
-          return { value: v, label: meta.label, icon: meta.icon, iconSel: meta.iconSel }
+          return { value: v, label: meta.label, width:meta.width, height:meta.height }
         })
       )
     }
@@ -404,14 +379,6 @@ export function CreateFirstStepFormBody({
     return isCreationModeDisabledForScriptType(value, displayScriptType)
   }
 
-  const [hoveredRatio, setHoveredRatio] = useState<RatioValue | null>(null)
-
-  function ratioIconSrc(ratio: { value: RatioValue; icon: string; iconSel: string }) {
-    const selected = aspectRatio === ratio.value
-    if (contentConfigLocked) return selected ? ratio.iconSel : ratio.icon
-    const hover = hoveredRatio === ratio.value
-    return selected || hover ? ratio.iconSel : ratio.icon
-  }
 
   // 原 watch([modelStrategy, modelStrategyOptions], immediate)
   useEffect(() => {
@@ -503,7 +470,8 @@ export function CreateFirstStepFormBody({
                 : SERIES_PROJECT_CONFIG_STORYBOARD_LOCKED_HINT}
             </p>
           )}
-          <div className="field-group inline-options">
+          {hideProjectType ? null : (
+          <div className="field-group inline-options" data-onboarding="create-modal-type">
             <label className="field-label">作品类型</label>
             <div className="chip-group">
               {projectTypeOptions.map((opt) => (
@@ -519,8 +487,9 @@ export function CreateFirstStepFormBody({
               ))}
             </div>
           </div>
+          )}
 
-          <div className="field-group">
+          <div className="field-group" data-onboarding="create-modal-title">
             <label className="field-label">作品名称</label>
             <div className="name-input-wrap">
               <input
@@ -544,13 +513,11 @@ export function CreateFirstStepFormBody({
                   type="button"
                   className={`ratio-item${aspectRatio === ratio.value ? ' active' : ''}${contentConfigLocked ? ' is-disabled' : ''}`}
                   disabled={contentConfigLocked}
-                  onMouseEnter={() => setHoveredRatio(ratio.value)}
-                  onMouseLeave={() => setHoveredRatio(null)}
-                  onFocus={() => setHoveredRatio(ratio.value)}
-                  onBlur={() => setHoveredRatio(null)}
+                  aria-pressed={aspectRatio === ratio.value}
+                  aria-label={ratio.label}
                   onClick={() => !contentConfigLocked && emitRef.current.onAspectRatioChange(ratio.value)}
                 >
-                  <img src={ratioIconSrc(ratio)} alt={ratio.label} />
+                  <svg className="ratio-glyph" viewBox="0 0 24 24" aria-hidden="true"><rect x={(24-ratio.width)/2} y={(24-ratio.height)/2} width={ratio.width} height={ratio.height} rx="2" fill="currentColor" fillOpacity=".12" stroke="currentColor" strokeWidth="1.5" /></svg>
                   <span>{ratio.label}</span>
                 </button>
               ))}

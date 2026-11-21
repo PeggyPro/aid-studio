@@ -153,11 +153,15 @@ public class ModelDefinitionService {
         if (configured.isEmpty()) configured = LegacyModelDefinitionConverter.convert(model);
         List<ModelCapabilityDefinition> choices = ModelCapabilitySelection.candidates(configured, capabilityCode);
         if (choices.size() != 1) return null;
-        ModelCapabilityDefinition definition = ModelSchemaPresentation.withBusinessDefaults(choices.get(0), businessDefaultsJson);
-        List<ModelProtocolBinding> routes = definition.getBindings().stream()
+        List<ModelProtocolBinding> routes = choices.get(0).getBindings().stream()
                 .filter(r -> Boolean.TRUE.equals(r.getEnabled()) && Boolean.TRUE.equals(r.getDefaultBinding())).toList();
         if (routes.size() != 1) return null;
-        var route = routes.get(0);
+        ModelCapabilityDefinition definition;
+        try {
+            definition=ModelSchemaPresentation.withBusinessDefaults(
+                    ModelEffectiveParameterConstraints.resolve(choices.get(0),routes.get(0)),businessDefaultsJson);
+        }catch(com.aid.common.exception.ServiceException incompatible){return null;}
+        var route = definition.getBindings().stream().filter(item->Objects.equals(item.getCode(),routes.get(0).getCode())).findFirst().orElseThrow();
         AidAiModel view = new AidAiModel();
         BeanUtil.copyProperties(model, view);
         view.setSelectedCapabilityCode(definition.getCode());
@@ -233,11 +237,12 @@ public class ModelDefinitionService {
                 }
             }
             validate(model.getCapabilities());
-            for (var alias : aliasesForModel(model.getId())) {
-                boolean retained = model.getCapabilities().stream().anyMatch(cap -> Objects.equals(cap.getCode(), alias.getCapabilityCode())
-                        && cap.getBindings().stream().anyMatch(route -> Objects.equals(route.getCode(), alias.getBindingCode())));
-                if (!retained) fail("历史引用仍使用此能力或协议，不能删除");
-            }
+            for(var capability:model.getCapabilities())for(var route:capability.getBindings())
+                ModelParameterValidator.validateDefinition(ModelEffectiveParameterConstraints.resolve(capability,route));
+            List<ModelCapabilityDefinition> previousDefinitions = current == null ? null : definitions(model.getId());
+            if (previousDefinitions != null && previousDefinitions.isEmpty())
+                previousDefinitions = LegacyModelDefinitionConverter.convert(current);
+            assertHistoricalAliasRoutesRetained(previousDefinitions, model.getCapabilities(), aliasesForModel(model.getId()));
             if (current != null && model.getBusinessBindings() == null) {
                 for (var business : businessBindings.forModel(model.getId())) {
                     if (model.getCapabilities().stream().noneMatch(cap -> Objects.equals(cap.getCode(), business.getCapabilityCode())
@@ -245,24 +250,14 @@ public class ModelDefinitionService {
                 }
             }
             protocols.validate(model);
-            for (var capability : model.getCapabilities()) for (var route : capability.getBindings()) {
-                AidAiModel priced = new AidAiModel();
-                if (current != null) BeanUtil.copyProperties(current, priced);
-                BeanUtil.copyProperties(model, priced, CopyOptions.create().setIgnoreNullValue(true));
-                // A route without its own price inherits the model-level rule.  Serializing a
-                // missing route rule as JSON null made an unchanged legacy model impossible to save.
-                if (route.getBillingMode() != null) priced.setBillingMode(route.getBillingMode());
-                if (route.getBillingRule() != null) priced.setBillingRuleJson(JSON.toJSONString(route.getBillingRule()));
-                if (route.getCostCredits() != null) priced.setCostCredits(route.getCostCredits());
-                if (!Boolean.TRUE.equals(route.getEnabled()) || !Boolean.TRUE.equals(capability.getEnabled())) priced.setStatus("1");
-                ModelBillingRuleValidator.validate(priced);
-                if (Boolean.TRUE.equals(route.getEnabled()) && Boolean.TRUE.equals(capability.getEnabled())
-                        && "0".equals(priced.getStatus()) && !Boolean.TRUE.equals(priced.getIsFree())
-                        && !"SKU".equals(priced.getBillingMode()) && (priced.getCostCredits() == null || priced.getCostCredits().signum() < 0)) fail("请配置能力价格");
-            }
+            validatePrices(model, current, model.getCapabilities());
         }
         List<ModelCapabilityDefinition> overviewDefinitions = model.getCapabilities() != null
                 ? model.getCapabilities() : current == null ? List.of() : definitions(current.getId());
+        if (current != null && "0".equals(model.getStatus()) && !"0".equals(current.getStatus())
+                && model.getCapabilities() == null && !overviewDefinitions.isEmpty()) {
+            validatePrices(model, current, overviewDefinitions);
+        }
         if (!overviewDefinitions.isEmpty()) ModelSupportOverview.apply(model, overviewDefinitions);
         int changed = create ? models.insertAidAiModel(model) : models.updateAidAiModel(model);
         if (changed > 0 && model.getCapabilities() != null) replace(model.getId(), model.getCapabilities(),
@@ -270,6 +265,24 @@ public class ModelDefinitionService {
         if (changed > 0 && model.getBusinessBindings() != null) businessBindings.replaceForModel(model.getId(),
                 model.getBusinessBindings(), create ? model.getCreateBy() : model.getUpdateBy());
         return changed;
+    }
+
+    private void validatePrices(AidAiModel model, AidAiModel current, List<ModelCapabilityDefinition> definitions) {
+        for (var capability : definitions) for (var route : capability.getBindings()) {
+            AidAiModel priced = new AidAiModel();
+            if (current != null) BeanUtil.copyProperties(current, priced);
+            BeanUtil.copyProperties(model, priced, CopyOptions.create().setIgnoreNullValue(true));
+            // A route without its own price inherits the model-level rule.  Serializing a
+            // missing route rule as JSON null made an unchanged legacy model impossible to save.
+            if (route.getBillingMode() != null) priced.setBillingMode(route.getBillingMode());
+            if (route.getBillingRule() != null) priced.setBillingRuleJson(JSON.toJSONString(route.getBillingRule()));
+            if (route.getCostCredits() != null) priced.setCostCredits(route.getCostCredits());
+            if (!Boolean.TRUE.equals(route.getEnabled()) || !Boolean.TRUE.equals(capability.getEnabled())) priced.setStatus("1");
+            ModelBillingRuleValidator.validate(priced);
+            if (Boolean.TRUE.equals(route.getEnabled()) && Boolean.TRUE.equals(capability.getEnabled())
+                    && "0".equals(priced.getStatus()) && !Boolean.TRUE.equals(priced.getIsFree())
+                    && !"SKU".equals(priced.getBillingMode()) && (priced.getCostCredits() == null || priced.getCostCredits().signum() < 0)) fail("请配置能力价格");
+        }
     }
 
     /** 仅同步仍跟随旧模型标识的协议；调用方显式修改的上游端点保持不变。 */
@@ -299,6 +312,24 @@ public class ModelDefinitionService {
             }
         }
         return changed;
+    }
+
+    static void assertHistoricalAliasRoutesRetained(List<ModelCapabilityDefinition> previous,
+                                                   List<ModelCapabilityDefinition> proposed,
+                                                   List<AidAiModelAlias> historicalAliases) {
+        for (var alias : historicalAliases) {
+            // A pre-existing orphan alias is not a route deleted by this save. Preserve the
+            // alias unchanged; invocation still rejects its unavailable explicit protocol.
+            // Legacy definitions are converted by the caller before checking this boundary.
+            if (previous != null && !containsAliasRoute(previous, alias)) continue;
+            if (!containsAliasRoute(proposed, alias)) fail("历史引用仍使用此能力或协议，不能删除");
+        }
+    }
+
+    private static boolean containsAliasRoute(List<ModelCapabilityDefinition> definitions, AidAiModelAlias alias) {
+        return definitions.stream().anyMatch(cap -> Objects.equals(cap.getCode(), alias.getCapabilityCode())
+                && cap.getBindings() != null && cap.getBindings().stream()
+                .anyMatch(route -> route != null && Objects.equals(route.getCode(), alias.getBindingCode())));
     }
 
     public void validate(List<ModelCapabilityDefinition> definitions) {

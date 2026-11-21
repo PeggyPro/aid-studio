@@ -40,6 +40,11 @@ public class ViduImageProviderClient implements ImageProviderClient {
     /** Vidu 参考生图官方上限（viduq2：0～7 张），超出直接拒绝。 */
     private static final int VIDU_IMAGE_REFERENCE_MAX = 7;
 
+    @Override public InputDelivery inputDelivery(AiModelConfigVo config, MediaImageGenerateRequest request) {
+        return com.aid.media.provider.ReferenceImageBase64Support.isBase64Enabled(config)
+                ? InputDelivery.INLINE : InputDelivery.URL;
+    }
+
     @Override
     public String protocol() {
         // 返回图片协议名称。

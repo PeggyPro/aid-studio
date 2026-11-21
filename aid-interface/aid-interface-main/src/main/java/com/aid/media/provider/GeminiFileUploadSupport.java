@@ -32,6 +32,8 @@ public final class GeminiFileUploadSupport {
             .followRedirects(HttpClient.Redirect.NEVER)
             .build();
     private static final int BUFFER_SIZE = 64 * 1024;
+    private static final int MAX_ERROR_BODY_BYTES = 64 * 1024;
+    private static final int MAX_SUCCESS_BODY_BYTES = 50 * 1024 * 1024;
     private static final long DEFAULT_DOWNLOAD_LIMIT_BYTES = 64L * 1024L * 1024L;
     private static final long ACTIVE_WAIT_MILLIS = 120_000L;
 
@@ -147,7 +149,7 @@ public final class GeminiFileUploadSupport {
                 closeQuietly(response.body());
                 throw new ServiceException("媒体文件过大");
             }
-            Path temp = Files.createTempFile("aid-gemini-input-", safeSuffix(part.getUrl()));
+            Path temp = Files.createTempFile(com.aid.common.config.AidAppConfig.getTemporaryDirectory(), "aid-gemini-input-", safeSuffix(part.getUrl()));
             long total = 0L;
             try (InputStream input = response.body(); OutputStream output = Files.newOutputStream(temp)) {
                 byte[] buffer = new byte[BUFFER_SIZE];
@@ -183,9 +185,10 @@ public final class GeminiFileUploadSupport {
                     .header("X-Goog-Upload-Header-Content-Length", String.valueOf(size))
                     .header("X-Goog-Upload-Header-Content-Type", mime)
                     .POST(HttpRequest.BodyPublishers.ofString(metadata, StandardCharsets.UTF_8)).build();
-            HttpResponse<String> startResponse = HTTP.send(start,
-                    HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
-            if (startResponse.statusCode() < 200 || startResponse.statusCode() >= 300) {
+            HttpResponse<BoundedResponseBody.Utf8Read> startResponse = HTTP.send(start,
+                    BoundedResponseBody.utf8(MAX_ERROR_BODY_BYTES, MAX_ERROR_BODY_BYTES));
+            if (startResponse.statusCode() < 200 || startResponse.statusCode() >= 300
+                    || !startResponse.body().complete()) {
                 throw new ServiceException("媒体上传失败");
             }
             String uploadUrl = startResponse.headers().firstValue("X-Goog-Upload-URL").orElse(null);
@@ -194,16 +197,16 @@ public final class GeminiFileUploadSupport {
             }
             HttpRequest finish = HttpRequest.newBuilder(URI.create(uploadUrl))
                     .timeout(Duration.ofMinutes(10))
-                    .header("Content-Length", String.valueOf(size))
                     .header("X-Goog-Upload-Offset", "0")
                     .header("X-Goog-Upload-Command", "upload, finalize")
                     .POST(HttpRequest.BodyPublishers.ofFile(temp)).build();
-            HttpResponse<String> finishResponse = HTTP.send(finish,
-                    HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
-            if (finishResponse.statusCode() < 200 || finishResponse.statusCode() >= 300) {
+            HttpResponse<BoundedResponseBody.Utf8Read> finishResponse = HTTP.send(finish,
+                    BoundedResponseBody.utf8(MAX_SUCCESS_BODY_BYTES, MAX_ERROR_BODY_BYTES));
+            if (finishResponse.statusCode() < 200 || finishResponse.statusCode() >= 300
+                    || !finishResponse.body().complete()) {
                 throw new ServiceException("媒体上传失败");
             }
-            JsonNode root = MAPPER.readTree(finishResponse.body());
+            JsonNode root = MAPPER.readTree(finishResponse.body().body());
             return root.path("file").isObject() ? root.path("file") : root;
         }
 
@@ -221,12 +224,13 @@ public final class GeminiFileUploadSupport {
                 Thread.sleep(2000L);
                 HttpRequest poll = HttpRequest.newBuilder(URI.create(apiOrigin() + "/v1beta/" + name))
                         .timeout(Duration.ofSeconds(30)).header("x-goog-api-key", model.getApiKey()).GET().build();
-                HttpResponse<String> response = HTTP.send(poll,
-                        HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
-                if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                HttpResponse<BoundedResponseBody.Utf8Read> response = HTTP.send(poll,
+                        BoundedResponseBody.utf8(MAX_SUCCESS_BODY_BYTES, MAX_ERROR_BODY_BYTES));
+                if (response.statusCode() < 200 || response.statusCode() >= 300
+                        || !response.body().complete()) {
                     throw new ServiceException("媒体处理失败");
                 }
-                JsonNode root = MAPPER.readTree(response.body());
+                JsonNode root = MAPPER.readTree(response.body().body());
                 file = root.path("file").isObject() ? root.path("file") : root;
             }
             throw new ServiceException("媒体处理超时");

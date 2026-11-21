@@ -1,16 +1,18 @@
 'use client'
 
+import { flowRowMotionStyle } from '~/utils/v10Motion'
+
 import { Button, Dropdown } from 'antd'
 import type { MenuProps } from 'antd'
 import {
   InfoCircleOutlined,
   MoreOutlined,
-  VideoCameraOutlined,
   UserOutlined,
   LoadingOutlined
 } from '@ant-design/icons'
 import { ShimmerVideo } from '~/components/common/ShimmerVideo'
 import type { DubbingViewSharedProps } from './dubbingViewShared'
+import { DubbingVideoRequiredOverlay } from './DubbingVideoRequiredOverlay'
 
 export type DubbingCardViewProps = DubbingViewSharedProps
 
@@ -64,7 +66,7 @@ export function DubbingCardView({
       {panels.map((panel, index) => (
         <div
           key={panel.id}
-          className="storyboard-card dubbing-card"
+          className="storyboard-card dubbing-card" style={flowRowMotionStyle(index)}
           onMouseEnter={() => onHoverIndexChange(index)}
           onMouseLeave={() => onHoverIndexChange(null)}
         >
@@ -101,7 +103,7 @@ export function DubbingCardView({
                 >
                   {isDubbingBatchGenerating(index) ? (
                     <div className="dubbing-video-generating">
-                      <LoadingOutlined spin className="dubbing-video-generating-icon" />
+                      <LoadingOutlined spin className="dubbing-video-generating-icon flow-generation-spinner" />
                       <span>生成中...</span>
                     </div>
                   ) : hasVideoForIndex(index) ? (
@@ -143,22 +145,11 @@ export function DubbingCardView({
                 </div>
               )}
             </div>
-            <div
-              className={`dubbing-body-mask dubbing-body-mask--card${
-                !hasVideoForIndex(index) && hoverIndex === index
-                  ? ' dubbing-body-mask--visible'
-                  : ''
-              }`}
-              onClick={(e) => {
-                e.stopPropagation()
-                goToStoryboardVideo()
-              }}
-            >
-              <Button type="primary" className="dubbing-mask-btn" icon={<VideoCameraOutlined />}>
-                前往视频生成
-              </Button>
-              <p className="dubbing-mask-tip">暂无分镜数据，添加视频后即可进行音画同步</p>
-            </div>
+            <DubbingVideoRequiredOverlay
+              variant="card"
+              visible={!hasVideoForIndex(index) && hoverIndex === index}
+              onNavigate={goToStoryboardVideo}
+            />
           </div>
           {/* 遮罩不包含底部状态栏 */}
           <div className="dubbing-card-footer">

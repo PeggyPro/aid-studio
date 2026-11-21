@@ -12,7 +12,7 @@ import com.aid.common.constant.Constants;
 import com.aid.common.core.domain.entity.SysUser;
 import com.aid.common.core.domain.model.LoginUser;
 import com.aid.common.aid.oss.util.MediaUrlResolver;
-import com.aid.common.core.redis.RedisCache;
+import com.aid.auth.service.VerificationCodeService;
 import com.aid.common.exception.ServiceException;
 import com.aid.common.utils.DateUtils;
 import com.aid.common.utils.SecurityUtils;
@@ -27,8 +27,6 @@ import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.Date;
 import java.util.Objects;
@@ -44,7 +42,7 @@ import java.util.Objects;
 public class SmsLoginStrategy implements LoginStrategy {
 
     @Resource
-    private RedisCache redisCache;
+    private VerificationCodeService verificationCodeService;
 
     @Resource
     private ISysUserService sysUserService;
@@ -93,16 +91,7 @@ public class SmsLoginStrategy implements LoginStrategy {
 
         // 校验验证码是否正确，cache key 按 scene=login 隔离
         String cacheKey = AuthConstants.getCodeCacheKey(AuthConstants.SCENE_LOGIN, AuthConstants.BIND_TYPE_SMS, phone);
-        String cachedCode = redisCache.getCacheObject(cacheKey);
-        if (Objects.isNull(cachedCode)) {
-            log.info("短信验证码已过期: phone={}", phone);
-            throw new ServiceException("验证码已过期");
-        }
-        if (!Objects.equals(cachedCode, code)) {
-            // 验证码 code 不明文入日志
-            log.info("短信验证码错误: phone={}", phone);
-            throw new ServiceException("验证码错误");
-        }
+        verificationCodeService.reserveForLogin(cacheKey, code);
 
         SysUser user = sysUserService.selectUserByPhonenumber(phone);
 
@@ -132,28 +121,7 @@ public class SmsLoginStrategy implements LoginStrategy {
         loginUser.setUser(user);
         loginUser.setUserId(user.getUserId());
 
-        // 仅在登录事务成功提交后消费验证码，邀请码校验失败时允许用户修正后重试。
-        deleteVerificationCodeAfterCommit(cacheKey);
-
         return loginUser;
-    }
-
-    /** 登录事务提交后删除验证码，避免数据库回滚但验证码已被提前消费。 */
-    private void deleteVerificationCodeAfterCommit(String cacheKey) {
-        if (!TransactionSynchronizationManager.isActualTransactionActive()) {
-            redisCache.deleteObject(cacheKey);
-            return;
-        }
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                try {
-                    redisCache.deleteObject(cacheKey);
-                } catch (Exception e) {
-                    log.error("短信登录验证码清理失败", e);
-                }
-            }
-        });
     }
 
     /**

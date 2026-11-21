@@ -164,21 +164,29 @@ public class SecurityUtils
             {
                 return true;
             }
-            List<SysRole> roles = user.getRoles();
-            if (Objects.isNull(roles) || roles.isEmpty())
-            {
-                return false;
-            }
-            return roles.stream()
-                    .filter(Objects::nonNull)
-                    .map(SysRole::getRoleId)
-                    .filter(Objects::nonNull)
-                    .anyMatch(roleId -> !Objects.equals(C_SIDE_DEFAULT_ROLE_ID, roleId));
+            return isBackendAccount(user);
         }
         catch (Exception e)
         {
             return false;
         }
+    }
+
+    /** 判断持久化用户是否拥有后台角色。 */
+    public static boolean isBackendAccount(SysUser user)
+    {
+        if (Objects.isNull(user)) {
+            return false;
+        }
+        if (user.isAdmin()) {
+            return true;
+        }
+        List<SysRole> roles = user.getRoles();
+        return Objects.nonNull(roles) && roles.stream()
+                .filter(Objects::nonNull)
+                .map(SysRole::getRoleId)
+                .filter(Objects::nonNull)
+                .anyMatch(roleId -> !Objects.equals(C_SIDE_DEFAULT_ROLE_ID, roleId));
     }
 
     /**

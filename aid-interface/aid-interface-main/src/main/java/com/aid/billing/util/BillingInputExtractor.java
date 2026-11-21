@@ -5,6 +5,7 @@ import cn.hutool.core.text.CharSequenceUtil;
 import com.aid.billing.dto.BillingInput;
 import com.aid.billing.enums.BillingConstants;
 import com.aid.common.exception.ServiceException;
+import com.aid.media.service.MediaPreparationErrorCode;
 import com.aid.domain.vo.AiModelConfigVo;
 import com.aid.media.dto.MediaImageGenerateRequest;
 import com.aid.media.dto.MediaTextGenerateRequest;
@@ -93,6 +94,12 @@ public final class BillingInputExtractor {
         if (CharSequenceUtil.isBlank(effectiveSize)) {
             effectiveSize = request.getSize();
         }
+        String upstreamModel = modelConfig == null || CharSequenceUtil.isBlank(modelConfig.getRealModelCode())
+                ? effectiveModelCode : modelConfig.getRealModelCode();
+        if ("gpt-image-2.6-flare".equalsIgnoreCase(upstreamModel)
+                || "gpt-image-2.6-sunburst".equalsIgnoreCase(upstreamModel)) {
+            effectiveSize = com.aid.media.provider.impl.OpenAiImageProviderClient.resolveSize(upstreamModel, request);
+        }
         if (isGptImageModel(effectiveModelCode)) {
             // OpenAI 图片协议只使用 size；不能采信额外的 resolution，否则可伪造低档位绕过 4K 计费。
             resolution = ResolutionUtil.parseResolution(effectiveSize);
@@ -156,7 +163,9 @@ public final class BillingInputExtractor {
             params.put("rawSize", effectiveSize.trim());
         }
         params.put("outputPixels", resolveOutputPixels(effectiveSize, modelConfig));
-        return new BillingInput("IMAGE", params);
+        BillingInput input = new BillingInput("IMAGE", params);
+        input.setBudgetContext(request.getBillingBudgetContext());
+        return input;
     }
 
     private static long resolveOutputPixels(String size, AiModelConfigVo modelConfig) {
@@ -235,7 +244,7 @@ public final class BillingInputExtractor {
             if (explicit > hardCap) {
                 log.info("图片生成数量超过系统安全上限: actual={}, max={}",
                         explicit, hardCap);
-                throw new ServiceException("图片数量超限");
+                throw MediaPreparationErrorCode.MODEL_PARAMETERS_INVALID.reject("图片数量超限");
             }
             return explicit;
         }
@@ -247,7 +256,7 @@ public final class BillingInputExtractor {
                     if (parsed > hardCap) {
                         log.info("图片生成数量超过系统安全上限: actual={}, max={}",
                                 parsed, hardCap);
-                        throw new ServiceException("图片数量超限");
+                        throw MediaPreparationErrorCode.MODEL_PARAMETERS_INVALID.reject("图片数量超限");
                     }
                     return parsed;
                 }
@@ -293,6 +302,11 @@ public final class BillingInputExtractor {
      * FIXED 模式不会读这些字段。
      */
     public static BillingInput fromAudioRequest(MediaAudioGenerateRequest request) {
+        if (request != null && request.getVerifiedAudioBillingInput() != null) {
+            BillingInput input = new BillingInput("AUDIO", new HashMap<>(request.getVerifiedAudioBillingInput()));
+            input.setBudgetContext(request.getBillingBudgetContext());
+            return input;
+        }
         Map<String, Object> params = new HashMap<>();
         int textLen = request != null && CharSequenceUtil.isNotBlank(request.getTtsText())
                 ? request.getTtsText().length()
@@ -310,7 +324,9 @@ public final class BillingInputExtractor {
         if (request != null && CharSequenceUtil.isNotBlank(request.getLanguage())) {
             params.put("language", request.getLanguage());
         }
-        return new BillingInput("AUDIO", params);
+        BillingInput input = new BillingInput("AUDIO", params);
+        input.setBudgetContext(request.getBillingBudgetContext());
+        return input;
     }
 
     /**
@@ -324,6 +340,12 @@ public final class BillingInputExtractor {
     public static BillingInput fromVideoRequest(MediaVideoGenerateRequest request,
                                                 AiModelConfigVo modelConfig) {
         Map<String, Object> params = new HashMap<>();
+        params.put("inputChars", request.getPrompt() == null ? 0 : request.getPrompt().length());
+        if (request.getResolvedReferenceVideos() != null && request.getResolvedReferenceVideos().size() == 1) {
+            var source = request.getResolvedReferenceVideos().get(0);
+            if (source.getWidth() != null && source.getHeight() != null)
+                params.put("inputResolution", Math.min(source.getWidth(), source.getHeight()) + "p");
+        }
         // 时长（秒）：加硬上限避免前端塞超大 duration 打爆结算
         boolean autoDuration = request.getDurationSeconds() == null
                 || request.getDurationSeconds() == -1;
@@ -331,6 +353,11 @@ public final class BillingInputExtractor {
                 ? positiveIntOption(request.getOptions(), "billingDurationSeconds",
                     positiveIntOption(request.getOptions(), "duration", 5))
                 : request.getDurationSeconds();
+        if ("video_enhance".equals(request.getCapabilityCode()) && request.getResolvedReferenceVideos() != null
+                && request.getResolvedReferenceVideos().size() == 1 && request.getResolvedReferenceVideos().get(0).getDurationMs() != null) {
+            rawDuration = Math.toIntExact((request.getResolvedReferenceVideos().get(0).getDurationMs() + 999L) / 1000L);
+            autoDuration = false;
+        }
         if (rawDuration < 1) {
             rawDuration = 5;
         }
@@ -441,7 +468,9 @@ public final class BillingInputExtractor {
             }
         }
         params.put("generateMode", generateMode);
-        return new BillingInput("VIDEO", params);
+        BillingInput input = new BillingInput("VIDEO", params);
+        input.setBudgetContext(request.getBillingBudgetContext());
+        return input;
     }
 
     private static boolean isKlingVideoModel(String modelName) {
@@ -659,7 +688,9 @@ public final class BillingInputExtractor {
                 params.put(type + "InputCount", count);
             }
         });
-        return new BillingInput("TEXT", params);
+        BillingInput input = new BillingInput("TEXT", params);
+        input.setBudgetContext(request.getBillingBudgetContext());
+        return input;
     }
 
     /**

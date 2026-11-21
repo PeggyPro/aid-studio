@@ -672,13 +672,14 @@ export function StoryboardGenerateModal({
             </div>
 
             <div className="story-gen-figma__footer">
-              <BillingQuoteHint
-                quote={generationQuote.quote}
-                loading={generationQuote.loading}
-                error={generationQuote.error}
-                active={Boolean(quoteRequest)}
-              />
               <div className="story-gen-figma__footer-actions">
+                <BillingQuoteHint
+                  quote={generationQuote.quote}
+                  loading={generationQuote.loading}
+                  error={generationQuote.error}
+                  active={Boolean(quoteRequest)}
+                  className="billing-quote-hint--submit"
+                />
                 <Button className="story-gen-figma__btn-cancel" size="large" onClick={handleCancel}>
                   <div className="text-gradient">取消</div>
                 </Button>

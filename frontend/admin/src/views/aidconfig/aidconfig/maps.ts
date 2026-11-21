@@ -1,5 +1,7 @@
 /** 分类名称映射 */
 export const CATEGORY_NAMES: Record<string, string> = {
+  script: "剧本字数限制",
+  realtime: '实时连接',
   mail: '邮箱配置',
   wxLogin: '微信公众号配置',
   alipay: '支付宝配置',
@@ -16,7 +18,7 @@ export const CATEGORY_NAMES: Record<string, string> = {
   media: '媒体生成',
   mps: '媒体处理',
   tencent_asr: '腾讯云语音识别',
-  agent_model: 'Agent 默认模型',
+  agent_model: '智能体默认模型',
   voice: '配音设置',
   referenceAudio: '参考音频配置',
   captcha: '行为验证码配置',
@@ -26,10 +28,10 @@ export const CATEGORY_NAMES: Record<string, string> = {
   project_gen_config: '项目生成配置',
   image_moderation: '图片内容安全审查',
   image_object_detection: '图像识别 / 视觉服务',
-  tencent_media_cos: 'COS 配置',
+  tencent_media_cos: '腾讯云对象存储',
   tencent_media_portrait: '视频人像分割',
   tencent_media_voice: '人声／背景音分离',
-  tencent_media_subtitle: '去字幕（MPS）',
+  tencent_media_subtitle: '视频字幕去除',
   login_policy: '登录与在线策略',
   account_security: '账号安全',
   admin_entry: '后台登录入口',
@@ -55,6 +57,7 @@ export interface ConfigSection {
 }
 
 export const CONFIG_SECTIONS: ConfigSection[] = [
+  { key: 'realtime', name: '实时连接', categories: ['realtime'] },
   { key: 'basic', name: '基础配置', categories: ['basic', 'admin_brand'] },
   { key: 'storage', name: '文件存储', categories: ['oss'] },
   { key: 'payment', name: '支付管理', categories: ['alipay', 'wxpay'] },
@@ -87,6 +90,11 @@ export function isRestartRequired(category: string | undefined, name: string): b
  * 用于像 captcha 这种存在通用字段名（如 type）的分类，避免与其它分类的同名字段冲突。
  */
 export const CATEGORY_FIELD_LABELS: Record<string, Record<string, string>> = {
+  script: {
+    script_series_max_chars: '整篇剧本字数上限',
+    script_episode_max_chars: '单集剧本字数上限',
+  },
+  realtime: { allowed_origins: '允许连接的网站地址' },
   account_security: {
     cancel_re_registration_enabled: '限制注销账号再次注册',
     cancel_re_registration_days: '再次注册限制天数'
@@ -113,8 +121,8 @@ export const CATEGORY_FIELD_LABELS: Record<string, Record<string, string>> = {
   // 微信支付（V3）：字段名按 V3 证书体系明确标注，便于运营对照商户平台下载的证书文件
   wxpay: {
     enabled: '启用微信支付',
-    appId: '应用ID (AppID)',
-    mchId: '商户号 (mchId)',
+    appId: '应用标识',
+    mchId: '商户号',
     apiV3Key: 'APIv3密钥',
     privateKey: '应用私钥 (apiclient_key.pem)',
     serialNo: '证书序列号 (apiclient_cert.pem)',
@@ -137,7 +145,7 @@ export const CATEGORY_FIELD_LABELS: Record<string, Record<string, string>> = {
     exchange_image_url: '交流二维码图片地址',
     tutorial_url: '教程链接',
     open_source_git_url: '开源地址(GitHub)',
-    open_source_gitee_url: '开源地址(Gitee)'
+    open_source_gitee_url: '开源地址(AtomGit)'
   },
   // 短信服务：通用策略 + 当前厂商专属参数
   sms: {
@@ -443,6 +451,7 @@ export const PROVIDER_FILTER_DRIVER: Record<string, { field: string; default: st
  * 使用显式白名单可以保留前导零，也能保证空值配置仍渲染为正确的数值输入框。
  */
 const NUMBER_FIELDS_BY_CATEGORY: Record<string, string[]> = {
+  script: ['script_series_max_chars', 'script_episode_max_chars'],
   account_security: ['cancel_re_registration_days'],
   admin_entry: ['rate_limit_per_min'],
   api_crypto: ['gzip_threshold', 'max_plain_size', 'timestamp_window_ms'],

@@ -5,8 +5,6 @@ import type { RichTextEditorHandle } from '~/components/common/RichTextEditor'
 import { PROMPT_TYPE } from '~/composables/usePromptDictionary'
 import {
 storyboardPromptHtmlToPlain,
-storyboardPromptPlainToHtml,
-stripPromptImageAssetPlaceholdersFromPlain,
 type PromptAssetItem
 } from '~/utils/storyboardPromptAssetRef'
 import {
@@ -357,33 +355,6 @@ const storyboardVideoReferenceList = useMemo(() => {
 const storyboardVideoReferenceListRef = useRef(storyboardVideoReferenceList)
 storyboardVideoReferenceListRef.current = storyboardVideoReferenceList
 
-/** 图生视频：参考图在描述框外展示，移除文本域内残留的 @图片 引用 */
-function syncStoryboardVideoPromptWithoutImageRefs() {
-  const p = propsRef.current!
-  if (p.mode !== 'storyboardVideo' || paramSettingsOpenRef.current) return
-  const editor = getActivePromptEditor()
-  const currentHtml = editor?.getHtml?.() || p.prompt
-  const plain = editor?.getPlainPrompt?.() || storyboardPromptHtmlToPlain(p.prompt)
-  const hasAssetEmbed = currentHtml.includes('scp-prompt-asset-ref')
-  if (!hasAssetEmbed && !plain.includes('@') && !plainHasPromptImageAssetPlaceholder(plain)) return
-
-  const imageNames = storyboardVideoReferenceListRef.current.map((img: any) =>
-    String(img.title || img.name || '').trim()
-  )
-  const cleaned = stripPromptImageAssetPlaceholdersFromPlain(plain, imageNames)
-  if (cleaned === plain && !hasAssetEmbed) return
-
-  const html = storyboardPromptPlainToHtml(cleaned, [], storyboardPromptParamGroupsRef.current, {
-    enableVideoLabeledParams: true,
-    enableAssetRefs: false
-  })
-  const prevPlain = storyboardPromptHtmlToPlain(p.prompt)
-  const nextPlain = storyboardPromptHtmlToPlain(html)
-  if (nextPlain === prevPlain && !hasAssetEmbed) return
-  p.onPromptChange?.(html)
-}
-
-
   return {
     paramSelectionBindings,
     getActivePromptEditor,
@@ -405,7 +376,6 @@ function syncStoryboardVideoPromptWithoutImageRefs() {
     syncStripVideosFromPromptRefDiff,
     plainHasPromptImageAssetPlaceholder,
     storyboardVideoReferenceList,
-    storyboardVideoReferenceListRef,
-    syncStoryboardVideoPromptWithoutImageRefs
+    storyboardVideoReferenceListRef
   }
 }

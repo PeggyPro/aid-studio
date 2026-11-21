@@ -22,6 +22,7 @@ export type TaskEtaProgress = {
   queuedCount?: number
   delayed?: boolean
   predictionVersion?: string
+  waitReasonCode?: string
 }
 
 export type TaskSseProgressInput = {
@@ -100,7 +101,7 @@ function normalizePercent(p: unknown): number | undefined {
   return Math.min(100, Math.max(0, n))
 }
 
-function normalizeEta(raw: unknown): TaskEtaProgress | undefined {
+export function normalizeTaskEta(raw: unknown): TaskEtaProgress | undefined {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined
   const o = raw as Record<string, unknown>
   const percent = normalizePercent(o.displayProgress)
@@ -126,7 +127,8 @@ function normalizeEta(raw: unknown): TaskEtaProgress | undefined {
     queuedCount: number('queuedCount'),
     delayed: typeof o.delayed === 'boolean' ? o.delayed : undefined,
     predictionVersion:
-      typeof o.predictionVersion === 'string' ? o.predictionVersion : undefined
+      typeof o.predictionVersion === 'string' ? o.predictionVersion : undefined,
+    waitReasonCode: typeof o.waitReasonCode === 'string' ? o.waitReasonCode : undefined
   }
 }
 
@@ -144,7 +146,7 @@ export function normalizeCountProgress(raw: unknown): CountProgressSnapshot {
     message: String(o.message ?? '').trim(),
     stepTitle: String(o.stepTitle ?? '').trim(),
     progressText: String(o.progressText ?? '').trim(),
-    eta: normalizeEta(o.eta)
+    eta: normalizeTaskEta(o.eta)
   }
 }
 
@@ -243,7 +245,7 @@ export function parseTaskSseProgressPayload(
     audioRecordId: audioRecordId != null && audioRecordId > 0 ? audioRecordId : undefined,
     audioUrl: audioUrl || undefined,
     durationMs: durationMs != null && durationMs >= 0 ? durationMs : undefined,
-    eta: normalizeEta(obj.eta)
+    eta: normalizeTaskEta(obj.eta)
   }
 }
 
@@ -370,10 +372,23 @@ function formatDurationUpdateTime(updateTime: string | undefined): string {
   return /^预计/u.test(value) ? value : `预计${value}`
 }
 
+/** Render only known server codes; never expose upstream details or another task's identity. */
+export function formatTaskWaitReason(eta: { waitReasonCode?: string | null } | null | undefined): string {
+  switch (eta?.waitReasonCode) {
+    case 'SUBMISSION_RESULT_UNKNOWN': return '提交结果待核实，暂无法预计完成时间'
+    case 'UPSTREAM_RECONCILIATION': return '前序任务结果待核实，暂无法预计开始时间'
+    case 'CHILD_RECONCILIATION_PENDING': return '部分任务结果待核实，暂无法预计完成时间'
+    default: return ''
+  }
+}
+
 /** 格式化预计百分比与 P50–P90 剩余时间区间。 */
 export function formatTaskEtaText(eta: TaskEtaProgress | undefined, now = Date.now()): string {
   if (!eta) return ''
-  if (eta.phase === 'COMPLETED' || eta.displayProgress === 100) return '已完成 · 100%'
+  if (eta.phase === 'COMPLETED') return '已完成 · 100%'
+  const waitReason = formatTaskWaitReason(eta)
+  if (waitReason) return waitReason
+  if (eta.displayProgress === 100) return '已完成 · 100%'
   const p50 = resolveRemainingSeconds(eta, 'P50', now)
   const p90 = resolveRemainingSeconds(eta, 'P90', now)
   const delayed =
@@ -450,7 +465,11 @@ export function advanceTaskEtaProgress(
   eta: TaskEtaProgress | undefined,
   now = Date.now()
 ): TaskEtaProgress | undefined {
-  if (!eta || eta.phase === 'COMPLETED' || eta.displayProgress === 100) return eta
+  if (!eta || eta.phase === 'COMPLETED') return eta
+  if (formatTaskWaitReason(eta)) return { ...eta, displayProgress: undefined,
+    remainingSecondsP50: undefined, remainingSecondsP90: undefined, estimatedStartAt: undefined,
+    estimatedFinishAtP50: undefined, estimatedFinishAtP90: undefined }
+  if (eta.displayProgress === 100) return eta
   const startAt = eta.calculatedAt
   const finishAt = eta.estimatedFinishAtP90
   if (

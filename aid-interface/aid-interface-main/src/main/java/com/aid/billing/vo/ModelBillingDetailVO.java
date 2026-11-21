@@ -61,6 +61,9 @@ public class ModelBillingDetailVO implements Serializable
     /** 计费单位名称（Credits），与价格列配合展示 */
     private String creditUnit;
 
+    /** 公开价格的币种为人民币。 */
+    private String priceCurrency;
+
     /**
      * 计费档位表格的列定义（表头）。
      * 前端按本列表顺序渲染表头，并用每列 {@code key} 去 {@link BillingRuleItemVO} 取值填充。

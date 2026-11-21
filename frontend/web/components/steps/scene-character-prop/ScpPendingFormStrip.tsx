@@ -96,8 +96,9 @@ export function ScpPendingFormStrip(props: {
             className="scp-pending-form-card__gen-btn"
             loading={!!ctx.pendingFormGenBusy.value[card.assetId]}
             disabled={!!ctx.pendingFormGenBusy.value[card.assetId]}
+            aria-busy={!!ctx.pendingFormGenBusy.value[card.assetId]}
           >
-            <div className="text-gradient">生成形态</div>
+            生成形态
           </Button>
         </BillingQuoteConfirm>
       </div>

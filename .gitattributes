@@ -1,7 +1,10 @@
 # 行尾规范：Linux 侧执行的部署脚本与配置强制 LF，防止 Windows 检出后携带 CRLF 部署导致执行失败
 deploy/** text eol=lf
 sql/*.sql text eol=lf
+# 保留已通过升级演练的归档 SQL 字节。
+sql/v3.0.0.sql -text !eol whitespace=cr-at-eol
 release/*.json text eol=lf
+aid-interface/aid-interface-main/src/main/resources/skills/** text eol=lf whitespace=-blank-at-eof
 model-catalog/tokendance/*.json -text
 
 # 发布排除：doc/ 只进私有仓做版本管理，git archive 生成的开源发布快照不包含；

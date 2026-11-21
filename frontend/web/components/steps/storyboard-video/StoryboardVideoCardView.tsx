@@ -1,5 +1,7 @@
 'use client'
 
+import { flowRowMotionStyle } from '~/utils/v10Motion'
+
 import { Button, Dropdown, Input } from 'antd'
 import type { MenuProps } from 'antd'
 import {
@@ -55,7 +57,7 @@ export function StoryboardVideoCardView(props: StoryboardVideoViewSharedProps) {
   return (
     <div className="storyboard-cards">
       {panels.map((panel, index) => (
-        <div key={panel.id} className="storyboard-card">
+        <div key={panel.id} className="storyboard-card" style={flowRowMotionStyle(index)}>
           <div className="storyboard-card-header">
             <div
               className="storyboard-card-title"

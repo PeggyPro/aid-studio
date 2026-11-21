@@ -1,0 +1,12 @@
+[
+  { "id": "bed-single", "name": "单人床", "category": "家具", "file": "furniture/bed_single.glb" },
+  { "id": "bookshelf", "name": "书架", "category": "家具", "file": "furniture/bookshelf.glb" },
+  { "id": "chair", "name": "椅子", "category": "家具", "file": "furniture/chair.glb" },
+  { "id": "coffee-table", "name": "茶几", "category": "家具", "file": "furniture/coffee_table.glb" },
+  { "id": "couch", "name": "沙发", "category": "家具", "file": "furniture/couch.glb" },
+  { "id": "square-table", "name": "方桌", "category": "家具", "file": "furniture/square_table.glb" },
+  { "id": "potted-plant", "name": "盆栽", "category": "装饰", "file": "decor/potted_plant.glb" },
+  { "id": "vase", "name": "花瓶", "category": "装饰", "file": "decor/vase.glb" },
+  { "id": "floor-lamp", "name": "落地灯", "category": "灯具", "file": "lighting/floor_lamp.glb" },
+  { "id": "table-lamp", "name": "台灯", "category": "灯具", "file": "lighting/table_lamp.glb" }
+]

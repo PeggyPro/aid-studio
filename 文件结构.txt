@@ -6,11 +6,17 @@ aid-master/
 ├── deploy/nginx/                         受管站点模板、安全渲染、容器启动与部署说明
 ├── aid-interface/aid-interface-main/src/main/java/com/aid/seo/service/PublicPageService.java  公开HTML文档与真实404
 ├── aid-interface/aid-interface-main/src/main/java/com/aid/upgrade/service/NginxManagementService.java  受管网关任务提交
+├── aid-interface/aid-interface-main/src/main/java/com/aid/skill/service/SkillImageExecutionContract.java  图片Skill共享能力与输入输出契约
+├── doc/Skill图片执行契约.md                 图片Skill通用格式与能力边界
+├── aid-interface/aid-interface-main/src/main/java/com/aid/media/reconciliation/MediaSubmissionFailureDiagnostics.java  提交待核实的有界脱敏异常来源
 ├── aid-business/                         Web 接口层
 │   ├── aid-business-main/                C 端成片导出、进度查询、权威费用报价、腾讯云 MPS/阿里云 IMS 回调、可灵签名回调及 MiniMax H3 匿名唤醒回调
+│   │   ├── com/aid/assistant/controller/  助手会话、动态问题草稿、运行控制、步骤历史、命令恢复及长文产物接口
 │   │   ├── com/aid/auth/controller/AccountSecurityController.java  密码设置/修改、手机号邮箱换绑、会话管理及登录历史接口
 │   │   └── com/aid/skill/controller/SkillRuntimeController.java  Skill 目录、幂等调用、澄清、历史、事件续传与取消接口
 │   └── aid-business-system/
+│       ├── com/aid/assistant/controller/  助手运行、问题、预算与工具审计查询
+│       ├── com/aid/runtime/controller/RuntimeAgentAdminController.java  Assistant Agent 固定版本、草稿发布与模块绑定管理
 │       ├── com/aid/tokendance/controller/  供应商授权、余额、充值会话与本地目录接口
 │       ├── com/aid/aid/controller/VoiceWorkbenchController.java  后台音色工作台接口
 │       ├── com/aid/aid/controller/AidAiOrchestrationController.java  模型与智能体影响预览、替换引用及事务化受控下线接口
@@ -31,6 +37,20 @@ aid-master/
 │   │   ├── src/main/java/com/aid/
 │   │   │   ├── auth/                     登录、发码、扫码注册、账号安全、注销再注册限制、密码管理、双验证码换绑、在线会话及登录历史流程
 │   │   │   ├── asset/                    系统风格分类查询、推荐优先与个人/系统三段合并分页
+│   │   │   ├── assistant/                会话与动态问题、报价审批、预算策略、权限上下文、创作来源分片与产物采用服务；service/AssistantRunCostObservationService 只读核验当前运行直接调用的净结算观察
+│   │   │   │   ├── service/AssistantQuiescentRunGuard.java  续授权与消息补充的未提交图核验及旧报价作废
+│   │   │   │   ├── artifact/             长文分片、完整性校验、媒体物化、评审与采用回执
+│   │   │   │   ├── creative/             原创/改编方法、来源覆盖、按版本读取与创作 Tool
+│   │   │   │   ├── scope/                项目、剧集与目标上下文的权威身份、权限和版本解析
+│   │   │   │   └── skill/                固定 Skill 版本调用、预算身份桥接、任务关联及停止对账
+│   │   │   ├── runtime/assistant/        主 Agent 动态动作解析、上下文装配、持久协调循环与恢复租约
+│   │   │   ├── runtime/assistant/AssistantMainInputContract.java  固定输入 Schema、保留空值序列化与服务端历史上下文表示校验
+│   │   │   ├── runtime/assistant/correction/AssistantDecisionCorrectionReceiptService.java  固定来源、单次纠正回执与未提交历史全图核验
+│   │   │   ├── runtime/assistant/AssistantCompletionDecisionRejectedException.java  明确的完成契约拒绝与基础设施错误分类
+│   │   │   │   ├── admission/            提交前运行/步骤/审批的同事务准入和独立 fence
+│   │   │   │   ├── execution/            版本绑定 Tool 准备/执行、计划依赖产物与权威步骤收敛
+│   │   │   │   ├── media/                图片、视频、音频和音乐 Tool 对统一生成任务的适配
+│   │   │   │   └── recovery/             事件续传、租约接管与未知命令/提交结果恢复
 │   │   │   ├── billing/                  最终倍率计费明细、图片选型计价、SKU命中、预冻结纯计算、确定/预估语义及复杂业务无副作用报价适配器
 │   │   │   ├── common/error/rule/ErrorLogRuleConversionService.java  错误样本生成规则草稿、规则创建与样本状态回写
 │   │   │   ├── promotion/                邀请码预校验、注册绑定与返佣业务
@@ -46,6 +66,8 @@ aid-master/
 │   │   │   │   ├── service/impl/         导出编排、腾讯云 MPS/阿里云 IMS 回调补偿、服务端台词兜底及临时视频测试实现
 │   │   │   │   └── util/                 最终人声音源选择、台词/媒体指纹、双人及多人说话人重匹配与正文限长字幕分屏工具
 │   │   │   ├── media/
+│   │   │   │   ├── admission/            Assistant/Skill 的可信提交与停止取消边界
+│   │   │   │   ├── reconciliation/       上游提交证据日志、独立事务留存、租约和未知状态对账
 │   │   │   │   ├── cleanup/              生成产物级联清理、共享业务文件引用保护与事务后 OSS 清理
 │   │   │   │   ├── dto/                  厂商无关结果及可灵回调上下文
 │   │   │   │   ├── provider/             文本流式/思考统一控制、文本多模态能力校验、Gemini 安全文件上传与厂商映射，以及腾讯云 MPS、阿里云 IMS、本地 FFmpeg、可灵 3.0、MiniMax H3、Wan3.0、Agnes Video 2.5 和可配置异步媒体协议实现
@@ -81,7 +103,10 @@ aid-master/
 │   │   │   ├── storyboard/               分镜原子复制、图片/原视频产物重映射、正式提交与报价共享的引用/媒体计划、视频生成、选片同步及按协议路由的多参考素材策略
 │   │   │   ├── tokendance/                供应商协议门面、本地模型与成本目录、授权凭证、余额与充值会话
 │   │   │   ├── tokendance/provider/text/TokenDanceToolMessages.java  客户端函数调用关联、三协议续轮与流增量聚合
+│   │   │   ├── media/provider/TextProviderFailureEvidence.java  文本供应商HTTP状态、错误快照与usage失败证据
+│   │   │   ├── media/provider/BoundedResponseBody.java  文本供应商同步响应、错误正文及SSE单行的有界读取与完整性标记
 │   │   │   ├── media/provider/TextToolResultSupport.java  工具结果摘要与仅内存的续轮上下文
+│   │   │   ├── media/provider/NativeFunctionSchemaAdapter.java  原生函数对象 Schema 的独立 Provider 副本及 Responses 非严格表示
 │   │   │   ├── voice/                     音色工作台、样本权限、报价确认、任务与发布
 │   │   │   ├── media/resolver/ReferenceVideoRecordResolver.java  参考视频记录权限与可信素材解析
 │   │   │   ├── media/service/VerifiedMediaInputService.java  提交前公共媒体能力校验
@@ -90,25 +115,12 @@ aid-master/
 │   │   │   ├── upgrade/                  升级器通信、部署配置诊断、HTTPS证书安全安装及官方资源包服务
 │   │   │   └── user/                     后台 C 端用户创建、账户信息与出入参
 │   │   ├── src/main/resources/skills/    内置剧本入口、写作与审核 Skill 的版本化清单、Prompt 和参考资料
-│   │   ├── src/main/resources/tokendance/catalog/  本地成本快照、已核验能力及视频 Token 估算规则
-│   │   └── src/test/java/com/aid/
-│   │       ├── auth/service/              发码前邀请码校验与 public-config 登录渠道独立开关/异常降级测试
-│   │       ├── asset/service/             风格分类与三段式跨源分页测试
-│   │       ├── billing/                   可灵计费入参兼容、官方价格 SQL 与生产计费匹配测试
-│   │       ├── common/error/rule/         错误样本转规则草稿、命中校验与状态回写测试
-│   │       ├── compose/                   无人声字幕检查点复用与陈旧成片回调隔离测试
-│   │       ├── media/provider/            可灵九场景/签名/提交重试，以及 MiniMax H3 五场景请求、官方用量与 Provider 契约测试
-│   │       ├── media/service/impl/        可灵提交/终态失败样本、新旧回调与 MiniMax H3 回调唤醒、CAS 赢家去重、降级轮询、超时退款及终态幂等测试
-│   │       ├── promotion/service/impl/    邀请码严格校验与注册绑定测试
-│   │       ├── project/service/            项目风格协议、非法值与兼容回退测试
-│   │       ├── rps/queue/                 批量任务终态分类与 MQ 派发锁等待/周期校验测试
-│   │       ├── rps/helper/                分镜场次包装、原文覆盖、剧本切片、写入策略、任务快照、时间线编号与续生计费测试
-│   │       ├── rps/service/impl/          形态图片展示提示词来源分流、批量查询与敏感信息隔离测试
-│   │       ├── storyboard/service/impl/   分镜内容/媒体原子复制、上传视频秒数必传及可灵规划后首帧/参考素材校验测试
-│   │       ├── storyboard/video/impl/     可灵参考槽位与 MiniMax H3 五场景分镜素材路由测试
-│   │       ├── upgrade/service/impl/      官方资源包校验安装与失败保留旧资源测试
-│   │       └── user/service/impl/         后台新增用户与账户查询测试
+│   │   └── src/main/resources/tokendance/catalog/  本地成本快照、已核验能力及视频 Token 估算规则
 │   └── aid-interface-system/             实体、Mapper 与领域服务，含注销身份哈希记录、系统风格分类关系、推荐与稳定排序维护
+│       ├── com/aid/assistant/             会话、消息、消息分片及产物领域持久化
+│       ├── com/aid/runtime/               运行、步骤、动态输入、事件、命令、计划、审批、来源与 Agent 版本实体及 Mapper
+│       ├── com/aid/billing/               运行预算授权、按调用预留与统一账本关联实体及 Mapper
+│       ├── com/aid/media/                 提交对账状态和不可变上游证据实体及 Mapper
 │       ├── com/aid/skill/                 Skill 身份、版本、资源、关系、Run、步骤、任务关联、澄清与事件实体及 Mapper
 │       ├── com/aid/aid/domain/dto/ProviderUpstreamTaskQuery.java  上游任务精确/游标查询参数
 │       ├── com/aid/aid/service/impl/ProviderUpstreamOperationsServiceImpl.java  可灵资源包、DeepSeek 余额、Vidu 积分及可灵/MiniMax 任务查询
@@ -116,18 +128,15 @@ aid-master/
 │       ├── com/aid/aid/service/support/ModelBillingRuleValidator.java  SKU 档位级计费口径与主价格保存校验
 │       ├── com/aid/aid/service/support/ModelConfigurationMerge.java  配置无损合并与稳定 SKU 标识
 │       ├── com/aid/tokendance/             授权、凭证与最小充值会话实体及 Mapper
-│       ├── src/test/                       可灵供应商配置、可灵/MiniMax H3 上游运维与计费闸门回归测试
 │       ├── com/aid/aid/domain/AidEpisodeEditor.java  成片与素材指纹
 │       └── com/aid/aid/domain/dto/AidAiProviderStatusRequest.java  服务商启停专用入参
 ├── deploy/updater/internal/task/         部署配置分项诊断、证书链校验、原子安装与失败恢复
 ├── doc/Business-API.md                   C 端接口文档
+├── doc/Business-API-续页.md              新增 C 端助手/产物接口、幂等、恢复与错误契约
 ├── deliverables/                         接入说明、模型能力与价格证据台账
 └── sql/
     ├── aid-init.sql                      已合并全部初始化结构与配置数据
-    ├── unreleased/020-tokendance-accounts.sql  授权、凭证与充值会话
-    ├── unreleased/030-model-configuration-version.sql  模型配置乐观锁
-    ├── unreleased/040-provider-task-route-snapshot.sql  任务供应商路由快照
-    ├── unreleased/050-verified-model-capabilities.sql  已核验官方能力缺失字段补齐
+    ├── unreleased/010-unreleased.sql     当前唯一未发布幂等汇总，包含助手会话、预算、审批、固定版本与提交对账结构
     ├── v2.0.0.sql                        v2.0.0 公共数据库升级脚本
     ├── alter_account_amount_precision.sql 账户账本与任务计费金额四位小数迁移
     ├── v1.0.0-beta.2.sql                上一测试版本的幂等数据库迁移脚本
@@ -137,10 +146,6 @@ aid-master/
     ├── v1.0.0-beta.6.sql                模型、计费、风格、分镜协议、统一资源地址、媒体处理及配置唯一性的幂等迁移脚本
     └── v1.0.0-beta.7.sql                模型 LOGO、Wan3.0、Agnes Video 2.5 与参考音频能力的幂等迁移脚本
 
-aid-interface/aid-interface-main/src/test/java/com/aid/storyboard/video/impl/
-├── KlingVideoReferenceStrategyTest.java            可灵 Omni 首帧与参考图总槽位回归测试
-└── MinimaxH3VideoReferenceStrategyTest.java        MiniMax H3 五场景分镜素材路由回归测试
-
 version/
 └── version.md                          飞书版本发布记录，后续版本内容继续追加
 
@@ -149,3 +154,27 @@ version/
 └── *分镜脚本提取*【拆分版】*.txt             五种分镜模式统一 scenes[].shots[]、有效剧情覆盖及锚点画面指令协议
 
 TaskErrorSnapshot.java — 生成任务安全错误快照的持久化和兼容读取。
+
+# 待确认操作报价与费用授权恢复
+aid-interface/aid-interface-main/src/main/java/com/aid/runtime/assistant/execution/AssistantOperationQuoteSourceGuard.java  原待确认操作的不可变范围、主决策及输入身份核验
+aid-interface/aid-interface-main/src/main/java/com/aid/runtime/assistant/execution/AssistantOperationQuoteLineage.java  精确命令键、替换报价及授权修订来源的只读核验
+aid-interface/aid-interface-main/src/main/java/com/aid/runtime/assistant/execution/AssistantOperationQuoteGrantHistory.java  同运行授权连续修订与原失效审批证明
+aid-interface/aid-interface-main/src/main/java/com/aid/runtime/assistant/execution/AssistantPlanExecutionQuoteCommand.java / AssistantPlanExecutionQuoted.java  仅报价命令与完整可重放回执
+aid-interface/aid-interface-main/src/main/java/com/aid/runtime/assistant/execution/AssistantOperationQuoteView.java / AssistantOperationApprovalView.java  操作报价局部空值与 UTC 投影
+aid-interface/aid-interface-main/src/main/java/com/aid/runtime/tool/RuntimeToolQuoteRequest.java / RuntimeToolQuoteReferenceRequiredException.java  只读价格核验及显式素材重核契约
+aid-interface/aid-interface-main/src/main/java/com/aid/runtime/assistant/execution/AssistantTerminalChildEvidenceVerifier.java  固定方法子运行终态、关联任务与原结算证据的共享只读校验
+aid-interface/aid-interface-main/src/main/resources/skills/narrative_product_commercial/1.0.1/  产品事实来源与创作假设分离的单项 Skill 资源
+
+# 按需模型查询与通用合成执行
+ aid-interface/aid-interface-main/src/main/java/com/aid/assistant/service/AssistantMaterializedOutput.java  区分业务模型输出与宿主保存回执。
+ aid-interface/aid-interface-main/src/main/java/com/aid/compose/service/RuntimeComposeTaskService.java  统一合成报价、费用授权与媒体任务提交。
+ aid-interface/aid-interface-main/src/main/java/com/aid/compose/service/RuntimeComposeResultArchive.java  合成成功结果的统一媒体归档。
+ aid-interface/aid-interface-main/src/main/java/com/aid/runtime/assistant/AssistantPlanCompletionFeasibility.java  计划完成条件与已注册证据能力的可行性检查。
+ aid-interface/aid-interface-main/src/main/java/com/aid/runtime/tool/AssistantSkillModelScopeResolver.java  按固定 Skill 声明能力限定模型查询范围。
+ doc/Assistant-模型目标范围查询.md  默认模型直用、用户指定模型时定向查询的接口约定。
+画布作品发布审核：
+  interface-main/com/aid/canvas/publication/service/CanvasPublicationService.java
+  interface-main/com/aid/canvas/publication/service/CanvasPublicationMediaStore.java
+  interface-system/com/aid/canvas/publication/domain/ 与 mapper/
+  business-main/com/aid/canvas/publication/controller/
+  business-system/com/aid/canvas/publication/controller/

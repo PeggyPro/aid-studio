@@ -9,6 +9,12 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.net.URI;
+import java.util.HexFormat;
+import java.util.TreeMap;
 
 import org.springframework.stereotype.Component;
 
@@ -37,6 +43,8 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class OssConfigManager
 {
+    public static final String SYNC_CATEGORY = "storage_sync";
+    public static final String SYNC_KEY = "fingerprint";
     /**
      * 通用配置服务
      */
@@ -91,6 +99,70 @@ public class OssConfigManager
 
         initialized = true;
         log.info("OSS配置刷新完成: enabled={}", currentProperties.getEnabled());
+    }
+
+    /** 保存与同步分离；启动加载及其他缓存刷新不能替代管理员的明确同步。 */
+    public synchronized void synchronizeConfig()
+    {
+        Map<String, String> stored = configService.getConfigValues("oss");
+        if (!hasResourceAddress(stored))
+        {
+            throw new com.aid.common.exception.ServiceException("请先手动填写文件存储的资源访问地址并保存，再同步配置");
+        }
+        refresh();
+        // 记录实际加载的快照，而不是刷新完成后可能已被另一请求修改的数据库值。
+        configService.recordStorageSynchronization(fingerprint(configCache));
+    }
+
+    /** 全局提示只返回状态，不返回地址、密钥或配置摘要。 */
+    public synchronized Map<String, Object> getConfigurationStatus()
+    {
+        Map<String, String> stored = configService.getConfigValues("oss");
+        boolean configured = hasResourceAddress(stored);
+        init();
+        String acknowledged = configService.getConfigValue(SYNC_CATEGORY, SYNC_KEY);
+        boolean synchronizedConfig = configured && StrUtil.isNotBlank(acknowledged)
+                && acknowledged.equals(fingerprint(stored))
+                && acknowledged.equals(fingerprint(configCache));
+        return Map.of("state", !configured ? "UNCONFIGURED" : synchronizedConfig ? "READY" : "UNSYNCED",
+                "configured", configured, "synchronized", synchronizedConfig);
+    }
+
+    private static boolean hasResourceAddress(Map<String, String> values)
+    {
+        try
+        {
+            String address = values == null ? null : values.get("resourceAccessDomain");
+            if (StrUtil.isBlank(address)) return false;
+            URI uri = URI.create(address.trim());
+            return ("http".equalsIgnoreCase(uri.getScheme()) || "https".equalsIgnoreCase(uri.getScheme()))
+                    && StrUtil.isNotBlank(uri.getHost()) && uri.getUserInfo() == null
+                    && (StrUtil.isBlank(uri.getPath()) || "/".equals(uri.getPath()))
+                    && uri.getQuery() == null && uri.getFragment() == null
+                    && (uri.getPort() == -1 || (uri.getPort() > 0 && uri.getPort() <= 65535));
+        }
+        catch (IllegalArgumentException e)
+        {
+            return false;
+        }
+    }
+
+    private static String fingerprint(Map<String, String> values)
+    {
+        try
+        {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            new TreeMap<>(values).forEach((key, value) -> {
+                String text = key.length() + ":" + key + ":" + (value == null ? -1 : value.length())
+                        + ":" + (value == null ? "" : value) + ";";
+                digest.update(text.getBytes(StandardCharsets.UTF_8));
+            });
+            return HexFormat.of().formatHex(digest.digest());
+        }
+        catch (NoSuchAlgorithmException e)
+        {
+            throw new IllegalStateException("无法记录文件存储同步状态", e);
+        }
     }
 
     /**

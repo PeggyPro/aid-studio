@@ -1,5 +1,7 @@
 import React from 'react';
-import { Tag } from 'antd';
+import { Alert, Tag } from 'antd';
+import { Link, useLocation, useSearchParams } from 'react-router-dom';
+import { entityId } from '@/utils/adminWorkspaces';
 import CrudPage, { type CrudConfig } from '@/components/CrudPage';
 import {
   listInviteRebate,
@@ -62,5 +64,23 @@ const config: CrudConfig = {
 };
 
 export default function Page() {
-  return <CrudPage config={config} />;
+  const { pathname } = useLocation();
+  const [params] = useSearchParams();
+  const inviter = entityId(params.get('inviterUserId'));
+  const invitee = entityId(params.get('inviteeUserId'));
+  if (!inviter || !invitee) return <CrudPage key="all" config={config} />;
+
+  const filters = { inviterUserId: inviter, inviteeUserId: invitee };
+  return (
+    <>
+      <Alert type="info" showIcon style={{ marginBottom: 8 }}
+        message={'邀请人 ' + inviter + ' · 被邀请人 ' + invitee}
+        action={<Link to={pathname}>查看全部返佣流水</Link>} />
+      <CrudPage key={inviter + ':' + invitee} config={{
+        ...config,
+        defaultQuery: filters,
+        searchFields: config.searchFields?.filter(field => !(field.name in filters))
+      }} />
+    </>
+  );
 }

@@ -98,6 +98,7 @@ public class StoryboardSceneEnvelopeParser
                 Map<String, String> writerFields = Map.of();
                 if (writerOutput)
                 {
+                    shotNode = StoryboardWriterContentParser.normalizeShot(shotNode);
                     writerFields = StoryboardWriterContentParser.parse(shotNode.get("content"));
                     if (shotNode.size() != 1 || writerFields.size()
                             != StoryboardWriterContentParser.requiredFields().size())

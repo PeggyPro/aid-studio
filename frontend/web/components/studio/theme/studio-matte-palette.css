@@ -1,0 +1,37 @@
+/* Matte graphite palette: shared by canvas surfaces, portals and media loading. */
+:root[data-studio-free-theme='soft-mist'],
+:root[data-studio-free-theme='soft-mist'] .studio-workspace--free,
+[data-studio-free-theme-scope='soft-mist'],
+.studio-free-theme-scope--soft-mist {
+  --studio-matte-canvas: #0c0c0c;
+  --studio-matte-grid: rgba(179, 189, 207, 0.16);
+  --studio-matte-chrome: #1d1f23;
+  --studio-matte-popover: #1d1f23;
+  --studio-matte-modal: #1b1c20;
+  --studio-matte-pop-blur: none;
+  --studio-matte-edge: rgba(255, 255, 255, 0.07);
+  --studio-matte-rim: rgba(255, 255, 255, 0.035);
+  --studio-matte-line: rgba(255, 255, 255, 0.06);
+  --studio-matte-field: #141518;
+  --studio-matte-field-shadow: none;
+  --studio-matte-ctl: rgba(255, 255, 255, 0.035);
+  --studio-matte-ctl-border: transparent;
+  --studio-matte-hover: rgba(255, 255, 255, 0.045);
+  --studio-matte-sel: rgba(255, 255, 255, 0.095);
+  --studio-matte-sel-shadow: none;
+  --studio-matte-sel-ink: #f4f5f7;
+  --studio-matte-mark: #e8eaed;
+  --studio-matte-text: #e8eaed;
+  --studio-matte-text-2: #c3c8cf;
+  --studio-matte-muted: #9aa0a8;
+  --studio-matte-faint: #6e737b;
+  --studio-matte-primary: linear-gradient(180deg, #e4e7eb, #c9cdd3);
+  --studio-matte-primary-ink: #16181b;
+  --studio-matte-primary-shadow: inset 0 1px 0 rgba(255,255,255,.55), 0 1px 2px rgba(0,0,0,.5);
+  --studio-matte-ghost-border: rgba(255, 255, 255, 0.1);
+  --studio-matte-scrim: rgba(0, 0, 0, 0.62);
+  --studio-matte-focus: rgba(255, 255, 255, 0.1);
+  --studio-matte-dash: rgba(255, 255, 255, 0.12);
+  --studio-matte-shimmer: rgba(255, 255, 255, 0.025);
+  --studio-matte-pop-shadow: 0 0 0 1px rgba(0,0,0,.55), 0 14px 34px -14px rgba(0,0,0,.7);
+}

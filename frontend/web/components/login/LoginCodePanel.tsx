@@ -26,6 +26,7 @@ interface LoginCodePanelProps {
   onSendCode: () => void
   onSubmit: () => void
   onUnlockAutofill: (e: React.SyntheticEvent) => void
+  mobileOnly?: boolean
 }
 
 export function LoginCodePanel({
@@ -43,7 +44,8 @@ export function LoginCodePanel({
   onCodeChange,
   onSendCode,
   onSubmit,
-  onUnlockAutofill
+  onUnlockAutofill,
+  mobileOnly = false
 }: LoginCodePanelProps) {
   return (
     <form
@@ -81,7 +83,7 @@ export function LoginCodePanel({
           }
         />
       </div>
-      <div className={LOGIN_MODAL_AUX_ROW_CLASS} aria-hidden="true" />
+      {!mobileOnly && <div className={LOGIN_MODAL_AUX_ROW_CLASS} aria-hidden="true" />}
       <button
         type="submit"
         disabled={loading}

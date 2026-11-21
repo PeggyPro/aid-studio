@@ -2,7 +2,7 @@
 
 
 .create-step-scp .scene-card-auto .scene-card-delete-btn:hover {
-  color: #ff7a84;
+  color: var(--ui-danger, #ff7a84);
   background: rgba(255, 82, 97, 0.12);
 }
 
@@ -19,12 +19,12 @@
 .create-step-scp .scene-card-title {
   font-size: 1rem;
   font-weight: 600;
-  color: var(--home-text, #e6edf3);
+  color: var(--home-text, var(--ui-text, #e6edf3));
   margin: 0;
 }
 
 .create-step-scp .scene-card-delete-btn {
-  color: var(--home-muted, #8e97a5);
+  color: var(--home-muted, var(--ui-muted, #8e97a5));
   padding: 0.25rem;
   width: auto;
   height: auto;
@@ -66,7 +66,7 @@
 }
 
 .create-step-scp .asset-generate-card__or {
-  color: rgba(255, 255, 255, 0.58);
+  color: var(--ui-muted, rgba(255, 255, 255, 0.58));
   font-size: 0.82rem;
   flex-shrink: 0;
 }
@@ -75,9 +75,9 @@
   width: 100px;
   height: 100px;
   border-radius: 10px !important;
-  border: 1px dashed rgba(74, 231, 253, 0.42) !important;
-  background: rgba(12, 16, 24, 0.62) !important;
-  color: rgba(230, 237, 243, 0.9) !important;
+  border: 1px dashed var(--ui-hair, rgba(74, 231, 253, 0.42)) !important;
+  background: var(--ui-bg, rgba(12, 16, 24, 0.62)) !important;
+  color: var(--ui-text, rgba(230, 237, 243, 0.9)) !important;
   display: inline-flex;
   flex-direction: column;
   align-items: center;
@@ -103,31 +103,19 @@
 }
 
 .create-step-scp .asset-generate-card__action.ant-btn:hover {
-  border-color: rgba(74, 231, 253, 0.72) !important;
-  color: #e9fbff !important;
-  background: rgba(20, 40, 68, 0.72) !important;
-}
-
-/*.asset-generate-card__action--primary.ant-btn { */
-/*  border-style: solid !important; */
-/*  border-color: rgba(74, 231, 253, 0.55) !important; */
-/*  background: linear-gradient(180deg, rgba(18, 127, 233, 0.86) 0%, rgba(33, 97, 242, 0.84) 100%) !important; */
-/*} */
-
-.create-step-scp .asset-generate-card__action--primary.ant-btn:hover {
-  border-color: rgba(74, 231, 253, 0.72) !important;
-  color: #e9fbff !important;
-  background: rgba(20, 40, 68, 0.72) !important;
+  border-color: var(--ui-ring, rgba(74, 231, 253, 0.72)) !important;
+  color: var(--ui-text, #e9fbff) !important;
+  background: var(--ui-raised, rgba(20, 40, 68, 0.72)) !important;
 }
 
 .create-step-scp .scene-card-new {
-  border-color: rgba(0, 171, 216, 0.45);
-  background: rgba(14, 89, 250, 0.12);
+  border-color: var(--ui-hair, rgba(0, 171, 216, 0.45));
+  background: var(--ui-soft, rgba(14, 89, 250, 0.12));
 }
 
 .create-step-scp .scene-card-divider {
   text-align: center;
-  color: var(--home-muted, #8e97a5);
+  color: var(--home-muted, var(--ui-muted, #8e97a5));
   font-size: 0.875rem;
   font-weight: 500;
   padding: 0.25rem 0;
@@ -135,7 +123,7 @@
 
 /* 有图片时的场景卡片样式（图6） */
 .create-step-scp .scene-card-auto:has(.scene-card-header-with-image) {
-  border: 1px solid rgba(74, 231, 253, 0.3);
+  border: 1px solid var(--ui-hair, rgba(74, 231, 253, 0.3));
   border-radius: 8px;
   overflow: hidden;
 }
@@ -149,7 +137,7 @@
   padding: 8px 4px;
   min-height: 36px;
   border: none;
-  border-bottom: 1px solid rgba(74, 231, 253, 0.3);
+  border-bottom: 1px solid var(--ui-hair, rgba(74, 231, 253, 0.3));
   border-radius: 0;
 }
 
@@ -159,7 +147,7 @@
 
 .create-step-scp .scene-card-header-with-image > .ant-dropdown-trigger,
 .create-step-scp .scene-card-header-with-image .ant-btn {
-  color: var(--home-muted, #8e97a5);
+  color: var(--home-muted, var(--ui-muted, #8e97a5));
 }
 
 .create-step-scp .scene-card-image-body {

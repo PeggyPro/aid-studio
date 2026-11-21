@@ -1,120 +1,127 @@
+/* 旧创作页皮肤只负责非自由画布；自由画布由页面 ConfigProvider 与公共材料负责配色，尺寸规则仍共用。 */
+
+
 /* Tailwind/PostCSS component styles for create-steps-ant-overrides. */
 
 
-html.app-shell-create .ant-radio-checked .ant-radio-inner {
-  border-color: #00abd8 !important;
-  background-color: #00abd8 !important;
+html:where(:not([data-studio-free-theme])).app-shell-create .ant-radio-checked .ant-radio-inner {
+  border-color: var(--ui-ring, #00abd8) !important;
+  background-color: var(--ui-raised, #00abd8) !important;
 }
 
-html.app-shell-create .ant-radio:hover .ant-radio-inner {
-  border-color: #4ae7fd !important;
+html:where(:not([data-studio-free-theme])).app-shell-create .ant-radio:hover .ant-radio-inner {
+  border-color: var(--ui-ring, #4ae7fd) !important;
 }
 
-html.app-shell-create .ant-checkbox-checked .ant-checkbox-inner {
-  background-color: #00abd8 !important;
-  border-color: #00abd8 !important;
+html:where(:not([data-studio-free-theme])).app-shell-create .ant-checkbox-checked .ant-checkbox-inner {
+  background-color: var(--ui-raised, #00abd8) !important;
+  border-color: var(--ui-ring, #00abd8) !important;
 }
 
-html.app-shell-create .ant-checkbox:hover .ant-checkbox-inner {
-  border-color: #4ae7fd !important;
+html:where(:not([data-studio-free-theme])).app-shell-create .ant-checkbox:hover .ant-checkbox-inner {
+  border-color: var(--ui-ring, #4ae7fd) !important;
 }
 
-html.app-shell-create .ant-switch-checked {
-  background: #00abd8 !important;
+html:where(:not([data-studio-free-theme])).app-shell-create .ant-switch-checked {
+  background: var(--ui-raised, #00abd8) !important;
 }
 
 /* ---------- Modal / Popover / Tooltip / Dropdown ---------- */
-html.app-shell-create  .ant-modal-wrap  {
-  background: rgba(18,18,18, 0.7);
+html:where(:not([data-studio-free-theme])).app-shell-create  .ant-modal-wrap  {
+  background: var(--ui-bg, rgba(18,18,18, 0.7));
 }
-html.app-shell-create .ant-modal .ant-modal-header {
+/* antd 6 的标题间距在容器上。预演台等工作室弹窗会把容器内边距清掉，再写到头部。
+   创作流程的头部清零不能带到 app-shell-studio，否则标题会贴边。 */
+html.app-shell-create:not(.app-shell-studio) .ant-modal .ant-modal-header {
+  padding: var(--aid-modal-header-padding, 0) !important;
+}
+html:where(:not([data-studio-free-theme])).app-shell-create .ant-modal .ant-modal-header {
   background: transparent !important;
   border-bottom-color: transparent !important;
-  padding: 0 !important;
 }
 .ant-modal-close-x{
   font-size: 26px !important;
 }
-html.app-shell-create .ant-modal .ant-modal-title {
-  color: #fff !important;
+html:where(:not([data-studio-free-theme])).app-shell-create .ant-modal .ant-modal-title {
+  color: var(--ui-text, #fff) !important;
 }
 
-html.app-shell-create .ant-modal .ant-modal-close {
-  color: #8e97a5 !important;
+html:where(:not([data-studio-free-theme])).app-shell-create .ant-modal .ant-modal-close {
+  color: var(--ui-muted, #8e97a5) !important;
 }
 
-html.app-shell-create .ant-modal .ant-modal-close:hover {
-  color: #4ae7fd !important;
+html:where(:not([data-studio-free-theme])).app-shell-create .ant-modal .ant-modal-close:hover {
+  color: var(--ui-brand, #4ae7fd) !important;
 }
 
-html.app-shell-create .ant-modal .ant-modal-body {
-  color: #e6edf3 !important;
+html:where(:not([data-studio-free-theme])).app-shell-create .ant-modal .ant-modal-body {
+  color: var(--ui-text, #e6edf3) !important;
 }
 
 /* 弹窗内正文：压过各组件 scoped 里的 #0F172A / gray-700 等深色字 */
-html.app-shell-create .ant-modal .ant-modal-content {
-  color: #e6edf3 !important;
+html:where(:not([data-studio-free-theme])).app-shell-create .ant-modal .ant-modal-content {
+  color: var(--ui-text, #e6edf3) !important;
 }
 
-html.app-shell-create .ant-modal .ant-modal-body *:not(img):not(video):not(canvas):not(input):not(textarea):not(select) {
-  color: #e6edf3 ;
+html:where(:not([data-studio-free-theme])).app-shell-create .ant-modal .ant-modal-body *:not(img):not(video):not(canvas):not(input):not(textarea):not(select) {
+  color: var(--ui-text, #e6edf3);
 }
 
-html.app-shell-create .ant-modal .ant-modal-body input,
-html.app-shell-create .ant-modal .ant-modal-body textarea {
-  color: #e6edf3 !important;
+html:where(:not([data-studio-free-theme])).app-shell-create .ant-modal .ant-modal-body input,
+html:where(:not([data-studio-free-theme])).app-shell-create .ant-modal .ant-modal-body textarea {
+  color: var(--ui-text, #e6edf3) !important;
 }
 
-html.app-shell-create .ant-modal .ant-modal-body *::placeholder {
-  color: #8e97a5 !important;
+html:where(:not([data-studio-free-theme])).app-shell-create .ant-modal .ant-modal-body *::placeholder {
+  color: var(--ui-muted, #8e97a5) !important;
 }
 
-html.app-shell-create .ant-modal .ant-modal-body .ant-btn-primary,
-html.app-shell-create .ant-modal .ant-modal-body .ant-btn-primary * {
-  color: #fff ;
+html:where(:not([data-studio-free-theme])).app-shell-create .ant-modal .ant-modal-body .ant-btn-primary,
+html:where(:not([data-studio-free-theme])).app-shell-create .ant-modal .ant-modal-body .ant-btn-primary * {
+  color: var(--ui-on-primary, #fff);
 }
 
-html.app-shell-create .ant-modal .ant-modal-body .ant-btn-link,
-html.app-shell-create .ant-modal .ant-modal-body .ant-btn-link * {
-  color: #4ae7fd !important;
+html:where(:not([data-studio-free-theme])).app-shell-create .ant-modal .ant-modal-body .ant-btn-link,
+html:where(:not([data-studio-free-theme])).app-shell-create .ant-modal .ant-modal-body .ant-btn-link * {
+  color: var(--ui-brand, #4ae7fd) !important;
 }
 
-html.app-shell-create .ant-modal .ant-modal-body .ant-btn-default,
-html.app-shell-create .ant-modal .ant-modal-body .ant-btn-default * {
-  color: #e6edf3 !important;
+html:where(:not([data-studio-free-theme])).app-shell-create .ant-modal .ant-modal-body .ant-btn-default,
+html:where(:not([data-studio-free-theme])).app-shell-create .ant-modal .ant-modal-body .ant-btn-default * {
+  color: var(--ui-text, #e6edf3) !important;
 }
 
-html.app-shell-create .ant-modal .ant-modal-body .ant-form-item-extra,
-html.app-shell-create .ant-modal .ant-modal-body .ant-input-data-count,
-html.app-shell-create .ant-modal .ant-modal-body .ant-select-selection-placeholder {
-  color: #8e97a5 !important;
+html:where(:not([data-studio-free-theme])).app-shell-create .ant-modal .ant-modal-body .ant-form-item-extra,
+html:where(:not([data-studio-free-theme])).app-shell-create .ant-modal .ant-modal-body .ant-input-data-count,
+html:where(:not([data-studio-free-theme])).app-shell-create .ant-modal .ant-modal-body .ant-select-selection-placeholder {
+  color: var(--ui-muted, #8e97a5) !important;
 }
 
-html.app-shell-create .ant-modal .ant-modal-body .ant-typography-danger,
-html.app-shell-create .ant-modal .ant-modal-body .ant-form-item-explain-error {
-  color: #ff7875 !important;
+html:where(:not([data-studio-free-theme])).app-shell-create .ant-modal .ant-modal-body .ant-typography-danger,
+html:where(:not([data-studio-free-theme])).app-shell-create .ant-modal .ant-modal-body .ant-form-item-explain-error {
+  color: var(--ui-danger, #ff7875) !important;
 }
 
-html.app-shell-create .ant-modal .ant-modal-body .ant-typography-secondary {
-  color: #8e97a5 !important;
+html:where(:not([data-studio-free-theme])).app-shell-create .ant-modal .ant-modal-body .ant-typography-secondary {
+  color: var(--ui-muted, #8e97a5) !important;
 }
 
-html.app-shell-create .ant-modal .ant-modal-body .ant-alert-message {
-  color: #e6edf3 !important;
+html:where(:not([data-studio-free-theme])).app-shell-create .ant-modal .ant-modal-body .ant-alert-message {
+  color: var(--ui-text, #e6edf3) !important;
 }
 
-html.app-shell-create .ant-modal .ant-modal-body .ant-alert-description {
-  color: #a8b0ba !important;
+html:where(:not([data-studio-free-theme])).app-shell-create .ant-modal .ant-modal-body .ant-alert-description {
+  color: var(--ui-muted, #a8b0ba) !important;
 }
 
-html.app-shell-create .ant-modal .ant-modal-footer,
-html.app-shell-create .ant-modal .ant-modal-footer * {
-  color: #e6edf3 !important;
+html:where(:not([data-studio-free-theme])).app-shell-create .ant-modal .ant-modal-footer,
+html:where(:not([data-studio-free-theme])).app-shell-create .ant-modal .ant-modal-footer * {
+  color: var(--ui-text, #e6edf3) !important;
 }
 
-html.app-shell-create .ant-modal .ant-modal-footer .ant-btn-primary,
-html.app-shell-create .ant-modal .ant-modal-footer .ant-btn-primary * {
-  color: #fff !important;
+html:where(:not([data-studio-free-theme])).app-shell-create .ant-modal .ant-modal-footer .ant-btn-primary,
+html:where(:not([data-studio-free-theme])).app-shell-create .ant-modal .ant-modal-footer .ant-btn-primary * {
+  color: var(--ui-on-primary, #fff) !important;
 }
 
 /**
@@ -164,50 +171,72 @@ html.app-shell-create .create-flow-modal .ant-modal-footer .ant-btn > span {
 }
 
 /* 标题区（含自定义 title 插槽） */
-html.app-shell-create .ant-modal .ant-modal-header .ant-modal-title,
-html.app-shell-create .ant-modal .ant-modal-header .ant-modal-title * {
-  color: #fff !important;
+html:where(:not([data-studio-free-theme])).app-shell-create .ant-modal .ant-modal-header .ant-modal-title,
+html:where(:not([data-studio-free-theme])).app-shell-create .ant-modal .ant-modal-header .ant-modal-title * {
+  color: var(--ui-text, #fff) !important;
 }
 
 /* Modal.confirm / info 等 */
-html.app-shell-create .ant-modal-confirm .ant-modal-confirm-body,
-html.app-shell-create .ant-modal-confirm .ant-modal-confirm-body *:not(.anticon) {
-  color: #e6edf3 !important;
+html:where(:not([data-studio-free-theme])).app-shell-create .ant-modal-confirm .ant-modal-confirm-body,
+html:where(:not([data-studio-free-theme])).app-shell-create .ant-modal-confirm .ant-modal-confirm-body *:not(.anticon) {
+  color: var(--ui-text, #e6edf3) !important;
 }
 
-html.app-shell-create .ant-modal-confirm .ant-modal-confirm-title {
-  color: #fff !important;
+html:where(:not([data-studio-free-theme])).app-shell-create .ant-modal-confirm .ant-modal-confirm-title {
+  color: var(--ui-text, #fff) !important;
 }
 
 /* confirm 图标布局见 app-confirm-modal.css */
 
-html.app-shell-create .ant-modal-confirm .ant-modal-confirm-btns .ant-btn-primary.ant-btn-dangerous {
-  background: linear-gradient(270deg, #c62828 0%, #ff4d4f 100%) !important;
-  border-color: transparent !important;
-  color: #fff !important;
-  box-shadow: 0 8px 20px rgba(198, 40, 40, 0.3) !important;
+html:where(:not([data-studio-free-theme])).app-shell-create .ant-modal-confirm .ant-modal-confirm-btns .ant-btn-primary.ant-btn-dangerous {
+  background: var(--ui-primary, linear-gradient(90deg, #c62828 0%, #ff4d4f 100%)) !important;
+  border: none !important;
+  color: var(--ui-on-primary, #fff) !important;
+  box-shadow: var(--ui-shadow, 0 8px 20px rgba(198, 40, 40, 0.3)) !important;
 }
 
-html.app-shell-create .ant-modal-confirm .ant-modal-confirm-btns .ant-btn-primary.ant-btn-dangerous:hover,
-html.app-shell-create .ant-modal-confirm .ant-modal-confirm-btns .ant-btn-primary.ant-btn-dangerous:focus {
-  background: linear-gradient(270deg, #d32f2f 0%, #ff6b6b 100%) !important;
-  color: #fff !important;
+html:where(:not([data-studio-free-theme])).app-shell-create .ant-modal-confirm .ant-modal-confirm-btns .ant-btn-primary.ant-btn-dangerous:hover,
+html:where(:not([data-studio-free-theme])).app-shell-create .ant-modal-confirm .ant-modal-confirm-btns .ant-btn-primary.ant-btn-dangerous:focus {
+  background: var(--ui-primary, linear-gradient(270deg, #d32f2f 0%, #ff6b6b 100%)) !important;
+  color: var(--ui-on-primary, #fff) !important;
 }
 
 /* 全屏类弹窗：内容区直接子级也继承浅色字（防个别结构无 body 包裹） */
-html.app-shell-create .create-flow-modal .ant-modal-content > * {
-  color: #e6edf3 !important;
+html:where(:not([data-studio-free-theme])).app-shell-create .create-flow-modal .ant-modal-content > * {
+  color: var(--ui-text, #e6edf3) !important;
 }
+html.app-shell-create .publish-case-plaza-modal-wrap .ant-modal-footer {
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  justify-content: flex-end !important;
+  align-items: center !important;
+  gap: 8px !important;
+}
+
+html.app-shell-create .publish-case-plaza-modal-wrap .ant-modal-footer .ant-btn {
+  display: inline-flex !important;
+  width: auto !important;
+  min-width: 88px !important;
+  flex: 0 0 auto !important;
+  margin-inline-start: 0 !important;
+}
+
 /* 蒙层 + 弹窗根（部分版本类名在 .ant-modal-root 下） */
-html.app-shell-create .ant-modal-mask {
-  background: rgba(14, 20, 34, 0.58) !important;
+html:where(:not([data-studio-free-theme])).app-shell-create .ant-modal-mask {
+  background: var(--ui-surface, rgba(14, 20, 34, 0.58)) !important;
 }
 
 html.app-shell-create .ant-modal-wrap.create-flow-modal .ant-modal-content,
 html.app-shell-create .create-flow-modal .ant-modal-content,
 html.app-shell-create .ant-modal .ant-modal-content {
-  background: var(--create-surface-modal, rgba(34, 44, 64, 0.985)) !important;
   /*border: 1px solid rgba(74, 231, 253, 0.09) !important;*/
   /*box-shadow: 0 24px 56px rgba(8, 12, 24, 0.45) !important;*/
   border-radius: 8px !important;
+}
+
+html:where(:not([data-studio-free-theme])).app-shell-create .ant-modal-wrap.create-flow-modal .ant-modal-content,
+html:where(:not([data-studio-free-theme])).app-shell-create .create-flow-modal .ant-modal-content,
+html:where(:not([data-studio-free-theme])).app-shell-create .ant-modal .ant-modal-content {
+  background: var(--create-surface-modal, var(--ui-raised, rgba(34, 44, 64, 0.985))) !important;
 }

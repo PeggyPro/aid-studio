@@ -1,0 +1,118 @@
+.studio-flow-editor-drawer-root {
+  z-index: 1450;
+}
+
+.studio-flow-editor-drawer .ant-drawer-content,
+.studio-flow-editor-drawer .ant-drawer-header,
+.studio-flow-editor-drawer .ant-drawer-footer {
+  background: #11141b;
+  border-color: rgb(255 255 255 / 9%);
+}
+
+.studio-flow-editor-drawer .ant-drawer-title,
+.studio-flow-editor-drawer .ant-drawer-close {
+  color: #edf4ff;
+}
+
+.studio-flow-editor-drawer .ant-drawer-body {
+  padding: 0;
+  overflow: auto;
+  background: #0b111a;
+}
+
+.studio-flow-editor__content {
+  min-width: 980px;
+  min-height: 100%;
+  padding: 18px 20px 32px;
+  background: #0b111a;
+}
+
+.studio-flow-editor__loading {
+  padding: 32px;
+}
+
+.studio-flow-editor__footer {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.studio-flow-episode-gate__panel {
+  display: grid;
+  width: min(560px, calc(100vw - 48px));
+  gap: 16px;
+  padding: 28px 30px;
+  color: #edf4ff;
+  border: 1px solid rgb(255 255 255 / 10%);
+  border-radius: 18px;
+  background:
+    radial-gradient(120% 80% at 0% 0%, rgba(74, 231, 253, 0.08), transparent 55%),
+    #111722;
+}
+
+.studio-flow-episode-gate__panel h2,
+.studio-flow-episode-gate__panel p {
+  margin: 0;
+}
+
+.studio-flow-episode-gate__panel h2 {
+  font-size: 22px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+}
+
+.studio-flow-episode-gate__panel > p {
+  color: rgba(237, 244, 255, 0.62);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.studio-flow-episode-gate__row {
+  display: flex;
+  align-items: stretch;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.studio-flow-episode-gate__select {
+  flex: 1;
+  min-width: 0;
+}
+
+.studio-flow-episode-gate__select.ant-select {
+  height: 40px;
+}
+
+.studio-flow-episode-gate__select .ant-select-selector {
+  height: 40px !important;
+  border-radius: 10px !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+  background: rgba(8, 12, 18, 0.72) !important;
+  box-shadow: none !important;
+}
+
+.studio-flow-episode-gate__select .ant-select-selection-item,
+.studio-flow-episode-gate__select .ant-select-selection-placeholder {
+  line-height: 38px !important;
+}
+
+.studio-flow-episode-gate__enter.ant-btn {
+  height: 40px;
+  padding-inline: 18px;
+  border: 0;
+  border-radius: 10px;
+  background: linear-gradient(90deg, #0e59fa 0%, #00abd8 100%);
+  font-weight: 600;
+  white-space: nowrap;
+  box-shadow: 0 8px 20px rgba(14, 89, 250, 0.28);
+}
+
+.studio-flow-episode-gate__enter.ant-btn:disabled {
+  opacity: 0.45;
+  box-shadow: none;
+}
+
+.studio-flow-episode-gate__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}

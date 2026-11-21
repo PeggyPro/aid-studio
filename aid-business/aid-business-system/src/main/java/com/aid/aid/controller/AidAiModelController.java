@@ -44,6 +44,25 @@ public class AidAiModelController extends BaseController
     private IAidAiModelService aidAiModelService;
 
     @Autowired
+    private com.aid.aid.service.support.ModelReferenceGuard modelReferenceGuard;
+
+    @lombok.Data
+    public static class ModelReferenceQuery {
+        private List<Long> modelIds;
+        private String capabilityCode;
+        private Integer page = 1;
+        private Integer pageSize = 20;
+    }
+
+    @PreAuthorize("@ss.hasPermi('aid:aidmodel:remove')")
+    @PostMapping("/references")
+    @io.swagger.v3.oas.annotations.Operation(summary = "分页查询阻止删除的模型或能力绑定")
+    public AjaxResult modelReferences(@RequestBody ModelReferenceQuery request) {
+        if (request.getPage() == null || request.getPageSize() == null)
+            throw new com.aid.common.exception.ServiceException("分页参数不能为空", 400);
+        return success(modelReferenceGuard.page(request.getModelIds(), request.getCapabilityCode(), request.getPage(), request.getPageSize()));
+    }
+    @Autowired
     private List<VideoProviderClient> videoProviderClients;
 
     @Autowired
@@ -313,12 +332,15 @@ public class AidAiModelController extends BaseController
     private void validateModelConfiguration(AidAiModel model)
     {
         String providerCode = resolveProviderCode(model);
-        boolean referenceAudioDeliverable = videoProviderClients.stream().anyMatch(client ->
+        AiConfigJsonValidator.validate(model, providerCode, protocol -> videoProviderClients.stream().anyMatch(client ->
                 client.supportsProviderCode(providerCode)
-                        && client.supportsProtocol(model.getProtocol())
-                        && client.supportsReferenceAudioInput());
-        AiConfigJsonValidator.validate(model, providerCode, referenceAudioDeliverable);
+                        && client.supportsProtocol(protocol)
+                        && client.supportsReferenceAudioInput()));
+        officialAudioConfigurationValidator.validate(model,providerCode);
     }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.aid.media.provider.audio.OfficialAudioConfigurationValidator officialAudioConfigurationValidator;
 
     private String resolveProviderCode(AidAiModel model)
     {

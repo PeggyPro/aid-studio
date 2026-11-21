@@ -48,6 +48,7 @@ final class ProviderErrorContract {
                 case "imageformatinvalid", "videoformatinvalid" -> TaskErrorCode.USER_FILE_FORMAT_INVALID;
                 case "imagesizeinvalid" -> TaskErrorCode.USER_IMAGE_RESOLUTION_INVALID;
                 case "modelunavailable" -> TaskErrorCode.UPSTREAM_SERVICE_NOT_OPEN;
+                case "model_not_found" -> TaskErrorCode.UPSTREAM_MODEL_UNAVAILABLE;
                 default -> null;
             };
             if (type != null) return TaskErrorResult.of(type, raw);

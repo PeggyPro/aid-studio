@@ -1,0 +1,7 @@
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+    ca-certificates python3 libx11-6 libxxf86vm1 libxi6 libxfixes3 libxrender1 libxkbcommon0 \
+    libsm6 libice6 libgl1 libegl1 libxext6 libgomp1 libfontconfig1 fonts-dejavu-core \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+LABEL org.aid.role="scene-runtime"

@@ -4,11 +4,11 @@ import cn.hutool.core.util.StrUtil;
 import com.aid.aid.domain.AidReferenceAudio;
 import com.aid.aid.mapper.AidReferenceAudioMapper;
 import com.aid.common.aid.oss.util.MediaUrlResolver;
-import com.aid.common.exception.ServiceException;
 import com.aid.media.dto.MediaAudioGenerateRequest;
 import com.aid.media.dto.MediaTaskResponse;
 import com.aid.media.dto.MinimaxMusicGenerateRequest;
 import com.aid.media.service.IMediaGenerationService;
+import com.aid.media.service.MediaPreparationErrorCode;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -29,21 +29,31 @@ public class MinimaxMusicGenerationService {
     private final IMediaGenerationService mediaGenerationService;
 
     public MediaTaskResponse generate(MinimaxMusicGenerateRequest input, Long userId) {
+        return mediaGenerationService.generateAudio(prepareRequest(input, userId));
+    }
+
+    /** Server-owned catalog for Assistant Tool discovery and request validation. */
+    public Set<String> supportedModels() {
+        return MODELS;
+    }
+
+    /** Validate ownership and normalize music input without task, wallet, or provider side effects. */
+    public MediaAudioGenerateRequest prepareRequest(MinimaxMusicGenerateRequest input, Long userId) {
         if (input == null || userId == null || userId <= 0 || !MODELS.contains(input.getModelCode())) {
-            throw new ServiceException("音乐请求无效");
+            throw MediaPreparationErrorCode.MEDIA_INPUTS_INVALID.reject("音乐请求无效");
         }
         boolean cover = "music-cover".equals(input.getModelCode());
         if (!cover && (input.getReferenceAudioId() != null || StrUtil.isNotBlank(input.getCoverFeatureId()))) {
-            throw new ServiceException("音乐模型不支持翻唱素材");
+            throw MediaPreparationErrorCode.MODEL_CAPABILITY_INVALID.reject("音乐模型不支持翻唱素材");
         }
         if (cover && (input.getReferenceAudioId() == null) == StrUtil.isBlank(input.getCoverFeatureId())) {
-            throw new ServiceException("请选择一种翻唱素材");
+            throw MediaPreparationErrorCode.MEDIA_INPUTS_INVALID.reject("请选择一种翻唱素材");
         }
         String prompt = StrUtil.trimToEmpty(input.getPrompt());
         String lyrics = StrUtil.trimToEmpty(input.getLyrics());
         String displayText = prompt.isBlank() ? lyrics : prompt;
         if (displayText.isBlank()) {
-            throw new ServiceException("请填写音乐描述或歌词");
+            throw MediaPreparationErrorCode.MEDIA_INPUTS_INVALID.reject("请填写音乐描述或歌词");
         }
         Map<String, Object> options = new LinkedHashMap<>();
         options.put("prompt", prompt);
@@ -67,22 +77,23 @@ public class MinimaxMusicGenerationService {
                     || reference.getFileSize() == null || reference.getFileSize() > MAX_COVER_BYTES
                     || reference.getFileSize() <= 0
                     || !Set.of("mp3", "wav", "flac").contains(StrUtil.nullToEmpty(reference.getAudioFormat()).toLowerCase())) {
-                throw new ServiceException("翻唱素材不可用");
+                throw MediaPreparationErrorCode.MEDIA_INPUTS_INVALID.reject("翻唱素材不可用");
             }
             String fullUrl = mediaUrlResolver.toFullUrl(reference.getAudioUrl());
-            if (StrUtil.isBlank(fullUrl)) throw new ServiceException("翻唱素材不可用");
+            if (StrUtil.isBlank(fullUrl))
+                throw MediaPreparationErrorCode.MEDIA_INPUTS_INVALID.reject("翻唱素材不可用");
             options.put("audioUrl", fullUrl);
         }
         MediaAudioGenerateRequest request = new MediaAudioGenerateRequest();
         request.setUserId(userId);
         request.setModelName(input.getModelCode());
-        request.setCapabilityCode("audio");
+        request.setCapabilityCode(StrUtil.blankToDefault(StrUtil.trim(input.getCapabilityCode()), "audio"));
         request.setTtsText(displayText);
         request.setAudioFormat(input.getAudioFormat());
         request.setSampleRate(input.getSampleRate());
         request.setOptions(options);
         request.setBizTaskType("minimax_music");
         if (reference != null) request.setProjectId(reference.getProjectId());
-        return mediaGenerationService.generateAudio(request);
+        return request;
     }
 }

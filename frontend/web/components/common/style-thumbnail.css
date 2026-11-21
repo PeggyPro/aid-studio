@@ -1,0 +1,13 @@
+.style-thumb .style-thumbnail__empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 4px;
+  color: var(--ui-muted, #a8aeb8);
+  background: var(--ui-raised, rgba(127, 127, 127, .1));
+  font-size: 11px;
+}
+
+.style-thumbnail__empty .anticon { font-size: 17px; }

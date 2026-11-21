@@ -2,6 +2,7 @@
 
 /* eslint-disable @next/next/no-img-element -- 服务商 LOGO 来自模型列表接口 URL。 */
 import { ApiOutlined } from '@ant-design/icons'
+import { useState } from 'react'
 
 export function StudioModelProviderIcon({
   logo,
@@ -11,6 +12,7 @@ export function StudioModelProviderIcon({
   name?: string
 }) {
   const src = String(logo || '').trim()
-  if (!src) return <ApiOutlined />
-  return <img src={src} alt="" title={name} />
+  const [failedSrc, setFailedSrc] = useState('')
+  if (!src || failedSrc === src) return <ApiOutlined aria-hidden="true" />
+  return <img src={src} alt="" aria-hidden="true" title={name} onError={() => setFailedSrc(src)} />
 }

@@ -1,0 +1,365 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.aid.notification.mapper.AidSystemNotificationMapper">
+
+    <select id="selectDatabaseNow" resultType="java.util.Date">
+        SELECT NOW()
+    </select>
+
+    <select id="selectByIdForUpdate" resultType="com.aid.notification.domain.AidSystemNotification">
+        SELECT id,title,summary,content,content_format,message_type,recipient_type,recipient_count,status,
+               scheduled_time,publish_time,publish_seq,version,creator_id,creator_name,updater_id,updater_name,
+               create_time,update_time
+        FROM aid_system_notification
+        WHERE id=#{id}
+        FOR UPDATE
+    </select>
+
+    <select id="selectRecipientIds" resultType="java.lang.Long">
+        SELECT user_id FROM aid_notification_recipient
+        WHERE notification_id=#{notificationId}
+        ORDER BY user_id
+    </select>
+
+    <update id="updateRecipientPublication">
+        UPDATE aid_notification_recipient SET publish_seq=#{publishSeq},publish_time=#{publishTime}
+        WHERE notification_id=#{notificationId}
+    </update>
+
+    <delete id="deleteRecipients">
+        DELETE FROM aid_notification_recipient WHERE notification_id=#{notificationId}
+    </delete>
+
+    <insert id="insertRecipients">
+        INSERT INTO aid_notification_recipient(notification_id,user_id,create_time) VALUES
+        <foreach collection="userIds" item="userId" separator=",">
+            (#{notificationId},#{userId},#{createTime})
+        </foreach>
+    </insert>
+
+    <select id="countValidRecipients" resultType="long">
+        SELECT COUNT(DISTINCT u.user_id)
+        FROM sys_user u
+        WHERE u.del_flag='0' AND u.status='0'
+          AND EXISTS (SELECT 1 FROM sys_user_role ur WHERE ur.user_id=u.user_id AND ur.role_id=2)
+          AND NOT EXISTS (SELECT 1 FROM sys_user_role ur WHERE ur.user_id=u.user_id AND ur.role_id&lt;&gt;2)
+          AND u.user_id IN
+          <foreach collection="userIds" item="userId" open="(" close=")" separator=",">#{userId}</foreach>
+    </select>
+
+    <select id="countCurrentCUsers" resultType="long">
+        SELECT COUNT(*) FROM sys_user u
+        WHERE u.del_flag='0' AND u.status='0'
+          AND EXISTS (SELECT 1 FROM sys_user_role ur WHERE ur.user_id=u.user_id AND ur.role_id=2)
+          AND NOT EXISTS (SELECT 1 FROM sys_user_role ur WHERE ur.user_id=u.user_id AND ur.role_id&lt;&gt;2)
+    </select>
+
+    <select id="isActiveCUser" resultType="boolean">
+        SELECT EXISTS(
+            SELECT 1 FROM sys_user u
+            WHERE u.user_id=#{userId} AND u.del_flag='0' AND u.status='0'
+              AND EXISTS (SELECT 1 FROM sys_user_role ur WHERE ur.user_id=u.user_id AND ur.role_id=2)
+              AND NOT EXISTS (SELECT 1 FROM sys_user_role ur WHERE ur.user_id=u.user_id AND ur.role_id&lt;&gt;2)
+        )
+    </select>
+
+    <select id="selectRecipientPage" resultType="com.aid.notification.domain.NotificationRecipientRow">
+        SELECT u.user_id,u.user_name,u.nick_name,u.avatar,u.status,u.create_time
+        FROM sys_user u
+        WHERE u.del_flag='0'
+          AND EXISTS (SELECT 1 FROM sys_user_role ur WHERE ur.user_id=u.user_id AND ur.role_id=2)
+          AND NOT EXISTS (SELECT 1 FROM sys_user_role ur WHERE ur.user_id=u.user_id AND ur.role_id&lt;&gt;2)
+          <if test="keyword != null and keyword != ''">
+              AND (u.user_name LIKE CONCAT('%',#{keyword},'%') OR u.nick_name LIKE CONCAT('%',#{keyword},'%'))
+          </if>
+        ORDER BY u.create_time DESC,u.user_id DESC
+        LIMIT #{offset},#{limit}
+    </select>
+
+    <select id="countRecipientPage" resultType="long">
+        SELECT COUNT(*)
+        FROM sys_user u
+        WHERE u.del_flag='0'
+          AND EXISTS (SELECT 1 FROM sys_user_role ur WHERE ur.user_id=u.user_id AND ur.role_id=2)
+          AND NOT EXISTS (SELECT 1 FROM sys_user_role ur WHERE ur.user_id=u.user_id AND ur.role_id&lt;&gt;2)
+          <if test="keyword != null and keyword != ''">
+              AND (u.user_name LIKE CONCAT('%',#{keyword},'%') OR u.nick_name LIKE CONCAT('%',#{keyword},'%'))
+          </if>
+    </select>
+
+    <select id="selectAdminPage" resultType="com.aid.notification.domain.NotificationQueryRow">
+        SELECT id,title,summary,message_type,recipient_type,recipient_count,status,scheduled_time,publish_time,
+               publish_seq,version,creator_id,creator_name,updater_id,updater_name,create_time,update_time
+        FROM aid_system_notification
+        WHERE 1=1
+          <if test="status != null and status != ''">AND status=#{status}</if>
+          <if test="keyword != null and keyword != ''">
+              AND (title LIKE CONCAT('%',#{keyword},'%') OR summary LIKE CONCAT('%',#{keyword},'%'))
+          </if>
+        ORDER BY (publish_time IS NULL),publish_time DESC,publish_seq DESC,
+                 COALESCE(scheduled_time,update_time) DESC,id DESC
+        LIMIT #{offset},#{limit}
+    </select>
+
+    <select id="countAdminPage" resultType="long">
+        SELECT COUNT(*) FROM aid_system_notification
+        WHERE 1=1
+          <if test="status != null and status != ''">AND status=#{status}</if>
+          <if test="keyword != null and keyword != ''">
+              AND (title LIKE CONCAT('%',#{keyword},'%') OR summary LIKE CONCAT('%',#{keyword},'%'))
+          </if>
+    </select>
+
+    <update id="updateDraft">
+        UPDATE aid_system_notification
+        SET title=#{item.title},summary=#{item.summary},content=#{item.content},content_format=#{item.contentFormat},
+            recipient_type=#{item.recipientType},recipient_count=#{item.recipientCount},scheduled_time=#{item.scheduledTime},
+            updater_id=#{item.updaterId},updater_name=#{item.updaterName},update_time=#{item.updateTime},version=version+1
+        WHERE id=#{item.id} AND status='DRAFT' AND version=#{expectedVersion}
+    </update>
+
+    <update id="scheduleNotification">
+        UPDATE aid_system_notification
+        SET status='SCHEDULED',scheduled_time=#{scheduledTime},updater_id=#{updaterId},updater_name=#{updaterName},
+            update_time=#{updateTime},version=version+1
+        WHERE id=#{id} AND status='DRAFT' AND version=#{expectedVersion}
+    </update>
+
+    <update id="publishNotification">
+        UPDATE aid_system_notification
+        SET status='PUBLISHED',scheduled_time=NULL,publish_time=#{publishTime},publish_seq=#{publishSeq},
+            recipient_count=#{recipientCount},updater_id=#{updaterId},updater_name=#{updaterName},
+            update_time=#{updateTime},version=version+1
+        WHERE id=#{id} AND status=#{expectedStatus} AND version=#{expectedVersion}
+    </update>
+
+    <update id="withdrawNotification">
+        UPDATE aid_system_notification
+        SET status='WITHDRAWN',updater_id=#{updaterId},updater_name=#{updaterName},update_time=#{updateTime},version=version+1
+        WHERE id=#{id} AND status='PUBLISHED' AND version=#{expectedVersion}
+    </update>
+
+    <update id="cancelSchedule">
+        UPDATE aid_system_notification
+        SET status='DRAFT',scheduled_time=NULL,updater_id=#{updaterId},updater_name=#{updaterName},
+            update_time=#{updateTime},version=version+1
+        WHERE id=#{id} AND status='SCHEDULED' AND version=#{expectedVersion}
+    </update>
+
+    <select id="selectDueScheduledIds" resultType="java.lang.Long">
+        SELECT id FROM aid_system_notification
+        WHERE status='SCHEDULED' AND scheduled_time&lt;=#{now}
+        ORDER BY scheduled_time,id
+        LIMIT #{limit}
+    </select>
+
+    <select id="selectSequenceForUpdate" resultType="com.aid.notification.domain.AidNotificationSequence">
+        SELECT id,publish_seq,visibility_revision FROM aid_notification_sequence WHERE id=1 FOR UPDATE
+    </select>
+
+    <select id="selectSequence" resultType="com.aid.notification.domain.AidNotificationSequence">
+        SELECT id,publish_seq,visibility_revision FROM aid_notification_sequence WHERE id=1
+    </select>
+
+    <update id="updateSequence">
+        UPDATE aid_notification_sequence
+        SET publish_seq=#{publishSeq},visibility_revision=#{visibilityRevision}
+        WHERE id=1
+    </update>
+
+    <insert id="reserveOperation">
+        INSERT IGNORE INTO aid_notification_operation(operator_id,action_type,client_request_id,request_hash,create_time)
+        VALUES(#{operatorId},#{actionType},#{clientRequestId},#{requestHash},#{createTime})
+    </insert>
+
+    <select id="selectOperationForUpdate" resultType="com.aid.notification.domain.AidNotificationOperation">
+        SELECT id,operator_id,action_type,client_request_id,request_hash,notification_id,response_version,
+               create_time,complete_time
+        FROM aid_notification_operation
+        WHERE operator_id=#{operatorId} AND action_type=#{actionType} AND client_request_id=#{clientRequestId}
+        FOR UPDATE
+    </select>
+
+    <update id="completeOperation">
+        UPDATE aid_notification_operation
+        SET notification_id=#{notificationId},response_version=#{responseVersion},complete_time=#{completeTime}
+        WHERE id=#{operationId} AND complete_time IS NULL
+    </update>
+
+    <select id="selectUserPage" resultType="com.aid.notification.domain.NotificationQueryRow">
+        SELECT v.id,n.title,n.summary,n.message_type,v.publish_time,v.publish_seq,
+               CASE WHEN v.publish_seq&lt;=COALESCE(s.read_all_publish_seq,0) OR r.notification_id IS NOT NULL
+                    THEN TRUE ELSE FALSE END AS `read`,
+               CASE WHEN r.read_time IS NOT NULL THEN r.read_time
+                    WHEN v.publish_seq&lt;=COALESCE(s.read_all_publish_seq,0) THEN s.read_all_time ELSE NULL END AS read_time
+        FROM (
+            (SELECT n.id,n.publish_time,n.publish_seq
+             FROM aid_system_notification n
+             <if test="isRead != null">
+                 LEFT JOIN aid_notification_read br ON br.user_id=#{userId} AND br.notification_id=n.id
+             </if>
+             WHERE n.status='PUBLISHED' AND n.recipient_type='ALL'
+             <choose>
+                 <when test="isRead != null and isRead">
+                     AND (n.publish_seq&lt;=#{readAllPublishSeq} OR br.notification_id IS NOT NULL)
+                 </when>
+                 <when test="isRead != null">
+                     AND n.publish_seq&gt;#{readAllPublishSeq} AND br.notification_id IS NULL
+                 </when>
+             </choose>
+             ORDER BY n.publish_time DESC,n.publish_seq DESC,n.id DESC
+             LIMIT #{candidateLimit})
+            UNION ALL
+            (SELECT n.id,nr.publish_time,nr.publish_seq
+             FROM aid_notification_recipient nr
+             INNER JOIN aid_system_notification n ON n.id=nr.notification_id
+                  AND n.status='PUBLISHED' AND n.recipient_type='USERS'
+             <if test="isRead != null">
+                 LEFT JOIN aid_notification_read br ON br.user_id=#{userId} AND br.notification_id=n.id
+             </if>
+             WHERE nr.user_id=#{userId} AND nr.publish_time IS NOT NULL AND nr.publish_seq IS NOT NULL
+             <choose>
+                 <when test="isRead != null and isRead">
+                     AND (nr.publish_seq&lt;=#{readAllPublishSeq} OR br.notification_id IS NOT NULL)
+                 </when>
+                 <when test="isRead != null">
+                     AND nr.publish_seq&gt;#{readAllPublishSeq} AND br.notification_id IS NULL
+                 </when>
+             </choose>
+             ORDER BY nr.publish_time DESC,nr.publish_seq DESC,nr.notification_id DESC
+             LIMIT #{candidateLimit})
+        ) v
+        INNER JOIN aid_system_notification n ON n.id=v.id
+        LEFT JOIN aid_notification_user_state s ON s.user_id=#{userId}
+        LEFT JOIN aid_notification_read r ON r.user_id=#{userId} AND r.notification_id=v.id
+        ORDER BY v.publish_time DESC,v.publish_seq DESC,v.id DESC
+        LIMIT #{offset},#{limit}
+    </select>
+
+    <select id="countUserVisible" resultType="long">
+        <choose>
+            <when test="isRead == null">
+                SELECT
+                  (SELECT COUNT(*) FROM aid_system_notification n
+                   WHERE n.status='PUBLISHED' AND n.recipient_type='ALL')
+                  +
+                  (SELECT COUNT(*) FROM aid_notification_recipient nr
+                   INNER JOIN aid_system_notification n ON n.id=nr.notification_id
+                        AND n.status='PUBLISHED' AND n.recipient_type='USERS'
+                   WHERE nr.user_id=#{userId} AND nr.publish_seq IS NOT NULL)
+            </when>
+            <when test="isRead">
+                SELECT
+                  ((SELECT COUNT(*) FROM aid_system_notification n
+                    WHERE n.status='PUBLISHED' AND n.recipient_type='ALL')
+                   +
+                   (SELECT COUNT(*) FROM aid_notification_recipient nr
+                    INNER JOIN aid_system_notification n ON n.id=nr.notification_id
+                         AND n.status='PUBLISHED' AND n.recipient_type='USERS'
+                    WHERE nr.user_id=#{userId} AND nr.publish_seq IS NOT NULL))
+                  -
+                  ((SELECT COUNT(*)
+                    FROM aid_system_notification n
+                    LEFT JOIN aid_notification_read r ON r.user_id=#{userId} AND r.notification_id=n.id
+                    WHERE n.status='PUBLISHED' AND n.recipient_type='ALL'
+                      AND n.publish_seq&gt;#{readAllPublishSeq} AND r.notification_id IS NULL)
+                   +
+                   (SELECT COUNT(*)
+                    FROM aid_notification_recipient nr
+                    INNER JOIN aid_system_notification n ON n.id=nr.notification_id
+                         AND n.status='PUBLISHED' AND n.recipient_type='USERS'
+                    LEFT JOIN aid_notification_read r ON r.user_id=#{userId} AND r.notification_id=n.id
+                    WHERE nr.user_id=#{userId} AND nr.publish_seq&gt;#{readAllPublishSeq}
+                      AND r.notification_id IS NULL))
+            </when>
+            <otherwise>
+                SELECT
+                  (SELECT COUNT(*)
+                   FROM aid_system_notification n
+                   LEFT JOIN aid_notification_read r ON r.user_id=#{userId} AND r.notification_id=n.id
+                   WHERE n.status='PUBLISHED' AND n.recipient_type='ALL'
+                     AND n.publish_seq&gt;#{readAllPublishSeq} AND r.notification_id IS NULL)
+                  +
+                  (SELECT COUNT(*)
+                   FROM aid_notification_recipient nr
+                   INNER JOIN aid_system_notification n ON n.id=nr.notification_id
+                        AND n.status='PUBLISHED' AND n.recipient_type='USERS'
+                   LEFT JOIN aid_notification_read r ON r.user_id=#{userId} AND r.notification_id=n.id
+                   WHERE nr.user_id=#{userId} AND nr.publish_seq&gt;#{readAllPublishSeq}
+                     AND r.notification_id IS NULL)
+            </otherwise>
+        </choose>
+    </select>
+
+    <select id="selectUserDetail" resultType="com.aid.notification.domain.NotificationQueryRow">
+        SELECT n.id,n.title,n.summary,n.content,n.content_format,n.message_type,n.publish_time,n.publish_seq,
+               CASE WHEN n.publish_seq&lt;=COALESCE(s.read_all_publish_seq,0) OR r.notification_id IS NOT NULL
+                    THEN TRUE ELSE FALSE END AS `read`,
+               CASE WHEN r.read_time IS NOT NULL THEN r.read_time
+                    WHEN n.publish_seq&lt;=COALESCE(s.read_all_publish_seq,0) THEN s.read_all_time ELSE NULL END AS read_time
+        FROM aid_system_notification n
+        LEFT JOIN aid_notification_user_state s ON s.user_id=#{userId}
+        LEFT JOIN aid_notification_read r ON r.user_id=#{userId} AND r.notification_id=n.id
+        WHERE n.id=#{notificationId} AND n.status='PUBLISHED'
+          AND (n.recipient_type='ALL' OR
+               (n.recipient_type='USERS' AND EXISTS(
+                   SELECT 1 FROM aid_notification_recipient nr
+                   WHERE nr.notification_id=n.id AND nr.user_id=#{userId}
+               )))
+    </select>
+
+    <select id="countUnread" resultType="long">
+        SELECT
+          (SELECT COUNT(*)
+           FROM aid_system_notification n
+           LEFT JOIN aid_notification_read r ON r.user_id=#{userId} AND r.notification_id=n.id
+           WHERE n.status='PUBLISHED' AND n.recipient_type='ALL'
+             AND n.publish_seq&gt;#{readAllPublishSeq} AND r.notification_id IS NULL)
+          +
+          (SELECT COUNT(*)
+           FROM aid_notification_recipient nr
+           INNER JOIN aid_system_notification n ON n.id=nr.notification_id
+                AND n.status='PUBLISHED' AND n.recipient_type='USERS'
+           LEFT JOIN aid_notification_read r ON r.user_id=#{userId} AND r.notification_id=n.id
+           WHERE nr.user_id=#{userId} AND nr.publish_seq&gt;#{readAllPublishSeq}
+             AND r.notification_id IS NULL)
+    </select>
+
+    <select id="selectUserState" resultType="com.aid.notification.domain.AidNotificationUserState">
+        SELECT user_id,read_all_publish_seq,read_all_time,read_revision,update_time
+        FROM aid_notification_user_state WHERE user_id=#{userId}
+    </select>
+
+    <select id="selectUserStateForUpdate" resultType="com.aid.notification.domain.AidNotificationUserState">
+        SELECT user_id,read_all_publish_seq,read_all_time,read_revision,update_time
+        FROM aid_notification_user_state WHERE user_id=#{userId} FOR UPDATE
+    </select>
+
+    <insert id="ensureUserState">
+        INSERT IGNORE INTO aid_notification_user_state(user_id,read_all_publish_seq,read_revision,update_time)
+        VALUES(#{userId},0,0,NOW())
+    </insert>
+
+    <update id="updateReadAllState">
+        UPDATE aid_notification_user_state
+        SET read_all_publish_seq=GREATEST(read_all_publish_seq,#{readAllPublishSeq}),
+            read_all_time=#{readAllTime},read_revision=read_revision+1,update_time=#{updateTime}
+        WHERE user_id=#{userId}
+    </update>
+
+    <insert id="insertRead">
+        INSERT IGNORE INTO aid_notification_read(user_id,notification_id,read_time)
+        VALUES(#{userId},#{notificationId},#{readTime})
+    </insert>
+
+    <update id="incrementReadRevision">
+        UPDATE aid_notification_user_state
+        SET read_revision=read_revision+1,update_time=#{updateTime}
+        WHERE user_id=#{userId}
+    </update>
+
+    <select id="selectRealtimeSummary" resultType="com.aid.notification.domain.AidSystemNotification">
+        SELECT id,title,summary,message_type,recipient_type,publish_time
+        FROM aid_system_notification WHERE id=#{notificationId}
+    </select>
+</mapper>

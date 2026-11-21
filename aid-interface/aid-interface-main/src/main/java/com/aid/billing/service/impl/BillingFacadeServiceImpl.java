@@ -7,21 +7,27 @@ import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.aid.aid.domain.media.AidMediaTask;
 import com.aid.aid.mapper.AidMediaTaskMapper;
 import com.aid.billing.dto.BillingCalcResult;
+import com.aid.billing.dto.BillingBudgetContext;
 import com.aid.billing.dto.BillingInput;
+import com.aid.billing.dto.BillingBudgetViews.ReservationView;
 import com.aid.billing.enums.BillingConstants;
 import com.aid.billing.enums.MeterType;
 import com.aid.billing.enums.TextSettleStatus;
 import com.aid.billing.model.BillingSnapshot;
 import com.aid.billing.model.BillingRule;
 import com.aid.billing.service.BillingAmountCalculator;
+import com.aid.billing.service.AssistantBillingBudgetService;
 import com.aid.billing.service.BillingPreHoldCalculationService;
 import com.aid.billing.service.BillingFacadeService;
 import com.aid.billing.service.BillingRuleResolver;
 import com.aid.billing.service.IAccountUpdateService;
 import com.aid.billing.util.TextReasoningBillingResolver;
+import com.aid.billing.util.AssistantMediaQuoteDigest;
 import com.aid.common.exception.ServiceException;
 import com.aid.domain.vo.AiModelConfigVo;
 import com.aid.media.service.IMediaBillingService;
+import com.aid.media.provider.ProviderUsageSupport;
+import com.aid.media.provider.TextFailureBillingPolicy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -48,6 +54,7 @@ public class BillingFacadeServiceImpl implements BillingFacadeService {
     private final IMediaBillingService mediaBillingService;
     private final AidMediaTaskMapper aidMediaTaskMapper;
     private final IAccountUpdateService accountUpdateService;
+    private final AssistantBillingBudgetService assistantBillingBudgetService;
 
     private static final String DATETIME_FORMAT = "yyyy-MM-dd HH:mm:ss";
     private static final DateTimeFormatter DATETIME_FORMATTER = DateTimeFormatter.ofPattern(DATETIME_FORMAT);
@@ -61,6 +68,39 @@ public class BillingFacadeServiceImpl implements BillingFacadeService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void prepareBilling(AidMediaTask task, AiModelConfigVo modelConfig, BillingInput billingInput) {
+        prepareBillingInternal(task, modelConfig, billingInput, null);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void prepareBilling(AidMediaTask task, AiModelConfigVo modelConfig, BillingInput billingInput,
+                               BigDecimal authorizedPreHoldCap) {
+        BillingBudgetContext budgetContext = billingInput == null ? null : billingInput.getBudgetContext();
+        boolean budgetManaged = task != null
+                && BillingBudgetContext.isBudgetManagedBizTaskType(task.getBizTaskType());
+        if (budgetContext != null || budgetManaged) {
+            throw new ServiceException("Legacy pre-hold cap cannot authorize a budget-managed task");
+        }
+        if (authorizedPreHoldCap != null && authorizedPreHoldCap.signum() < 0) {
+            throw new ServiceException("Legacy pre-hold cap is invalid");
+        }
+        prepareBillingInternal(task, modelConfig, billingInput, authorizedPreHoldCap);
+    }
+
+    private void prepareBillingInternal(AidMediaTask task, AiModelConfigVo modelConfig,
+                                        BillingInput billingInput, BigDecimal authorizedPreHoldCap) {
+        BillingBudgetContext budgetContext = billingInput == null ? null : billingInput.getBudgetContext();
+        boolean assistantTask = task != null
+                && BillingBudgetContext.isBudgetManagedBizTaskType(task.getBizTaskType());
+        if (assistantTask && budgetContext == null) {
+            throw new ServiceException("预算上下文缺失");
+        }
+        if (budgetContext != null
+                && (!budgetContext.isRunAuthorizationMode() || !assistantTask)) {
+            throw new ServiceException("预算上下文无效");
+        }
+        BigDecimal adjustedAmount = null;
+        try {
         if (billingInput.isInputMetadataPending()) throw new ServiceException("素材尚未完成核验");
         BillingCalcResult calcResult = billingPreHoldCalculationService.calculate(modelConfig, billingInput);
         if (!calcResult.isMatched()) {
@@ -69,7 +109,13 @@ public class BillingFacadeServiceImpl implements BillingFacadeService {
         }
 
         // 计算器已完成：官方原价 × 模型基础倍率 × 单模型倍率。
-        BigDecimal adjustedAmount = calcResult.getAmount();
+        adjustedAmount = calcResult.getAmount();
+        if (authorizedPreHoldCap != null && adjustedAmount.compareTo(authorizedPreHoldCap) > 0) {
+            throw new ServiceException("Calculated pre-hold exceeds the legacy authorized cap");
+        }
+        if (authorizedPreHoldCap != null && calcResult.getSnapshot() != null) {
+            calcResult.getSnapshot().setAuthorizedChargeCap(authorizedPreHoldCap);
+        }
         String meterType = calcResult.getSnapshot() != null ? calcResult.getSnapshot().getMeterType() : "UNKNOWN";
         log.info("预扣计费, model={}, meterType={}, calculated={}, adjusted={}",
                 modelConfig.getModelCode(), meterType, calcResult.getAmount(), adjustedAmount);
@@ -81,6 +127,22 @@ public class BillingFacadeServiceImpl implements BillingFacadeService {
         if (billingInput != null && billingInput.getParams() != null) {
             task.setBillingParamJson(JSONUtil.toJsonStr(billingInput.getParams()));
         }
+        if (budgetContext != null && calcResult.getSnapshot() == null) {
+            throw new ServiceException("计费快照缺失");
+        }
+        if (budgetContext != null) {
+            String requestDigest = AssistantMediaQuoteDigest.requestDigestFromJson(task.getRequestJson());
+            String quoteDigest = AssistantMediaQuoteDigest.quoteDigest(budgetContext.getQuoteId(), requestDigest,
+                    budgetContext.getQuoteExpiresAt(), modelConfig, billingInput, calcResult);
+            calcResult.getSnapshot().setRequestDigest(requestDigest);
+            calcResult.getSnapshot().setQuoteId(budgetContext.getQuoteId());
+            calcResult.getSnapshot().setQuoteDigest(quoteDigest);
+            calcResult.getSnapshot().setQuoteExpiresAt(budgetContext.getQuoteExpiresAt());
+            calcResult.getSnapshot().setAuthorizedChargeCap(
+                    AssistantMediaQuoteDigest.quotedUpperBound(adjustedAmount));
+            assistantBillingBudgetService.verifyPreHold(
+                    budgetContext, task, adjustedAmount, calcResult.getSnapshot());
+        }
         if (calcResult.getSnapshot() != null) {
             task.setBillingSnapshotJson(JSONUtil.toJsonStr(calcResult.getSnapshot()));
         }
@@ -90,11 +152,99 @@ public class BillingFacadeServiceImpl implements BillingFacadeService {
 
         // 委托给账户执行层做冻结
         mediaBillingService.prepareBilling(task, overrideConfig);
+        if (budgetContext != null) {
+            ReservationView reserved = assistantBillingBudgetService.markReserved(
+                    budgetContext, task, "system");
+            calcResult.getSnapshot().setBillingReservationRevision(reserved.getRevision());
+            task.setBillingSnapshotJson(JSONUtil.toJsonStr(calcResult.getSnapshot()));
+        }
+        } catch (RuntimeException failure) {
+            if (budgetContext != null) {
+                try {
+                    assistantBillingBudgetService.compensatePreHoldFailure(
+                            budgetContext, task, adjustedAmount, "system");
+                } catch (RuntimeException compensationFailure) {
+                    failure.addSuppressed(compensationFailure);
+                    log.error("Run预算预冻结补偿失败, taskId={}", task == null ? null : task.getId(),
+                            compensationFailure);
+                }
+            }
+            throw failure;
+        }
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void prepareServiceBilling(AidMediaTask task, BillingCalcResult calculation,
+                                      BillingBudgetContext context) {
+        if (task == null || calculation == null || !calculation.isMatched()
+                || calculation.getAmount() == null || calculation.getAmount().signum() < 0
+                || calculation.getSnapshot() == null || context == null || !context.isRunAuthorizationMode()
+                || !BillingBudgetContext.isBudgetManagedBizTaskType(task.getBizTaskType())
+                || !Objects.equals(task.getModelName(), calculation.getSnapshot().getModelName())
+                || !Objects.equals(calculation.getAmount(), calculation.getSnapshot().getPreHoldAmount())) {
+            throw new ServiceException("服务报价计费身份无效");
+        }
+        try {
+            assistantBillingBudgetService.verifyPreHold(context, task, calculation.getAmount(), calculation.getSnapshot());
+            AiModelConfigVo charge = new AiModelConfigVo();
+            charge.setModelCode(task.getModelName());
+            charge.setCostCredits(calculation.getAmount());
+            mediaBillingService.prepareBilling(task, charge);
+            ReservationView reserved = assistantBillingBudgetService.markReserved(context, task, "system");
+            calculation.getSnapshot().setBillingReservationRevision(reserved.getRevision());
+            task.setBillingSnapshotJson(JSONUtil.toJsonStr(calculation.getSnapshot()));
+        } catch (RuntimeException failure) {
+            try {
+                assistantBillingBudgetService.compensatePreHoldFailure(context, task, calculation.getAmount(), "system");
+            } catch (RuntimeException compensationFailure) {
+                failure.addSuppressed(compensationFailure);
+                log.error("服务报价预冻结补偿失败, taskId={}", task.getId(), compensationFailure);
+            }
+            throw failure;
+        }
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public boolean settleBilling(AidMediaTask task, Map<String, Object> usageData) {
+        if (failedText(task)) {
+            usageData = failedTextUsage(task, usageData);
+            if (!ProviderUsageSupport.hasAnyProviderUsage(usageData)) {
+                return refundBilling(task);
+            }
+        }
+        boolean settled = doSettleBilling(task, usageData);
+        if (settled) {
+            assistantBillingBudgetService.settleFromMediaTask(task, "system");
+        }
+        return settled;
+    }
+
+    private boolean failedText(AidMediaTask task) {
+        return task != null && "TEXT".equalsIgnoreCase(task.getMediaType())
+                && "FAILED".equals(task.getStatus());
+    }
+
+    private Map<String, Object> failedTextUsage(AidMediaTask task, Map<String, Object> current) {
+        Map<String, Object> actual = ProviderUsageSupport.actualUsage(ProviderUsageSupport.merge(
+                TextFailureBillingPolicy.observedUsage(task.getErrorDetailJson()), current));
+        BillingSnapshot saved = parseSnapshot(task.getBillingSnapshotJson());
+        if (saved != null && (Boolean.TRUE.equals(saved.getHasAnyProviderUsage())
+                || Boolean.TRUE.equals(saved.getProviderUsageCaptured()))) {
+            if (saved.getActualInputTokens() != null) actual.putIfAbsent("input_tokens", saved.getActualInputTokens());
+            if (saved.getActualOutputTokens() != null) actual.putIfAbsent("output_tokens", saved.getActualOutputTokens());
+            if (saved.getActualCachedInputTokens() != null) actual.putIfAbsent("cached_input_tokens", saved.getActualCachedInputTokens());
+            if (saved.getActualCacheWriteInputTokens() != null) actual.putIfAbsent("cache_write_input_tokens", saved.getActualCacheWriteInputTokens());
+            if (saved.getActualReasoningTokens() != null) actual.putIfAbsent("reasoning_tokens", saved.getActualReasoningTokens());
+            actual.putIfAbsent("input_usage_complete", Boolean.TRUE.equals(saved.getInputUsageComplete()));
+            actual.putIfAbsent("output_usage_complete", Boolean.TRUE.equals(saved.getOutputUsageComplete()));
+            actual.putIfAbsent("provider_usage_captured", Boolean.TRUE.equals(saved.getProviderUsageCaptured()));
+        }
+        return ProviderUsageSupport.actualUsage(actual);
+    }
+
+    private boolean doSettleBilling(AidMediaTask task, Map<String, Object> usageData) {
         // 解析快照，按 meterType 分发结算逻辑
         BillingSnapshot snapshot = parseSnapshot(task.getBillingSnapshotJson());
         if (snapshot != null && "PROVIDER".equals(snapshot.getPayerType())) {
@@ -108,7 +258,7 @@ public class BillingFacadeServiceImpl implements BillingFacadeService {
             return settleImageBilling(task, snapshot, usageData);
         }
 
-        if (meterType == MeterType.TOKEN || meterType == MeterType.PER_SECOND
+        if (failedText(task) || meterType == MeterType.TOKEN || meterType == MeterType.PER_SECOND || meterType == MeterType.PER_MINUTE
                 || meterType == MeterType.PER_CREDIT) {
             // TOKEN / PER_SECOND：走差额结算（实际用量重算，只退不补）
             // 先完成账户层结算，再走差额退款
@@ -145,15 +295,16 @@ public class BillingFacadeServiceImpl implements BillingFacadeService {
             // 思考请求缺少供应商完整 usage 时不得按可见正文退款：思考 token 不可见。
             // 保留原始部分 usage 交给计算器写入已捕获侧和完整性审计；计算器会按预冻结上限保守结算。
             Map<String, Object> effectiveUsage = usageData;
-            if (meterType == MeterType.TOKEN && !hasCompleteTokenUsage(effectiveUsage)) {
+            if (!failedText(task) && meterType == MeterType.TOKEN && !hasCompleteTokenUsage(effectiveUsage)) {
                 log.error("文本请求未返回完整父级usage，按预冻结结算, taskId={}, model={}",
                         task.getId(), task.getModelName());
             }
 
             // 重新计算实际金额
             BigDecimal preHoldAmount = task.getFrozenAmount();
-            BillingCalcResult settleCalc = billingAmountCalculator.calculateSettleAmount(
-                    preHoldAmount, task.getBillingSnapshotJson(), effectiveUsage);
+            BillingCalcResult settleCalc = failedText(task)
+                    ? billingAmountCalculator.calculateFailedTextSettleAmount(preHoldAmount, task.getBillingSnapshotJson(), effectiveUsage)
+                    : billingAmountCalculator.calculateSettleAmount(preHoldAmount, task.getBillingSnapshotJson(), effectiveUsage);
 
             BigDecimal actualAmount = BillingConstants.normalizeAccountAmount(settleCalc.getAmount());
             logTextSettleSummary(task, snapshot, settleCalc, preHoldAmount, actualAmount, effectiveUsage);
@@ -170,6 +321,7 @@ public class BillingFacadeServiceImpl implements BillingFacadeService {
                 // 执行差额退款
                 BigDecimal refundAmount = preHoldAmount.subtract(actualAmount);
                 String refundDesc = switch (meterType) {
+                    case PER_MINUTE -> "按分钟差额退款";
                     case PER_SECOND -> "按秒差额退款";
                     case PER_CREDIT -> "供应商积分差额退款";
                     default -> "文本生成差额退款";
@@ -264,6 +416,9 @@ public class BillingFacadeServiceImpl implements BillingFacadeService {
     @Transactional(rollbackFor = Exception.class)
     public void prepareOperatorBilling(AidMediaTask task, AiModelConfigVo modelConfig, BillingInput billingInput, Long adminId) {
         if (billingInput.isInputMetadataPending()) throw new ServiceException("素材尚未完成核验");
+        if (billingInput.getBudgetContext() != null) {
+            throw new ServiceException("站内计费不支持Run预算");
+        }
         if (adminId == null || adminId <= 0 || !Objects.equals(task.getUserId(), -adminId)) {
             throw new ServiceException("计费身份无效");
         }
@@ -334,7 +489,8 @@ public class BillingFacadeServiceImpl implements BillingFacadeService {
     }
 
     private boolean allowsExtraCharge(BillingSnapshot snapshot) {
-        if (snapshot == null || CharSequenceUtil.isBlank(snapshot.getBillingRuleJson())) {
+        if (snapshot == null || snapshot.getAuthorizedChargeCap() != null
+                || CharSequenceUtil.isBlank(snapshot.getBillingRuleJson())) {
             return false;
         }
         try {
@@ -353,6 +509,21 @@ public class BillingFacadeServiceImpl implements BillingFacadeService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public boolean refundBilling(AidMediaTask task) {
+        if (failedText(task) && "SETTLING".equals(task.getBillingStatus())) {
+            throw new ServiceException("原账务仍在结算，需先核对原消费流水，不能重复释放冻结款");
+        }
+        if (failedText(task) && "SUCCESS".equals(task.getBillingStatus())
+                && task.getActualCost() != null && task.getActualCost().signum() > 0) {
+            throw new ServiceException("历史已结算任务须按原消费流水核对退回，不能重复释放冻结款");
+        }
+        boolean refunded = doRefundBilling(task);
+        if (refunded) {
+            assistantBillingBudgetService.refundFromMediaTask(task, "system");
+        }
+        return refunded;
+    }
+
+    private boolean doRefundBilling(AidMediaTask task) {
         BillingSnapshot snapshotForLog = task == null ? null : parseSnapshot(task.getBillingSnapshotJson());
         MeterType meterType = snapshotForLog != null ? MeterType.of(snapshotForLog.getMeterType()) : null;
         BigDecimal preHoldAmount = task != null && task.getFrozenAmount() != null
@@ -360,6 +531,14 @@ public class BillingFacadeServiceImpl implements BillingFacadeService {
         boolean result = mediaBillingService.refundBilling(task);
         if (result) {
             task.setActualCost(BigDecimal.ZERO);
+            if (failedText(task) && snapshotForLog != null) {
+                snapshotForLog.setActualAmount(BigDecimal.ZERO);
+                snapshotForLog.setRefundAmount(preHoldAmount);
+                snapshotForLog.setTextSettleDone(true);
+                snapshotForLog.setSettleTime(LocalDateTime.now().format(DATETIME_FORMATTER));
+                task.setBillingSnapshotJson(JSONUtil.toJsonStr(snapshotForLog));
+                task.setTextSettleStatus(TextSettleStatus.DONE);
+            }
             // 统一退款日志：按 meterType 打印
             String refundReason = task != null && CharSequenceUtil.isNotBlank(task.getErrorMessage())
                     ? task.getErrorMessage() : "task_failed_full_refund";

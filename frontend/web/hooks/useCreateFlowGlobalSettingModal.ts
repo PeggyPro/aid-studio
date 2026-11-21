@@ -11,6 +11,7 @@ import { buildProjectVideoStyleFields } from '~/utils/buildProjectVideoStyleFiel
 import { userProjectUpdate } from '~/utils/businessApi'
 import { creationStepToRoutePath } from '~/utils/createFlowRoutes'
 import { resetProjectDetailHydrateCache } from '~/utils/hydrateCreationStoreFromProjectDetail'
+import { isProjectPublicLockError,projectPublicLockUserHint } from '~/utils/projectAudit'
 
 /**
  * 壳层「项目配置」弹窗状态与确认（原 composables/useCreateFlowGlobalSettingModal.ts）
@@ -112,7 +113,7 @@ export function useCreateFlowGlobalSettingModal() {
 
   const handleGlobalSettingConfirm = useCallback(
     async (options?: { navigateAfterSave?: boolean; contentConfigLocked?: boolean }) => {
-      if (confirmLoadingRef.current) return
+      if (confirmLoadingRef.current) return false
       confirmLoadingRef.current = true
       setGlobalSettingConfirmLoading(true)
       const creationStore = useCreationStore.getState()
@@ -130,20 +131,20 @@ export function useCreateFlowGlobalSettingModal() {
         if (!contentConfigLocked) {
           if (!videoStylePayload) {
             message.warning('请选择主题风格')
-            return
+            return false
           }
           if (
             finalGlobalSetting.styleSelectionTouched === true &&
             (!videoStylePayload.styleSource || !videoStylePayload.styleAssetId)
           ) {
             message.warning('请选择有效风格')
-            return
+            return false
           }
         }
         const pid = creationStore.currentProjectId
         if (!pid) {
           message.error('缺少项目信息，无法保存')
-          return
+          return false
         }
 
         const updatePayload: UserProjectUpdateRequest = {
@@ -171,7 +172,7 @@ export function useCreateFlowGlobalSettingModal() {
 
         const updatedProject = await userProjectUpdate(updatePayload)
         // 用户可能在请求期间切换作品；旧请求可以完成服务端保存，但不能覆盖新作品的本地状态。
-        if (useCreationStore.getState().currentProjectId !== pid) return
+        if (useCreationStore.getState().currentProjectId !== pid) return false
         const savedGlobalSetting: GlobalSettingData = contentConfigLocked
           ? {
               ...useCreationStore.getState().formData.globalSetting,
@@ -204,9 +205,15 @@ export function useCreateFlowGlobalSettingModal() {
           const path = creationStepToRoutePath('story-script')
           router.push(qs.toString() ? `${path}?${qs.toString()}` : path)
         }
+        return true
       } catch (e: unknown) {
+        if (isProjectPublicLockError(e)) {
+          message.error(projectPublicLockUserHint())
+          return false
+        }
         const err = e as { msg?: string; message?: string }
         message.error(err?.msg || err?.message || '保存失败，请稍后重试')
+        return false
       } finally {
         confirmLoadingRef.current = false
         setGlobalSettingConfirmLoading(false)

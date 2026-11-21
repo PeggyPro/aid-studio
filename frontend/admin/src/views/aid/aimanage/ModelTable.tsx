@@ -124,7 +124,7 @@ export default function ModelTable({ provider, list, loading, query, onQueryChan
         const enabled = r.status === '0';
         return (
           <Space size={0}>
-            <Tooltip title={enabled ? '点击停用' : '点击启用'}>
+            {hasPermi('aid:aidmodel:edit') && <Tooltip title={enabled ? '点击停用' : '点击启用'}>
               <Switch
                 size="small"
                 checked={enabled}
@@ -133,14 +133,14 @@ export default function ModelTable({ provider, list, loading, query, onQueryChan
                 loading={togglingId === r.id}
                 onChange={(checked) => handleToggleStatus(r, checked)}
               />
-            </Tooltip>
-            <Button type="link" size="small" icon={<EditOutlined />} onClick={() => onEdit(r)}>修改</Button>
+            </Tooltip>}
+            {hasPermi('aid:aidmodel:edit') && <Button type="link" size="small" icon={<EditOutlined />} onClick={() => onEdit(r)}>修改</Button>}
             <Tooltip title={provider?.integrationType === 'NEW_API' && r.protocol === 'openai-compatible-text' ? '向上游实际生成一条短文本，会消耗少量额度' : undefined}>
               <Button type="link" size="small" icon={<ExperimentOutlined />} loading={testingId === r.id} onClick={() => handleTestModel(r)}>
                 {provider?.integrationType === 'NEW_API' && ['openai-compatible-text', 'newapi-image'].includes(r.protocol || '') ? '实际测试' : '测试'}
               </Button>
             </Tooltip>
-            <Button type="link" size="small" danger icon={<DeleteOutlined />} onClick={() => onDelete(r)}>下线</Button>
+            {hasPermi('aid:aidmodel:remove') && <Button type="link" size="small" danger icon={<DeleteOutlined />} onClick={() => onDelete(r)}>下线</Button>}
           </Space>
         );
       }

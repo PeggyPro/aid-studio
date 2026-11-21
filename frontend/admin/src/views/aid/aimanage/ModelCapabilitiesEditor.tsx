@@ -93,8 +93,8 @@ export default function ModelCapabilitiesEditor({ value, modelType, upstreamMode
             ? `共 ${summary.skuCount} 条 SKU，${summary.enabledSkuCount} 条启用，${summary.pricedSkuCount} 条已填写价格`
             : summary.priceLabels[0] || '尚未填写官方原价'}</span>
         </div>
-        <Tag color={summary.hasIssue ? 'error' : billingMode === 'SKU' ? 'purple' : 'blue'}>
-          {summary.hasIssue ? '价格待完善' : billingMode === 'SKU' ? `SKU ${summary.enabledSkuCount}` : '固定价'}
+        <Tag color={summary.priceMissing ? 'error' : billingMode === 'SKU' ? 'purple' : 'blue'}>
+          {summary.priceMissing ? '价格待完善' : billingMode === 'SKU' ? `SKU ${summary.enabledSkuCount}` : '固定价'}
         </Tag>
       </div>
       {billingMode === 'FIXED'
@@ -153,7 +153,7 @@ export default function ModelCapabilitiesEditor({ value, modelType, upstreamMode
       </Space>
       <Collapse items={[{ key: 'identity', label: '能力名称、编码与核验资料', children:
       <Row gutter={12}>
-        <Col span={8}><Form.Item label="能力类型"><Select value={definition.generateMode || undefined} options={CAPABILITY_OPTIONS.filter((o) => modelType === 'video' ? o.value.includes('video') || o.value === 'lip_sync' : modelType === 'image' ? o.value.includes('image') : modelType === 'audio' ? ['audio', 'voice_clone'].includes(o.value) : o.value === 'text')} onChange={(generateMode) => update({ generateMode, code: generateMode, label: CAPABILITY_OPTIONS.find((o) => o.value === generateMode)?.label || generateMode })} /></Form.Item></Col>
+        <Col span={8}><Form.Item label="能力类型"><Select value={definition.generateMode || undefined} options={CAPABILITY_OPTIONS.filter((o) => modelType === 'video' ? o.value.includes('video') || o.value === 'lip_sync' : modelType === 'image' ? o.value.includes('image') : modelType === 'audio' ? ['audio', 'voice_clone', 'text_to_music', 'video_to_music', 'audio_stem_separation', 'lyrics', 'audio_resource'].includes(o.value) : o.value === 'text')} onChange={(generateMode) => update({ generateMode, code: generateMode, label: CAPABILITY_OPTIONS.find((o) => o.value === generateMode)?.label || generateMode })} /></Form.Item></Col>
         <Col span={8}><Form.Item label="能力名称"><Input value={definition.label} onChange={(e) => update({ label: e.target.value })} /></Form.Item></Col>
         <Col span={8}><Form.Item label="能力编码"><Input value={definition.code} onChange={(e) => update({ code: e.target.value })} /></Form.Item></Col>
         <Col span={8}><Form.Item label="核验状态"><Select value={definition.evidenceStatus || 'LEGACY_PENDING_REVIEW'} options={[{ value: 'LEGACY_PENDING_REVIEW', label: '待核验' }, { value: 'VERIFIED', label: '已核验' }, { value: 'PARTIAL', label: '部分核验' }]} onChange={(evidenceStatus) => update({ evidenceStatus })} /></Form.Item></Col>
@@ -183,7 +183,7 @@ export default function ModelCapabilitiesEditor({ value, modelType, upstreamMode
             return <Card key={ri} size="small" title={<Space size={6} wrap>
               <span>{`协议 ${ri + 1}`}</span>
               <Tag color={billing.mode === 'SKU' ? 'purple' : 'blue'}>{billing.mode === 'SKU' ? `SKU ${billing.enabledSkuCount} 条` : '固定价'}</Tag>
-              {billing.hasIssue && <Tag color="error">价格待完善</Tag>}
+              {billing.priceMissing && <Tag color="error">价格待完善</Tag>}
             </Space>} extra={<Button aria-label={`删除协议 ${ri + 1}`} icon={<DeleteOutlined />} onClick={() => update({ bindings: definition.bindings.filter((_, i) => i !== ri) })} />}>
             <Row gutter={12}>
               <Col span={12}><Form.Item label="协议"><Select showSearch value={route.protocol || undefined} options={protocols} onChange={(protocol) => routeUpdate(ri, { protocol })} /></Form.Item></Col>

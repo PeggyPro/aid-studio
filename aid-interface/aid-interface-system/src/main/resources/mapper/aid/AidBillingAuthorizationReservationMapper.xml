@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.aid.billing.mapper.AidBillingAuthorizationReservationMapper">
+
+    <!--
+      Candidate discovery only. The recovery service must still verify the exact terminal task,
+      billing snapshot, reservation identity and ledger state before settling or refunding.
+      Drive from nonterminal reservations; the unique media_task_id binding makes each result
+      inherently distinct, and the joined task remains an exact PRIMARY-key lookup.
+    -->
+    <select id="selectRecoverableMediaTaskIds" resultType="java.lang.Long">
+        SELECT r.media_task_id
+        FROM aid_billing_authorization_reservation r FORCE INDEX (idx_reconciliation)
+        STRAIGHT_JOIN aid_media_task t
+          ON t.id = r.media_task_id
+        WHERE r.del_flag = '0'
+          AND r.media_task_id IS NOT NULL
+        <choose>
+            <when test="states != null and states.size() > 0">
+          AND r.state IN
+                <foreach collection="states" item="state" open="(" separator="," close=")">
+                    #{state}
+                </foreach>
+            </when>
+            <otherwise>
+          AND 1 = 0
+            </otherwise>
+        </choose>
+          AND t.biz_task_type IN ('ASSISTANT_RUNTIME_STEP', 'SKILL_RUNTIME_STEP')
+          AND t.status IN ('SUCCEEDED', 'FAILED', 'CANCELLED')
+          AND t.billing_status IN ('FROZEN', 'SETTLING', 'REFUNDING', 'SUCCESS', 'FAILED')
+          AND (t.next_poll_time IS NULL OR t.next_poll_time &lt;= NOW())
+        ORDER BY COALESCE(t.next_poll_time, t.update_time) ASC, t.id ASC
+        LIMIT #{limit}
+    </select>
+
+</mapper>

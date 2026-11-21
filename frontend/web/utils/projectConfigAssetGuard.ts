@@ -1,34 +1,28 @@
+import type { StudioCanvasNode } from '@/types/studio'
 import { userAssetRpsList } from '@/utils/businessApi'
 
-type FlowNodeLike = {
-  data?: {
-    flowBinding?: {
-      kind?: unknown
-      role?: unknown
-      entityType?: unknown
-      step?: unknown
-    }
-  }
-}
-
+/** 已生成场景 / 角色 / 道具时，项目配置弹窗内的锁定说明。 */
 export const PROJECT_CONFIG_ASSETS_LOCKED_HINT =
   '已生成场景、角色或道具，为避免现有内容与配置不一致，相关配置仅可查看；作品名称仍可修改。'
 
 export const PROJECT_CONFIG_ASSETS_STYLE_LOCK_HINT =
   '已生成场景、角色或道具，画面风格仅可查看。'
 
+export type ProjectConfigLockReason = 'storyboard' | 'assets'
+
 export function hasLocalSceneCharacterPropAssets(
   sceneCharacter?: { scenes?: unknown[]; characters?: unknown[]; props?: unknown[] } | null
 ): boolean {
-  return Boolean(
-    (sceneCharacter?.scenes?.length ?? 0) > 0
-    || (sceneCharacter?.characters?.length ?? 0) > 0
-    || (sceneCharacter?.props?.length ?? 0) > 0
+  if (!sceneCharacter) return false
+  return (
+    (sceneCharacter.scenes?.length ?? 0) > 0
+    || (sceneCharacter.characters?.length ?? 0) > 0
+    || (sceneCharacter.props?.length ?? 0) > 0
   )
 }
 
-export function hasFlowSceneCharacterPropNodes(
-  nodes: FlowNodeLike[]
+export function hasStudioFlowSceneCharacterPropNodes(
+  nodes: Array<Pick<StudioCanvasNode, 'data'> | { data?: StudioCanvasNode['data'] }>
 ): boolean {
   return nodes.some((node) => {
     const binding = node.data?.flowBinding
@@ -62,19 +56,23 @@ export async function hasRemoteSceneCharacterPropAssets(
 export function hasImmediateProjectConfigAssetLock(options?: {
   styleLocked?: boolean
   sceneCharacter?: { scenes?: unknown[]; characters?: unknown[]; props?: unknown[] } | null
-  nodes?: FlowNodeLike[]
+  nodes?: Array<Pick<StudioCanvasNode, 'data'> | { data?: StudioCanvasNode['data'] }>
 }): boolean {
-  return Boolean(
-    options?.styleLocked
-    || hasLocalSceneCharacterPropAssets(options?.sceneCharacter)
-    || (options?.nodes && hasFlowSceneCharacterPropNodes(options.nodes))
-  )
+  if (options?.styleLocked) return true
+  if (hasLocalSceneCharacterPropAssets(options?.sceneCharacter)) return true
+  if (options?.nodes && hasStudioFlowSceneCharacterPropNodes(options.nodes)) return true
+  return false
 }
 
+/** 本地素材、画布节点、风格锁或服务端 RPS 列表任一命中，即视为已生成场景 / 角色 / 道具。 */
 export async function hasProjectSceneCharacterPropAssets(
   projectId: number,
   episodeId: number,
-  options?: Parameters<typeof hasImmediateProjectConfigAssetLock>[0]
+  options?: {
+    styleLocked?: boolean
+    sceneCharacter?: { scenes?: unknown[]; characters?: unknown[]; props?: unknown[] } | null
+    nodes?: Array<Pick<StudioCanvasNode, 'data'> | { data?: StudioCanvasNode['data'] }>
+  }
 ): Promise<boolean> {
   if (hasImmediateProjectConfigAssetLock(options)) return true
   return hasRemoteSceneCharacterPropAssets(projectId, episodeId)

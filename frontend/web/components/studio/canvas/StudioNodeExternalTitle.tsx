@@ -3,25 +3,43 @@
 import type { StudioNodeKind } from '@/types/studio'
 import { STUDIO_NODE_META } from '@/config/studioMeta'
 import { StudioNodeIcon } from './StudioNodeIcon'
+import { StudioInlineNodeTitle } from './StudioInlineNodeTitle'
 
 export function StudioNodeExternalTitle({
   kind,
-  title
+  title,
+  editable = false,
+  plain = false,
+  readOnly = false,
+  disabledReason,
+  onTitleChange
 }: {
   kind: StudioNodeKind
   title: string
+  editable?: boolean
+  plain?: boolean
+  readOnly?: boolean
+  disabledReason?: string
+  onTitleChange?: (title: string) => void
 }) {
   const meta = STUDIO_NODE_META[kind]
-  const showInstanceName = Boolean(title.trim()) && title.trim() !== meta.label && !title.startsWith(`${meta.label}节点`)
+  const storedTitle = title.trim()
+  const numberedDefault = storedTitle.startsWith(meta.label) && /^(?:节点\s*)?\d+$/.test(storedTitle.slice(meta.label.length))
+  const heading = !storedTitle || !plain && (numberedDefault || storedTitle === meta.label + "节点") ? meta.label : storedTitle
   return (
-    <div className="studio-node-external-title" title={title}>
-      <span className="studio-node-external-title__chip" aria-hidden>
-        <StudioNodeIcon kind={kind} variant="chip" />
-      </span>
-      <span className="studio-node-external-title__label">{meta.label}</span>
-      {showInstanceName ? (
-        <span className="studio-node-external-title__name">{title}</span>
-      ) : null}
+    <div className={`studio-node-external-title${editable ? ' is-editable' : ''}`}>
+      {!plain ? <>
+        <span className="studio-node-external-title__chip" aria-hidden>
+          <StudioNodeIcon kind={kind} variant="chip" />
+        </span>
+      </> : null}
+        {readOnly ? <strong className="studio-inline-node-title__display">{heading}</strong> : <StudioInlineNodeTitle
+          className="studio-node-external-title__editor"
+          title={heading}
+          editable={editable}
+          disabledReason={disabledReason}
+          onCommit={onTitleChange}
+        />}
     </div>
   )
 }

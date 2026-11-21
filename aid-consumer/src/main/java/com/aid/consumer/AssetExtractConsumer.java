@@ -20,6 +20,7 @@ import com.aid.aid.service.IAidExtractTaskService;
 import com.aid.common.core.redis.RedisCache;
 import com.aid.common.error.TaskErrorCode;
 import com.aid.common.error.TaskErrorResult;
+import com.aid.common.error.TaskErrorSnapshot;
 import com.aid.common.utils.DateUtils;
 import com.aid.notify.wechat.service.IWechatNotifyService;
 import com.aid.rps.dto.ExtractTaskMessage;
@@ -663,7 +664,8 @@ public class AssetExtractConsumer implements RocketMQListener<String>, RocketMQP
      * 处理批量形态生成父任务。
      * <p>
      * 流程：CAS PENDING→PROCESSING → SSE进度 → 逐项执行 doFormGenerateBatch →
-     * 成功 SUCCEEDED → SSE complete。取消 → CANCELLED。失败 → FAILED。
+     * 全成功 SUCCEEDED → complete；部分失败 PARTIAL_FAILED → partial_failed；全部失败 FAILED → error。
+     * 确有未执行项被取消时置 CANCELLED。
      * 计费由 doFormGenerateBatch 聚合关联媒体子任务的真实用量收口。
      * </p>
      */
@@ -679,7 +681,7 @@ public class AssetExtractConsumer implements RocketMQListener<String>, RocketMQP
             String resultJson = assetExtractService.doFormGenerateBatch(
                     taskId, userId, dispatchToken);
 
-            // 判断是否被取消：只有真的跳过了剩余项才算 CANCELLED，否则仍算 SUCCEEDED
+            // 只有真的跳过了剩余项才算 CANCELLED，否则按实际成功/失败数判定。
             cancelRequested = assetExtractService.isTaskCancelled(taskId);
             if (cancelRequested)
             {
@@ -695,8 +697,7 @@ public class AssetExtractConsumer implements RocketMQListener<String>, RocketMQP
                     log.info("MQ批量形态生成被取消(有剩余项被跳过): taskId={}", taskId);
                     return;
                 }
-                // 用户点了停止但当前项已是最后一项，全部已处理完 → 按成功结算
-                log.info("MQ批量形态生成: 取消标记已清除，全部项目已处理完毕，按成功结算: taskId={}", taskId);
+                log.info("MQ批量形态生成: 全部项目已处理完毕，按实际结果结算: taskId={}", taskId);
             }
 
             BatchTaskLocalOrchestrator.BatchResultState resultState =
@@ -704,11 +705,15 @@ public class AssetExtractConsumer implements RocketMQListener<String>, RocketMQP
             if (BatchTaskLocalOrchestrator.BatchResultState.FAILED.equals(resultState))
             {
                 String rawMessage = BatchTaskLocalOrchestrator.resolveFailureMessage(
-                        resultJson, "图片生成失败");
-                TaskErrorResult error = TaskErrorResult.of(TaskErrorCode.AI_GENERATION_FAILED, rawMessage);
+                        resultJson, "形态生成失败");
+                TaskErrorResult error = BatchTaskLocalOrchestrator.resolveFailureError(resultJson, rawMessage);
                 if (!updateTaskFailedWithResult(taskId, resultJson, rawMessage, dispatchToken))
                 {
                     return;
+                }
+                if (cancelRequested)
+                {
+                    assetExtractService.clearCancelFlag(taskId, dispatchToken);
                 }
                 try
                 {
@@ -727,7 +732,29 @@ public class AssetExtractConsumer implements RocketMQListener<String>, RocketMQP
                 return;
             }
 
-            // 有成功项时记 SUCCEEDED，失败明细保留在 resultData。
+            if (BatchTaskLocalOrchestrator.BatchResultState.PARTIAL_FAILED.equals(resultState))
+            {
+                if (!updateTaskPartialFailedWithResult(taskId, resultJson, dispatchToken))
+                {
+                    return;
+                }
+                if (cancelRequested)
+                {
+                    assetExtractService.clearCancelFlag(taskId, dispatchToken);
+                }
+                try
+                {
+                    Object resultObj = OBJECT_MAPPER.readValue(resultJson, Map.class);
+                    sseManager.sendPartialFailed(taskId, resultObj, "部分形态生成失败，可续生");
+                }
+                catch (Exception ex)
+                {
+                    sseManager.sendPartialFailed(taskId, resultJson, "部分形态生成失败，可续生");
+                }
+                log.info("MQ批量形态生成部分失败: taskId={}", taskId);
+                return;
+            }
+
             if (!updateTaskSuccessWithResult(taskId, resultJson, dispatchToken))
             {
                 return;
@@ -827,7 +854,7 @@ public class AssetExtractConsumer implements RocketMQListener<String>, RocketMQP
             {
                 String rawMessage = BatchTaskLocalOrchestrator.resolveFailureMessage(
                         resultJson, "图片生成失败");
-                TaskErrorResult error = TaskErrorResult.of(TaskErrorCode.AI_GENERATION_FAILED, rawMessage);
+                TaskErrorResult error = BatchTaskLocalOrchestrator.resolveFailureError(resultJson, rawMessage);
                 if (!updateTaskFailedWithResult(taskId, resultJson, rawMessage, dispatchToken))
                 {
                     return;
@@ -1542,6 +1569,8 @@ public class AssetExtractConsumer implements RocketMQListener<String>, RocketMQP
             update.set(AidExtractTask::getStatus, TASK_STATUS_FAILED);
             update.set(AidExtractTask::getResultData, resultJson);
             update.set(AidExtractTask::getErrorMessage, StrUtil.sub(errorMessage, 0, 255));
+            update.set(AidExtractTask::getErrorDetailJson, TaskErrorSnapshot.write(
+                    BatchTaskLocalOrchestrator.resolveFailureError(resultJson, errorMessage)));
             update.set(AidExtractTask::getUpdateTime, DateUtils.getNowDate());
             return extractTaskService.getBaseMapper().update(null, update) > 0;
         });

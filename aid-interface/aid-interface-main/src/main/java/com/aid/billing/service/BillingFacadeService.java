@@ -21,6 +21,13 @@ public interface BillingFacadeService {
      */
     void prepareBilling(AidMediaTask task, AiModelConfigVo modelConfig, BillingInput billingInput);
 
+    /** Reject a changed quote before the existing account freeze. Internal orchestration only. */
+    void prepareBilling(AidMediaTask task, AiModelConfigVo modelConfig, BillingInput billingInput,
+                        java.math.BigDecimal authorizedPreHoldCap);
+    /** Internal service quote adapter; the caller must revalidate the frozen quote before entry. */
+    void prepareServiceBilling(AidMediaTask task, com.aid.billing.dto.BillingCalcResult calculation,
+                               com.aid.billing.dto.BillingBudgetContext budgetContext);
+
     /** 后台公用素材任务：记录上游成本，通过原账户流程冻结零积分。 */
     void prepareOperatorBilling(AidMediaTask task, AiModelConfigVo modelConfig, BillingInput billingInput, Long adminId);
 

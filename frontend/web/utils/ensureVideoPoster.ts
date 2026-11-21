@@ -35,7 +35,7 @@ export function peekVideoPosterObjectUrl(videoUrl: string): string {
  */
 export async function ensureVideoPosterObjectUrl(
   videoUrl: string,
-  priority = VIDEO_POSTER_PRIORITY.history
+  priority: number = VIDEO_POSTER_PRIORITY.history
 ): Promise<string> {
   const url = String(videoUrl || '').trim()
   if (!url) return ''

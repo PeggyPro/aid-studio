@@ -8,15 +8,22 @@ import {
   QuestionCircleOutlined,
   DollarCircleOutlined,
   WalletOutlined,
+  HistoryOutlined,
   LogoutOutlined,
+  BellOutlined,
   GiftOutlined
 } from '@ant-design/icons'
+import { useOnboardingEngine } from '~/composables/useOnboardingEngine'
+import { useOnboardingStore } from '~/stores/onboarding'
 import { useAuthPublicConfig } from '~/composables/useAuthPublicConfig'
 import { useWechatNotifyPreference } from '~/composables/useWechatNotifyPreference'
 import { useUserStore } from '~/stores/user'
 import { assetUrl } from '~/utils/assetUrl'
+import { useUnreadStudioNotifications } from '~/hooks/studio/useStudioNotifications'
+import { NotificationBadge } from '~/components/common/NotificationBadge'
 import groupAvtorMod from '~/assets/img/home/Group-avtor.svg'
 import './UserMenuDropdown.css'
+import { ThemePreference } from '~/components/common/ThemePreference'
 
 const groupAvtorUrl = assetUrl(groupAvtorMod)
 
@@ -27,6 +34,8 @@ export interface UserMenuDropdownProps {
   onFaq: () => void
   onBilling: () => void
   onRecharge: () => void
+  onCreditConsume: () => void
+  onNotifications: () => void
   onInvite: () => void
   onLogout: () => void
 }
@@ -38,11 +47,14 @@ export interface UserMenuDropdownHandle {
 
 export const UserMenuDropdown = forwardRef<UserMenuDropdownHandle, UserMenuDropdownProps>(
   function UserMenuDropdown(
-    { open, floatingStyle = {}, onFaq, onBilling, onRecharge, onInvite, onLogout },
+    { open, floatingStyle = {}, onFaq, onBilling, onRecharge, onCreditConsume, onNotifications, onInvite, onLogout },
     ref
   ) {
     const user = useUserStore((s) => s.user)
-    const { invitePromotionEnabled, anyPaymentEnabled, loadPublicConfig } = useAuthPublicConfig()
+    const unreadCount = useUnreadStudioNotifications()
+    const globalDismissed = useOnboardingStore((s) => s.globalDismissed)
+    const onboardingEngine = useOnboardingEngine()
+    const { invitePromotionEnabled, loadPublicConfig } = useAuthPublicConfig()
     const {
       showWechatNotifyRow,
       wechatNotifyChecked,
@@ -64,6 +76,11 @@ export const UserMenuDropdown = forwardRef<UserMenuDropdownHandle, UserMenuDropd
       if (!result.ok && result.message) {
         message.error(result.message)
       }
+    }
+
+    async function onDismissGuidance() {
+      await onboardingEngine.setGlobalDismissed(true)
+      message.success('已关闭新手引导')
     }
 
     const userAvatarUrl = user?.avatar?.trim() || groupAvtorUrl
@@ -142,18 +159,16 @@ export const UserMenuDropdown = forwardRef<UserMenuDropdownHandle, UserMenuDropd
           </div>
         ) : null}
         <div className="user-menu-dropdown__list">
-          {/* payment.alipay/wxpay 皆关时隐藏充值入口（/auth/public-config） */}
-          {anyPaymentEnabled ? (
-            <button
-              type="button"
-              className="user-menu-dropdown__item"
-              role="menuitem"
-              onClick={onRecharge}
-            >
-              <WalletOutlined />
-              <span>积分充值</span>
-            </button>
-          ) : null}
+          <ThemePreference />
+          <button
+            type="button"
+            className="user-menu-dropdown__item"
+            role="menuitem"
+            onClick={onRecharge}
+          >
+            <WalletOutlined aria-hidden />
+            <span>积分充值</span>
+          </button>
           {invitePromotionEnabled ? (
             <button
               type="button"
@@ -161,12 +176,12 @@ export const UserMenuDropdown = forwardRef<UserMenuDropdownHandle, UserMenuDropd
               role="menuitem"
               onClick={onInvite}
             >
-              <GiftOutlined />
+              <GiftOutlined aria-hidden />
               <span>邀请有礼</span>
             </button>
           ) : null}
           <button type="button" className="user-menu-dropdown__item" role="menuitem" onClick={onFaq}>
-            <QuestionCircleOutlined />
+            <QuestionCircleOutlined aria-hidden />
             <span>常见问题</span>
           </button>
           <button
@@ -175,16 +190,42 @@ export const UserMenuDropdown = forwardRef<UserMenuDropdownHandle, UserMenuDropd
             role="menuitem"
             onClick={onBilling}
           >
-            <DollarCircleOutlined />
+            <DollarCircleOutlined aria-hidden />
             <span>计费说明</span>
           </button>
+          <button
+            type="button"
+            className="user-menu-dropdown__item"
+            role="menuitem"
+            onClick={onCreditConsume}
+          >
+            <HistoryOutlined aria-hidden />
+            <span>消耗明细</span>
+          </button>
+          <button type="button" className="user-menu-dropdown__item" role="menuitem" onClick={onNotifications}>
+            <BellOutlined />
+            <span>消息通知</span>
+            <NotificationBadge count={unreadCount} />
+          </button>
+          {/* 暂时隐藏：关闭引导提示入口 */}
+          {false && !globalDismissed ? (
+            <button
+              type="button"
+              className="user-menu-dropdown__item"
+              role="menuitem"
+              onClick={() => void onDismissGuidance()}
+            >
+              <BellOutlined aria-hidden />
+              <span>不再提示引导</span>
+            </button>
+          ) : null}
           <button
             type="button"
             className="user-menu-dropdown__item user-menu-dropdown__item--danger"
             role="menuitem"
             onClick={onLogout}
           >
-            <LogoutOutlined />
+            <LogoutOutlined aria-hidden />
             <span>退出登录</span>
           </button>
         </div>

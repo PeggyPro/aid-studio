@@ -39,6 +39,7 @@ export function resolveStudioComposerGenSceneCode(
   if (
     data.kind === 'text'
     || data.kind === 'storyboard_script'
+    || data.kind === 'note'
     || data.mediaKind === 'text'
   ) {
     return STORYBOARD_GEN_CONFIG_SCENE_CODES.script
@@ -46,7 +47,7 @@ export function resolveStudioComposerGenSceneCode(
   return ''
 }
 
-/** 优先匹配 preferredCodes，否则取池内第一项。 */
+/** 优先使用业务配置；否则按服务端优先级选模型，同级优先免费、再选较低展示价格。 */
 export function pickStudioComposerDefaultModel(
   options: UserModelListItem[],
   preferredCodes: Array<string | null | undefined> = []
@@ -58,7 +59,15 @@ export function pickStudioComposerDefaultModel(
     const hit = options.find((item) => String(item.modelCode || '').trim() === code)
     if (hit) return hit
   }
-  return options[0]
+  return options.reduce((best, item) => {
+    const priority = Number(item.priority ?? 0)
+    const bestPriority = Number(best.priority ?? 0)
+    if (priority !== bestPriority) return priority > bestPriority ? item : best
+    if (Boolean(item.isFree) !== Boolean(best.isFree)) return item.isFree ? item : best
+    const price = item.costCredits ?? Number.POSITIVE_INFINITY
+    const bestPrice = best.costCredits ?? Number.POSITIVE_INFINITY
+    return price < bestPrice ? item : best
+  })
 }
 
 /** 当前值是否落在真实模型池中（占位假名不算）。 */
@@ -71,6 +80,26 @@ export function isStudioComposerModelInOptions(
   return options.some((item) => String(item.modelCode || '').trim() === code)
 }
 
+/** 自由画布 URL/本地残留的 projectId 属于 canvas 工作区，不是 aid_project。 */
+export function shouldResolveStudioPreferredModelFromProject(options: {
+  studioMode?: string | null
+  projectId?: number | null
+  sceneCode?: string | null
+}): boolean {
+  if (options.studioMode === 'free') return false
+  const sceneCode = String(options.sceneCode || '').trim()
+  const projectId = Number(options.projectId)
+  return Boolean(sceneCode && Number.isFinite(projectId) && projectId > 0)
+}
+
+function isMissingProjectConfigError(error: unknown): boolean {
+  const record = error !== null && typeof error === 'object'
+    ? error as { msg?: unknown; message?: unknown }
+    : null
+  const msg = String(record?.msg ?? record?.message ?? '').trim()
+  return msg.includes('项目不存在') || msg.includes('无权限访问') || msg.includes('不存在或无权限')
+}
+
 /** 生成配置 modelCode → 智能体默认 modelCode。 */
 export async function resolveStudioPreferredModelCode(options: {
   projectId?: number | null
@@ -81,15 +110,23 @@ export async function resolveStudioPreferredModelCode(options: {
   const projectId = Number(options.projectId)
   if (!sceneCode || !Number.isFinite(projectId) || projectId <= 0) return ''
 
-  const fromConfig = await resolveProjectGenModelCode(projectId, sceneCode)
-  if (fromConfig) return fromConfig
+  try {
+    const fromConfig = await resolveProjectGenModelCode(projectId, sceneCode)
+    if (fromConfig) return fromConfig
+  } catch (error) {
+    if (isMissingProjectConfigError(error)) return ''
+  }
 
   const episodeId = Number(options.episodeId)
-  return fetchAgentDefaultModelCode({
-    bizCategoryCode: sceneCode,
-    projectId,
-    ...(Number.isFinite(episodeId) && episodeId >= 0 ? { episodeId } : {})
-  })
+  try {
+    return await fetchAgentDefaultModelCode({
+      bizCategoryCode: sceneCode,
+      projectId,
+      ...(Number.isFinite(episodeId) && episodeId >= 0 ? { episodeId } : {})
+    })
+  } catch {
+    return ''
+  }
 }
 
 export function resolveStudioComposerModelFromNode(

@@ -12,20 +12,17 @@ import {
   type StyleLibraryCard
 } from '~/composables/usePromptDictionary'
 import { EllipsisTooltip } from '~/components/common/EllipsisTooltip'
-import { InfiniteScrollLoadFooter } from '~/components/common/InfiniteScrollLoadFooter'
 import { ShimmerImage } from '~/components/common/ShimmerImage'
-import { emptyImageIconUrl as emptyImageIconMod } from '~/utils/emptyImageIcon'
-import { buildRetinaDisplayImageUrl } from '~/utils/displayImageUrl'
+import { StyleThumbnail } from '~/components/common/StyleThumbnail'
 import { assetUrl } from '~/utils/assetUrl'
 import { useGlobalSettingStyleLibrary } from './global-setting/useGlobalSettingStyleLibrary'
 import GlobalSettingStyleFormModal, {
   type GlobalSettingStyleFormModalHandle
 } from './global-setting/GlobalSettingStyleFormModal'
-import GlobalSettingStyleDialog from './global-setting/GlobalSettingStyleDialog'
+import StyleLibraryMorePanel from './global-setting/StyleLibraryMorePanel'
 import './global-setting/global-setting.css'
 
 const dialogSelectSelIcon = assetUrl(dialogSelectSelIconMod)
-const emptyImageIconUrl = assetUrl(emptyImageIconMod)
 
 export interface GlobalSettingProps {
   modelValue: GlobalSettingData
@@ -125,6 +122,7 @@ export function GlobalSetting({
     mergedStyleList,
     styleLoadingMore,
     styleLoadError,
+    styleHasMore,
     styleAppendTick,
     stylesLoaded,
     stylesLoadRevision,
@@ -186,10 +184,6 @@ export function GlobalSetting({
     lastStyleAppendTickRef.current = styleAppendTick
     prevStyleIdsRef.current = currentIds
   }, [styleAppendTick, mergedStyleList])
-
-  function resolveStyleThumbSrc(url: string): string {
-    return buildRetinaDisplayImageUrl(url, styleThumbSizePx)
-  }
 
   // 更新值
   const updateValue = (key: keyof GlobalSettingData, value: any) => {
@@ -299,26 +293,7 @@ export function GlobalSetting({
         <span className="style-active-ring" aria-hidden="true" />
 
         <div className="style-thumb">
-          {style.thumbnail ? (
-            <ShimmerImage
-              key={`${stylesLoadRevision}-${style.id}`}
-              src={resolveStyleThumbSrc(style.thumbnail)}
-              alt={style.name}
-              wrapperClass="style-thumb-shimmer"
-              imgClass="style-thumb-img"
-              objectFit="cover"
-              revealDirection="fade"
-              minShimmerMs={280}
-            />
-          ) : (
-            <div className="style-thumb-placeholder">
-              <img
-                src={emptyImageIconUrl}
-                alt=""
-                className="empty-image-icon empty-image-icon--md"
-              />
-            </div>
-          )}
+          <StyleThumbnail key={`${stylesLoadRevision}-${style.id}`} url={style.thumbnail || ''} width={styleThumbSizePx} name={style.name} />
         </div>
         <div className="style-overlay">
           <EllipsisTooltip title={style.name} />
@@ -328,7 +303,10 @@ export function GlobalSetting({
   }
 
   return (
-    <div className="global-setting create-step-global-setting">
+    <div
+      className="global-setting create-step-global-setting"
+      data-onboarding="global-setting-form"
+    >
       {/* <div class="content-header">
         <p class="step-description-text">{{ description }}</p>
       </div> */}
@@ -469,24 +447,14 @@ export function GlobalSetting({
                   <span className="style-active-ring" aria-hidden="true" />
 
                   <div className="style-thumb">
-                    {selectedStyleThumbnail || selectedStyleImageLoading ? (
+                    {!selectedStyleThumbnail && selectedStyleImageLoading ? (
                       <ShimmerImage
-                        src={selectedStyleThumbnail ? resolveStyleThumbSrc(selectedStyleThumbnail) : ''}
                         alt={selectedStyleShortcut.name}
                         wrapperClass="style-thumb-shimmer"
                         imgClass="style-thumb-img"
-                        objectFit="cover"
-                        revealDirection="fade"
-                        minShimmerMs={280}
                       />
                     ) : (
-                      <div className="style-thumb-placeholder">
-                        <img
-                          src={emptyImageIconUrl}
-                          alt=""
-                          className="empty-image-icon empty-image-icon--md"
-                        />
-                      </div>
+                      <StyleThumbnail url={selectedStyleThumbnail} width={styleThumbSizePx} name={selectedStyleShortcut.name} />
                     )}
                   </div>
                   <div className="style-overlay">
@@ -527,66 +495,26 @@ export function GlobalSetting({
             )}
           </div>
 
-          <GlobalSettingStyleDialog
+          <StyleLibraryMorePanel
             open={isStylePanelOpen}
             onOpenChange={changeStylePanelOpen}
+            categories={styleCategories}
+            categoriesLoading={styleCategoriesLoading}
+            categoriesError={styleCategoriesError}
+            activeCategoryCode={activeStyleCategoryCode}
+            onSelectCategory={selectStyleCategory}
+            categoryDisabled={!stylesLoaded || styleLoadingMore}
+            scrollRootRef={styleScrollRootRef}
+            onScroll={onFeaturedStylesScroll}
+            loadError={styleLoadError}
+            loaded={stylesLoaded}
+            loadingMore={styleLoadingMore}
+            hasMore={styleHasMore}
+            hasItems={mergedStyleList.length > 0}
+            appending={styleLoadingMore}
           >
-            <div className="style-browser-shell">
-              <div
-                className="style-browser-popover__header"
-              >
-                <div
-                  className="style-category-filter"
-                  role="tablist"
-                  aria-label="精选风格分类"
-                  aria-orientation="horizontal"
-                >
-                  {styleCategoriesLoading ? (
-                    <span className="style-category-filter__hint">分类加载中…</span>
-                  ) : styleCategoriesError ? (
-                    <span className="style-category-filter__hint">分类加载失败，请重新打开</span>
-                  ) : (
-                    styleCategories.map((category) => (
-                      <button
-                        key={category.code}
-                        type="button"
-                        role="tab"
-                        className={`style-category-filter__item${activeStyleCategoryCode === category.code ? ' is-active' : ''}`}
-                        aria-selected={activeStyleCategoryCode === category.code}
-                        disabled={!stylesLoaded || styleLoadingMore}
-                        onClick={() => selectStyleCategory(category.code)}
-                      >
-                        {category.label}
-                      </button>
-                    ))
-                  )}
-                </div>
-              </div>
-              <div
-                ref={(element) => {
-                  styleScrollRootRef.current = element
-                }}
-                className="style-browser-popover__body"
-                onScroll={onFeaturedStylesScroll}
-              >
-                {styleLoadError ? (
-                  <p className="dict-placeholder">加载失败，请稍后重试</p>
-                ) : !stylesLoaded ? (
-                  <p className="dict-placeholder">加载中…</p>
-                ) : !mergedStyleList.length ? (
-                  <p className="dict-placeholder">暂无数据</p>
-                ) : null}
-                {stylesLoaded && !styleLoadError && (
-                  <div className={`styles-grid${styleLoadingMore ? ' styles-grid--appending' : ''}`}>
-                    {mergedStyleList.map(renderStyleCard)}
-                  </div>
-                )}
-                {styleLoadingMore && (
-                  <InfiniteScrollLoadFooter loading />
-                )}
-              </div>
-            </div>
-          </GlobalSettingStyleDialog>
+            {mergedStyleList.map(renderStyleCard)}
+          </StyleLibraryMorePanel>
         </div>
       </div>
 

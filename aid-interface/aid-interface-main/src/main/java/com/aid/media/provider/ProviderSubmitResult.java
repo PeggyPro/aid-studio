@@ -20,7 +20,7 @@ public class ProviderSubmitResult {
     // 直出文本（同步 Chat 类接口返回的助手正文，无 URL 时使用）。
     private String directText;
 
-    /** 上游公开的思考内容；仅在内存回调链路短暂存在，禁止写入任务或业务表。 */
+    /** 上游API返回的明文思考或摘要；按includeReasoning选择传递，仅在内存中保留，不混入正文、任务或业务表。 */
     @ToString.Exclude
     private String directReasoning;
 
@@ -34,6 +34,16 @@ public class ProviderSubmitResult {
     /** 已归一化的任务错误，不以短文案替代恢复动作和来源信息。 */
     @ToString.Exclude
     private String errorDetailJson;
+
+    /** Adapter-confirmed terminal failure; never infer this from an empty or timed-out remote response. */
+    private String confirmedFailureCode;
+
+    /** The adapter verified that its full queue rejected the request before creating a task. */
+    private boolean capacityRejected;
+
+    /** Bounded, sanitized submission diagnostics; these fields alone never prove a terminal outcome. */
+    private Integer submissionHttpStatus;
+    private String submissionErrorMessage;
 
     /**
      * 同步直出图片 URL 列表（图片 provider 填充，兼容老 directUrl）。
@@ -78,4 +88,7 @@ public class ProviderSubmitResult {
      * 供业务侧回填 {@code aid_audio_record.duration_ms}、对口型时长校验与合成对齐消费。
      */
     private Long audioDurationMs;
+
+    /** 有序音频/分轨/字幕/视频产物，元数据不含内嵌二进制。 */
+    private List<AudioOutputItem> audioOutputs;
 }

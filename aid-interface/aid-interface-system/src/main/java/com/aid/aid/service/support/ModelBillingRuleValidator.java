@@ -22,6 +22,12 @@ public final class ModelBillingRuleValidator {
     private ModelBillingRuleValidator() {
     }
 
+    public static void requireCny(String currency) {
+        if (StrUtil.isNotBlank(currency) && !"CNY".equalsIgnoreCase(currency.trim())) {
+            throw new ServiceException("模型单价必须使用人民币（元）");
+        }
+    }
+
     /**
      * SKU 模式存在规则时逐个校验启用档位；模型启用时还必须至少存在一个可计费档位。
      * SKU 缺少 meterType 时继承顶层口径；显式口径必须合法且不能用其它单位的价格字段兜底。
@@ -38,6 +44,7 @@ public final class ModelBillingRuleValidator {
         }
         try {
             JsonNode root = MAPPER.readTree(model.getBillingRuleJson());
+            requireCny(root.path("priceCurrency").asText(null));
             String fallbackMeterType = normalizeMeterType(root.path("meterType").asText(null));
             if (fallbackMeterType == null) {
                 reject(model, null, "顶层meterType非法");
@@ -64,6 +71,20 @@ public final class ModelBillingRuleValidator {
                 if (!hasValidMainPrice(sku, meterType, explicitMeterType)) {
                     reject(model, skuCode, meterType + "主价格缺失");
                 }
+                JsonNode composite = sku.get("compositeVideoTokens");
+                if (composite != null && !composite.isNull()) {
+                    if (!"PER_SECOND".equals(meterType) || !composite.isObject()) reject(model, skuCode, "复合视频计费口径无效");
+                    for (String field : java.util.List.of("inputPricePerMillion", "textOutputPricePerMillion",
+                            "reasoningPricePerMillion", "videoOutputPricePerMillion")) {
+                        if (!nonNegative(composite.get(field))) reject(model, skuCode, "复合视频价格缺失");
+                    }
+                    if (!positive(composite.get("videoTokensPerSecond"))) reject(model, skuCode, "视频每秒Token系数缺失");
+                    for (String field : java.util.List.of("estimatedTextOutputTokens", "estimatedReasoningTokens")) {
+                        JsonNode tokens = composite.path(field);
+                        if (!tokens.isIntegralNumber() || !tokens.canConvertToInt() || tokens.intValue() < 0)
+                            reject(model, skuCode, "复合视频预估用量无效");
+                    }
+                }
                 if ("PER_IMAGE".equals(meterType)) {
                     BigDecimal configuredPrice = sku.path("price").decimalValue();
                     minimumEnabledImagePrice = minimumEnabledImagePrice == null ? configuredPrice
@@ -79,7 +100,7 @@ public final class ModelBillingRuleValidator {
                         || !("PER_CHAR".equals(meterType) || "SKU_PACKAGE".equals(meterType)))) {
                     reject(model, skuCode, "固定附加费口径无效");
                 }
-                for (String price : Set.of("inputPricePerMillion", "outputPricePerMillion",
+                for (String price : Set.of("inputPricePerMillion", "imageRequestTextInputPricePerMillion", "outputPricePerMillion",
                         "cachedInputPricePerMillion", "cacheWritePricePerMillion", "reasoningPricePerMillion")) {
                     if (sku.hasNonNull(price) && !nonNegative(sku.get(price))) reject(model, skuCode, "Token价格无效");
                 }

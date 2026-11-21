@@ -33,7 +33,7 @@ WechatBindCheckData,
 WechatNotifyPreferenceData,
 WechatQrcodeData
 } from '~/types/business-api'
-import { request } from '~/utils/api'
+import { request, resolveClientApiUrl } from '~/utils/api'
 import { unwrap } from '~/utils/business/shared'
 
 let authPublicConfigInflight: Promise<AuthPublicConfigData> | null = null
@@ -187,25 +187,34 @@ export async function realAuthStatus(): Promise<RealAuthStatusData> {
   return unwrap(res)
 }
 
-let userProfileInflight: Promise<UserInfoFromApi> | null = null
+let userProfileInflight: { scope: string; promise: Promise<ApiEnvelope<UserInfoFromApi>> } | null = null
+const userProfileScope = () => JSON.stringify([resolveClientApiUrl('/api/user/profile'), typeof window === 'undefined' ? '' : window.localStorage.getItem('token') || ''])
 
 /**
  * 查询个人信息 POST /api/user/profile。
  * 刷新时多个入口（auth-sync 插件、页面守卫、余额组件）会并发拉取，
  * in-flight 合并保证同一时刻只有一个请求；不做 TTL 缓存，余额等实时字段始终以最新响应为准。
  */
-export function userProfile(): Promise<UserInfoFromApi> {
-  if (userProfileInflight) return userProfileInflight
+export function userProfileResponse(): Promise<ApiEnvelope<UserInfoFromApi>> {
+  if (typeof window === 'undefined') return request.post<ApiEnvelope<UserInfoFromApi>>('/api/user/profile', {})
+  const scope = userProfileScope()
+  if (userProfileInflight?.scope === scope) return userProfileInflight.promise
   const promise = request
     .post<ApiEnvelope<UserInfoFromApi>>('/api/user/profile', {})
-    .then((res) => unwrap(res))
+    .then((res) => {
+      if (scope !== userProfileScope()) throw new Error('登录状态已变化，旧账号资料未应用')
+      return res
+    })
     .finally(() => {
-      if (userProfileInflight === promise) {
+      if (userProfileInflight?.promise === promise) {
         userProfileInflight = null
       }
     })
-  userProfileInflight = promise
+  userProfileInflight = { scope, promise }
   return promise
+}
+export function userProfile(): Promise<UserInfoFromApi> {
+  return userProfileResponse().then(unwrap)
 }
 
 let userBalanceInflight: Promise<UserBalanceFromApi> | null = null

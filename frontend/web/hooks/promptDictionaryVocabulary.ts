@@ -3,6 +3,7 @@ export interface SettingSelectOption {
   key: string
   value: string
   image?: string
+  description?: string
 }
 
 export const NONE: SettingSelectOption = { key: 'none', value: '无', image: '' }

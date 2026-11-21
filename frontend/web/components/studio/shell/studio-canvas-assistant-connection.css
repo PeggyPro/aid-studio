@@ -1,0 +1,16 @@
+/* One compact status inside the composer surface; no second card or nested outline. */
+.canvas-assistant-connection { display:grid; grid-template-columns:32px minmax(0,1fr); align-items:center; gap:10px; min-width:0; padding:2px 0 12px; margin-bottom:2px; border-bottom:1px solid color-mix(in srgb,var(--studio-ui-border) 65%,transparent); color:var(--studio-ui-text); }
+.canvas-assistant-connection > .studio-canvas-tooltip-trigger { display:flex; align-items:center; min-width:0; }
+.canvas-assistant-connection__details, .canvas-assistant-connection__indicator { display:grid; place-items:center; flex:0 0 auto; width:32px; height:44px; padding:0; border:0; border-radius:8px; color:var(--studio-ui-muted); background:transparent; }
+.canvas-assistant-connection__details { cursor:help; }
+.canvas-assistant-connection__details svg, .canvas-assistant-connection__indicator svg { width:20px; height:20px; }
+.canvas-assistant-connection__copy { min-width:0; }
+.canvas-assistant-connection__copy p { margin:0; font-size:13px; font-weight:550; line-height:1.65; overflow-wrap:anywhere; }
+.canvas-assistant-connection__copy small { display:block; margin-top:3px; color:var(--studio-ui-muted); font-size:12px; line-height:1.65; overflow-wrap:anywhere; }
+.canvas-assistant-connection :is(button):focus-visible { outline:2px solid var(--studio-ui-accent); outline-offset:-2px; }
+.canvas-assistant-connection__details:hover { color:var(--studio-ui-text); background:var(--studio-ui-hover); }
+.canvas-assistant-connection__reason { display:block; max-height:min(240px,40dvh); overflow:auto; overscroll-behavior:contain; overflow-wrap:anywhere; white-space:pre-wrap; scrollbar-width:thin; }
+.canvas-assistant-connection.is-connecting .canvas-assistant-connection__indicator svg { animation:canvas-connection-spin 1.4s linear infinite; }
+@keyframes canvas-connection-spin { to { transform:rotate(360deg); } }
+@media (pointer:coarse) { .canvas-assistant-connection { grid-template-columns:44px minmax(0,1fr); } .canvas-assistant-connection__details { width:44px; } }
+@media (prefers-reduced-motion:reduce) { .canvas-assistant-connection.is-connecting .canvas-assistant-connection__indicator svg { animation:none; } }

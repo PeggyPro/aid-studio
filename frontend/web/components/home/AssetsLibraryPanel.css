@@ -1,5 +1,5 @@
 /*
- * AssetsLibraryPanel 伴随样式：由原 components/home/AssetsLibraryPanel.vue <style scoped> 平移。
+ * AssetsLibraryPanel 伴随样式：由原 components/home/AssetsLibraryPanel.vue \3c style scoped> 平移。
  * 与 WorksLibraryPanel 共用 works-lib-* 语义 class 的选择器加 .assets-library-figma 前缀，
  * 还原原 scoped 属性隔离（避免全局引入后泄漏到作品库）；
  * 弹窗内容（asset-form-modal / style-cover-upload）渲染在 body portal，选择器原样保留。
@@ -74,10 +74,10 @@
 .assets-library-figma .works-lib-card__title-input {
   width: 100%;
   height: 28px;
-  border: 1px solid rgba(74, 231, 253, 0.45);
+  border: 1px solid var(--ui-hair, rgba(74, 231, 253, 0.45));
   border-radius: 6px;
-  background: rgba(9, 18, 31, 0.95);
-  color: #e6edf3;
+  background: var(--ui-bg, rgba(9, 18, 31, 0.95));
+  color: var(--ui-text, #e6edf3);
   outline: none;
   padding: 0 8px;
   font-size: 14px;
@@ -143,17 +143,17 @@
   align-items: center;
   padding: 14px 16px;
   border-radius: 8px;
-  border: 1px dashed rgba(74, 231, 253, 0.22);
-  background: rgba(8, 11, 18, 0.55);
+  border: 1px dashed var(--ui-hair, rgba(74, 231, 253, 0.22));
+  background: var(--ui-bg, rgba(8, 11, 18, 0.55));
   box-sizing: border-box;
 }
 
 .style-cover-upload__box {
   width: 120px;
   height: 120px;
-  border: 1px dashed rgba(74, 231, 253, 0.35);
+  border: 1px dashed var(--ui-hair, rgba(74, 231, 253, 0.35));
   border-radius: 8px;
-  background: rgba(8, 11, 18, 0.96);
+  background: var(--ui-bg, rgba(8, 11, 18, 0.96));
   padding: 0;
   cursor: pointer;
   overflow: hidden;
@@ -162,8 +162,8 @@
 }
 
 .style-cover-upload__box:hover:not(:disabled) {
-  border-color: rgba(74, 231, 253, 0.55);
-  background: rgba(14, 89, 250, 0.1);
+  border-color: var(--ui-ring, rgba(74, 231, 253, 0.55));
+  background: var(--ui-soft-hover, rgba(14, 89, 250, 0.1));
 }
 
 .style-cover-upload__box:disabled {
@@ -173,7 +173,7 @@
 
 .style-cover-upload__box--filled {
   border-style: solid;
-  border-color: rgba(74, 231, 253, 0.25);
+  border-color: var(--ui-hair, rgba(74, 231, 253, 0.25));
 }
 
 .style-cover-upload__placeholder,
@@ -185,18 +185,18 @@
   align-items: center;
   justify-content: center;
   gap: 6px;
-  color: #8e97a5;
+  color: var(--ui-muted, #8e97a5);
   font-size: 12px;
 }
 
 .style-cover-upload__icon {
   font-size: 22px;
-  color: rgba(74, 231, 253, 0.55);
+  color: var(--ui-brand, rgba(74, 231, 253, 0.55));
 }
 
 .style-cover-upload__required {
   margin-right: 3px;
-  color: #ff5f67;
+  color: var(--ui-danger, #ff5f67);
 }
 
 .style-cover-upload .style-cover-upload__preview {
@@ -219,19 +219,19 @@
 
 .style-cover-upload__tip {
   margin: 0;
-  color: #7f8ba0;
+  color: var(--ui-muted, #7f8ba0);
   font-size: 12px;
   line-height: 18px;
 }
 
 .style-cover-upload__remove {
-  color: var(--home-cyan, #4ae7fd);
+  color: var(--home-cyan, var(--ui-brand, #4ae7fd));
   font-size: 12px;
   cursor: pointer;
 }
 
 .style-cover-upload__remove:hover {
-  color: #7ef0ff;
+  color: var(--ui-brand, #7ef0ff);
 }
 
 .asset-form-modal__footer {
@@ -242,11 +242,11 @@
   gap: 12px;
   margin-top: 0;
   padding: 16px 4px 0;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  border-top: 1px solid var(--ui-hair, rgba(255, 255, 255, 0.06));
 }
 
 .asset-form-modal .ant-form-item-label > label {
-  color: rgba(220, 231, 245, 0.85);
+  color: var(--ui-text, rgba(220, 231, 245, 0.85));
   font-size: 14px;
   line-height: 20px;
 }
@@ -255,9 +255,9 @@
 .asset-form-modal .ant-input-affix-wrapper,
 .asset-form-modal .ant-input-textarea textarea,
 .asset-form-modal .ant-select-selector {
-  background: rgba(13, 18, 27, 0.98) !important;
-  border: 1px solid rgba(74, 231, 253, 0.18) !important;
-  color: #e6edf3 !important;
+  background: var(--ui-bg, rgba(13, 18, 27, 0.98)) !important;
+  border: 1px solid var(--ui-hair, rgba(74, 231, 253, 0.18)) !important;
+  color: var(--ui-text, #e6edf3) !important;
   border-radius: 8px !important;
   box-shadow: none !important;
 }
@@ -291,7 +291,7 @@
 .asset-form-modal .ant-input-affix-wrapper:hover,
 .asset-form-modal .ant-input-textarea textarea:hover,
 .asset-form-modal .ant-select:not(.ant-select-disabled):hover .ant-select-selector {
-  border-color: rgba(74, 231, 253, 0.38) !important;
+  border-color: var(--ui-ring, rgba(74, 231, 253, 0.38)) !important;
 }
 
 .asset-form-modal .ant-input:focus,
@@ -300,42 +300,42 @@
 .asset-form-modal .ant-input-affix-wrapper-focused,
 .asset-form-modal .ant-input-textarea textarea:focus,
 .asset-form-modal .ant-select-focused .ant-select-selector {
-  border-color: rgba(74, 231, 253, 0.68) !important;
-  box-shadow: inset 0 0 0 1px rgba(74, 231, 253, 0.12) !important;
+  border-color: var(--ui-ring, rgba(74, 231, 253, 0.68)) !important;
+  box-shadow: var(--ui-shadow, inset 0 0 0 1px rgba(74, 231, 253, 0.12)) !important;
 }
 
 .asset-form-modal .ant-input::placeholder,
 .asset-form-modal .ant-input-textarea textarea::placeholder,
 .asset-form-modal .ant-select-selection-placeholder {
-  color: #7f8ba0 !important;
+  color: var(--ui-muted, #7f8ba0) !important;
 }
 
 .asset-form-modal .ant-select-arrow {
-  color: #8fa3c0;
+  color: var(--ui-brand, #8fa3c0);
 }
 
 .asset-form-select-dropdown.ant-select-dropdown {
   padding: 6px;
-  border: 1px solid rgba(74, 231, 253, 0.2);
+  border: 1px solid var(--ui-hair, rgba(74, 231, 253, 0.2));
   border-radius: 8px;
-  background: rgba(13, 18, 27, 0.99);
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.48);
+  background: var(--ui-bg, rgba(13, 18, 27, 0.99));
+  box-shadow: var(--ui-shadow, 0 16px 40px rgba(0, 0, 0, 0.48));
 }
 
 .asset-form-select-dropdown .ant-select-item {
-  color: rgba(220, 231, 245, 0.82);
+  color: var(--ui-text, rgba(220, 231, 245, 0.82));
   border-radius: 6px;
   transition: color 0.18s ease, background-color 0.18s ease;
 }
 
 .asset-form-select-dropdown .ant-select-item-option-active:not(.ant-select-item-option-disabled) {
-  color: #eefcff;
-  background: rgba(74, 231, 253, 0.1);
+  color: var(--ui-text, #eefcff);
+  background: var(--ui-soft, rgba(74, 231, 253, 0.1));
 }
 
 .asset-form-select-dropdown .ant-select-item-option-selected:not(.ant-select-item-option-disabled) {
-  color: #eefcff;
-  background: linear-gradient(90deg, rgba(0, 188, 212, 0.2), rgba(14, 89, 250, 0.2));
+  color: var(--ui-text, #eefcff);
+  background: var(--ui-selected, linear-gradient(90deg, rgba(0, 188, 212, 0.2), rgba(14, 89, 250, 0.2)));
   font-weight: 500;
 }
 

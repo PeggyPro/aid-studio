@@ -26,7 +26,7 @@ public class AidMediaResult extends BaseEntity {
     // 关联主任务ID。
     private Long taskId;
 
-    // 同一任务内的有序结果序号，从 0 开始。
+    // 同一任务内的结果序号，从 0 开始；0 继续代表旧链路使用的主结果。
     private Integer resultIndex;
 
     // 媒体类型：IMAGE / VIDEO。

@@ -1,15 +1,15 @@
 'use client'
 
-import type { ReactNode, Ref } from 'react'
-import agentIconRaw from '~/assets/img/home/agent-icon.svg'
+import type { HTMLAttributes, ReactNode, Ref } from 'react'
+import { Tooltip } from 'antd'
 import foldIconRaw from '~/assets/img/icon/icon-fold.svg'
+import { LiquidOrb, type LiquidOrbMode } from '@/components/common/liquid-orb/LiquidOrb'
 import AgentConversationViewport, {
   type AgentConversationViewportHandle
 } from '@/components/common/agent-conversation/AgentConversationViewport'
 import { assetUrl } from '@/utils/assetUrl'
 import './agent-conversation-panel.css'
 
-const agentIconUrl = assetUrl(agentIconRaw)
 const foldIconUrl = assetUrl(foldIconRaw)
 
 export interface AgentConversationPanelProps {
@@ -20,6 +20,9 @@ export interface AgentConversationPanelProps {
   className?: string
   surfaceClassName?: string
   headerClassName?: string
+  headerProps?: Omit<HTMLAttributes<HTMLElement>, 'children' | 'className'>
+  headerActions?: ReactNode
+  closeIcon?: ReactNode
   brandClassName?: string
   messagesClassName?: string
   composerClassName?: string
@@ -35,6 +38,10 @@ export interface AgentConversationPanelProps {
   emptySlot?: ReactNode
   children: ReactNode
   composer: ReactNode
+  orbMode?: LiquidOrbMode
+  showBrandOrb?: boolean
+  brandIcon?: ReactNode
+  followContentResize?: boolean
 }
 
 export function AgentConversationPanel({
@@ -45,6 +52,9 @@ export function AgentConversationPanel({
   className = '',
   surfaceClassName = 'agent-conversation-panel__surface',
   headerClassName = 'agent-conversation-panel__header',
+  headerProps,
+  headerActions,
+  closeIcon,
   brandClassName = 'agent-conversation-panel__brand',
   messagesClassName = 'agent-conversation-panel__messages',
   composerClassName = 'agent-conversation-panel__composer',
@@ -59,21 +69,40 @@ export function AgentConversationPanel({
   contextSlot,
   emptySlot,
   children,
-  composer
+  composer,
+  orbMode = 'listening',
+  showBrandOrb = true,
+  brandIcon,
+  followContentResize = false
 }: AgentConversationPanelProps) {
   return (
     <div className={`agent-conversation-panel ${className}`.trim()}>
       <div className={surfaceClassName}>
-        <header className={headerClassName}>
+        <header className={headerClassName} {...headerProps}>
           <div className={brandClassName}>
-            <img src={agentIconUrl} alt="" className="agent-conversation-panel__brand-icon" />
+            {brandIcon ?? (showBrandOrb ? (
+              <LiquidOrb
+                className="agent-conversation-panel__brand-icon"
+                size={28}
+                theme="dark"
+                mode={orbMode}
+                interactive={false}
+                webgl={false}
+                ariaHidden
+              />
+            ) : null)}
             <strong>{title}</strong>
           </div>
-          {onClose ? (
-            <button type="button" aria-label={closeAriaLabel} onClick={onClose}>
-              <img src={foldIconUrl} alt="" width={20} height={20} />
-            </button>
-          ) : null}
+          <div className="agent-conversation-panel__header-actions">
+            {headerActions}
+            {onClose ? (
+              <Tooltip title={closeAriaLabel} placement="bottom">
+                <button type="button" aria-label={closeAriaLabel} onClick={onClose}>
+                  {closeIcon ?? <img src={foldIconUrl} alt="" width={20} height={20} />}
+                </button>
+              </Tooltip>
+            ) : null}
+          </div>
         </header>
         {statusText ? (
           <span className="sr-only" aria-live="polite">{statusText}</span>
@@ -88,6 +117,7 @@ export function AgentConversationPanel({
           hasOlder={hasOlder}
           loadingOlder={loadingOlder}
           onLoadOlder={onLoadOlder}
+          followContentResize={followContentResize}
         >
           {emptySlot}
           {children}

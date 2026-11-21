@@ -14,6 +14,7 @@ import { useTagsViewStore, TagView } from '@/store/useTagsViewStore';
 import { usePermissionStore, AppRoute } from '@/store/usePermissionStore';
 import { resolvePath } from '@/router/utils';
 import { AFFIX_TAGS } from '@/router/constants';
+import { scopedAuthoringTab } from '@/utils/adminWorkspaces';
 import './TagsView.less';
 
 function findRouteMeta(
@@ -37,6 +38,11 @@ export default function TagsView() {
     useTagsViewStore();
   const routes = usePermissionStore((s) => s.routes);
   const location = useLocation();
+  const matched = useMemo(() => findRouteMeta(routes, location.pathname), [routes, location.pathname]);
+  const scoped = scopedAuthoringTab(matched?.view, location.pathname, location.search);
+  const activePath = scoped?.key ?? location.pathname;
+  const title = scoped?.title ?? (matched?.meta?.title || AFFIX_TAGS.find((t) => t.path === location.pathname)?.title);
+  const name = scoped?.key ?? (matched?.name || location.pathname);
   const navigate = useNavigate();
   const wrapRef = useRef<HTMLDivElement>(null);
   const [ctxVisible, setCtxVisible] = useState(false);
@@ -59,27 +65,22 @@ export default function TagsView() {
 
   // 路由变化时添加
   useEffect(() => {
-    const path = location.pathname;
-    const matched = findRouteMeta(routes, path);
-    const title = matched?.meta?.title || AFFIX_TAGS.find((t) => t.path === path)?.title;
     if (!title) return;
     addView({
-      path,
-      fullPath: path + location.search,
-      name: matched?.name || path,
+      path: activePath,
+      fullPath: location.pathname + location.search,
+      name,
       title,
       meta: matched?.meta
     });
-  }, [location.pathname, location.search, routes, addView]);
+  }, [activePath, location.pathname, location.search, matched?.meta, title, name, addView]);
 
   // 激活的标签滚入视图
   useEffect(() => {
     if (!wrapRef.current) return;
     const active = wrapRef.current.querySelector('.tags-view__item.active') as HTMLElement;
     if (active) active.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-  }, [location.pathname]);
-
-  const activePath = location.pathname;
+  }, [activePath]);
 
   const goToLast = (list: TagView[], fallback = '/index') => {
     const last = list[list.length - 1];

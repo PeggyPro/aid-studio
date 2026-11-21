@@ -21,9 +21,11 @@ import { ReloadOutlined, ThunderboltOutlined, WarningOutlined } from '@ant-desig
 import PageCard from '@/components/PageCard';
 import {
   getModelQueueSnapshot,
+  getModelRouteHealth,
   ModelHealthTimeline,
   ModelQueueSnapshot,
-  ModelQueueStat
+  ModelQueueStat,
+  ModelRouteHealth
 } from '@/api/aid/modelmonitor';
 
 /** 自动刷新间隔候选（秒） */
@@ -50,6 +52,58 @@ function statusLabel(status?: string) {
   if (status === '0') return { text: '正常', color: 'success' as const };
   if (status === '1') return { text: '停用', color: 'default' as const };
   return { text: status || '-', color: 'default' as const };
+}
+
+const ROUTE_PHASE = {
+  COOLDOWN: '暂时降级',
+  READY_TO_PROBE: '等待新请求探测',
+  PROBING: '正在探测恢复'
+};
+
+function routeReason(reason?: string | null) {
+  if (reason === 'TRANSPORT_INTERRUPTED') return '上游连接中断';
+  if (reason === 'STREAM_INTERRUPTED') return '上游回复中断';
+  const code = reason?.match(/^HTTP_(500|502|503|504)$/)?.[1];
+  return code ? `上游服务异常（${code}）` : '上游服务暂不可用';
+}
+
+function RouteHealthPopover({ modelCode }: { modelCode: string }) {
+  const [state, setState] = useState<ModelRouteHealth>();
+  const [loading, setLoading] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const load = async () => {
+    setLoading(true);
+    setFailed(false);
+    try {
+      setState(await getModelRouteHealth(modelCode));
+    } catch {
+      setFailed(true);
+    } finally {
+      setLoading(false);
+    }
+  };
+  const content = loading ? <Spin size="small" /> : failed || state?.observable === false
+    ? <Alert type="warning" message="暂时无法读取渠道状态" />
+    : state?.enabled === false ? <span>自动恢复功能已关闭</span>
+    : !state?.channels.length ? <span>当前无暂时降级渠道</span>
+    : (
+      <Space direction="vertical" size="small">
+        {state.channels.map((channel, index) => (
+          <div key={index}>
+            <Tag color={channel.phase === 'PROBING' ? 'blue' : 'orange'}>{ROUTE_PHASE[channel.phase]}</Tag>
+            <span>{routeReason(channel.reason)}</span>
+            {channel.phase === 'COOLDOWN' && (
+              <div>可探测时间 {new Date(channel.nextProbeAt).toLocaleString()}</div>
+            )}
+          </div>
+        ))}
+      </Space>
+    );
+  return (
+    <Popover title="渠道运行状态" content={content} trigger="click" onOpenChange={open => { if (open) void load(); }}>
+      <Button type="link" aria-label={`查看 ${modelCode} 的渠道恢复状态`}>渠道恢复</Button>
+    </Popover>
+  );
 }
 
 /** 并发上限展示：null/不限 → ∞ */
@@ -656,6 +710,7 @@ export default function ModelQueueMonitorPage() {
                   <span style={{ fontSize: 12, color: '#94a3b8' }}>{t.modelCode}</span>
                   {t.modelType && <Tag>{t.modelType}</Tag>}
                   {t.enabled === false && <Tag color="default">停用</Tag>}
+                  <RouteHealthPopover modelCode={t.modelCode} />
                   <Tag
                     color={
                       t.latestStatus === 'error'

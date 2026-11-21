@@ -107,6 +107,18 @@ const EVENT_METAS: EventMeta[] = [
     ]
   },
   {
+    key: 'audit_result',
+    title: '项目数据提交审核结果通知',
+    templateId: '',
+    templateNo: '56784',
+    scene: '内容提交、通过、驳回、发布或回撤时发送审核结果。',
+    fields: [
+      { name: 'projectName', label: '项目名称', keyword: 'thing1', hint: 'thing1.DATA，最多20字' },
+      { name: 'finishTime', label: '完成时间', keyword: 'time2', hint: 'time2.DATA' },
+      { name: 'auditResult', label: '提交审核结果', keyword: 'const3', hint: 'const3.DATA，使用模板枚举' }
+    ]
+  },
+  {
     key: 'order_refund',
     title: '退款通知',
     templateId: 'XVkL-i8pVaz9LZT-fnmd-p9tRHJkLnUlQrx_GCImZPY',
@@ -157,7 +169,7 @@ function normalizeTemplate(meta: EventMeta): WechatNotifyTemplateConfig {
 function normalizeConfig(input?: Partial<WechatNotifyConfig> | null): WechatNotifyConfig {
   const templates: Record<string, WechatNotifyTemplateConfig> = {};
   EVENT_METAS.forEach((meta) => {
-    templates[meta.key] = normalizeTemplate(meta);
+    templates[meta.key] = input?.templates?.[meta.key] ?? normalizeTemplate(meta);
   });
   return {
     enabled: toBool(input?.enabled),
@@ -235,7 +247,7 @@ export default function WechatNotifySection({ onJumpToWxLogin }: Props) {
 
   const handleSave = async () => {
     const values = await form.validateFields();
-    const payload = normalizeConfig(values);
+    const payload = normalizeConfig({ ...values, templates: form.getFieldValue('templates') });
     setSaving(true);
     try {
       await saveWechatNotifyConfig(payload);
@@ -270,7 +282,7 @@ export default function WechatNotifySection({ onJumpToWxLogin }: Props) {
     { label: 'AppSecret 已配置', ok: status?.secretConfigured },
     { label: 'Token 已配置', ok: status?.tokenConfigured },
     { label: 'EncodingAESKey 已配置', ok: status?.encodingAesKeyConfigured },
-    { label: '五个官方标准模板已启用', ok: status?.templateConfigured }
+    { label: '官方标准模板已启用', ok: status?.templateConfigured }
   ];
 
   return (
@@ -379,7 +391,7 @@ export default function WechatNotifySection({ onJumpToWxLogin }: Props) {
                         {
                           key: 'templateId',
                           label: '模板ID',
-                          children: <span className="code-text">{meta.templateId}</span>
+                          children: <span className="code-text">{meta.templateId || '由服务端配置'}</span>
                         },
                         ...meta.fields.map((field) => ({
                           key: field.name,

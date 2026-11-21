@@ -93,14 +93,22 @@ public class MinimaxH3VideoProviderClient implements VideoProviderClient {
     }
 
     static ProviderSubmitResult parseSubmitResponse(int httpStatus, String raw) {
-        if (httpStatus < 200 || httpStatus >= 300 || !JSONUtil.isTypeJSON(raw)) {
-            log.warn("MiniMax H3 submit rejected, httpStatus={}, responseLength={}",
-                httpStatus, StrUtil.length(raw));
-            return ProviderSubmitResult.builder()
-                    .rawResponse(ProviderErrorSanitizer.fromHttp(httpStatus, raw)).build();
+        if (httpStatus < 200 || httpStatus >= 300) {
+            return com.aid.media.provider.ProviderSubmissionFailures.httpResponse(httpStatus, raw, null);
+        }
+        if (!JSONUtil.isTypeJSON(raw)) {
+            return com.aid.media.provider.ProviderSubmissionFailures.unknownResponse("上游响应格式无效");
         }
         JsonNode root = ProviderResponseHelper.readTree(raw);
         String taskId = ProviderResponseHelper.readText(root, "task_id");
+        JsonNode rejection = root == null ? null : root.path("base_resp");
+        if (StrUtil.isBlank(taskId) && rejection != null
+                && rejection.path("status_code").canConvertToInt()
+                && rejection.path("status_code").asInt() > 0
+                && StrUtil.isBlank(ProviderResponseHelper.findFirstUrl(root))) {
+            return com.aid.media.provider.ProviderSubmissionFailures.reportedFailure(
+                    rejection.path("status_msg").asText("上游明确拒绝视频生成"), null);
+        }
         if (StrUtil.isBlank(taskId)) {
             log.warn("MiniMax H3 submit response missing task_id, responseLength={}", StrUtil.length(raw));
             return ProviderSubmitResult.builder()
@@ -345,7 +353,7 @@ public class MinimaxH3VideoProviderClient implements VideoProviderClient {
     private static void requireApiKey(String apiKey) {
         if (StrUtil.isBlank(apiKey)) {
             log.warn("MiniMax H3 API key is missing");
-            throw new ServiceException("MiniMax密钥未配置");
+            throw com.aid.media.provider.ProviderSubmissionFailures.notSent("MiniMax密钥未配置");
         }
     }
 

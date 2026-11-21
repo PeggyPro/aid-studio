@@ -25,6 +25,9 @@ public final class SkillPackageAdminRequests {
 
     private SkillPackageAdminRequests() { }
 
+    /** Constraints that must hold before a draft can be validated or published. */
+    public interface PublishReady { }
+
     @Data
     @Schema(description = "Skill ID 请求")
     public static class SkillRequest {
@@ -127,6 +130,10 @@ public final class SkillPackageAdminRequests {
         @Pattern(regexp = "[a-z0-9][a-z0-9._-]{0,99}", message = "资源标识错误")
         private String resourceKey;
 
+        @Schema(description = "包内相对路径；仅允许 references/ 下的安全文本路径")
+        @Pattern(regexp = "references/[a-z0-9][a-z0-9._/-]{0,180}", message = "资源路径错误")
+        private String filePath;
+
         @Size(max = 30, message = "资源类型过长")
         private String resourceType = "REFERENCE";
 
@@ -177,36 +184,44 @@ public final class SkillPackageAdminRequests {
         @Size(max = 100, message = "默认模型编码过长")
         private String defaultModelCode;
 
+        @Schema(description = "不可变版本模型配置原文；已知的默认/候选字段由服务端校验")
+        @Size(max = 8000, message = "模型配置过长")
+        private String modelConfigJson;
+
         @Size(max = 20, message = "可选模型数量不能超过20个")
         private List<@NotBlank(message = "可选模型编码不能为空")
                 @Size(max = 100, message = "可选模型编码过长") String> selectableModelCodes = new ArrayList<>();
 
-        @NotBlank(message = "提示词必填")
+        @NotBlank(message = "提示词必填", groups = PublishReady.class)
         @Size(max = 100000, message = "提示词过长")
         private String systemPrompt;
 
-        @NotBlank(message = "输入结构必填")
+        @NotBlank(message = "Skill说明必填", groups = PublishReady.class)
+        @Size(max = 100000, message = "Skill说明过长")
+        private String skillMarkdown;
+
+        @NotBlank(message = "输入结构必填", groups = PublishReady.class)
         @Size(max = 100000, message = "输入结构过长")
         private String inputSchemaJson;
 
-        @NotBlank(message = "输出结构必填")
+        @NotBlank(message = "输出结构必填", groups = PublishReady.class)
         @Size(max = 100000, message = "输出结构过长")
         private String outputSchemaJson;
 
         @Size(max = 100000, message = "定义内容过长")
         private String definitionJson;
 
-        @NotNull(message = "输出上限必填")
+        @NotNull(message = "输出上限必填", groups = PublishReady.class)
         @Min(value = 1, message = "输出上限错误")
         @Max(value = 1600000, message = "输出上限过大")
         private Integer maxOutputTokens;
 
-        @NotNull(message = "上下文窗口必填")
+        @NotNull(message = "上下文窗口必填", groups = PublishReady.class)
         @Min(value = 1024, message = "上下文窗口错误")
         @Max(value = 1600000, message = "上下文窗口过大")
         private Integer contextWindowTokens;
 
-        @NotNull(message = "安全余量必填")
+        @NotNull(message = "安全余量必填", groups = PublishReady.class)
         @Min(value = 0, message = "安全余量错误")
         @Max(value = 1600000, message = "安全余量过大")
         private Integer safetyMarginTokens;

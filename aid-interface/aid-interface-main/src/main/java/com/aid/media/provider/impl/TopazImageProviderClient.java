@@ -67,6 +67,7 @@ public class TopazImageProviderClient implements ImageProviderClient {
         Prepared prepared = check(config, request, false);
         String url = ProviderEndpointUtils.buildSubmitUrl(base(config), prepared.path());
         HttpRequest post = HttpRequest.post(url).header("X-API-Key", config.getApiKey())
+                .header("User-Agent", "AIDStudio").header("Accept", "application/json")
                 .contentType(ContentType.MULTIPART.getValue())
                 .form("source_url", prepared.sourceUrl())
                 .form("model", prepared.model())
@@ -78,7 +79,8 @@ public class TopazImageProviderClient implements ImageProviderClient {
         try (HttpResponse response = post.execute()) {
             if (!response.isOk()) {
                 log.warn("Topaz 图片提交失败: modelCode={}, httpStatus={}", config.getModelCode(), response.getStatus());
-                throw new ServiceException("Topaz 提交失败");
+                return com.aid.media.provider.ProviderSubmissionFailures.httpResponse(
+                        response.getStatus(), response.body(), config.getModelCode());
             }
             JsonNode json = ProviderResponseHelper.readTree(response.body());
             String taskId = ProviderResponseHelper.readText(json, "process_id");
@@ -138,14 +140,22 @@ public class TopazImageProviderClient implements ImageProviderClient {
                         .progress(100).rawResponse(statusBody).querySuccessful(true).terminalConfirmed(true).build();
             }
         } catch (Exception ex) {
-            log.warn("Topaz 图片查询暂不可用: taskId={}, type={}", taskId, ex.getClass().getSimpleName());
+            log.warn("Topaz 图片查询暂不可用: modelCode={}, taskId={}, type={}",
+                    config.getModelCode(), taskId, ex.getClass().getSimpleName());
             return anomaly(null, null);
         }
     }
 
     private static HttpResponse authenticatedGet(AiModelConfigVo config, String path, String taskId) {
-        return HttpRequest.get(ProviderEndpointUtils.buildTaskQueryUrl(base(config), path, taskId))
-                .header("X-API-Key", config.getApiKey()).timeout(HTTP_TIMEOUT_MS).execute();
+        HttpResponse response = HttpRequest.get(ProviderEndpointUtils.buildTaskQueryUrl(base(config), path, taskId))
+                .header("X-API-Key", config.getApiKey())
+                .header("User-Agent", "AIDStudio").header("Accept", "application/json")
+                .timeout(HTTP_TIMEOUT_MS).execute();
+        if (response.getStatus() != 200) {
+            log.warn("Topaz 图片查询HTTP异常, modelCode={}, taskId={}, path={}, httpStatus={}",
+                    config.getModelCode(), taskId, path, response.getStatus());
+        }
+        return response;
     }
 
     private static String base(AiModelConfigVo config) {
@@ -162,7 +172,7 @@ public class TopazImageProviderClient implements ImageProviderClient {
                                   boolean validateSourceUrl) {
         if (request == null) throw new ServiceException("Topaz 请求不能为空");
         if (config == null || StringUtils.isBlank(config.getApiKey())) {
-            throw new ServiceException("Topaz API Key 未配置");
+            throw com.aid.media.provider.ProviderSubmissionFailures.notSent("Topaz API Key 未配置");
         }
         String path = StringUtils.defaultIfBlank(config.getApiSuffix(), "/image/v1/enhance/async");
         if (!IMAGE_PATHS.contains(path)) throw new ServiceException("Topaz 模型接口路径无效");
@@ -172,11 +182,15 @@ public class TopazImageProviderClient implements ImageProviderClient {
         // The shared verified-media layer probes the source at submission time.
         // Quote and provider preflight must not repeat remote HEAD requests.
         if (validateSourceUrl) {
-            var urlValidation = ImageUrlValidator.validateImageUrlFormat(source);
-            if (!urlValidation.isValid()) {
-                log.warn("Topaz 原图地址校验失败: modelCode={}, reason={}, length={}",
-                        config.getModelCode(), urlValidation.getCode(), source.length());
-                throw new ServiceException("原图地址无效");
+            if (request.getAuthorizedReferenceImage() != null) {
+                request.getAuthorizedReferenceImage().requireValid(source, "原图");
+            } else {
+                var urlValidation = ImageUrlValidator.validateImageUrlFormat(source);
+                if (!urlValidation.isValid()) {
+                    log.warn("Topaz 原图地址校验失败: modelCode={}, reason={}, length={}",
+                            config.getModelCode(), urlValidation.getCode(), source.length());
+                    throw new ServiceException("原图地址无效");
+                }
             }
         }
         Matcher size = SIZE.matcher(StringUtils.trimToEmpty(request.getSize()));

@@ -9,6 +9,9 @@ import com.aid.compose.domain.ComposeBillingSnapshot;
  */
 public interface ComposeBillingService {
 
+    /** Read-only preview using the same configured minute tiers as the existing compose entry. */
+    ComposeBillingSnapshot quote(long estimatedSeconds, String resolution);
+
     /**
      * 预冻结：按估算秒数 → ceil 分钟 × 档单价。
      *

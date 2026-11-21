@@ -50,6 +50,8 @@ public class WaveSpeedDepthVideoProviderClient implements VideoProviderClient {
 
     @Override
     public void validateRequest(AiModelConfigVo model, MediaVideoGenerateRequest request) {
+        requireKey(model);
+        ProviderEndpointUtils.buildSubmitUrl(model.getBaseUrl(), model.getApiSuffix());
         if (model == null || !MODEL.equals(model.getRealModelCode())) {
             throw new ServiceException("WaveSpeed 视频模型配置不匹配");
         }
@@ -96,13 +98,20 @@ public class WaveSpeedDepthVideoProviderClient implements VideoProviderClient {
                 .header("Content-Type", "application/json")
                 .body(com.alibaba.fastjson2.JSON.toJSONString(Map.of("video", source(request).getVideoUrl())))
                 .timeout(TIMEOUT_MS).execute()) {
-            if (response.getStatus() >= 500) throw new ProviderSubmissionOutcomeUnknownException();
             if (response.getStatus() < 200 || response.getStatus() >= 300) {
-                throw new ServiceException(ProviderErrorSanitizer.fromHttp(response.getStatus(), response.body()));
+                return com.aid.media.provider.ProviderSubmissionFailures.httpResponse(
+                        response.getStatus(), response.body(), model.getModelCode());
             }
             JsonNode root = ProviderResponseHelper.readTree(response.body());
-            if (root == null || (root.has("code") && root.path("code").asInt(-1) != 200)) {
-                throw new ServiceException(ProviderErrorSanitizer.safeMessage(response.body(), "WaveSpeed 提交失败"));
+            if (root == null) throw new ProviderSubmissionOutcomeUnknownException();
+            if (root.has("code") && root.path("code").asInt(-1) != 200) {
+                int code = root.path("code").asInt(-1);
+                String acceptedId = ProviderResponseHelper.readText(root, "data.id", "id");
+                if (StrUtil.isBlank(acceptedId) && code >= 400 && code < 500) {
+                    return com.aid.media.provider.ProviderSubmissionFailures.httpResponse(
+                            code, response.body(), model.getModelCode());
+                }
+                throw new ProviderSubmissionOutcomeUnknownException();
             }
             String taskId = ProviderResponseHelper.readText(root,
                     root.has("data") ? "data.id" : "id");
@@ -176,7 +185,7 @@ public class WaveSpeedDepthVideoProviderClient implements VideoProviderClient {
     }
 
     private static String requireKey(AiModelConfigVo model) {
-        if (model == null || StrUtil.isBlank(model.getApiKey())) throw new ServiceException("WaveSpeed 密钥未配置");
+        if (model == null || StrUtil.isBlank(model.getApiKey())) throw com.aid.media.provider.ProviderSubmissionFailures.notSent("WaveSpeed 密钥未配置");
         return model.getApiKey().trim();
     }
 

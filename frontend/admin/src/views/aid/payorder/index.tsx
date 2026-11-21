@@ -1,14 +1,20 @@
 import React, { useState } from 'react';
-import { Descriptions, Drawer, Tag, message, Modal, Input, Form } from 'antd';
-import { EyeOutlined, SyncOutlined, RollbackOutlined } from '@ant-design/icons';
+import { Alert, Button, Descriptions, Drawer, Tag, message, Modal, Input, Form, Tabs } from 'antd';
+import { AreaChartOutlined, EyeOutlined, ProfileOutlined, SyncOutlined, RollbackOutlined } from '@ant-design/icons';
 import CrudPage, { type CrudConfig } from '@/components/CrudPage';
+import PageHeader from '@/components/PageHeader';
+import { useAuth } from '@/hooks/useAuth';
 import {
   listPayorder,
   getPayorder,
   syncPayorder,
-  refundPayorder
+  refundPayorder,
+  listRechargeOrders,
+  rechargeChannelLabels,
+  type RechargeFilter
 } from '@/api/aid/payorder';
 import { parseTime } from '@/utils/ruoyi';
+import RechargeStats from './RechargeStats';
 
 const payStatusTagMap: Record<string, { color: string; text: string }> = {
   pending: { color: 'warning', text: '待支付' },
@@ -25,6 +31,42 @@ function PayStatus({ value }: { value?: string }) {
 }
 
 export default function PayorderPage() {
+  const { isSuperAdmin, hasPermi } = useAuth();
+  const canSeeStats = isSuperAdmin() && hasPermi('aid:payorder:list');
+  const [activeTab, setActiveTab] = useState('orders');
+  const [orderScope, setOrderScope] = useState<RechargeFilter>();
+
+  const showPaidOrders = (filter: RechargeFilter) => {
+    setOrderScope(filter);
+    setActiveTab('orders');
+  };
+
+  return canSeeStats ? (
+    <>
+      <PageHeader title="支付订单" desc="查看充值实收情况，查询和处理支付订单" />
+      <Tabs
+        className="payorder-tabs"
+        activeKey={activeTab}
+        onChange={setActiveTab}
+        items={[
+          {
+            key: 'orders',
+            label: <><ProfileOutlined /> 订单明细</>,
+            children: <PayorderList key={JSON.stringify(orderScope) ?? 'all'} scope={orderScope}
+              onClearScope={() => setOrderScope(undefined)} />
+          },
+          {
+            key: 'stats',
+            label: <><AreaChartOutlined /> 充值看板</>,
+            children: <RechargeStats active={activeTab === 'stats'} onShowOrders={showPaidOrders} />
+          }
+        ]}
+      />
+    </>
+  ) : <PayorderList />;
+}
+
+function PayorderList({ scope, onClearScope }: { scope?: RechargeFilter; onClearScope?: () => void }) {
   const [detail, setDetail] = useState<any | null>(null);
   // 退款弹窗状态：保存当前待退款订单 + 一个 refresh 回调
   const [refundCtx, setRefundCtx] = useState<{ row: any; refresh: () => void } | null>(null);
@@ -128,7 +170,21 @@ export default function PayorderPage() {
 
   return (
     <>
-      <CrudPage config={config} />
+      {scope && (
+        <Alert
+          className="payorder-scope"
+          type="info"
+          showIcon
+          message={`已支付 · ${scope.startDate} 至 ${scope.endDate} · ${rechargeChannelLabels[scope.channel]}`}
+          action={<Button size="small" onClick={onClearScope}>查看全部订单</Button>}
+        />
+      )}
+      <CrudPage config={scope ? {
+        ...config,
+        exportable: false,
+        searchFields: config.searchFields?.filter(({ name }) => name !== 'payChannel' && name !== 'payStatus'),
+        api: { ...config.api, list: (query) => listRechargeOrders(scope, query) }
+      } : config} />
       <Drawer
         open={!!detail}
         width={560}

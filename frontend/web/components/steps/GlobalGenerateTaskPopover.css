@@ -1,4 +1,4 @@
-/* 原 GlobalGenerateTaskPopover.vue <style scoped>：类名与声明原样保留。
+/* 原 GlobalGenerateTaskPopover.vue \3c style scoped>：类名与声明原样保留。
    面板渲染在 Popover portal（body 下），触发按钮渲染在原位，均无组件根节点可作前缀；
    类名全部自带 global-task- 前缀自成命名空间，直接全局声明。原 :global(...) 一并展开。 */
 .global-task-btn {
@@ -9,15 +9,16 @@
   width: 32px;
   height: 32px;
   border-radius: 999px;
-  background: #00836d;
-  color: #ffffff;
+  background: var(--ui-brand, #00836d);
+  color: var(--ui-on-brand, #ffffff);
   font-size: 14px;
+  font-weight: 650;
   border: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background 0.2s ease;
 }
 
 .global-task-circle__count {
@@ -26,38 +27,41 @@
 
 .global-task-circle:hover,
 .global-task-circle.is-open {
-  background: #00b092;
+  background: color-mix(in srgb, var(--ui-brand, #00836d) 86%, white);
 }
 
 .global-task-circle.global-task-circle--partial-only {
-  background: #b45309;
+  background: var(--ui-warning, #b45309);
+  color: var(--ui-bg, #ffffff);
 }
 
 .global-task-circle.global-task-circle--partial-only:hover,
 .global-task-circle.global-task-circle--partial-only.is-open {
-  background: #d97706;
+  background: color-mix(in srgb, var(--ui-warning, #b45309) 86%, white);
 }
 
 .global-task-circle.global-task-circle--cancelled-only {
-  background: #475569;
+  background: var(--ui-raised, #475569);
+  color: var(--ui-text, #ffffff);
 }
 
 .global-task-circle.global-task-circle--cancelled-only:hover,
 .global-task-circle.global-task-circle--cancelled-only.is-open {
-  background: #64748b;
+  background: var(--ui-hover, #64748b);
 }
 
 .global-task-circle.global-task-circle--failed-only {
-  background: #991b1b;
+  background: var(--ui-danger, #991b1b);
+  color: #ffffff;
 }
 
 .global-task-circle.global-task-circle--failed-only:hover,
 .global-task-circle.global-task-circle--failed-only.is-open {
-  background: #b91c1c;
+  background: color-mix(in srgb, var(--ui-danger, #991b1b) 86%, white);
 }
 
 .global-task-panel__subtitle {
-  color: #9aa4b2;
+  color: var(--ui-muted, #9aa4b2);
   font-size: 12px;
   font-weight: 600;
   margin: 12px 0 8px;
@@ -68,26 +72,26 @@
 }
 
 .global-task-panel__subtitle--partial {
-  color: #fbbf24;
+  color: var(--ui-danger, #fbbf24);
 }
 
 .global-task-panel__subtitle--cancelled {
-  color: #94a3b8;
+  color: var(--ui-brand, #94a3b8);
 }
 
 .global-task-panel__subtitle--failed {
-  color: #fca5a5;
+  color: var(--ui-danger, #fca5a5);
 }
 
 .global-generate-task-popover .ant-popover-inner {
-  background: #131722;
-  border: 1px solid rgba(74, 231, 253, 0.24);
+  background: var(--ui-surface, #131722);
+  border: 1px solid var(--ui-hair, rgba(74, 231, 253, 0.24));
   border-radius: 10px;
-  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.38);
+  box-shadow: var(--ui-shadow, 0 10px 26px rgba(0, 0, 0, 0.38));
 }
 
 .global-generate-task-popover .ant-popover-arrow::before {
-  background: #131722;
+  background: var(--ui-surface, #131722);
 }
 
 .global-task-panel {
@@ -99,7 +103,7 @@
 .global-task-panel__loading {
   padding: 16px 0;
   text-align: center;
-  color: #8e97a5;
+  color: var(--ui-muted, #8e97a5);
   font-size: 12px;
 }
 
@@ -126,13 +130,13 @@
 }
 
 .global-task-panel__title {
-  color: #e6edf3;
+  color: var(--ui-text, #e6edf3);
   font-size: 16px;
   font-weight: 600;
 }
 
 .global-task-panel__empty {
-  color: #8e97a5;
+  color: var(--ui-muted, #8e97a5);
   padding: 18px 8px;
 }
 
@@ -149,19 +153,19 @@
   gap: 10px;
   padding: 10px 12px;
   border-radius: 8px;
-  border: 1px solid rgba(74, 231, 253, 0.18);
-  background: rgba(10, 17, 30, 0.74);
+  border: 1px solid var(--ui-hair, rgba(74, 231, 253, 0.18));
+  background: var(--ui-raised, rgba(10, 17, 30, 0.74));
 }
 
 .global-task-panel__name {
-  color: #eef2ff;
+  color: var(--ui-text, #eef2ff);
   font-size: 14px;
   font-weight: 500;
 }
 
 .global-task-panel__model {
   margin-top: 4px;
-  color: #8e97a5;
+  color: var(--ui-muted, #8e97a5);
   font-size: 12px;
 }
 
@@ -174,9 +178,10 @@
 .global-task-panel__icon-btn {
   width: 28px;
   height: 28px;
-  border: 1px solid rgba(255, 91, 109, 0.4);
-  border-radius: 6px;
-  background: rgba(33, 14, 24, 0.9);
+  border: 0;
+  border-radius: 8px;
+  background: var(--ui-soft, rgba(255, 255, 255, 0.06));
+  color: var(--ui-danger, #ff6969);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -184,11 +189,17 @@
 }
 
 .global-task-panel__icon-btn--restart {
-  border-color: rgba(74, 231, 253, 0.45);
-  background: rgba(5, 35, 44, 0.9);
+  color: var(--ui-brand, #4ae7fd);
 }
 
-.global-task-panel__icon-btn img {
+.global-task-panel__icon-btn:hover {
+  background: var(--ui-soft-hover, rgba(255, 255, 255, 0.1));
+}
+
+.global-task-panel__glyph {
   width: 14px;
   height: 14px;
+  background: currentColor;
+  mask: var(--task-icon) center / contain no-repeat;
+  -webkit-mask: var(--task-icon) center / contain no-repeat;
 }

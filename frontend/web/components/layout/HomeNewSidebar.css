@@ -6,7 +6,7 @@
   width: 38px;
   height: 38px;
   border-radius: 8px;
-  background: rgba(74, 231, 253, 0.1);
+  background: var(--ui-soft, rgba(74, 231, 253, 0.1));
   margin-bottom: 10px;
 }
 
@@ -14,7 +14,7 @@
   width: 64px;
   height: 56px;
   border-radius: 10px;
-  background: rgba(74, 231, 253, 0.08);
+  background: var(--ui-soft, rgba(74, 231, 253, 0.08));
   margin-bottom: 8px;
 }
 
@@ -22,5 +22,61 @@
   width: 64px;
   height: 72px;
   border-radius: 10px;
-  background: rgba(74, 231, 253, 0.08);
+  background: var(--ui-soft, rgba(74, 231, 253, 0.08));
+}
+
+.home-new-sidebar[data-home-theme] {
+  background: var(--home-rail);
+  border-right: 1px solid var(--home-line);
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.home-new-sidebar[data-home-theme] .home-new-logo {
+  color: var(--home-text);
+}
+
+.home-new-sidebar[data-home-theme] .home-new-nav-divider {
+  background: var(--home-line);
+}
+
+.home-new-sidebar[data-home-theme] .home-new-nav-item {
+  color: var(--home-text-2);
+  background: transparent;
+  box-shadow: none;
+}
+
+.home-new-sidebar[data-home-theme] .home-new-nav-item:hover {
+  color: var(--home-text);
+  background: transparent;
+  box-shadow: none;
+}
+
+.home-new-sidebar[data-home-theme] .home-new-nav-item.is-active {
+  color: var(--home-text);
+  background: var(--home-s3);
+  box-shadow: inset 0 1px 0 var(--home-hairline);
+}
+
+.home-new-sidebar[data-home-theme] .home-new-nav-item .home-new-nav-ico,
+.home-new-sidebar[data-home-theme] .home-new-nav-item .sidebar-nav-hover-icon {
+  color: currentColor !important;
+  transition: transform 0.4s var(--home-spring);
+}
+
+.home-new-sidebar[data-home-theme] .home-new-nav-item:hover .home-new-nav-ico,
+.home-new-sidebar[data-home-theme] .home-new-nav-item:hover .sidebar-nav-hover-icon {
+  transform: translateY(-2px);
+}
+
+.home-new-sidebar[data-home-theme] .home-new-avatar-img {
+  background: var(--home-s3);
+  box-shadow: 0 0 0 1px var(--home-line-strong);
+}
+
+.home-new-sidebar[data-home-theme] .home-new-login {
+  border-color: var(--home-line-strong);
+  background: var(--home-s2);
+  color: var(--home-text-2);
 }

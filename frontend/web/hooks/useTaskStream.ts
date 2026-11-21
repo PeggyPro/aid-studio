@@ -12,6 +12,7 @@ import { isBenignTaskSseDisconnectMessage } from '~/utils/taskSseSilentDisconnec
 import { scheduleUserBalanceRefresh } from '~/utils/userBalanceRefresh'
 import type { TaskPartialFailedData } from '~/utils/taskPartialFailed'
 import { parseTaskPartialFailedData } from '~/utils/taskPartialFailed'
+import { parseSseEventBlock } from '~/utils/sseEventBlock'
 
 const MAX_SSE_BUFFER_CHARS = 1024 * 1024
 
@@ -60,27 +61,8 @@ function safeParseJson(raw: string): unknown {
   }
 }
 
-/** 解析一个 SSE 事件块（以空行分隔），得到 event 名与合并后的 data 文本 */
-export function parseTaskSseEventBlock(block: string): { event: string; data: string } | null {
-  const lines = block.split('\n')
-  let eventName = ''
-  const dataLines: string[] = []
-  for (const raw of lines) {
-    const line = raw.replace(/\r$/, '')
-    if (!line) continue
-    // SSE 注释帧（心跳等），跳过
-    if (line.startsWith(':')) continue
-    if (line.startsWith('event:')) {
-      eventName = line.slice(6).trim()
-    } else if (line.startsWith('data:')) {
-      // 规范：data: 后可跟一个可选空格
-      dataLines.push(line.slice(5).replace(/^\s/, ''))
-    }
-  }
-  const data = dataLines.join('\n')
-  if (!eventName && !data) return null
-  return { event: eventName || 'message', data }
-}
+/** 保留原导出名，任务 SSE 与 Skill SSE 共用同一解析器。 */
+export const parseTaskSseEventBlock = parseSseEventBlock
 
 function resolveErrorFromPayload(dataRaw: string): {
   errorMessage: string

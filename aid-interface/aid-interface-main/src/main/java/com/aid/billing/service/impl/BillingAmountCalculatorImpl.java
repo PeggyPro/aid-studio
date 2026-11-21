@@ -1,5 +1,6 @@
 package com.aid.billing.service.impl;
 
+import com.aid.aid.service.support.ModelBillingRuleValidator;
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.text.CharSequenceUtil;
 import cn.hutool.json.JSONUtil;
@@ -97,6 +98,7 @@ public class BillingAmountCalculatorImpl implements BillingAmountCalculator {
             case TOKEN -> preHoldToken(modelConfig, matchedSku, rule, billingInput);
             case PER_IMAGE -> preHoldPerImage(modelConfig, matchedSku, rule, billingInput);
             case PER_SECOND -> preHoldPerSecond(modelConfig, matchedSku, rule, billingInput);
+            case PER_MINUTE -> BillingCalcResult.notMatched("分钟计价仅接受服务端合成报价");
             case PER_CREDIT -> preHoldPerCredit(modelConfig, matchedSku, rule, billingInput);
             case SKU_PACKAGE -> preHoldSkuPackage(modelConfig, matchedSku, rule, billingInput);
             case PER_CHAR -> preHoldPerChar(modelConfig, matchedSku, rule, billingInput);
@@ -211,6 +213,7 @@ public class BillingAmountCalculatorImpl implements BillingAmountCalculator {
         return switch (meterType) {
             case TOKEN -> isNonNegative(sku.getInputPricePerMillion()) && isNonNegative(sku.getOutputPricePerMillion());
             case PER_IMAGE, PER_CREDIT, SKU_PACKAGE -> isNonNegative(sku.getPrice());
+            case PER_MINUTE -> false;
             case PER_SECOND -> isNonNegative(sku.getPricePerSecond())
                     || (!explicitMeterType && isPositive(sku.getPrice())
                     && safeGetInt(sku.getMatch(), "durationMax", 0) > 0);
@@ -333,6 +336,8 @@ public class BillingAmountCalculatorImpl implements BillingAmountCalculator {
         snapshot.setPricePerSecond(pps);
         snapshot.setExpectedDurationSeconds(duration);
         baseAmount = addInputMediaCharge(baseAmount, rule, matchedSku, billingInput.getParams(), snapshot, modelConfig);
+        baseAmount = baseAmount.add(com.aid.billing.util.CompositeVideoUsageCalculator.reserve(
+                matchedSku.getCompositeVideoTokens(), billingInput.getParams(), snapshot));
         snapshot.setPreHoldAmount(baseAmount);
         BigDecimal adjusted = applyMultipliersAndSnapshot(modelConfig, baseAmount, snapshot);
         logUnifiedPreHoldFormula(modelConfig, snapshot, MeterType.PER_SECOND, baseAmount, adjusted);
@@ -423,6 +428,10 @@ public class BillingAmountCalculatorImpl implements BillingAmountCalculator {
         BillingSnapshot snapshot = buildSkuSnapshot(modelConfig, matchedSku, rule, billingInput.getParams());
         snapshot.setMeterType(MeterType.SKU_PACKAGE.name());
         snapshot.setSkuPackagePrice(baseAmount);
+        int packageQuantity = safeGetInt(billingInput.getParams(), "packageQuantity", 1);
+        if (packageQuantity < 1 || packageQuantity > 1000) throw new com.aid.common.exception.ServiceException("套餐计费数量无效");
+        snapshot.setPackageQuantity(packageQuantity);
+        baseAmount = baseAmount.multiply(BigDecimal.valueOf(packageQuantity));
         baseAmount = addInputMediaCharge(baseAmount, rule, matchedSku, billingInput.getParams(), snapshot, modelConfig);
         snapshot.setPreHoldAmount(baseAmount);
         BigDecimal adjusted = applyMultipliersAndSnapshot(modelConfig, baseAmount, snapshot);
@@ -467,6 +476,7 @@ public class BillingAmountCalculatorImpl implements BillingAmountCalculator {
         InputMediaPricing.VideoPricing video = pricing.getVideo();
         if (video != null && isPositive(video.getUnitPrice())) {
             snapshot.setInputVideoUnitPrice(video.getUnitPrice());
+            snapshot.setInputVideoMinimumOutputDuration(video.getMinimumOutputDuration());
             int seconds = safeGetInt(params, "inputVideoSeconds", 0);
             int videoCount = safeGetInt(params, "inputVideoCount", 0);
             int maxSeconds = video.getMaxSeconds() == null ? 0 : video.getMaxSeconds();
@@ -475,6 +485,10 @@ public class BillingAmountCalculatorImpl implements BillingAmountCalculator {
             }
             if (maxSeconds > 0 && seconds > maxSeconds) {
                 seconds = maxSeconds;
+            }
+            if ((seconds > 0 || videoCount > 0) && Boolean.TRUE.equals(video.getMinimumOutputDuration())) {
+                seconds = Math.max(seconds, snapshot.getExpectedDurationSeconds() == null
+                    ? safeGetInt(params, "duration", 0) : snapshot.getExpectedDurationSeconds());
             }
             if (seconds > 0) {
                 BigDecimal videoAmount = video.getUnitPrice().multiply(BigDecimal.valueOf(seconds));
@@ -529,6 +543,8 @@ public class BillingAmountCalculatorImpl implements BillingAmountCalculator {
         BigDecimal modelMultiplier = billingPriceMultiplierService.resolveModelMultiplier(
                 modelConfig == null ? null : modelConfig.getBillingMultiplier());
         BigDecimal globalMultiplier = billingPriceMultiplierService.getGlobalMultiplier();
+        BillingRule rule = billingRuleResolver.parseRule(modelConfig);
+        if (rule != null) ModelBillingRuleValidator.requireCny(rule.getPriceCurrency());
         BigDecimal finalMultiplier = modelMultiplier.multiply(globalMultiplier);
         if (snapshot != null) {
             // 审计字段：基础金额 + 三个倍率
@@ -596,6 +612,22 @@ public class BillingAmountCalculatorImpl implements BillingAmountCalculator {
         MeterType meterType = MeterType.of(snapshot.getMeterType());
         log.info("结算计费分发: modelName={}, meterType={}", snapshot.getModelName(), meterType);
 
+        if (meterType == MeterType.PER_MINUTE) {
+            BigDecimal rate = snapshot.getUnitPrice();
+            int seconds = safeGetInt(usageData == null ? Map.of() : usageData, "actualDuration", 0);
+            if (rate == null || rate.signum() < 0) {
+                throw new com.aid.common.exception.ServiceException("分钟计价快照无效");
+            }
+            BigDecimal actual = preHoldAmount;
+            if (seconds > 0) {
+                actual = rate.multiply(BigDecimal.valueOf((seconds + 59L) / 60L))
+                        .multiply(resolveFinalMultiplierFromSnapshot(snapshot)).min(preHoldAmount);
+                snapshot.setActualDurationSeconds(seconds);
+            }
+            markSettleDone(snapshot, actual, preHoldAmount);
+            return BillingCalcResult.fixed(actual, snapshot);
+        }
+
         // FIXED模式或无规则JSON：直接按预扣金额结算
         String billingMode = snapshot.getBillingMode();
         String ruleJson = snapshot.getBillingRuleJson();
@@ -623,10 +655,30 @@ public class BillingAmountCalculatorImpl implements BillingAmountCalculator {
         } else if (meterType == MeterType.PER_CREDIT) {
             return settleWithPerCreditPricing(preHoldAmount, snapshot, usageData);
         } else if (meterType == MeterType.SKU_PACKAGE) {
+            if (snapshot.getPackageQuantity() != null && snapshot.getRequestParams() != null
+                    && snapshot.getRequestParams().containsKey("operation") && usageData != null
+                    && usageData.get("actualOutputCount") instanceof Number count && snapshot.getSkuPackagePrice() != null) {
+                int actualCount=count.intValue();
+                if(actualCount<1||actualCount>snapshot.getPackageQuantity())throw new com.aid.common.exception.ServiceException("上游歌曲数量无法结算");
+                BigDecimal refund=snapshot.getSkuPackagePrice().multiply(BigDecimal.valueOf(snapshot.getPackageQuantity()-actualCount))
+                        .multiply(resolveFinalMultiplierFromSnapshot(snapshot));
+                BigDecimal amount=preHoldAmount.subtract(refund).max(BigDecimal.ZERO);
+                markSettleDone(snapshot,amount,preHoldAmount);
+                return BillingCalcResult.sku(snapshot.getSkuCode(),snapshot.getSkuName(),amount,snapshot);
+            }
             // SKU_PACKAGE：直接按预扣金额结算
             markSettleDone(snapshot, preHoldAmount, preHoldAmount);
             return BillingCalcResult.fixed(preHoldAmount, snapshot);
         } else if (meterType == MeterType.PER_CHAR) {
+            if(snapshot.getRequestParams()!=null&&snapshot.getRequestParams().containsKey("operation")
+                    &&snapshot.getUnitPrice()!=null&&usageData!=null&&usageData.get("actualChars") instanceof Number chars) {
+                BigDecimal actualChars=new BigDecimal(chars.toString());
+                if(actualChars.signum()<0||actualChars.stripTrailingZeros().scale()>0)throw new com.aid.common.exception.ServiceException("上游字符用量无效");
+                BigDecimal actualAmount=snapshot.getUnitPrice().multiply(actualChars).multiply(resolveFinalMultiplierFromSnapshot(snapshot)).min(preHoldAmount);
+                snapshot.setProviderActualCharacters(actualChars.longValueExact());
+                markSettleDone(snapshot,actualAmount,preHoldAmount);
+                return BillingCalcResult.sku(snapshot.getSkuCode(),snapshot.getSkuName(),actualAmount,snapshot);
+            }
             // PER_CHAR（TTS）：输入文本在预扣时已确定，直接按预扣金额结算
             markSettleDone(snapshot, preHoldAmount, preHoldAmount);
             return BillingCalcResult.fixed(preHoldAmount, snapshot);
@@ -790,11 +842,32 @@ public class BillingAmountCalculatorImpl implements BillingAmountCalculator {
         snapshot.setBillingOutputTokenCeiling(safeGetInt(params, "billingOutputTokenCeiling", 0));
         return snapshot;
     }
+    @Override
+    public BillingCalcResult calculateFailedTextSettleAmount(BigDecimal preHoldAmount,
+            String snapshotJson, Map<String, Object> usageData) {
+        BillingSnapshot snapshot = parseSnapshot(snapshotJson);
+        Map<String, Object> actual = ProviderUsageSupport.actualUsage(usageData);
+        if (snapshot == null) return BillingCalcResult.fixed(BigDecimal.ZERO, null);
+        if (Boolean.TRUE.equals(snapshot.getIsFree()) || MeterType.of(snapshot.getMeterType()) != MeterType.TOKEN
+                || snapshot.getInputPricePerMillion() == null || snapshot.getOutputPricePerMillion() == null) {
+            // 没有可验证的用量价格时不得拿套餐价或预冻结额充当失败调用的实际费用。
+            persistTokenUsageAudit(snapshot, resolveActualUsage(actual, snapshot));
+            markSettleDone(snapshot, BigDecimal.ZERO, preHoldAmount);
+            return BillingCalcResult.fixed(BigDecimal.ZERO, snapshot);
+        }
+        return settleWithTokenPricing(preHoldAmount, snapshot, actual, true);
+    }
+
     /** 分价结算：按实际单次 token 用量从冻结规则重新匹配 SKU，再使用快照时点价格结算。 */
     private BillingCalcResult settleWithTokenPricing(BigDecimal preHoldAmount, BillingSnapshot snapshot, Map<String, Object> usageData) {
+        return settleWithTokenPricing(preHoldAmount, snapshot, usageData, false);
+    }
+
+    private BillingCalcResult settleWithTokenPricing(BigDecimal preHoldAmount, BillingSnapshot snapshot,
+                                                     Map<String, Object> usageData, boolean failedText) {
         TokenUsage actualUsage = resolveActualUsage(usageData, snapshot);
 
-        if (!actualUsage.providerUsageCaptured) {
+        if (!actualUsage.providerUsageCaptured && !failedText) {
             // Provider 未返回完整 input/output usage 时不能把缺失侧当 0 退款。
             // 无 usage、部分 usage 和仅有估算值均按本次预冻结算，但快照仍保留
             // 已获取侧的真实 token 及完整性标志，便于审计与父聚合识别不完整调用。
@@ -825,7 +898,16 @@ public class BillingAmountCalculatorImpl implements BillingAmountCalculator {
 
         // 按实际 token × 实际命中档位单价计算（基础金额）+ 输入媒体附加费。
         BigDecimal actualBase = calcTokenCost(actualUsage, snapshot, inputPrice, outputPrice)
-                .add(snapshotInputMediaBase(snapshot));
+                .add(failedText ? BigDecimal.ZERO : snapshotInputMediaBase(snapshot));
+        if (actualSku != null && actualSku.getImageRequestTextInputPricePerMillion() != null
+                && inputPrice != null && "IMAGE".equalsIgnoreCase(snapshot.getModelType())) {
+            int textTokens = nonNegativeInt(usageData, "image_request_text_tokens", -1);
+            int imageTokens = nonNegativeInt(usageData, "image_request_image_tokens", -1);
+            if (textTokens >= 0 && imageTokens >= 0 && (long) textTokens + imageTokens == actualUsage.inputTokens) {
+                BigDecimal difference = actualSku.getImageRequestTextInputPricePerMillion().subtract(inputPrice);
+                actualBase = actualBase.add(difference.multiply(BigDecimal.valueOf(textTokens)).movePointLeft(6));
+            }
+        }
         if ("PROVIDER".equals(snapshot.getPayerType())) {
             // 站长成本按冻结的上游价格确认，不使用网站积分倍率。
             snapshot.setProviderActualCostCny(actualBase);
@@ -906,6 +988,27 @@ public class BillingAmountCalculatorImpl implements BillingAmountCalculator {
 
     private BillingCalcResult settleWithPerSecondPricing(BigDecimal preHoldAmount, BillingSnapshot snapshot,
                                                           Map<String, Object> usageData) {
+        if (snapshot.getCompositeVideoTokens() != null) {
+            com.aid.billing.util.CompositeVideoUsageCalculator.captureMediaDuration(snapshot, usageData);
+            if (usageData != null && usageData.containsKey("unpriced_output_modalities")) {
+                snapshot.setCompositeProviderUsage(usageData);
+                snapshot.setCompositeUsageSource("UNVERIFIED_PROVIDER_USAGE");
+                markSettleDone(snapshot, preHoldAmount, preHoldAmount);
+                return BillingCalcResult.sku(snapshot.getSkuCode(), snapshot.getSkuName(), preHoldAmount, snapshot);
+            }
+            if (!com.aid.billing.util.CompositeVideoUsageCalculator.hasObservedUsage(usageData)) {
+                snapshot.setCompositeUsageSource("ESTIMATED");
+                markSettleDone(snapshot, preHoldAmount, preHoldAmount);
+                return BillingCalcResult.sku(snapshot.getSkuCode(), snapshot.getSkuName(), preHoldAmount, snapshot);
+            }
+            BigDecimal base = com.aid.billing.util.CompositeVideoUsageCalculator.settle(snapshot, usageData);
+            BigDecimal calculated = base.multiply(resolveFinalMultiplierFromSnapshot(snapshot));
+            snapshot.setCompositeCalculatedCredits(calculated);
+            snapshot.setCompositeAmountAboveHold(calculated.subtract(preHoldAmount).max(BigDecimal.ZERO));
+            BigDecimal actual = calculated.min(preHoldAmount);
+            markSettleDone(snapshot, actual, preHoldAmount);
+            return BillingCalcResult.sku(snapshot.getSkuCode(), snapshot.getSkuName(), actual, snapshot);
+        }
         BigDecimal pps = snapshot.getPricePerSecond();
         if (pps == null || pps.compareTo(BigDecimal.ZERO) < 0) {
             // 快照中无每秒单价（旧数据兜底），按预扣金额直接结算
@@ -915,11 +1018,15 @@ public class BillingAmountCalculatorImpl implements BillingAmountCalculator {
         }
 
         // 取实际时长：优先 usageData.actualDuration，其次 usageData.duration
-        int actualDuration = 0;
+        BigDecimal actualDuration = BigDecimal.ZERO;
         if (usageData != null) {
-            actualDuration = safeGetInt(usageData, "actualDuration", safeGetInt(usageData, "duration", 0));
+            Object durationValue = usageData.getOrDefault("actualDuration", usageData.get("duration"));
+            if (durationValue != null) {
+                try { actualDuration = new BigDecimal(durationValue.toString()); }
+                catch (NumberFormatException ex) { throw new com.aid.common.exception.ServiceException("实际时长格式无效"); }
+            }
         }
-        if (actualDuration <= 0) {
+        if (actualDuration.signum() <= 0) {
             // 无实际时长反馈，按预扣金额结算
             log.info("PER_SECOND结算兜底: actualDuration为0, 按预扣金额结算, preHold={}", preHoldAmount);
             markSettleDone(snapshot, preHoldAmount, preHoldAmount);
@@ -927,7 +1034,7 @@ public class BillingAmountCalculatorImpl implements BillingAmountCalculator {
         }
 
         // 按实际秒数计算基础金额 + 输入媒体附加费（优先使用上游实际输入用量）
-        BigDecimal actualBase = pps.multiply(BigDecimal.valueOf(actualDuration))
+        BigDecimal actualBase = pps.multiply(actualDuration)
                 .add(resolveSettledInputMediaBase(snapshot, usageData));
         // 应用与预扣同一份倍率
         BigDecimal finalMultiplier = resolveFinalMultiplierFromSnapshot(snapshot);
@@ -939,7 +1046,8 @@ public class BillingAmountCalculatorImpl implements BillingAmountCalculator {
         }
 
         // 写入审计字段
-        snapshot.setActualDurationSeconds(actualDuration);
+        snapshot.setActualDurationExactSeconds(actualDuration);
+        snapshot.setActualDurationSeconds(actualDuration.setScale(0, java.math.RoundingMode.CEILING).intValueExact());
         markSettleDone(snapshot, actualAmount, preHoldAmount);
 
         log.info("[结算-PER_SECOND] pricePerSecond={}, expectedDur={}, actualDur={}, baseAmount={}, finalMultiplier={}, actualAmount={}, preHold={}",
@@ -975,9 +1083,20 @@ public class BillingAmountCalculatorImpl implements BillingAmountCalculator {
         BigDecimal videoAmount = snapshot.getInputVideoAmount() == null
                 ? BigDecimal.ZERO : snapshot.getInputVideoAmount();
         if (hasVideoUsage && isPositive(snapshot.getInputVideoUnitPrice())) {
-            int actualSeconds = Math.max(safeGetInt(usageData, "actualInputVideoSeconds", 0), 0);
-            videoAmount = snapshot.getInputVideoUnitPrice().multiply(BigDecimal.valueOf(actualSeconds));
-            snapshot.setActualInputVideoSeconds(actualSeconds);
+            BigDecimal actualSeconds = nonNegativeMediaSeconds(usageData.get("actualInputVideoSeconds"));
+            if (actualSeconds != null) {
+                BigDecimal billedSeconds = actualSeconds;
+                if (Boolean.TRUE.equals(snapshot.getInputVideoMinimumOutputDuration())) {
+                    BigDecimal outputSeconds = nonNegativeMediaSeconds(usageData.getOrDefault("actualDuration", usageData.get("duration")));
+                    if (outputSeconds == null && snapshot.getExpectedDurationSeconds() != null) {
+                        outputSeconds = BigDecimal.valueOf(snapshot.getExpectedDurationSeconds());
+                    }
+                    if (outputSeconds != null) billedSeconds = billedSeconds.max(outputSeconds);
+                }
+                videoAmount = snapshot.getInputVideoUnitPrice().multiply(billedSeconds);
+                snapshot.setActualInputVideoExactSeconds(actualSeconds);
+                snapshot.setActualInputVideoSeconds(actualSeconds.setScale(0, java.math.RoundingMode.CEILING).intValueExact());
+            }
         }
 
         // 旧快照只有聚合金额、没有分项单价时无法安全拆分，继续按原聚合金额结算。
@@ -985,6 +1104,16 @@ public class BillingAmountCalculatorImpl implements BillingAmountCalculator {
             return snapshotInputMediaBase(snapshot);
         }
         return imageAmount.add(videoAmount);
+    }
+
+    private static BigDecimal nonNegativeMediaSeconds(Object value) {
+        if (value == null) return null;
+        try {
+            BigDecimal seconds = new BigDecimal(value.toString());
+            return seconds.signum() >= 0 && seconds.compareTo(BigDecimal.valueOf(Integer.MAX_VALUE)) <= 0 ? seconds : null;
+        } catch (NumberFormatException ex) {
+            return null;
+        }
     }
     /**
      * 按实际文本用量结算固定价 SKU。

@@ -1,6 +1,7 @@
 import type { StudioTask } from '@/types/studio'
 import {
   withTaskSseDisplayTiming,
+  formatTaskWaitReason,
   type TaskSseProgressInput
 } from '@/utils/taskSseProgressText'
 
@@ -32,6 +33,9 @@ function resolveStudioDisplayProgress(input: StudioSseTaskProgressInput): number
 export function studioSseTaskProgressPatch(
   input: StudioSseTaskProgressInput
 ): Pick<StudioTask, 'stage'> & Partial<Pick<StudioTask, 'progress'>> {
+  const waiting = formatTaskWaitReason(input.eta)
+  if (waiting && !['SUCCEEDED', 'SUCCESS', 'COMPLETED', 'FAILED', 'PARTIAL_FAILED', 'CANCELLED', 'CANCELED'].includes(String(input.status || '').toUpperCase()))
+    return { stage: waiting, progress: undefined }
   const display = withTaskSseDisplayTiming(input)
   const stage =
     stripTrailingProgressPercent(String(display.message || display.stepTitle || '').trim()) ||

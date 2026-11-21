@@ -1,6 +1,8 @@
 package com.aid.billing.service;
 
 import java.math.BigDecimal;
+import java.util.Collection;
+import java.util.Map;
 
 /**
  * 统一账户变更执行器：所有对 aid_user_profile + aid_balance_log 的写操作统一走这里。
@@ -8,6 +10,27 @@ import java.math.BigDecimal;
  * @author 视觉AID
  */
 public interface IAccountUpdateService {
+
+    /**
+     * Read-only aggregate of the committed, non-deleted wallet ledger rows for one billing trace.
+     * EMPTY distinguishes a legitimate zero-wallet trace from invalid evidence. INVALID means the
+     * trace is duplicated, mixed across users, contains deleted/unsupported rows, or violates the
+     * signed amount contract. Callers must fail closed.
+     */
+    enum WalletLedgerEvidenceState { EMPTY, VALID, INVALID }
+
+    record WalletLedgerEvidence(String traceId,
+                                WalletLedgerEvidenceState state,
+                                Long userId,
+                                BigDecimal frozenAmount,
+                                BigDecimal grossConsumedAmount,
+                                BigDecimal settleRefundedAmount,
+                                BigDecimal unfrozenAmount,
+                                BigDecimal settleUnfrozenAmount,
+                                BigDecimal netConsumedAmount) {
+        public boolean valid() { return state == WalletLedgerEvidenceState.VALID; }
+        public boolean empty() { return state == WalletLedgerEvidenceState.EMPTY; }
+    }
 
     /**
      * 冻结：balance -= amount, frozenBalance += amount。
@@ -33,6 +56,24 @@ public interface IAccountUpdateService {
      * 查询指定 trace 是否已有冻结流水，用于续跑 Saga 判断冻结结果是否已提交。
      */
     boolean hasFreezeRecord(String traceId);
+
+    /** Whether the stable billing trace has a committed full unfreeze. */
+    boolean hasRefundRecord(String traceId);
+
+    /** Whether the stable billing trace has a committed wallet consumption. */
+    boolean hasConsumeRecord(String traceId);
+
+    /** Return the typed aggregate needed to recover wallet/projection splits without guessing. */
+    WalletLedgerEvidence inspectLedger(String traceId);
+
+    /** Read at most 200 traces in one bounded query; unsupported or incomplete reads are unavailable. */
+    default Map<String, WalletLedgerEvidence> inspectLedgerBatch(Collection<String> traceIds)
+    {
+        throw new UnsupportedOperationException("批量账本不可用");
+    }
+
+    /** 按稳定trace读取已经提交的钱包冻结金额，用于预冻结Saga续跑。 */
+    BigDecimal resolveFrozenAmount(String traceId, BigDecimal fallbackAmount);
 
     /**
      * 结算：frozenBalance -= amount, totalConsumption += amount。

@@ -5,12 +5,15 @@ import {
 } from 'antd';
 import { ArrowDownOutlined, ArrowUpOutlined, DeleteOutlined, PlusOutlined } from '@ant-design/icons';
 import {
-  MAX_RESOURCE_BYTES, MAX_RESOURCE_TOTAL_BYTES, utf8ByteLength
+  isSafeReferencePath, MAX_REFERENCE_PATH_LENGTH, MAX_RESOURCE_BYTES,
+  MAX_RESOURCE_TOTAL_BYTES, utf8ByteLength
 } from './skillPackageUtils';
+import StructuredValueEditor from './StructuredValueEditor';
 
 export interface EditableSkillResource {
-  id?: number;
+  id?: string | number;
   resourceKey: string;
+  filePath: string;
   resourceType: string;
   mimeType: string;
   content: string;
@@ -107,8 +110,10 @@ export default function SkillResourceEditor({ value, onChange, disabled }: Skill
     updateResource({ routeJson: JSON.stringify(next) });
   };
   const addResource = () => {
+    const resourceKey = nextResourceKey(resources);
     const next = [...resources, {
-      resourceKey: nextResourceKey(resources),
+      resourceKey,
+      filePath: `references/${resourceKey}.md`,
       resourceType: 'REFERENCE',
       mimeType: 'text/markdown',
       content: '',
@@ -133,8 +138,8 @@ export default function SkillResourceEditor({ value, onChange, disabled }: Skill
   const duplicateKey = !!selected?.resourceKey
     && resources.some((item, index) => index !== selectedIndex && item.resourceKey === selected.resourceKey);
 
-  return <Row gutter={16} wrap={false}>
-    <Col flex="280px">
+  return <Row gutter={[16, 16]}>
+    <Col xs={24} md={8}>
       <Card size="small" title={`资源（${resources.length}）`} extra={!disabled && <Space size={0}>
         <Button type="text" aria-label="上移资源" disabled={!selected || selectedIndex === 0}
           icon={<ArrowUpOutlined />} onClick={() => moveResource(-1)} />
@@ -160,28 +165,34 @@ export default function SkillResourceEditor({ value, onChange, disabled }: Skill
         />}
       </Card>
     </Col>
-    <Col flex="auto">
+    <Col xs={24} md={16}>
       {!selected ? <Card><Empty description="选择或新增一个资源" /></Card> : <Card size="small"
         title={selected.resourceKey || '未命名资源'} extra={!disabled && <Popconfirm
           title="确认从草稿中移除此资源？" onConfirm={removeResource}>
           <Button danger type="text" icon={<DeleteOutlined />}>移除</Button>
         </Popconfirm>}>
         <Row gutter={12}>
-          <Col span={10}><Form.Item label="资源键" required validateStatus={duplicateKey ? 'error' : undefined}
+          <Col xs={24} md={12}><Form.Item label="资源键" required validateStatus={duplicateKey ? 'error' : undefined}
             help={duplicateKey ? '资源键必须唯一' : undefined}>
             <Input disabled={disabled} value={selected.resourceKey} maxLength={100}
               onChange={(event) => updateResource({ resourceKey: event.target.value.trim() })} />
           </Form.Item></Col>
-          <Col span={7}><Form.Item label="资源类型" required><Select disabled={disabled}
+          <Col xs={24} md={6}><Form.Item label="资源类型" required><Select disabled={disabled}
             value={selected.resourceType} options={[
               { label: '参考资料', value: 'REFERENCE' },
               { label: '说明文档', value: 'INSTRUCTION' }
             ]} onChange={(resourceType) => updateResource({ resourceType })} /></Form.Item></Col>
-          <Col span={7}><Form.Item label="MIME 类型" required><Select disabled={disabled}
+          <Col xs={24} md={6}><Form.Item label="MIME 类型" required><Select disabled={disabled}
             value={selected.mimeType} options={[
               { label: 'Markdown', value: 'text/markdown' }, { label: '纯文本', value: 'text/plain' }
             ]} onChange={(mimeType) => updateResource({ mimeType })} /></Form.Item></Col>
         </Row>
+        <Form.Item label="逻辑文件路径" required
+          validateStatus={!isSafeReferencePath(selected.filePath) ? 'error' : undefined}
+          help="只能保存到 references/ 下不超过 192 字符的安全小写相对路径；扩展名由 MIME 类型决定。">
+          <Input disabled={disabled} value={selected.filePath} maxLength={MAX_REFERENCE_PATH_LENGTH}
+            onChange={(event) => updateResource({ filePath: event.target.value.trim() })} />
+        </Form.Item>
         {(selected.objectKey || selected.contentDigest) && <Alert style={{ marginBottom: 12 }} type="info" showIcon
           message="已发布资源索引（只读）" description={<Space direction="vertical" size={0}>
             {selected.objectKey && <Typography.Text copyable>{selected.objectKey}</Typography.Text>}
@@ -209,7 +220,7 @@ export default function SkillResourceEditor({ value, onChange, disabled }: Skill
           {
             key: 'route', label: '路由规则', children: <Space direction="vertical" size={12} style={{ width: '100%' }}>
               {routeResult.error && <Alert type="error" showIcon message={routeResult.error}
-                description="先在原始 JSON 中修复后，才能继续使用结构化路由编辑。" />}
+                description="历史路由数据无效，请先由管理员修复原始数据。" />}
               <Space><Typography.Text>始终装载</Typography.Text><Switch disabled={disabled || !routeResult.route}
                 checked={routeResult.route?.always === true} onChange={(always) => updateRoute((route) => {
                   if (always) route.always = true;
@@ -231,9 +242,9 @@ export default function SkillResourceEditor({ value, onChange, disabled }: Skill
                     else delete route.keywords;
                   })} />
               </Form.Item>
-              <Form.Item label="原始路由 JSON" extra="未受管的扩展字段会保留。">
-                <Input.TextArea disabled={disabled} rows={7} value={selected.routeJson} maxLength={8000}
-                  onChange={(event) => updateResource({ routeJson: event.target.value })} />
+              <Form.Item label="其他路由字段" extra="历史扩展字段按原有类型保留，编辑后仍与上面的快捷规则一起保存。">
+                <StructuredValueEditor objectOnly disabled={disabled} value={selected.routeJson}
+                  onChange={(routeJson) => updateResource({ routeJson })} />
               </Form.Item>
             </Space>
           }

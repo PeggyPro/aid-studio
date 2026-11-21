@@ -1,5 +1,5 @@
 /*
- * GlobalSettingPagePanel 伴随样式：由原 components/steps/GlobalSettingPagePanel.vue <style scoped> 平移。
+ * GlobalSettingPagePanel 伴随样式：由原 components/steps/GlobalSettingPagePanel.vue \3c style scoped> 平移。
  * scoped 等价处理：组件内规则加 .global-setting-page-panel 前缀（含原 :deep() 展开）。
  */
 
@@ -22,14 +22,14 @@
   margin: 0 0 6px;
   font-size: 1.25rem;
   font-weight: 700;
-  color: var(--home-text, #e6edf3);
+  color: var(--home-text, var(--ui-text, #e6edf3));
   letter-spacing: 0.04em;
 }
 
 .global-setting-page-panel .gsp-desc {
   margin: 0;
   font-size: 0.875rem;
-  color: var(--home-muted, #8e97a5);
+  color: var(--home-muted, var(--ui-muted, #8e97a5));
   line-height: 1.5;
 }
 

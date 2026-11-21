@@ -26,6 +26,8 @@
 | 提交后返回 `task_id` / `id`、再按任务查询的异步图片或视频 | `ConfigurableAsyncImageProviderClient` / `ConfigurableAsyncVideoProviderClient` |
 | 已有厂商协议（如 Dashscope、Vidu、可灵、MiniMax、Gemini、DeepSeek） | 对应 `impl/` 下的 Client，只补能力字段或官方文档证据 |
 
+`openai-compatible-text` 按标准 Chat Completions 传输 `tools`、`tool_choice`、助手 `tool_calls`、工具结果和流式 `delta.tool_calls`。当前支持的 `tool_choice` 为 `none`、`auto`、`required` 及标准函数选择器 `{type:"function",function:{name}}`；`allowed_tools` 等尚未适配的选择类型会被拒绝。只有模型能力明确声明 `supportsStreaming=true`、`supportsToolCalling=true` 且协议唯一命中该适配器时，才允许原生流式工具模式；准入、请求形状、工具消息校验与工具续轮识别使用同一协议映射，未适配协议不会被声明为可用。工具定义、已支持的函数选择形式和调用/结果关联会在建任务与冻结费用前校验，工具续轮不会因并发满而排队。FIM 协议不属于该传输，也不会降级成 JSON 工具调用。
+
 只有官方请求字段、鉴权或状态机对不上现有适配器时，才新增 `*ProviderClient`。新实现必须是 Spring `@Component`，并实现对应接口。编排层注入 `List<TextProviderClient>` / `ImageProviderClient` / `VideoProviderClient` / `AudioProviderClient`，按协议或 `provider_code` 路由。
 
 ## 代码入口与职责
@@ -92,7 +94,7 @@
 3. **回调**：厂商若支持 webhook，复用已有回调支持类和 `supportsCallback`。回调分两类，不要一律写成只唤醒轮询：
    - **仅唤醒轮询**（通用 `CallbackController`、MiniMax H3）：回调不是可信的官方状态契约，只调度轮询（`scheduleImmediatePoll` / `scheduleImmediatePollIfWaitingCallback`），终态仍来自 `query()`。
    - **校验后终态收口**（`ViduCallbackServiceImpl`、`KlingCallbackServiceImpl`）：验签并确认官方终态后，可构造 `ProviderTaskResult` 并直接调用 `taskCompletionService.completeTask(...)`。中间态只登记进展。成功但缺少结果 URL 等不完整载荷仍交轮询。
-4. **重试与补偿**：处理中任务由 `compensateProcessingTasks` 按 5/10/20/30 秒退避对账；排队任务由 `drainQueuedCompensate` 在重启或完成事件丢失后拉起；计费中间态由 `mediaTask.billingCompensate()` 重试结算或退回；成功但未落存储由 `ossCompensate` 补齐。查询网络失败或未知状态必须把 `ProviderTaskResult.querySuccessful` 设为 `false`，继续对账，**不能**当成生成失败。
+4. **重试与补偿**：处理中任务由 `compensateProcessingTasks` 按 5/10/20/30 秒退避对账；排队任务由 `drainQueuedCompensate` 在重启或完成事件丢失后拉起；计费中间态由 `mediaTask.billingCompensate()` 重试结算或退回；成功但未落存储由 `ossCompensate` 补齐。查询网络失败或未知状态必须把 `ProviderTaskResult.querySuccessful` 设为 `false`；系统独立累计连续查询失败，达到调度策略 `maxConsecutiveQueryFailures`（默认3次）后按本地失败退款结束，适配器不得伪造厂商失败终态。正常排队和处理中会清零此计数。
 
 文本失败是否扣费由 `TextFailureBillingPolicy` 根据是否真正发请求、HTTP 是否最终拒绝、是否观察到 token 用量决定。本地校验失败用 `notSent`，不要先扣再退。
 
@@ -131,3 +133,34 @@
 - [ ] PR 中有官方协议、能力和公开价格页链接；无密钥、网关、代理、运营价、私有提示词
 - [ ] 中英文说明、限制和链接一致
 - [ ] `git diff --check` 通过，PR 写明已做和未做的检查
+
+
+## 历史异步任务的查询路径恢复
+
+异步任务的提交参数、模型与计费使用提交时快照。任务状态查询单独读取当前的查询路径，以便管理员修复错误路径后恢复已有任务，无需重新生成。
+
+### 生效边界
+
+- 原供应商和基础网关必须与任务快照一致；不同供应商或网关继续拒绝使用当前凭证。
+- 当前协议必须与原任务协议一致；协议变化时不将新协议的路径套用到原任务。
+- 查询路径复用已有相对路径与单个 `%s` 占位符校验，不接受外部绝对地址。空配置按原适配器默认查询规则处理。
+- 仅查询路径可更新；提交接口、模型、参数、价格和数据库中的任务快照不被修改。
+- 此机制适用于统一模型快照；专用凭证快照及无快照任务沿用各自现有解析逻辑。
+
+### 后台操作及验证
+
+在既有供应商或模型配置中修正任务查询路径，然后通过既有媒体异常任务“重新查询”入口复查。仍使用厂商返回的任务标识，不使用本地任务ID替代。
+
+正常终态通过统一任务处理归档结果、结算并释放占用。单次查询异常不等于厂商生成失败；连续查询失败达到配置次数后，由统一本地失败策略结束、退款并释放占用，不重新创建上游任务。修改基础网关不属于查询路径修复。
+
+复用现有配置、权限、审计、复查接口和任务终态处理，无新增接口或 SQL。
+
+
+### 视频查询非终态兼容
+
+Agnes 视频查询中的 `pending` 与 `queued`、`in_progress` 都是未完成状态；仅继续原任务轮询，不结算、不退款、不重新提交。未知状态以及带有矛盾错误的进行中回包继续按查询异常处理；成功回包必须包含结果地址。
+
+
+## 提交阶段与本地失败
+
+同步文本、图片和音频调用失败、超时或执行进程中断时，沿原冻结流水退款并结束；已有可恢复成功响应时优先恢复成功。异步创建阶段使用可续约的 `SUBMITTING` 执行许可，取得并保存上游任务ID后转为 `ASYNC`，直到权威终态或连续查询失败达到配置次数后释放。浏览器断线不代表服务端请求失败。查询失败计数 `query_failure_count` 与正常轮询 `retry_count` 独立。回调、轮询和本地失败均通过统一终态CAS与原冻结账本，重复通知不会重复退款。

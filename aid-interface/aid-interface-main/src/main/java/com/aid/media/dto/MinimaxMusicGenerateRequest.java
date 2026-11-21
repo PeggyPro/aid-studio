@@ -6,6 +6,7 @@ import lombok.Data;
 @Data
 public class MinimaxMusicGenerateRequest {
     private String modelCode;
+    private String capabilityCode;
     private String prompt;
     private String lyrics;
     private Boolean instrumental;

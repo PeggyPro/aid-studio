@@ -1,6 +1,7 @@
 package com.aid.rps.queue;
 
 import com.aid.common.error.TaskErrorSnapshot;
+import com.aid.common.error.ErrorNormalizer;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -184,8 +185,9 @@ public class BatchTaskLocalOrchestrator
             if (spec.failWhenNoSuccess && BatchResultState.FAILED.equals(resultState))
             {
                 String rawMessage = resolveFailureMessage(resultJson, "图片生成失败");
-                TaskErrorResult error = TaskErrorResult.of(TaskErrorCode.AI_GENERATION_FAILED, rawMessage);
-                if (!updateResult(taskId, dispatchToken, TASK_STATUS_FAILED, resultJson, rawMessage))
+                TaskErrorResult error = resolveFailureError(resultJson, rawMessage);
+                if (!updateResult(taskId, dispatchToken, TASK_STATUS_FAILED, resultJson, rawMessage,
+                        TaskErrorSnapshot.write(error)))
                 {
                     log.info("本地批量任务全部失败收口跳过，周期已变化: taskId={}", taskId);
                     return;
@@ -580,6 +582,32 @@ public class BatchTaskLocalOrchestrator
             log.warn("本地批量任务失败原因解析失败: err={}", e.getMessage());
             return fallback;
         }
+    }
+
+    /** 批量失败优先保留子任务错误码，兼容只有文案的历史结果。 */
+    public static TaskErrorResult resolveFailureError(String resultJson, String fallback)
+    {
+        String message = resolveFailureMessage(resultJson, fallback);
+        try
+        {
+            String code = OBJECT_MAPPER.readTree(resultJson).path("failedItems").path(0)
+                    .path("errorCode").asText(null);
+            if (StrUtil.isNotBlank(code))
+            {
+                TaskErrorCode type = TaskErrorCode.valueOf(code);
+                TaskErrorResult error = TaskErrorResult.of(type, message);
+                if (!ErrorNormalizer.usesProtectedUserMessage(type))
+                {
+                    error.setUserMessage(message);
+                }
+                return error;
+            }
+        }
+        catch (Exception ignored)
+        {
+            // 旧结果没有错误码或无法解析时，继续使用统一分类，不影响终态落库。
+        }
+        return ErrorNormalizer.classifyByMessage(message);
     }
 
     /** result_data 是否存在被取消跳过的项（successCount + failCount < totalCount）。 */

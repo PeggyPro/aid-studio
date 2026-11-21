@@ -17,6 +17,7 @@ export function ModelBillingOverview({ model }: { model: Model }) {
             ? `SKU ${route.enabledSkuCount}/${route.skuCount} 启用`
             : '固定价格'}</span>
           <span>{route.priceLabels.join('；') || '价格未配置'}</span>
+          {route.priceMissing && <span>启用的 SKU 单价未配置完整</span>}
         </div>
       ))}
     </div>
@@ -28,7 +29,7 @@ export function ModelBillingOverview({ model }: { model: Model }) {
           {overview.skuRouteCount > 0 && <Tag color="purple">SKU 计费 · {overview.enabledSkuCount} 条</Tag>}
           {overview.fixedRouteCount > 0 && <Tag color="blue">固定价 · {overview.fixedRouteCount} 路</Tag>}
           {model.isFree === true && <Tag color="green">用户侧免费</Tag>}
-          {overview.issueCount > 0
+          {overview.priceIssueCount > 0
             ? <Tag color="error" icon={<ExclamationCircleFilled />}>有价格缺口</Tag>
             : <Tag color="success" icon={<CheckCircleFilled />}>价格已配置</Tag>}
         </Space>

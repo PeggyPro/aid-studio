@@ -15,13 +15,16 @@ export function fetchCreationStepStatusOnce(
   options?: { force?: boolean }
 ): Promise<CreationStepState> {
   const key = cacheKey(body)
+  const inflight = inflightByKey.get(key)
+  if (inflight) return inflight
+
   if (!options?.force) {
     const hit = resultCache.get(key)
     if (hit && Date.now() - hit.at < CACHE_MS) {
       return Promise.resolve(hit.data)
     }
-    const inflight = inflightByKey.get(key)
-    if (inflight) return inflight
+  } else {
+    resultCache.delete(key)
   }
 
   const promise = creationStepStatus(body)

@@ -1,0 +1,90 @@
+.invite-promo-panel {
+  position: fixed;
+  inset-inline-start: calc(var(--home-new-sidebar-w) + 12px);
+  inset-block-end: max(16px, env(safe-area-inset-bottom));
+  z-index: 1000;
+  box-sizing: border-box;
+  width: min(264px, calc(100% - var(--home-new-sidebar-w) - 24px));
+  padding: 16px;
+  border: 1px solid var(--v10-ring);
+  border-radius: 16px;
+  background: var(--v10-s1);
+  box-shadow: var(--v10-shadow);
+  color: var(--v10-text);
+}
+
+.invite-promo-panel__icon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--v10-brand) 13%, var(--v10-s2));
+  color: var(--v10-brand);
+  font-size: 18px;
+}
+
+.invite-promo-panel h3 {
+  margin: 10px 0 4px;
+  color: inherit;
+  font-size: 16px;
+  font-weight: 650;
+}
+
+.invite-promo-panel p {
+  margin: 0;
+  color: var(--v10-muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.invite-promo-panel strong {
+  color: var(--v10-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.invite-promo-panel button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  font: inherit;
+  cursor: pointer;
+}
+
+.invite-promo-panel__close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--v10-muted);
+}
+
+.invite-promo-panel__close:hover {
+  background: var(--v10-soft-hover);
+  color: var(--v10-text);
+}
+
+.invite-promo-panel .invite-promo-panel__cta {
+  gap: 8px;
+  width: 100%;
+  min-height: 44px;
+  margin-top: 14px;
+  border-radius: 9px;
+  background: var(--v10-primary);
+  color: var(--v10-on-primary);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.invite-promo-panel__cta:hover {
+  background: color-mix(in srgb, var(--v10-primary) 88%, var(--v10-s2));
+}
+
+.invite-promo-panel button:focus-visible {
+  outline: 2px solid var(--v10-brand);
+  outline-offset: 2px;
+}

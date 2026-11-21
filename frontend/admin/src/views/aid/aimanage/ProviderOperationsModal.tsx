@@ -187,7 +187,7 @@ export default function ProviderOperationsModal({ open, provider, capabilities, 
 
   const tabs: any[] = [];
   if (capabilities.balance) tabs.push({
-    key: 'balance', label: resourcePackages ? '资源包余量' : '账户余额', children: (
+    key: 'balance', label: resourcePackages ? '资源包余量' : capabilities.balanceKind === 'characters' ? '字符额度' : '账户额度', children: (
       <>
         <Alert type="info" showIcon message={capabilities.balanceDelayNotice || balance?.delayNotice || '上游余额可能存在统计延迟'} style={{ marginBottom: 12 }} />
         {balanceError && <Alert role="alert" type="error" showIcon message={balanceError} description={balance ? '以下保留上次查询结果，并非本次最新余额。' : '未取得有效余额，不会将查询失败视为余额为零。'} style={{ marginBottom: 12 }} />}
@@ -196,7 +196,7 @@ export default function ProviderOperationsModal({ open, provider, capabilities, 
           <DatePicker.RangePicker value={range} onChange={(v) => v?.[0] && v?.[1] && setRange([v[0], v[1]])} />
           <Input allowClear placeholder="资源包名称（精确）" value={packName} onChange={(e) => setPackName(e.target.value)} style={{ width: 220 }} />
           </>}
-          <Button type="primary" loading={balanceLoading} onClick={() => void loadBalance(true)}>刷新余额</Button>
+          <Button type="primary" loading={balanceLoading} onClick={() => void loadBalance(true)}>刷新账户</Button>
           {balance?.queriedAt && <Typography.Text type="secondary">查询时间：{dayjs(balance.queriedAt).format('YYYY-MM-DD HH:mm:ss')}</Typography.Text>}
         </Space>
         {resourcePackages ? <Table rowKey={(r) => r.resource_pack_id} loading={balanceLoading} dataSource={balanceRows} pagination={false} size="small" scroll={{ x: 900 }}
@@ -244,7 +244,8 @@ export default function ProviderOperationsModal({ open, provider, capabilities, 
   });
 
   return (
-    <Modal open={open} title={`${provider?.providerName || ''} · 上游运营`} onCancel={onClose} footer={null} width={1100} destroyOnClose>
+    <Modal open={open} title={`${provider?.providerName || ''} · 上游运营`} onCancel={onClose} footer={null} width={1100} destroyOnClose
+      styles={{ body: { maxHeight: '74vh', overflowY: 'auto' } }}>
       <Descriptions size="small" column={2} style={{ marginBottom: 8 }} items={[
         { key: 'code', label: '服务商编码', children: provider?.providerCode || '-' },
         { key: 'base', label: '基础网关', children: provider?.baseUrl || '-' }

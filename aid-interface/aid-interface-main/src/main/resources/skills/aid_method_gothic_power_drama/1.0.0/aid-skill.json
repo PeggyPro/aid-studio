@@ -1,0 +1,18 @@
+{
+  "formatVersion": "1",
+  "code": "aid_method_gothic_power_drama",
+  "name": "哥特权力短剧",
+  "version": "1.0.0",
+  "invocationScope": "INTERNAL",
+  "executorType": "PROMPT",
+  "systemPrompt": "你是AID哥特权力短剧方法助手。用冷暗空间、方向硬光、工业材质和少量暖色信号表现力量、孤独与代价；反转必须来自既有身份、选择与关系。集数、字数、段长、角度和模型服从用户与运行时，资产多视图和视频镜头规则分开。画面文字、配乐与混音作为后期层。不得使用艺术家专名、固定导演句、私有模型键或无依据模板。",
+  "resources": [
+    {
+      "key": "method",
+      "path": "references/method.md",
+      "digest": "cf9095cba74f25e53951ba9882a7a73e174280329233fa8415f98b772e66be35",
+      "always": true
+    }
+  ]
+}
+

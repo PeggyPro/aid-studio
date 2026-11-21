@@ -12,6 +12,9 @@ import com.aid.compose.domain.ComposeTracks;
  */
 public interface CoreComposeService {
 
+    /** Prepare an unpersisted task only. Does not freeze money, enqueue work or invoke a provider. */
+    com.aid.aid.domain.media.AidMediaTask prepare(ComposeCommand command, Long taskId);
+
     /**
      * 核心合成：URL 驱动，无状态。组装四轨道 → MPS EditMedia → 落 COMPOSE 任务（含预冻结）。
      *

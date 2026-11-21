@@ -26,4 +26,6 @@ public class TaskEtaVO {
     private Integer queuedCount;
     private Boolean delayed;
     private String predictionVersion;
+    /** Server-owned diagnostic code; never a terminal outcome or permission. */
+    private String waitReasonCode;
 }

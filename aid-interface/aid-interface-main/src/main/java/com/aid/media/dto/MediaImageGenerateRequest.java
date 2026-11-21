@@ -1,5 +1,8 @@
 package com.aid.media.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.aid.billing.dto.BillingBudgetContext;
+import com.alibaba.fastjson2.annotation.JSONField;
 import lombok.Data;
 
 import java.util.Map;
@@ -20,6 +23,11 @@ public class MediaImageGenerateRequest {
     /** 归一化后的调用配置标识，参与请求幂等。 */
     @com.fasterxml.jackson.annotation.JsonIgnore
     private String invocationIdentity;
+
+    /** 服务端编排注入的Run预算上下文，不接受外部JSON。 */
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    @JSONField(serialize = false, deserialize = false)
+    private transient BillingBudgetContext billingBudgetContext;
 
     // 项目ID（可选）：用于关联任务到具体项目，列表查询时按项目过滤。
     private Long projectId;
@@ -50,6 +58,32 @@ public class MediaImageGenerateRequest {
 
     /** 蒙版语义：BLACK_WHITE（白色编辑）或 ALPHA（透明区域编辑）。 */
     private String maskEncoding;
+
+    /**
+     * 服务端授权层冻结的原图/蒙版身份与可信元数据。HTTP JSON 不可写；任务快照使用 Hutool JSON
+     * 持久化并恢复，保证报价和执行读取同一资源身份。
+     */
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    private AuthorizedImageAssetSnapshot authorizedReferenceImage;
+
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    private AuthorizedImageAssetSnapshot authorizedMaskImage;
+
+    /** Server-owned mapping from frozen image URLs to authorized, local Canvas references. */
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    @JSONField(serialize = false, deserialize = false)
+    private transient Map<String, String> managedReferenceImages;
+
+    /** Revalidated delivery authorization added after approval; never a client input or billing field. */
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    @JSONField(serialize = false, deserialize = false)
+    @lombok.ToString.Exclude
+    private transient Map<String, AuthorizedImageAssetSnapshot> deliveryAuthorizedReferenceImages;
+
+    /** Server-owned authorization for each additional image; not writable through HTTP JSON. */
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    @lombok.ToString.Exclude
+    private Map<String, AuthorizedImageAssetSnapshot> authorizedReferenceImages;
 
     /** 扩图目标尺寸及原图在目标画布中的位置。 */
     private Integer targetWidth;
@@ -100,4 +134,12 @@ public class MediaImageGenerateRequest {
      * 必须显式透传，否则媒体任务 userId 为空会导致预冻结/结算/退款全部跳过。为空时服务层回退到登录上下文。
      */
     private Long userId;
+
+    /** 内部逻辑调用幂等键；外部请求不能指定。 */
+    @JsonProperty(access = JsonProperty.Access.READ_ONLY)
+    private String callId;
+
+    /** 内部可读步骤身份，仅用于审计。 */
+    @JsonProperty(access = JsonProperty.Access.READ_ONLY)
+    private String callIdentity;
 }

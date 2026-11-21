@@ -1,5 +1,5 @@
 /* VideoPreview 伴随样式（一）：根容器 / 工具栏 / 播放器区 / 浮层
-   原 components/steps/VideoPreview.vue <style scoped> 展开，统一加根类前缀防泄漏 */
+   原 components/steps/VideoPreview.vue \3c style scoped> 展开，统一加根类前缀防泄漏 */
 
 .video-preview-step {
   /* 时间轴尺寸用大写 PX，避开 pxtorem，保证大小分辨率视觉一致 */
@@ -14,6 +14,7 @@
   --vp-clip-edit-pad-y: 2PX;
   --vp-clip-edit-pad-x: 6PX;
   --vp-clip-edit-font: 11PX;
+  isolation: isolate;
   display: flex;
   flex-direction: column;
   gap: var(--spacing-sm);
@@ -26,7 +27,7 @@
 
 .video-preview-step .preview-toolbar {
   position: relative;
-  z-index: 10000;
+  z-index: 10;
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -66,7 +67,7 @@
   width: 100%;
   height: 100%;
   min-height: 0;
-  background: #000;
+  background: var(--ui-bg, #000);
 }
 
 .video-preview-step .preview-canvas-host {
@@ -75,7 +76,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #000;
+  background: var(--ui-bg, #000);
 }
 
 /* 原 :deep(canvas)：AVCanvas 注入的画布 */
@@ -103,7 +104,7 @@
   height: 100%;
   object-fit: contain;
   object-position: center;
-  background: #000;
+  background: var(--ui-bg, #000);
   opacity: 0;
   pointer-events: none;
 }
@@ -122,13 +123,13 @@
   max-width: 86%;
   padding: 6px 14px;
   border-radius: 6px;
-  background: rgba(0, 0, 0, 0.62);
-  color: #fff;
+  background: var(--ui-bg, rgba(0, 0, 0, 0.62));
+  color: var(--ui-text, #fff);
   font-size: 18px;
   line-height: 1.45;
   text-align: center;
   pointer-events: none;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.65);
+  text-shadow: var(--ui-no-shadow, 0 1px 2px rgba(0, 0, 0, 0.65));
 }
 
 .video-preview-step .preview-ready-overlay {
@@ -142,7 +143,7 @@
   opacity: 0;
   transition: opacity 0.18s ease;
   background:
-    radial-gradient(ellipse at 50% 40%, rgba(40, 48, 64, 0.95) 0%, rgba(0, 0, 0, 0.96) 70%);
+    var(--ui-surface, radial-gradient(ellipse at 50% 40%, rgba(40, 48, 64, 0.95) 0%, rgba(0, 0, 0, 0.96) 70%));
 }
 
 .video-preview-step .preview-ready-overlay.is-opaque {
@@ -156,17 +157,17 @@
   height: 100%;
   object-fit: contain;
   object-position: center;
-  background: #000;
+  background: var(--ui-bg, #000);
 }
 
 .video-preview-step .preview-ready-overlay__scrim {
   position: absolute;
   inset: 0;
-  background: linear-gradient(
+  background: var(--ui-surface, linear-gradient(
     180deg,
     rgba(0, 0, 0, 0.18) 0%,
     rgba(0, 0, 0, 0.45) 100%
-  );
+  ));
 }
 
 .video-preview-step .preview-ready-overlay__hint {
@@ -178,8 +179,8 @@
   align-items: center;
   justify-content: center;
   gap: 14px;
-  background: rgba(0, 0, 0, 0.28);
-  color: rgba(255, 255, 255, 0.94);
+  background: var(--ui-bg, rgba(0, 0, 0, 0.28));
+  color: var(--ui-text, rgba(255, 255, 255, 0.94));
   font-size: 14px;
   line-height: 1.2;
   letter-spacing: 0.02em;
@@ -206,7 +207,7 @@
 
 .video-preview-step .preview-no-video-icon {
   font-size: 40px;
-  color: rgba(255, 255, 255, 0.45);
+  color: var(--ui-muted, rgba(255, 255, 255, 0.45));
 }
 
 .video-preview-step .preview-no-video-overlay p {
@@ -247,9 +248,9 @@
 
 .video-preview-step .preview-overlay-controls .volume-btn {
   pointer-events: auto;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--ui-bg, rgba(0, 0, 0, 0.5));
   border: none;
-  color: #fff;
+  color: var(--ui-text, #fff);
   width: 40px;
   height: 40px;
   border-radius: 50%;

@@ -1,10 +1,10 @@
 package com.aid.media.util;
 
 import cn.hutool.core.util.StrUtil;
-import com.aid.common.exception.ServiceException;
 import com.aid.domain.vo.AiModelConfigVo;
 import com.aid.media.dto.MediaImageGenerateRequest;
 import com.aid.media.dto.MediaVideoGenerateRequest;
+import com.aid.media.service.MediaPreparationErrorCode;
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.extern.slf4j.Slf4j;
 
@@ -53,7 +53,8 @@ public final class ReferenceMediaRequestNormalizer {
 
         // 图片编辑的第一张图具有“被编辑原图”的固定语义，必须独立保留，不能在归一化时
         // 混入普通参考图列表。这样蒙版、扩图几何校验及异步结果保护始终指向同一原图。
-        boolean imageEdit = Set.of("image_edit", "image_inpainting", "image_outpainting")
+        boolean imageEdit = Set.of("image_edit", "image_inpainting", "image_outpainting",
+                        "image_layer_decomposition")
                 .contains(StrUtil.blankToDefault(request.getCapabilityCode(), "").trim().toLowerCase());
         String source = StrUtil.trim(request.getReferenceImageUrl());
         if (imageEdit && StrUtil.isNotBlank(source)) {
@@ -188,7 +189,7 @@ public final class ReferenceMediaRequestNormalizer {
     private static void rejectExcess(AiModelConfigVo config, String type, int max, int actual) {
         log.info("{}超过模型能力上限: modelCode={}, max={}, actual={}",
                 type, config == null ? null : config.getModelCode(), max, actual);
-        throw new ServiceException(type + "数量超限");
+        throw MediaPreparationErrorCode.MEDIA_INPUTS_INVALID.reject(type + "数量超限");
     }
 
     private static Map<String, Object> mutableOptions(Map<String, Object> source) {
@@ -253,7 +254,7 @@ public final class ReferenceMediaRequestNormalizer {
             if (!keyFrames.isEmpty()) {
                 log.info("结构化参考图同时存在互斥输入: modelCode={}",
                         modelConfig == null ? null : modelConfig.getModelCode());
-                throw new ServiceException("参考图片配置冲突");
+                throw MediaPreparationErrorCode.MEDIA_INPUTS_INVALID.reject("参考图片配置冲突");
             }
             List<Object> normalized = new ArrayList<>();
             for (Object value : settings) {
@@ -272,7 +273,7 @@ public final class ReferenceMediaRequestNormalizer {
         for (Object value : keyFrames) {
             String url = structuredImageUrl(value);
             if (StrUtil.isBlank(url)) {
-                throw new ServiceException("参考图无效");
+                throw MediaPreparationErrorCode.MEDIA_INPUTS_INVALID.reject("参考图无效");
             }
             if (seen.add(url)) {
                 normalized.add(url);
@@ -294,11 +295,11 @@ public final class ReferenceMediaRequestNormalizer {
 
     private static Map<String, Object> normalizeImageSetting(Object value) {
         if (!(value instanceof Map<?, ?> raw)) {
-            throw new ServiceException("参考图无效");
+            throw MediaPreparationErrorCode.MEDIA_INPUTS_INVALID.reject("参考图无效");
         }
         String url = structuredImageUrl(raw);
         if (StrUtil.isBlank(url)) {
-            throw new ServiceException("参考图无效");
+            throw MediaPreparationErrorCode.MEDIA_INPUTS_INVALID.reject("参考图无效");
         }
         Map<String, Object> normalized = new LinkedHashMap<>();
         raw.forEach((key, item) -> {

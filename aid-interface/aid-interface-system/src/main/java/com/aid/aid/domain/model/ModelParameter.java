@@ -21,6 +21,8 @@ public class ModelParameter {
     private List<Object> choices;
     private List<ModelParameter> properties;
     private ModelParameter items;
+    /** 官方联合类型；每个分支使用独立参数作用域。 */
+    private List<ModelParameter> alternatives;
     private String materialRole;
     private List<String> formats;
     private BigDecimal minDurationSeconds;

@@ -1,0 +1,15 @@
+{
+  "schema": "aid.screenwriter-adapt-output.v1",
+  "suggestionOnly": true,
+  "editIntents": ["POLISH", "REWRITE", "ADAPT_SOURCE", "STRUCTURAL_REBUILD"],
+  "artifacts": [
+    {"type": "SOURCE_MANIFEST", "requiredFields": ["sourceRevision", "contentHash", "coverage", "gaps"]},
+    {"type": "ADAPTATION_BOUNDARY", "requiredFields": ["editIntent", "fidelityScope", "preserve", "allowedChanges", "prohibitedChanges"]},
+    {"type": "SOURCE_EPISODE_MAP", "requiredFields": ["episode", "sourceSpans", "mustKeep", "capacityEstimate"]},
+    {"type": "ADAPTATION_BLUEPRINT", "requiredFields": ["approach", "eventLine", "characters", "episodePlan", "derivedChanges"]},
+    {"type": "SCREENPLAY_DRAFT", "requiredFields": ["sourceRevision", "sourceSpans", "basePlanRevision", "content", "derivedContent"]},
+    {"type": "REVISION_PROPOSAL", "requiredFields": ["baseArtifactRevision", "scope", "impact", "replacementOrPatch"]}
+  ],
+  "runtimeOwned": ["coverageLedger", "artifactRevision", "acceptance", "checkpointState", "billing", "taskState"]
+}
+

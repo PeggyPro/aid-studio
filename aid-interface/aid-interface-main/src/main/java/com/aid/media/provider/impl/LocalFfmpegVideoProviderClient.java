@@ -85,6 +85,7 @@ public class LocalFfmpegVideoProviderClient implements VideoProviderClient
     {
         Path output = null;
         ScheduledFuture<?> heartbeat = null;
+        boolean uploadStarted = false;
         try
         {
             MpsProperties config = configManager.getMpsProperties();
@@ -106,15 +107,18 @@ public class LocalFfmpegVideoProviderClient implements VideoProviderClient
             {
                 log.error("FFmpeg合成失败, taskId={}, exitCode={}, output={}",
                         plan.getTaskId(), process.exitCode(), abbreviate(process.output()));
-                return ProviderSubmitResult.builder().rawResponse(process.output()).build();
+                return ProviderSubmitResult.builder().confirmedFailureCode("LOCAL_FFMPEG_PROCESS_FAILED")
+                        .rawResponse(process.output()).build();
             }
             long durationSeconds = probeDuration(config, output);
             if (durationSeconds <= 0 || !Files.isRegularFile(output) || Files.size(output) <= 0)
             {
                 log.error("FFmpeg输出校验失败, taskId={}, duration={}", plan.getTaskId(), durationSeconds);
-                return ProviderSubmitResult.builder().rawResponse("输出校验失败").build();
+                return ProviderSubmitResult.builder().confirmedFailureCode("LOCAL_FFMPEG_OUTPUT_INVALID")
+                        .rawResponse("输出校验失败").build();
             }
             validateStorageOwnership(plan);
+            uploadStarted = true;
             String relativeUrl = ossTemplate.uploadSystemGeneratedFile(
                     new PathMultipartFile(output, "compose_" + plan.getTaskId() + ".mp4"),
                     resolveOutputDirectory(plan));
@@ -127,7 +131,10 @@ public class LocalFfmpegVideoProviderClient implements VideoProviderClient
         catch (Exception e)
         {
             log.error("本地FFmpeg合成异常", e);
-            return ProviderSubmitResult.builder().rawResponse(e.getMessage()).build();
+            // Before storage upload there cannot be a remotely accepted output. Once upload begins,
+            // an exception may hide a persisted object and must retain the unknown-outcome semantics.
+            return ProviderSubmitResult.builder().rawResponse(e.getMessage())
+                    .confirmedFailureCode(uploadStarted ? null : "LOCAL_FFMPEG_PREUPLOAD_FAILED").build();
         }
         finally
         {
@@ -793,9 +800,7 @@ public class LocalFfmpegVideoProviderClient implements VideoProviderClient
 
     private Path resolveTempDir(MpsProperties config)
     {
-        return StrUtil.isBlank(config.getFfmpegTempDir())
-                ? Paths.get(System.getProperty("java.io.tmpdir"), "aid-ffmpeg")
-                : Paths.get(config.getFfmpegTempDir()).toAbsolutePath().normalize();
+        return Path.of(com.aid.common.config.AidAppConfig.getPrivateProfile(), "tmp", "ffmpeg");
     }
 
     private String resolveOutputDirectory(ComposeJobPlan plan)
@@ -1132,6 +1137,7 @@ public class LocalFfmpegVideoProviderClient implements VideoProviderClient
         for (ComposeTrackItem item : items)
         {
             if (item == null || item.getType() == ComposeTrackItemType.EMPTY
+                    || Double.valueOf(0D).equals(item.getVolume())
                     || StrUtil.isBlank(item.getFileId()) || result.containsKey(item.getFileId()))
             {
                 continue;
@@ -1182,7 +1188,8 @@ public class LocalFfmpegVideoProviderClient implements VideoProviderClient
             {
                 continue;
             }
-            boolean hasAudio = Boolean.TRUE.equals(videoAudioStreams.get(videoItem.getFileId()));
+            boolean hasAudio = !Double.valueOf(0D).equals(videoItem.getVolume())
+                    && Boolean.TRUE.equals(videoAudioStreams.get(videoItem.getFileId()));
             hasPlayableAudio = hasPlayableAudio || hasAudio;
             ComposeTrackItem audioItem = new ComposeTrackItem();
             audioItem.setType(hasAudio ? ComposeTrackItemType.AUDIO : ComposeTrackItemType.EMPTY);
@@ -1190,6 +1197,7 @@ public class LocalFfmpegVideoProviderClient implements VideoProviderClient
             audioItem.setDuration(duration);
             audioItem.setSourceStartSeconds(videoItem.getSourceStartSeconds());
             audioItem.setSourceEndSeconds(videoItem.getSourceEndSeconds());
+            audioItem.setVolume(videoItem.getVolume());
             result.add(audioItem);
         }
         return hasPlayableAudio ? result : List.of();

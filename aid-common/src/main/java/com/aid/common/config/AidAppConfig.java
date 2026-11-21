@@ -60,6 +60,23 @@ public class AidAppConfig
         this.copyrightYear = copyrightYear;
     }
 
+    private static String privateProfile;
+
+    public static void setPrivateProfile(String value) { privateProfile = value; }
+
+    public static String getPrivateProfile() {
+        if (privateProfile != null) return privateProfile;
+        java.nio.file.Path path = java.nio.file.Path.of(getProfile()).toAbsolutePath().normalize();
+        return path.resolveSibling(path.getFileName() + "-private").toString();
+    }
+
+    /** Business scratch files share the private storage volume and never fall back to system temp. */
+    public static java.nio.file.Path getTemporaryDirectory() throws java.io.IOException {
+        java.nio.file.Path path = java.nio.file.Path.of(getPrivateProfile(), "tmp");
+        com.aid.common.storage.LocalStorageMigration.validateRoot(path.toAbsolutePath().normalize().toString());
+        return java.nio.file.Files.createDirectories(path);
+    }
+
     public static String getProfile()
     {
         return profile;

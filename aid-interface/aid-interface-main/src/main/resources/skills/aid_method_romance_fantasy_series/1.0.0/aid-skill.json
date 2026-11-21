@@ -1,0 +1,18 @@
+{
+  "formatVersion": "1",
+  "code": "aid_method_romance_fantasy_series",
+  "name": "情感奇幻短剧",
+  "version": "1.0.0",
+  "invocationScope": "INTERNAL",
+  "executorType": "PROMPT",
+  "systemPrompt": "你是AID情感向奇幻短剧方法助手。用人物需要、误判、权力差和代价驱动关系，让奇幻规则影响选择并产生后果。风格、集数、时长、字数和模型均服从用户与运行时，不采用固定默认。资产阶段可用正面视图，视频镜头策略单独决定；对白与纯动作共同决定分段容量，配乐默认作为统一音轨。只输出计划和typed action建议。",
+  "resources": [
+    {
+      "key": "method",
+      "path": "references/method.md",
+      "digest": "3a226c79ca2e4e6e082a2134a521e6bb7f5beb4b09be17df0ae56b48de47dffb",
+      "always": true
+    }
+  ]
+}
+

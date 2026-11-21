@@ -62,6 +62,7 @@ export interface ImportAssetListProps {
   selectedAssetIds?: string[]
   acceptAssetType?: NonNullable<ImportScriptModalProps['acceptAssetType']>
   modalOpen?: boolean
+  sourceAssets?: Record<string, any>[]
   onSelect: (asset: any) => void
   onNavigate: (folderName: string) => void
 }
@@ -154,6 +155,7 @@ export function ImportAssetList({
   selectedAssetIds = [],
   acceptAssetType = 'all',
   modalOpen = true,
+  sourceAssets,
   onSelect,
   onNavigate
 }: ImportAssetListProps) {
@@ -202,12 +204,24 @@ export function ImportAssetList({
   }
 
   async function handleFilePreview(asset: any) {
+    if (asset.importSource === 'OFFICIAL_ASSET') {
+      setPreviewTitle(asset.name || '预览'); setPreviewOpen(true); setPreviewLoading(false)
+      setPreviewImageUrl(asset.type === 'image' ? String(asset.url || asset.thumbnail || '') : '')
+      setPreviewHtml(asset.type === 'video' ? '<video src="' + escapeHtml(String(asset.url || '')) + '" controls playsinline></video>' : asset.type === 'image' ? '' : '<pre>' + escapeHtml(String(asset.content || '')) + '</pre>')
+      return
+    }
+    if (sourceAssets && typeof asset.content === 'string') {
+      setPreviewTitle(asset.name || '预览'); setPreviewOpen(true); setPreviewLoading(false)
+      setPreviewImageUrl(asset.type === 'image' ? String(asset.url || '') : '')
+      setPreviewHtml(asset.type === 'video' ? '<video src="' + escapeHtml(String(asset.url || '')) + '" controls playsinline></video>' : asset.type === 'image' ? '' : '<pre>' + escapeHtml(asset.content) + '</pre>')
+      return
+    }
     const raw = asset?.raw ?? {}
-    const id = Number(raw.id ?? asset.id)
+    const id = String(raw.id ?? asset.id)
     const categoryCode =
       activeCategoryCode ||
-      (typeof raw.categoryCode === 'string' ? raw.categoryCode.trim() : '')
-    if (!Number.isFinite(id) || id <= 0) {
+      String(asset.categoryCode || raw.categoryCode || raw.assetType || '').trim()
+    if (!/^[1-9][0-9]{0,18}$/.test(id) || BigInt(id) > 9223372036854775807n) {
       message.warning('无法预览该资产')
       return
     }
@@ -238,6 +252,14 @@ export function ImportAssetList({
   }
 
   async function runLoadAssets(seq: number): Promise<any[] | null> {
+    if (sourceAssets) {
+      const selectedCode = String(selectedCategory?.key || '')
+      const folderName = currentPath.at(-1)
+      if (selectedCode && !category?.startsWith('project-')) return sourceAssets.filter(asset => asset.categoryCode === selectedCode)
+      if (folderName) return sourceAssets.filter(asset => asset.categoryName === folderName)
+      const categories = [...new Map(sourceAssets.map(asset => [asset.categoryCode, asset.categoryName])).entries()]
+      return categories.map(([code, name]) => ({ id: 'folder-source-' + code, name, type: 'folder', itemCount: sourceAssets.filter(asset => asset.categoryCode === code).length }))
+    }
     const path0 = currentPath.length === 0
     const nowLabel = () => new Date().toLocaleDateString('zh-CN')
 
@@ -422,7 +444,7 @@ export function ImportAssetList({
     try {
       const next = await runLoadAssets(seq)
       if (next != null && seq === loadSeqRef.current) {
-        setAssets(next.filter((asset) => isVisibleImportAsset(asset, acceptAssetType)))
+        setAssets(next.map(asset => ({ ...asset, importSource: sourceAssets ? 'CANVAS_NODE' : type === 'material' ? 'OFFICIAL_ASSET' : 'ASSET_CENTER' })).filter((asset) => isVisibleImportAsset(asset, acceptAssetType)))
       }
     } catch (e: any) {
       if (seq === loadSeqRef.current) {
@@ -447,7 +469,8 @@ export function ImportAssetList({
     assetCenterTree,
     currentPath,
     selectedCategory,
-    acceptAssetType
+    acceptAssetType,
+    sourceAssets
   ])
 
   const selectAsset = (asset: any) => {

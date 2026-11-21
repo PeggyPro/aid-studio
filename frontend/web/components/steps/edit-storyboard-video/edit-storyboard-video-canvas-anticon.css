@@ -3,7 +3,7 @@
 
 .edit-storyboard-video-modal .btn-set-storyboard-done .anticon,
 .edit-storyboard-dubbing-modal .btn-set-storyboard-done .anticon {
-  color: #52c41a;
+  color: var(--ui-success, #52c41a);
 }
 
 .edit-storyboard-video-modal .video-placeholder {
@@ -18,10 +18,4 @@
   background: var(--create-surface-canvas);
   border-radius: var(--radius-sm);
   color: var(--gray-500);
-}
-
-.edit-storyboard-video-modal .video-stage-config .ql-editor.ql-blank::before {
-  color: #8e97a5 !important;
-  -webkit-text-fill-color: #8e97a5 !important;
-  opacity: 1 !important;
 }

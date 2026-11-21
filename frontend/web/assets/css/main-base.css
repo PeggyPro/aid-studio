@@ -9,64 +9,65 @@
 /* CSS 变量 - 与首页 / 创作流程主题一致 */
 :root {
   /* 主色阶 - 冷灰蓝（贴近 Navy 底上的中性层次，可与 --home-surface 搭配） */
-  --primary-50: #f0f4f8;
-  --primary-100: #e2e8f0;
-  --primary-200: #cbd5e1;
-  --primary-300: #94a3b8;
-  --primary-400: #64748b;
-  --primary-500: #475569;
-  --primary-600: #334155;
-  --primary-700: #1e293b;
-  --primary-800: #0f172a;
-  --primary-900: #060a12;
+  --primary-50: var(--ui-raised, #f0f4f8);
+  --primary-100: var(--ui-raised, #e2e8f0);
+  --primary-200: var(--ui-raised, #cbd5e1);
+  --primary-300: var(--ui-raised, #94a3b8);
+  --primary-400: var(--ui-raised, #64748b);
+  --primary-500: var(--ui-raised, #475569);
+  --primary-600: var(--ui-hover, #334155);
+  --primary-700: var(--ui-raised, #1e293b);
+  --primary-800: var(--ui-surface, #0f172a);
+  --primary-900: var(--ui-bg, #060a12);
 
   /* 强调色 - 青蓝系（与 create-steps-ant-overrides 中 html.app-shell-create 的 --accent-* 一致） */
-  --accent-50: rgba(74, 231, 253, 0.06);
-  --accent-100: rgba(74, 231, 253, 0.1);
-  --accent-200: rgba(74, 231, 253, 0.16);
-  --accent-300: rgba(74, 231, 253, 0.28);
-  --accent-400: rgba(74, 231, 253, 0.42);
-  --accent-500: #4ae7fd;
-  --accent-600: #00abd8;
-  --accent-700: #007ea8;
-  --accent-800: #005f7a;
-  --accent-900: #004052;
+  --accent-50: var(--ui-soft, rgba(74, 231, 253, 0.06));
+  --accent-100: var(--ui-soft, rgba(74, 231, 253, 0.1));
+  --accent-200: var(--ui-soft, rgba(74, 231, 253, 0.16));
+  --accent-300: var(--ui-raised, rgba(74, 231, 253, 0.28));
+  --accent-400: var(--ui-raised, rgba(74, 231, 253, 0.42));
+  --accent-500: var(--ui-raised, #4ae7fd);
+  --accent-600: var(--ui-raised, #00abd8);
+  --accent-700: var(--ui-raised, #007ea8);
+  --accent-800: var(--ui-hover, #005f7a);
+  --accent-900: var(--ui-hover, #004052);
 
   /* 中性色 - 浅底文案/描边用；深色全屏页见 html.app-shell-create 内 --gray-100/200 重映射 */
-  --gray-50: #f8fafc;
-  --gray-100: #f1f5f9;
-  --gray-200: #e2e8f0;
-  --gray-300: #cbd5e1;
-  --gray-400: #94a3b8;
-  --gray-500: #64748b;
-  --gray-600: #475569;
-  --gray-700: #334155;
-  --gray-800: #1e293b;
-  --gray-900: #0f172a;
+  --gray-50: var(--ui-raised, #f8fafc);
+  --gray-100: var(--ui-raised, #f1f5f9);
+  --gray-200: var(--ui-raised, #e2e8f0);
+  --gray-300: var(--ui-raised, #cbd5e1);
+  --gray-400: var(--ui-raised, #94a3b8);
+  --gray-500: var(--ui-raised, #64748b);
+  --gray-600: var(--ui-raised, #475569);
+  --gray-700: var(--ui-hover, #334155);
+  --gray-800: var(--ui-raised, #1e293b);
+  --gray-900: var(--ui-surface, #0f172a);
 
   /* 深色背景 - 对齐 home-theme :root --home-* */
-  --dark-bg: #060a12;
-  --dark-surface: rgba(18, 22, 30, 0.92);
-  --dark-border: rgba(74, 231, 253, 0.28);
-  --dark-text: #e6edf3;
-  --dark-text-muted: #8e97a5;
+  --dark-bg: var(--ui-bg, #060a12);
+  --dark-surface: var(--ui-surface, rgba(18, 22, 30, 0.92));
+  --dark-border: var(--ui-hair, rgba(74, 231, 253, 0.28));
+  --dark-text: var(--ui-text, #e6edf3);
+  --dark-text-muted: var(--ui-muted, #8e97a5);
 
   /* 渐变 - 对齐 home-theme --home-grad / create-steps 主按钮渐变 */
-  --gradient-primary: linear-gradient(270deg, #0e59fa 0%, #00abd8 100%);
-  --gradient-accent: linear-gradient(270deg, #2563eb 0%, #4ae7fd 100%);
-  --gradient-warm: linear-gradient(270deg, #0e59fa 0%, #00abd8 100%);
-  --gradient-dark: linear-gradient(165deg, #001731 0%, #0d0d0f 42%, #121212 100%);
-  --gradient-glass: linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.05) 100%);
-  --gradient-warm-glow: linear-gradient(135deg, rgba(14, 89, 250, 0.2) 0%, rgba(0, 171, 216, 0.12) 100%);
+  --gradient-primary: var(--ui-primary, linear-gradient(270deg, #0e59fa 0%, #00abd8 100%));
+  --home-grad-btn: var(--ui-primary, linear-gradient(90deg, #0e59fa 0%, #00abd8 100%));
+  --gradient-accent: var(--ui-primary, linear-gradient(270deg, #2563eb 0%, #4ae7fd 100%));
+  --gradient-warm: var(--ui-primary, linear-gradient(270deg, #0e59fa 0%, #00abd8 100%));
+  --gradient-dark: var(--ui-surface, linear-gradient(165deg, #001731 0%, #0d0d0f 42%, #121212 100%));
+  --gradient-glass: var(--ui-surface, linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.05) 100%));
+  --gradient-warm-glow: var(--ui-surface, linear-gradient(135deg, rgba(14, 89, 250, 0.2) 0%, rgba(0, 171, 216, 0.12) 100%));
 
   /* 阴影 */
-  --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.08);
-  --shadow-md: 0 4px 12px -2px rgba(0, 0, 0, 0.1), 0 2px 6px -1px rgba(0, 0, 0, 0.06);
-  --shadow-lg: 0 10px 24px -4px rgba(0, 0, 0, 0.12), 0 6px 12px -3px rgba(0, 0, 0, 0.08);
-  --shadow-xl: 0 20px 40px -8px rgba(0, 0, 0, 0.15), 0 10px 20px -5px rgba(0, 0, 0, 0.1);
-  --shadow-2xl: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-  --shadow-glow: 0 0 40px rgba(14, 89, 250, 0.22);
-  --shadow-warm: 0 8px 32px rgba(0, 171, 216, 0.18);
+  --shadow-sm: 0 1px 3px 0 var(--ui-soft, rgba(0, 0, 0, 0.08));
+  --shadow-md: 0 4px 12px -2px var(--ui-soft, rgba(0, 0, 0, 0.1)), 0 2px 6px -1px var(--ui-soft, rgba(0, 0, 0, 0.06));
+  --shadow-lg: 0 10px 24px -4px var(--ui-soft, rgba(0, 0, 0, 0.12)), 0 6px 12px -3px var(--ui-soft, rgba(0, 0, 0, 0.08));
+  --shadow-xl: 0 20px 40px -8px var(--ui-soft, rgba(0, 0, 0, 0.15)), 0 10px 20px -5px var(--ui-soft, rgba(0, 0, 0, 0.1));
+  --shadow-2xl: 0 25px 50px -12px var(--ui-bg, rgba(0, 0, 0, 0.25));
+  --shadow-glow: 0 0 40px var(--ui-soft, rgba(14, 89, 250, 0.22));
+  --shadow-warm: 0 8px 32px var(--ui-soft, rgba(0, 171, 216, 0.18));
 
   /* 间距 - 适配电脑端的紧凑间距 */
   --spacing-xs: 0.25rem;
@@ -110,16 +111,16 @@ html {
   scroll-behavior: smooth;
 }
 .ant-modal-confirm-title{
-  color:#FFFFFF  !important;
+  color:var(--ui-text, #FFFFFF)  !important;
 }
 .ant-modal-confirm-content{
-  color:#FFFFFF  !important;
+  color:var(--ui-text, #FFFFFF)  !important;
 }
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', 'SF Pro Display', Roboto, 'Helvetica Neue', Arial,
     sans-serif;
-  background: #060a12;
-  color: #e6edf3;
+  background: var(--ui-bg, #060a12);
+  color: var(--ui-text, #e6edf3);
   line-height: 1.7;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -136,8 +137,8 @@ html.layout-home-shell,
 html.layout-home-shell body,
 html.home-page-shell,
 html.home-page-shell body {
-  background: #060a12;
-  color: #e6edf3;
+  background: var(--ui-bg, #060a12);
+  color: var(--ui-text, #e6edf3);
 }
 
 /* 大留白容器 */
@@ -169,7 +170,7 @@ html.home-page-shell body {
    玻璃态卡片 - 深色+暖色点缀
    ================================ */
 .glass-card {
-  background: rgba(255, 255, 255, 0.9);
+  background: var(--ui-raised, rgba(255, 255, 255, 0.9));
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border: 1px solid var(--gray-200);
@@ -184,7 +185,7 @@ html.home-page-shell body {
 }
 
 .glass-card-dark {
-  background: rgba(13, 17, 23, 0.85);
+  background: var(--ui-bg, rgba(13, 17, 23, 0.85));
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border: 1px solid var(--dark-border);

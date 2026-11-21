@@ -20,6 +20,7 @@ import {
   stripStoryboardScriptSkeletonPanels
 } from '~/utils/storyboardPanelMap'
 import { STORYBOARD_IMAGE_GEN_SSE_TERMINAL_EVENT } from '~/composables/useStoryboardImageGenerateTask'
+import { ONBOARDING_PREPARE_ANCHOR_EVENT } from '~/utils/onboardingDom'
 import { createStoryboardScriptTaskCommandHandlers } from './storyboardScriptTaskCommands'
 import { createStoryboardScriptImageModalBridge } from './storyboardScriptImageModalBridge'
 import { type StoryboardPanel } from './storyboardScriptShared'
@@ -130,12 +131,7 @@ export function useStoryboardScriptGeneration(opts: {
     if (!pageMountedRef.current || pageDisposedRef.current) return
 
     const preferredTaskId = Number(getStore().storyboardScriptActiveTaskId)
-    const alreadyFollowingSameTask =
-      Number.isFinite(preferredTaskId) &&
-      preferredTaskId > 0 &&
-      storyboardScriptGen.activeTaskId.value === preferredTaskId &&
-      getStore().isGeneratingStoryboard
-    if (alreadyFollowingSameTask) return
+    if (storyboardScriptGen.isFollowingTask(preferredTaskId)) return
 
     storyboardScriptGen.cancelResumeFollow()
     const gen = ++storyboardRestoreGenerationRef.current
@@ -195,7 +191,8 @@ export function useStoryboardScriptGeneration(opts: {
     handleGlobalResumeTaskEvent,
     handleGlobalRestartTaskEvent,
     deliverPendingCreateFlowTaskCommands,
-    handleGlobalStopTaskEvent
+    handleGlobalStopTaskEvent,
+    handleOnboardingPrepareAnchor
   } = createStoryboardScriptTaskCommandHandlers({
     storyboardScriptGen,
     storyboardImageBatchGen,
@@ -251,6 +248,10 @@ export function useStoryboardScriptGeneration(opts: {
       STORYBOARD_IMAGE_GEN_SSE_TERMINAL_EVENT,
       storyboardImageBatchGen.onStoryboardImageGenSseTerminal
     )
+    window.addEventListener(
+      ONBOARDING_PREPARE_ANCHOR_EVENT,
+      handleOnboardingPrepareAnchor as EventListener
+    )
     /** 先注册任务命令监听，再由挂载后的统一恢复入口接管 SSE。 */
     deliverPendingCreateFlowTaskCommands()
     if (getStore().isHydrated) {
@@ -278,6 +279,10 @@ export function useStoryboardScriptGeneration(opts: {
       window.removeEventListener(
         STORYBOARD_IMAGE_GEN_SSE_TERMINAL_EVENT,
         storyboardImageBatchGen.onStoryboardImageGenSseTerminal
+      )
+      window.removeEventListener(
+        ONBOARDING_PREPARE_ANCHOR_EVENT,
+        handleOnboardingPrepareAnchor as EventListener
       )
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

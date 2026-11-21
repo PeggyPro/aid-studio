@@ -10,6 +10,10 @@ import java.util.List;
 @Data
 public class BillingRule {
 
+    /** 当前模型单价币种，用于校验存量配置是否已按人民币录入。 */
+    private String priceCurrency;
+
+
     /** 计费模式：FIXED / SKU */
     private String mode;
 

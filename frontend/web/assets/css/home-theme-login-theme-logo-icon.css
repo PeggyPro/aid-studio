@@ -31,11 +31,11 @@
 
 .login-theme-card {
   position: absolute;
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--ui-soft, rgba(255, 255, 255, 0.08));
   backdrop-filter: blur(10px);
   padding: 1.5rem;
   border-radius: var(--radius-xl, 1rem);
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  border: 1px solid var(--ui-hair, rgba(255, 255, 255, 0.15));
 }
 
 .login-theme-card.c1 {
@@ -86,7 +86,7 @@
   font-size: 2.25rem;
   font-weight: 800;
   margin-bottom: 1rem;
-  color: #fff;
+  color: var(--ui-text, #fff);
 }
 
 .home-theme-static .page-subtitle {
@@ -143,7 +143,7 @@
 .home-theme-static .section-title {
   font-size: 1.75rem;
   font-weight: 700;
-  color: #fff;
+  color: var(--ui-text, #fff);
   margin-bottom: 1.25rem;
   display: flex;
   align-items: center;
@@ -175,7 +175,7 @@
 
 .home-theme-static .feature-card {
   padding: 1.75rem;
-  background: rgba(12, 16, 24, 0.65);
+  background: var(--ui-bg, rgba(12, 16, 24, 0.65));
   border-radius: var(--radius-xl, 1rem);
   text-align: center;
   transition: all 0.2s ease;
@@ -183,7 +183,7 @@
 }
 
 .home-theme-static .feature-card:hover {
-  border-color: rgba(74, 231, 253, 0.35);
+  border-color: var(--ui-ring, rgba(74, 231, 253, 0.35));
   box-shadow: var(--home-shadow-card);
   transform: translateY(-4px);
 }
@@ -197,7 +197,7 @@
 .home-theme-static .feature-title {
   font-size: 1.125rem;
   font-weight: 700;
-  color: #fff;
+  color: var(--ui-text, #fff);
   margin-bottom: 0.5rem;
 }
 

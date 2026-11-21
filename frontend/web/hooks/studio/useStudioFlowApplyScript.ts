@@ -1,5 +1,6 @@
 'use client'
 
+import { useScriptLimits } from '@/hooks/useScriptLimits'
 import { useCallback } from 'react'
 import { message, Modal } from 'antd'
 import type { EditorTextSelection } from '@/utils/quill/editorTextSelection'
@@ -9,8 +10,6 @@ import {
   htmlToPlainText,
   isHtmlContentEmpty,
   scriptApiTextToEditorHtml,
-  STORY_SCRIPT_MAX_CHARS_MOVIE,
-  STORY_SCRIPT_MAX_CHARS_SERIES
 } from '@/utils/htmlPlain'
 import { saveStoryScriptAsNewVersion } from '@/utils/storyScriptVersionSave'
 import { selectStudioFlowStepNode } from '@/utils/studio/studioFlowNodeSelection'
@@ -18,6 +17,7 @@ import { dispatchStudioFlowAutoPipelinePrepare } from '@/utils/studio/studioFlow
 import { useStudioFlowRuntime } from '@/components/studio/flow/StudioFlowRuntimeProvider'
 
 export function useStudioFlowApplyScript(projectId: number | null, episodeId: number | null) {
+  const scriptLimits = useScriptLimits()
   const runtime = useStudioFlowRuntime()
 
   return useCallback(
@@ -33,11 +33,8 @@ export function useStudioFlowApplyScript(projectId: number | null, episodeId: nu
       }
       const store = useCreationStore.getState()
       const projectType = store.currentProjectType
-      const maxLength =
-        projectType === 'series'
-          ? STORY_SCRIPT_MAX_CHARS_SERIES
-          : STORY_SCRIPT_MAX_CHARS_MOVIE
-      if (htmlPureTextCharCount(nextHtml) > maxLength) {
+      const maxLength = projectType === 'series' ? scriptLimits?.episodeMaxChars : scriptLimits?.movieMaxChars
+      if (maxLength !== undefined && htmlPureTextCharCount(nextHtml) > maxLength) {
         message.warning(`生成内容超过当前剧本 ${maxLength.toLocaleString('zh-CN')} 字上限，请先精简`)
         return
       }
@@ -85,6 +82,6 @@ export function useStudioFlowApplyScript(projectId: number | null, episodeId: nu
         onOk: () => apply()
       })
     },
-    [episodeId, projectId, runtime]
+    [episodeId, projectId, runtime, scriptLimits]
   )
 }

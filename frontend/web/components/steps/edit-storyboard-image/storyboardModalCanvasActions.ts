@@ -216,7 +216,7 @@ const handleMultiAngleGenerate = async (payload: MultiAngleGeneratePayload) => {
   }
 
   const rawImg = ctx.currentSceneImages()[imageIndex] as Record<string, unknown>
-  const imageUrl = String(rawImg?.url || rawImg?.thumbnail || payload.imageUrl || '').trim()
+  const imageUrl = String(payload.imageUrl || rawImg?.url || rawImg?.thumbnail || '').trim()
   if (!imageUrl) {
     message.warning('当前图片地址无效，无法发起多机位生图')
     return

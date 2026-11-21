@@ -27,10 +27,10 @@
   height: 40px;
   box-sizing: border-box;
   padding: 0 11px;
-  border: 1px solid rgba(78, 94, 122, 0.42);
+  border: 1px solid var(--ui-hair, rgba(78, 94, 122, 0.42));
   border-radius: 8px;
-  background: #0a0d12;
-  color: #e6edf3;
+  background: var(--ui-bg, #0a0d12);
+  color: var(--ui-text, #e6edf3);
   display: flex;
   align-items: center;
   gap: 6px;
@@ -62,14 +62,14 @@
   padding: 2px;
   border: 0;
   background: transparent;
-  color: #ffc069;
+  color: var(--ui-danger, #ffc069);
   cursor: pointer;
   display: inline-flex;
 }
 .batch-generate-storyboard-wrap .bgsm-readonly:focus-visible,
 .batch-generate-storyboard-wrap .bgsm-fee-value:focus-visible,
 .batch-generate-storyboard-wrap .bgsm-ratio-info:focus-visible {
-  outline: 2px solid #4ae7fd;
+  outline: 2px solid var(--ui-ring, #4ae7fd);
   outline-offset: 2px;
 }
 .batch-generate-storyboard-wrap .bgsm-field--video-model .selected-model {

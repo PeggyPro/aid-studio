@@ -68,8 +68,8 @@ public class DmcH3VideoProviderClient implements VideoProviderClient {
                 .body(body).timeout(SUBMIT_TIMEOUT_MS).execute()) {
             if (response.getStatus() >= 500) throw new SubmissionOutcomeUnknownException();
             if (response.getStatus() < 200 || response.getStatus() >= 300)
-                return ProviderSubmitResult.builder()
-                        .rawResponse(ProviderErrorSanitizer.fromHttp(response.getStatus(), response.body())).build();
+                return com.aid.media.provider.ProviderSubmissionFailures.httpResponse(
+                        response.getStatus(), response.body(), model.getModelCode());
             JsonNode result = ProviderResponseHelper.readTree(response.body());
             String taskId = result == null ? null : result.path("task_id").asText(null);
             if (StrUtil.isBlank(taskId)) throw new SubmissionOutcomeUnknownException();
@@ -136,7 +136,7 @@ public class DmcH3VideoProviderClient implements VideoProviderClient {
     }
 
     private static String requireKey(AiModelConfigVo model) {
-        if (model == null || StrUtil.isBlank(model.getApiKey())) throw new ServiceException("DMC密钥未配置");
+        if (model == null || StrUtil.isBlank(model.getApiKey())) throw com.aid.media.provider.ProviderSubmissionFailures.notSent("DMC密钥未配置");
         return model.getApiKey().trim();
     }
 

@@ -32,6 +32,7 @@ export interface Provider {
   extraBody?: string | null;
   /** 自定义 query string（JSON 对象字符串） */
   extraQuery?: string | null;
+  accountOperationsJson?: string | null;
   /** API Key 申请页直链 */
   apiKeyApplyUrl?: string | null;
   /** 官方接口文档首页 */
@@ -46,7 +47,7 @@ export interface ProviderOperationCapabilities {
   productTypes?: string[];
   taskSearchTypes?: string[];
   balanceDelayNotice?: string;
-  balanceKind?: 'money' | 'credits' | 'resourcePackages';
+  balanceKind?: 'money' | 'credits' | 'characters' | 'account' | 'resourcePackages';
   balanceUnit?: string;
   supportsTimeRange?: boolean;
   recentDays?: number;
@@ -79,10 +80,6 @@ export interface Model {
   configVersion?: number;
   /** 是否免费；缺省为正常计费 */
   isFree?: boolean;
-  /** 是否将该模型的上游图片输入按代理 URL 模板拼接 */
-  imageUrlProxyEnabled?: boolean;
-  /** 图片代理 URL 模板；启用时必须且只能包含一个 {url} */
-  imageUrlProxyTemplate?: string | null;
   meterType?: string;
   imageRefine?: number | null;
   supportsTextInput?: boolean;
@@ -137,6 +134,16 @@ export interface InputPricing {
 }
 
 export interface Sku {
+  compositeVideoTokens?: {
+    inputPricePerMillion: number | null;
+    textOutputPricePerMillion: number | null;
+    reasoningPricePerMillion: number | null;
+    videoOutputPricePerMillion: number | null;
+    videoTokensPerSecond: number | null;
+    estimatedTextOutputTokens: number | null;
+    estimatedReasoningTokens: number | null;
+    [key: string]: unknown;
+  } | null;
   /** 编辑器不展示的原始 SKU 字段；保存时作为无损构建基底。 */
   preservedSku?: Record<string, unknown>;
   skuCode: string;
@@ -434,9 +441,10 @@ export interface ScheduleStrategy {
   maxIntervalSeconds: number;
   backoffFactor: number;
   maxRetryCount: number;
-  /** 最大存活（秒）：从上游受理起算的绝对天花板，仅防上游永远回报处理中，不代表预期出片耗时 */
+  maxConsecutiveQueryFailures: number;
+  /** 最大存活（秒）：从上游受理起算的复查阈值，不按等待时长直接判失败 */
   maxLifeSeconds: number;
-  /** 无进展超时（秒）：从最近一次观测到上游推进起算，是判定上游生死的依据；缺省回落最大存活 */
+  /** 无进展超时（秒）：从最近一次有效进展起算，达到后复查上游；缺省回落存活复查阈值 */
   progressTimeoutSeconds?: number | null;
   /** 每秒成片对应的最大存活预算；缺省使用后端视频默认值，0 表示关闭按作业规模抬高 */
   lifeSecondsPerVideoSecond?: number | null;

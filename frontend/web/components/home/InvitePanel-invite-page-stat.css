@@ -5,17 +5,17 @@
   display: inline-flex;
   align-items: baseline;
   gap: 6px;
-  color: #fff;
+  color: var(--ui-text, #fff);
   font-size: 14px;
   line-height: 1.2;
 }
 
 .invite-page__stat-label {
-  color: #fff;
+  color: var(--ui-text, #fff);
 }
 
 .invite-page__stat-num {
-  color: #fff;
+  color: var(--ui-text, #fff);
   font-size: 24px;
   font-weight: 500;
   line-height: 1;
@@ -42,7 +42,7 @@
 
 .invite-page__records-title {
   margin: 0;
-  color: #fff;
+  color: var(--ui-text, #fff);
   font-size: var(--invite-section-title);
   font-weight: 500;
   line-height: 1.3;
@@ -75,7 +75,7 @@
   height: var(--invite-head-h);
   border-radius: 8px 8px 0 0;
   background: transparent;
-  border: 1px solid rgba(74,231,253,0.3);
+  border: 1px solid var(--ui-hair, rgba(74,231,253,0.3));
 }
 
 .invite-page__th {
@@ -93,12 +93,12 @@
 }
 
 .invite-page__tr.is-alt {
-  background: rgba(32, 36, 52, 0.5);
+  background: var(--ui-raised, rgba(32, 36, 52, 0.5));
 }
 
 .invite-page__td {
   min-width: 0;
-  color: #fff;
+  color: var(--ui-text, #fff);
   font-size: 14px;
   line-height: 1;
 }
@@ -117,8 +117,8 @@
   height: 16px;
   padding: 0 4px;
   border-radius: 999px;
-  background: linear-gradient(180deg, #3d7cff 0%, #1a4fd6 100%);
-  color: #fff;
+  background: var(--ui-surface, linear-gradient(180deg, #3d7cff 0%, #1a4fd6 100%));
+  color: var(--ui-text, #fff);
   font-size: 12px;
   line-height: 1;
 }
@@ -136,7 +136,7 @@
   height: 24px;
   border-radius: 50%;
   object-fit: cover;
-  background: rgba(0, 0, 0, 0.25);
+  background: var(--ui-bg, rgba(0, 0, 0, 0.25));
 }
 
 .invite-page__user-name {

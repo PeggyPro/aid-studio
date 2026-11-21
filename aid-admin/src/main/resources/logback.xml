@@ -31,6 +31,12 @@
             <!-- 匹配时的操作：接收（记录） -->
             <onMatch>ACCEPT</onMatch>
             <!-- 不匹配时的操作：拒绝（不记录） -->
+            <onMismatch>NEUTRAL</onMismatch>
+        </filter>
+        <filter class="ch.qos.logback.classic.filter.LevelFilter">
+            <!-- 同时保存 WARN；ERROR 仍由独立错误日志记录 -->
+            <level>WARN</level>
+            <onMatch>ACCEPT</onMatch>
             <onMismatch>DENY</onMismatch>
         </filter>
 	</appender>
@@ -87,18 +93,23 @@
 
 	<!-- 系统模块日志级别控制  -->
 	<logger name="com.aid" level="info" />
+    <!-- 应用默认 com.aid=ERROR；仅为安全恢复诊断保留 WARN -->
+    <logger name="com.aid.runtime.assistant.recovery.AssistantRuntimeRecoveryServiceImpl" level="warn" />
+    <!-- 仅记录 Tool 未知结果的脱敏稳定错误码，不输出参数或供应商内容 -->
+    <logger name="com.aid.runtime.assistant.execution.AssistantPlanExecutionServiceImpl" level="warn" />
 	<!-- Spring日志级别控制  -->
 	<logger name="org.springframework" level="warn" />
 	<!-- RocketMQ 客户端日志：未部署 MQ 时压制后台重连噪音，故障仍可见 ERROR -->
 	<logger name="RocketmqClient" level="error" />
 	<logger name="RocketmqRemoting" level="error" />
 
-	<root level="info">
-		<appender-ref ref="console" />
-	</root>
-
-	<!--系统操作日志-->
+	<!-- 控制台和文件共用同一根日志配置，避免重复 root 覆盖 -->
+    <!-- 有界文本协议统计不受业务包错误级别过滤，不包含响应正文或参数。 -->
+    <logger name="media-text-protocol" level="info" />
+    <!-- Only bounded resource identities and byte digests; no signed URLs or credentials. -->
+    <logger name="media-image-input" level="info" />
     <root level="info">
+        <appender-ref ref="console" />
         <appender-ref ref="file_info" />
         <appender-ref ref="file_error" />
     </root>

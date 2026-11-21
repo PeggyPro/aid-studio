@@ -6,9 +6,9 @@
   height: 100dvh;
   max-height: 100vh;
   max-height: 100dvh;
-  background: var(--home-bg-gradient, linear-gradient(165deg, #001731 0%, #0d0d0f 42%, #121212 100%));
-  background-color: var(--home-bg-solid, #060a12);
-  color: #fff;
+  background: var(--ui-surface, var(--home-bg-gradient, linear-gradient(165deg, #001731 0%, #0d0d0f 42%, #121212 100%)));
+  background-color: var(--home-bg-solid, var(--ui-bg, #060a12));
+  color: var(--ui-text, #fff);
   overflow: hidden;
 }
 
@@ -54,7 +54,7 @@
 
 /*
  * 原 Vue <Transition name="home-route" mode="out-in">：App Router 已负责换页，
- * 保留容器实例，避免 key=pathname 让整个页面子树额外重挂载。
+ * 勿再对容器 key=pathname 强制重挂载（会与 body Portal 卸载竞态，二次导航易 removeChild 报错）。
  * 进场动画挂在页面根节点上即可。
  */
 .home-main-route > * {

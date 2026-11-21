@@ -85,6 +85,9 @@ public final class TaskErrorPresentation
         if (isGeneric(result)) {
             return GENERIC_PRIORITY;
         }
+        if (TaskErrorCode.UPSTREAM_MODEL_ACCESS_DENIED.name().equals(result.getErrorCode())
+                || TaskErrorCode.UPSTREAM_MODEL_UNAVAILABLE.name().equals(result.getErrorCode()))
+            return SPECIFIC_PRIORITY + 1;
         return TaskErrorCode.UPSTREAM_BAD_REQUEST.name().equals(result.getErrorCode())
                 ? GENERIC_PRIORITY + 1 : SPECIFIC_PRIORITY;
     }
@@ -116,6 +119,8 @@ public final class TaskErrorPresentation
             case "USER_INPUT_TOO_LONG" -> "内容过长，请精简";
             case "MERCHANT_QUOTA_EXHAUSTED", "PROVIDER_FREE_TIER_EXHAUSTED",
                     "PROVIDER_BALANCE_INSUFFICIENT", "PROVIDER_QUOTA_EXHAUSTED" -> "模型额度不足";
+            case "UPSTREAM_MODEL_ACCESS_DENIED" -> "所选模型未获授权，请更换模型";
+            case "UPSTREAM_MODEL_UNAVAILABLE" -> "所选模型暂无可用渠道";
             case "UPSTREAM_AUTH_INVALID", "UPSTREAM_SERVICE_NOT_OPEN",
                     "MODEL_ACCOUNT_UNAVAILABLE" -> "当前生成服务暂不可用";
             case "PROVIDER_BUSY", "UPSTREAM_RATE_LIMITED" -> "任务较多，稍后重试";

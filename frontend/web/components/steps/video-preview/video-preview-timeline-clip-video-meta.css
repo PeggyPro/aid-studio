@@ -19,7 +19,7 @@
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.04em;
-  color: #4ae7fd;
+  color: var(--ui-brand, #4ae7fd);
 }
 
 .video-preview-step .track-clip-video .clip-text {
@@ -38,7 +38,7 @@
   align-items: center;
   justify-content: center;
   opacity: 0;
-  background: rgba(8, 12, 20, 0.42);
+  background: var(--ui-bg, rgba(8, 12, 20, 0.42));
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   transition: opacity 0.2s ease;
@@ -56,10 +56,10 @@
   align-items: center;
   gap: 3PX;
   padding: var(--vp-clip-edit-pad-y) var(--vp-clip-edit-pad-x);
-  border: 1px solid rgba(74, 231, 253, 0.45);
+  border: 1px solid var(--ui-hair, rgba(74, 231, 253, 0.45));
   border-radius: 6PX;
-  background: rgba(74, 231, 253, 0.16);
-  color: #e8fbff;
+  background: var(--ui-soft, rgba(74, 231, 253, 0.16));
+  color: var(--ui-text, #e8fbff);
   font-size: var(--vp-clip-edit-font);
   font-weight: 500;
   line-height: 1.2;
@@ -70,8 +70,8 @@
 }
 
 .video-preview-step .clip-edit-btn:hover {
-  background: rgba(74, 231, 253, 0.28);
-  border-color: rgba(74, 231, 253, 0.75);
+  background: var(--ui-raised, rgba(74, 231, 253, 0.28));
+  border-color: var(--ui-ring, rgba(74, 231, 253, 0.75));
 }
 
 .video-preview-step .clip-edit-btn:active {
@@ -79,7 +79,7 @@
 }
 
 .video-preview-step .track-clip-dubbing {
-  background: rgba(59, 130, 246, 0.6);
+  background: var(--ui-raised, rgba(59, 130, 246, 0.6));
 }
 
 .video-preview-step .track-clip-subtitle {
@@ -93,7 +93,7 @@
 }
 
 .video-preview-step .track-clip-music-empty {
-  border: 1px dashed rgba(255, 255, 255, 0.35);
+  border: 1px dashed var(--ui-hair, rgba(255, 255, 255, 0.35));
   opacity: 0.88;
   background: rgba(249, 115, 22, 0.18);
 }
@@ -101,8 +101,8 @@
 .video-preview-step .music-source-cycle {
   position: absolute;
   inset: 0 auto 0 0;
-  background: rgba(255, 255, 255, 0.16);
-  border-right: 1px dashed rgba(255, 255, 255, 0.45);
+  background: var(--ui-soft, rgba(255, 255, 255, 0.16));
+  border-right: 1px dashed var(--ui-hair, rgba(255, 255, 255, 0.45));
   pointer-events: none;
   z-index: 0;
 }
@@ -113,13 +113,13 @@
 }
 
 .video-preview-step .track-clip-empty-record {
-  border: 1px dashed rgba(255, 255, 255, 0.35);
+  border: 1px dashed var(--ui-hair, rgba(255, 255, 255, 0.35));
   opacity: 0.88;
   cursor: pointer;
 }
 
 .video-preview-step .track-clip-empty-record .clip-text {
-  color: rgba(255, 255, 255, 0.92);
+  color: var(--ui-text, rgba(255, 255, 255, 0.92));
 }
 
 .video-preview-step .clip-handle {
@@ -142,8 +142,8 @@
   position: absolute;
   top: 4px;
   bottom: 4px;
-  background: rgba(74, 231, 253, 0.25);
-  border: 1px dashed rgba(74, 231, 253, 0.85);
+  background: var(--ui-raised, rgba(74, 231, 253, 0.25));
+  border: 1px dashed var(--ui-hair, rgba(74, 231, 253, 0.85));
 }
 
 .video-preview-step .snap-indicator {

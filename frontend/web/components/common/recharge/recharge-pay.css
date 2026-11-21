@@ -1,0 +1,64 @@
+.recharge-pay-modal__body {
+  display: grid;
+  justify-items: stretch;
+  gap: 14px;
+  padding-block-end: 18px;
+  min-width: 0;
+}
+
+.recharge-pay-modal__summary {
+  display: grid;
+  justify-items: center;
+  gap: 5px;
+  padding: 16px 12px;
+  border: 1px solid var(--recharge-line);
+  border-radius: 14px;
+  background: var(--recharge-control);
+  text-align: center;
+}
+
+.recharge-pay-modal__summary .recharge-amount { font-size: clamp(40px, 8vw, 52px); }
+.recharge-pay-modal__summary-label, .recharge-pay-modal__credits { color: var(--recharge-muted); font-size: 13px; }
+.recharge-pay-modal__credits strong { color: var(--recharge-text); font-variant-numeric: tabular-nums; }
+
+.recharge-pay-modal__pay-row { display: grid; gap: 7px; }
+.recharge-pay-modal__pay-label { color: var(--recharge-text); font-size: 13px; font-weight: 600; }
+.recharge-pay-modal__methods { display: flex; gap: 8px; }
+
+.recharge-pay-method {
+  display: inline-flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-width: 0;
+  min-height: 44px;
+  padding: 6px 10px;
+  border: 1px solid var(--recharge-line);
+  border-radius: 9px;
+  background: var(--recharge-control);
+  color: var(--recharge-text);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.recharge-pay-method:is(:hover, [aria-pressed='true']) {
+  border-color: color-mix(in srgb, var(--recharge-accent) 60%, var(--recharge-line));
+}
+.recharge-pay-method[aria-pressed='true'] {
+  background: color-mix(in srgb, var(--recharge-accent) 9%, var(--recharge-control));
+}
+.recharge-pay-method__icon { flex: 0 0 22px; display: block; }
+
+.recharge-pay-modal__pay-unavailable,
+.recharge-pay-modal__lead-hint,
+.recharge-pay-modal__disclaimer {
+  margin: 0;
+  color: var(--recharge-muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.recharge-pay-modal__lead-hint, .recharge-pay-modal__disclaimer { text-align: center; }
+.recharge-pay-modal__disclaimer { padding-top: 10px; border-top: 1px solid var(--recharge-line); font-size: 12px; }

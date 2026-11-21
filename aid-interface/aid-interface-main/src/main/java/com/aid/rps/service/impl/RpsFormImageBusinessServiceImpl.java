@@ -1,5 +1,9 @@
 package com.aid.rps.service.impl;
 
+import com.aid.common.aid.image.ManagedImageIO;
+
+import com.aid.media.util.MediaBytesFetcher;
+import com.aid.media.util.PublicMediaHttp;
 import com.aid.common.error.TaskErrorSnapshot;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
@@ -7,9 +11,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.HttpURLConnection;
 import java.net.URI;
-import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
@@ -25,7 +27,6 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-import javax.imageio.ImageIO;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
@@ -1569,6 +1570,12 @@ public class RpsFormImageBusinessServiceImpl implements IRpsFormImageBusinessSer
                     imageId, rawImageUrl, fullUrl);
             throw new RuntimeException("图片无效");
         }
+        try {
+            PublicMediaHttp.validateDestination(fullUrl);
+        } catch (java.io.IOException e) {
+            log.info("高清源图地址不可访问, imageId={}", imageId);
+            throw new ServiceException("图片地址不可用");
+        }
         return fullUrl;
     }
 
@@ -2173,75 +2180,17 @@ public class RpsFormImageBusinessServiceImpl implements IRpsFormImageBusinessSer
     /** 下载远程源图字节，带大小上限保护。 */
     private byte[] downloadImageBytes(String fullUrl, long maxBytes, Long sourceImageId)
     {
-        if (StrUtil.isBlank(fullUrl))
-        {
-            log.error("场景拆分失败：源图 URL 解析为空, sourceImageId={}", sourceImageId);
-            throw new ServiceException("源图无内容");
+        MediaBytesFetcher.Content content = MediaBytesFetcher.fetch(fullUrl, Math.toIntExact(maxBytes),
+                DOWNLOAD_TIMEOUT_MS);
+        if (content.truncated()) {
+            log.info("场景拆分源图超过大小上限, sourceImageId={}", sourceImageId);
+            throw new ServiceException("源图过大");
         }
-        HttpURLConnection conn = null;
-        try
-        {
-            URL url = new URL(fullUrl);                                  // 源图地址
-            conn = (HttpURLConnection) url.openConnection();
-            conn.setConnectTimeout(DOWNLOAD_TIMEOUT_MS);                 // 连接超时
-            conn.setReadTimeout(DOWNLOAD_TIMEOUT_MS);                    // 读取超时
-            conn.setRequestMethod("GET");
-            conn.setInstanceFollowRedirects(true);                       // 跟随重定向（CDN/OSS 可能 302）
-            conn.setRequestProperty("User-Agent", "aid-server");         // 部分 CDN 对空 UA 返回 403，显式带 UA
-            int code = conn.getResponseCode();
-            if (code != HttpURLConnection.HTTP_OK)
-            {
-                log.error("场景拆分失败：源图下载响应异常, sourceImageId={}, httpCode={}", sourceImageId, code);
-                throw new ServiceException("源图下载失败");
-            }
-            // Content-Length 已知且超限 → 提前拒绝
-            long declaredLen = conn.getContentLengthLong();
-            if (declaredLen > 0 && declaredLen > maxBytes)
-            {
-                log.error("场景拆分失败：源图超过大小上限, sourceImageId={}, len={}B, max={}B", sourceImageId, declaredLen, maxBytes);
-                throw new ServiceException("源图过大");
-            }
-            try (InputStream in = conn.getInputStream();
-                 ByteArrayOutputStream out = new ByteArrayOutputStream())
-            {
-                byte[] buf = new byte[8192];
-                int n;
-                long total = 0;
-                while ((n = in.read(buf)) != -1)
-                {
-                    total += n;
-                    if (total > maxBytes)                                // 边读边校验上限
-                    {
-                        log.error("场景拆分失败：源图字节超过上限, sourceImageId={}, max={}B", sourceImageId, maxBytes);
-                        throw new ServiceException("源图过大");
-                    }
-                    out.write(buf, 0, n);
-                }
-                byte[] bytes = out.toByteArray();
-                if (bytes.length == 0)
-                {
-                    log.error("场景拆分失败：源图下载为空, sourceImageId={}", sourceImageId);
-                    throw new ServiceException("源图无内容");
-                }
-                return bytes;
-            }
-        }
-        catch (ServiceException e)
-        {
-            throw e;
-        }
-        catch (Exception e)
-        {
-            log.error("场景拆分失败：源图下载异常, sourceImageId={}, url={}, err={}", sourceImageId, fullUrl, e.getMessage(), e);
+        if (content.isEmpty()) {
+            log.info("场景拆分源图无法下载, sourceImageId={}", sourceImageId);
             throw new ServiceException("源图下载失败");
         }
-        finally
-        {
-            if (Objects.nonNull(conn))
-            {
-                conn.disconnect();
-            }
-        }
+        return content.bytes();
     }
 
     /**
@@ -2257,7 +2206,7 @@ public class RpsFormImageBusinessServiceImpl implements IRpsFormImageBusinessSer
         BufferedImage src;
         try
         {
-            src = ImageIO.read(new ByteArrayInputStream(sourceBytes));   // 解码
+            src = ManagedImageIO.read(new ByteArrayInputStream(sourceBytes));   // 解码
         }
         catch (Exception e)
         {
@@ -2296,7 +2245,7 @@ public class RpsFormImageBusinessServiceImpl implements IRpsFormImageBusinessSer
                 g.drawImage(src.getSubimage(r[0], r[1], r[2], r[3]), 0, 0, null);
                 g.dispose();
                 ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                if (!ImageIO.write(sub, SPLIT_CHILD_IMAGE_FORMAT, baos))
+                if (!ManagedImageIO.write(sub, SPLIT_CHILD_IMAGE_FORMAT, baos))
                 {
                     log.error("场景拆分失败：子图编码无可用 writer, sourceImageId={}, format={}", sourceImageId, SPLIT_CHILD_IMAGE_FORMAT);
                     throw new ServiceException("切图失败，请重试");

@@ -554,6 +554,7 @@ export function BatchGenerateAssetModal({
               loading={generationQuote.loading}
               error={generationQuote.error}
               active={Boolean(quoteRequest)}
+              className="billing-quote-hint--submit"
             />
             <Button className="bgam-btn-cancel" disabled={confirmLoading} onClick={handleCancel}>
               <div className="text-gradient">取消</div>

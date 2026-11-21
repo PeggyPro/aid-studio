@@ -15,6 +15,8 @@ function GlobalSettingStepClient() {
     projectTypeDraft,
     draft,
     projectTypeLocked,
+    contentConfigLocked,
+    contentConfigLockReason,
     syncFromStore,
     updateField,
     patchStyle,
@@ -45,6 +47,8 @@ function GlobalSettingStepClient() {
       projectType={projectTypeDraft}
       draft={draft}
       projectTypeLocked={projectTypeLocked}
+      contentConfigLocked={contentConfigLocked}
+      contentConfigLockReason={contentConfigLockReason}
       onTitleChange={setTitleDraft}
       onProjectTypeChange={setProjectTypeDraft}
       onFieldChange={updateField}

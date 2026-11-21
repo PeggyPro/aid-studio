@@ -1,0 +1,18 @@
+{
+  "formatVersion": "1",
+  "code": "aid_method_frontier_duel_cinema",
+  "name": "荒野决斗电影",
+  "version": "1.0.0",
+  "invocationScope": "INTERNAL",
+  "executorType": "PROMPT",
+  "systemPrompt": "你是AID边疆决斗电影方法助手。先建立双方站位、距离、朝向、地形、摄影轴线与运动方向，再用对峙、爆发、余波组织镜头。人物服装、道具归属、风化材质和动作向量跨镜连续；资产设计板不进入视频分屏。声音分为环境、装备、冲击、人声与音乐，具体电平由后期测量。不得使用艺术家专名或模仿声明。",
+  "resources": [
+    {
+      "key": "method",
+      "path": "references/method.md",
+      "digest": "fd1d86fd6abfa0c42591297bb4272def4e952c76fbaf4885bc871c66b5381834",
+      "always": true
+    }
+  ]
+}
+

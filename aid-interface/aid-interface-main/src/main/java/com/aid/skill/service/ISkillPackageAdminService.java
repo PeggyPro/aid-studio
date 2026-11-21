@@ -8,9 +8,15 @@ import java.util.List;
 
 /** Skill 草稿、校验和不可变版本发布管理。 */
 public interface ISkillPackageAdminService {
+    SkillPackageAdminVO.DraftDetail copyVersionToNewSkill(Long skillId, Long templateVersionId,
+                                                          Long operatorId, String operatorName);
     SkillPackageAdminVO.VersionPageResult listVersions(
             SkillPackageAdminRequests.VersionPageRequest request);
     SkillPackageAdminVO.VersionDetail getVersion(Long versionId);
+    void assertIdentityScopeCompatible(Long skillId, String invocationScope,
+                                       boolean allowDisabledMismatch);
+    void assertCurrentVersionPublishable(Long skillId);
+    void assertCurrentVersionRunnable(Long skillId, String targetVisibility);
     SkillAdminVO.PageResult<SkillPackageAdminVO.DependencySkillOption> listDependencyOptions(
             SkillPackageAdminRequests.DependencySkillPageRequest request);
     SkillAdminVO.PageResult<SkillPackageAdminVO.DependencyVersionOption> listDependencyVersionOptions(

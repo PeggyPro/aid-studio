@@ -23,6 +23,28 @@ import org.springframework.web.bind.annotation.RestController;
 public class BillingController extends BaseController {
 
     private final BillingAmountCalculator billingAmountCalculator;
+    private final com.aid.billing.service.TextFailureRefundService textFailureRefundService;
+
+    public record TextFailureRefundRequest(
+            @jakarta.validation.constraints.NotBlank String traceId,
+            @jakarta.validation.constraints.NotNull @jakarta.validation.constraints.DecimalMin("0.0001")
+            java.math.BigDecimal expectedAmount,
+            @jakarta.validation.constraints.NotNull @jakarta.validation.constraints.AssertTrue Boolean confirmed) {}
+
+    /** 管理员逐笔核对，不提供批量退款或按客户端指定用户入账。 */
+    @PreAuthorize("@ss.hasRole('admin')")
+    @org.springframework.web.bind.annotation.GetMapping("/text-failure-refund/{taskId}")
+    public AjaxResult textFailureRefundPreview(@org.springframework.web.bind.annotation.PathVariable Long taskId) {
+        return success(textFailureRefundService.preview(taskId));
+    }
+
+    @com.aid.common.annotation.Log(title = "文本失败原流水退回", businessType = com.aid.common.enums.BusinessType.UPDATE)
+    @PreAuthorize("@ss.hasRole('admin')")
+    @PostMapping("/text-failure-refund/{taskId}")
+    public AjaxResult textFailureRefund(@org.springframework.web.bind.annotation.PathVariable Long taskId,
+            @jakarta.validation.Valid @RequestBody TextFailureRefundRequest request) {
+        return success(textFailureRefundService.refund(taskId, request.traceId(), request.expectedAmount(), getUsername()));
+    }
 
     /**
      * 计费规则试算：后台配置SKU规则后，模拟输入参数测试是否能正确命中价格。

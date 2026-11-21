@@ -57,7 +57,7 @@ function doneState(): StudioFlowAutoPipelineState {
     progress: {
       stage: 'done',
       title: '创作流水线完成',
-      message: '画布节点已就绪；可在顶栏「交付」导出成片'
+      message: '画布节点已就绪；可在顶栏「交付」导出成片或发布'
     },
     failedStage: null,
     errorMessage: null,
@@ -247,7 +247,7 @@ export function useStudioFlowAutoPipeline(projectId: number | null, episodeId: n
         // 禁止在运行中用 task/list 轮询覆盖节点的真实 SSE progress。
         onTaskSubmitted: async () => undefined,
         runStoryboardScriptBatch: (panels) =>
-          storyboardScriptBatch.runBatchGenerate(panels),
+          storyboardScriptBatch.runBatchGenerate(panels, { overwrite: false }),
         runStoryboardImageBatch: (panels) =>
           storyboardImageBatch.runBatchForPanels(panels, false),
         runStoryboardVideoBatch: ({ scriptPanels, videoPanels }) =>

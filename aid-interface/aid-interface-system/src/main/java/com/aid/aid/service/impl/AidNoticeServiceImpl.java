@@ -10,6 +10,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.aid.aid.domain.AidNotice;
+import com.aid.aid.util.RichTextSanitizer;
 import com.aid.aid.mapper.AidNoticeMapper;
 import com.aid.aid.service.IAidNoticeService;
 import com.aid.common.utils.DateUtils;
@@ -86,6 +87,7 @@ public class AidNoticeServiceImpl extends ServiceImpl<AidNoticeMapper, AidNotice
     @Override
     public int insertAidNotice(AidNotice aidNotice)
     {
+        aidNotice.setContent(RichTextSanitizer.sanitize(aidNotice.getContent()));
         // 填充创建时间与创建者
         aidNotice.setCreateTime(DateUtils.getNowDate());
         aidNotice.setCreateBy(SecurityUtils.getUsername());
@@ -101,6 +103,7 @@ public class AidNoticeServiceImpl extends ServiceImpl<AidNoticeMapper, AidNotice
     @Override
     public int updateAidNotice(AidNotice aidNotice)
     {
+        aidNotice.setContent(RichTextSanitizer.sanitize(aidNotice.getContent()));
         // 填充更新时间与更新者
         aidNotice.setUpdateTime(DateUtils.getNowDate());
         aidNotice.setUpdateBy(SecurityUtils.getUsername());

@@ -21,6 +21,16 @@ public class CapabilityVO implements Serializable
     /** 该模型支持的规格档位枚举（图片 1K/2K/4K，视频 720P/1080P） */
     private List<String> sizeOptions;
 
+    /** Declared video enhancement output resolutions. */
+    private List<String> targetResolutionOptions;
+
+    /** Valid enhancement targets indexed by the trusted source short-edge resolution. */
+    private Map<String, List<String>> upscalePairs;
+
+    /** Whether enhancement supports temporal interpolation and slow motion. */
+    private Boolean supportsInterpolation;
+    private Boolean supportsSlowMotion;
+
     /** 默认选中的规格档位，与 AiModelVO.defaultSizeCode 同义 */
     private String defaultSize;
 

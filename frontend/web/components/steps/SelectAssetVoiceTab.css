@@ -1,7 +1,7 @@
 .saim-voice-tab {
-  --create-ref-audio-bg: var(--accent-100, rgba(74, 231, 253, 0.1));
-  --create-ref-audio-border: var(--accent-400, rgba(74, 231, 253, 0.42));
-  --create-ref-audio-text: var(--accent-500, #4ae7fd);
+  --create-ref-audio-bg: var(--accent-100, var(--ui-soft, rgba(74, 231, 253, 0.1)));
+  --create-ref-audio-border: var(--accent-400, var(--ui-hair, rgba(74, 231, 253, 0.42)));
+  --create-ref-audio-text: var(--accent-500, var(--ui-brand, #4ae7fd));
   flex: 1 1 auto;
   min-height: 0;
   height: 100%;
@@ -17,7 +17,7 @@
   gap: 12px;
   flex: 1 1 auto;
   min-height: 280px;
-  color: var(--home-muted, #8e97a5);
+  color: var(--home-muted, var(--ui-muted, #8e97a5));
 }
 
 .saim-voice-empty__text {
@@ -44,7 +44,7 @@
 }
 
 .saim-voice-list::-webkit-scrollbar-thumb {
-  background: rgba(120, 140, 170, 0.45);
+  background: var(--ui-raised, rgba(120, 140, 170, 0.45));
   border-radius: 4px;
 }
 
@@ -53,8 +53,8 @@
   align-items: center;
   gap: 10px;
   padding: 10px 12px;
-  background: rgba(13, 17, 23, 0.95);
-  border: 1px solid rgba(96, 124, 158, 0.15);
+  background: var(--ui-bg, rgba(13, 17, 23, 0.95));
+  border: 1px solid var(--ui-hair, rgba(96, 124, 158, 0.15));
   border-radius: 8px;
   min-height: 64px;
 }
@@ -91,7 +91,7 @@
   position: absolute;
   inset: 0;
   z-index: 3;
-  background: rgba(0, 0, 0, 0.45);
+  background: var(--ui-bg, rgba(0, 0, 0, 0.45));
   opacity: 0;
   transition: opacity 0.2s;
   pointer-events: none;
@@ -140,7 +140,7 @@
 
 .saim-eq-bar {
   width: 3px;
-  background: var(--create-ref-audio-text, #4ae7fd);
+  background: var(--create-ref-audio-text, var(--ui-raised, #4ae7fd));
   border-radius: 2px;
   transform-origin: center bottom;
   animation: saim-voice-eq 0.45s ease-in-out infinite alternate;
@@ -180,7 +180,7 @@
 .saim-voice-card__name {
   font-size: 13px;
   font-weight: 600;
-  color: #f1f5f9;
+  color: var(--ui-text, #f1f5f9);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -189,7 +189,7 @@
 .saim-voice-card__tags {
   margin-top: 2px;
   font-size: 12px;
-  color: var(--home-muted, #8e97a5);
+  color: var(--home-muted, var(--ui-muted, #8e97a5));
 }
 
 .saim-voice-card__select-btn {
@@ -197,9 +197,9 @@
   height: 28px;
   padding: 0 10px;
   border-radius: 6px;
-  border: 1px solid rgba(96, 124, 158, 0.35);
-  background: rgba(10, 13, 18, 0.9);
-  color: #e6edf3;
+  border: 1px solid var(--ui-hair, rgba(96, 124, 158, 0.35));
+  background: var(--ui-bg, rgba(10, 13, 18, 0.9));
+  color: var(--ui-text, #e6edf3);
   font-size: 12px;
   cursor: pointer;
 }

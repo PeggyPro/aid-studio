@@ -1,11 +1,13 @@
 'use client'
 
+import { flowPopoverDuration } from '~/utils/v10Motion'
+
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
 import { useCreateEditorPortalStyle } from '~/components/common/CreateEditorViewport'
 import { readCreateEditorElementScale } from '~/utils/createEditorViewport'
 import { RightOutlined } from '@ant-design/icons'
-import { ShimmerImage } from '~/components/common/ShimmerImage'
+import { PromptReferenceImage } from './PromptReferenceImage'
 import { toLayoutPx } from '~/utils/viewportZoom'
 import type { SettingSelectOption } from '~/composables/usePromptDictionary'
 import './SettingSelectField.css'
@@ -176,7 +178,7 @@ export function SettingSelectField({
         transitionTimerRef.current = setTimeout(() => {
           transitionTimerRef.current = null
           setTransitionClass('')
-        }, FADE_DURATION_MS)
+        }, flowPopoverDuration(FADE_DURATION_MS))
       })
       return
     }
@@ -190,7 +192,7 @@ export function SettingSelectField({
       setTransitionClass('')
       // 离场结束后再清空定位（Vue 在关闭瞬间清空，React 侧保留至卸载避免离场闪跳）
       setPanelFixedStyle({})
-    }, FADE_DURATION_MS)
+    }, flowPopoverDuration(FADE_DURATION_MS))
   }, [visible])
 
   useEffect(() => {
@@ -223,6 +225,8 @@ export function SettingSelectField({
         type="button"
         disabled={!options.length}
         className={triggerClass}
+        aria-expanded={open}
+        aria-haspopup="dialog"
         onClick={(e) => {
           e.stopPropagation()
           onTriggerClick()
@@ -249,8 +253,10 @@ export function SettingSelectField({
                 <div className="setting-select-panel-title">{panelTitle}</div>
                 <div className="setting-select-grid">
                   {options.map((opt) => (
-                    <div
+                    <button
+                      type="button"
                       key={opt.key}
+                      aria-pressed={modelValue?.key === opt.key}
                       className={
                         modelValue?.key === opt.key
                           ? 'setting-select-option is-selected'
@@ -260,16 +266,7 @@ export function SettingSelectField({
                     >
                       <div className="setting-select-option-thumb">
                         {opt.image ? (
-                          <ShimmerImage
-                            key={`${opt.key}-${opt.image}`}
-                            src={opt.image}
-                            alt={opt.value}
-                            wrapperClass="setting-select-option-thumb__shimmer"
-                            imgClass="option-thumb-img"
-                            objectFit="cover"
-                            revealDirection="fade"
-                            minShimmerMs={200}
-                          />
+                          <PromptReferenceImage key={`${opt.key}-${opt.image}`} src={opt.image} label={opt.value} />
                         ) : opt.key === 'none' ? (
                           <span className="option-icon-none">／</span>
                         ) : (
@@ -279,7 +276,7 @@ export function SettingSelectField({
                         )}
                       </div>
                       <span className="setting-select-option-label">{opt.value}</span>
-                    </div>
+                    </button>
                   ))}
                 </div>
               </div>

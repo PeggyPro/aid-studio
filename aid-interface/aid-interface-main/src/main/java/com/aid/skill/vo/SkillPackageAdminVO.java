@@ -45,6 +45,7 @@ public final class SkillPackageAdminVO {
     public static class ResourceItem {
         private Long id;
         private String resourceKey;
+        private String filePath;
         private String resourceType;
         private String objectKey;
         private String contentDigest;
@@ -84,6 +85,7 @@ public final class SkillPackageAdminVO {
         private String inputSchemaJson;
         private String outputSchemaJson;
         private String systemPrompt;
+        private String skillMarkdown;
         private String definitionJson;
         private Integer maxOutputTokens;
         private Integer contextWindowTokens;

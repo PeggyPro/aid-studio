@@ -4,6 +4,7 @@ import com.aid.aid.domain.model.ModelCapabilityDefinition;
 import com.aid.aid.domain.model.ModelParameter;
 import com.aid.aid.domain.model.ModelParameterRule;
 import com.aid.common.exception.ServiceException;
+import com.aid.media.service.MediaPreparationErrorCode;
 import com.alibaba.fastjson2.JSON;
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -156,6 +157,46 @@ public final class ModelParameterValidator {
         normalize(partial, JSON.parseObject(JSON.toJSONString(values)), true);
     }
 
+    /**
+     * Validate only the parameters that are known in an incomplete draft.
+     *
+     * <p>This method deliberately does not apply defaults or fixed values and does not require fields that have not
+     * been supplied yet. A conditional rule is enforced only when its condition is provably true from the supplied
+     * subset. Unknown condition inputs use three-valued logic, so an {@code any} condition with one true branch still
+     * applies while an {@code all} condition with an unknown branch remains deferred. The complete request must still
+     * pass {@link #normalize(ModelCapabilityDefinition, Map)} before execution.</p>
+     */
+    public static void validateKnownSubset(ModelCapabilityDefinition definition, Map<String, Object> values) {
+        if (definition == null || values == null) return;
+        ModelCapabilityDefinition partial = JSON.parseObject(JSON.toJSONString(definition), ModelCapabilityDefinition.class);
+        optionalFields(partial.getParameters());
+        declaredValues(partial.getParameters(), values, "");
+        checkFields(partial.getParameters(), values, "");
+
+        List<ModelParameterRule.Action> actions = new ArrayList<>();
+        for (ModelParameterRule rule : safe(definition.getRules())) {
+            if (knownRuleTruth(rule, values) == KnownTruth.TRUE) {
+                actions.addAll(rule.getActions());
+            }
+        }
+
+        Map<String, Object> fixed = new LinkedHashMap<>();
+        for (ModelParameterRule.Action action : actions) {
+            if (!"fixed".equals(action.getOperator())) continue;
+            if (fixed.containsKey(action.getField()) && !same(fixed.get(action.getField()), action.getValue())) {
+                fail("固定参数规则冲突");
+            }
+            fixed.put(action.getField(), action.getValue());
+            Object requested = read(values, action.getField());
+            if (knownPath(values, action.getField()) && !same(requested, action.getValue())) {
+                failField(action.getField(), "参数不符合约束");
+            }
+        }
+        for (ModelParameterRule.Action action : actions) {
+            validateKnownAction(action, values);
+        }
+    }
+
     private static void optionalFields(List<ModelParameter> fields) {
         for (var field : safe(fields)) {
             field.setRequired(false); optionalFields(field.getProperties());
@@ -177,6 +218,7 @@ public final class ModelParameterValidator {
         for (var entry : values.entrySet()) {
             ModelParameter field = safe(fields).stream().filter(item -> Objects.equals(item.getName(), entry.getKey())).findFirst().orElse(null);
             if (field == null) failField(prefix + entry.getKey(), "默认参数未在能力中声明");
+            if(field.getAlternatives()!=null&&!field.getAlternatives().isEmpty()){checkValue(field,entry.getValue(),prefix+field.getName());continue;}
             if (entry.getValue() instanceof Map<?, ?> nested && "object".equals(field.getType())) declaredValues(field.getProperties(), nested, prefix + field.getName() + ".");
         }
     }
@@ -186,10 +228,14 @@ public final class ModelParameterValidator {
         if (depth > 16 || fields.size() > 100) fail("参数层级过多");
         for (ModelParameter field : fields) {
             if (field == null || field.getName() == null || !field.getName().matches("[a-zA-Z][a-zA-Z0-9_]*")
-                    || RESERVED.contains(field.getName()) || field.getType() == null
+                    || reserved(field.getName(), depth) || field.getType() == null
                     || !TYPES.contains(field.getType())) fail("参数定义无效");
             String path = prefix + field.getName();
             if (!paths.add(path)) fail("参数名称重复");
+            if(field.getAlternatives()!=null) {
+                if(field.getAlternatives().isEmpty()||field.getAlternatives().size()>16)fail("联合参数分支无效");
+                for(var alternative:field.getAlternatives())validateFields(List.of(alternative),"",new HashSet<>(),depth+1);
+            }
             if (field.getMinimum() != null && field.getMaximum() != null
                     && field.getMinimum().compareTo(field.getMaximum()) > 0) fail("参数范围无效");
             if (field.getStep() != null && field.getStep().signum() <= 0) fail("参数步长无效");
@@ -222,6 +268,13 @@ public final class ModelParameterValidator {
             }
             if (field.getDefaultValue() != null) checkValue(field, field.getDefaultValue(), path);
         }
+    }
+
+    private static boolean reserved(String name, int depth) {
+        // Official nested resource schemas may contain category, projectId, etc.;
+        // those values cannot replace the trusted request envelope identity.
+        return RESERVED.contains(name) && (depth == 0 || Set.of("__proto__", "prototype", "constructor",
+                "apiKey", "apiSecret", "authorization").contains(name));
     }
 
     public static void normalize(ModelCapabilityDefinition definition, Map<String, Object> parameters) {
@@ -309,6 +362,68 @@ public final class ModelParameterValidator {
         };
     }
 
+    private enum KnownTruth { TRUE, FALSE, UNKNOWN }
+
+    private static KnownTruth knownRuleTruth(ModelParameterRule rule, Map<String, Object> values) {
+        return knownConditionsTruth(rule.getMatch(), rule.getConditions(), values);
+    }
+
+    private static KnownTruth knownConditionTruth(ModelParameterRule.Condition condition,
+                                                  Map<String, Object> values) {
+        if (condition.getMatch() != null) {
+            return knownConditionsTruth(condition.getMatch(), condition.getConditions(), values);
+        }
+        if (!knownPath(values, condition.getField())) return KnownTruth.UNKNOWN;
+        return matches(condition, values) ? KnownTruth.TRUE : KnownTruth.FALSE;
+    }
+
+    private static KnownTruth knownConditionsTruth(String match, List<ModelParameterRule.Condition> conditions,
+                                                   Map<String, Object> values) {
+        boolean any = "any".equals(match);
+        boolean unknown = false;
+        for (ModelParameterRule.Condition condition : safe(conditions)) {
+            KnownTruth result = knownConditionTruth(condition, values);
+            if (any && result == KnownTruth.TRUE) return KnownTruth.TRUE;
+            if (!any && result == KnownTruth.FALSE) return KnownTruth.FALSE;
+            if (result == KnownTruth.UNKNOWN) unknown = true;
+        }
+        if (unknown) return KnownTruth.UNKNOWN;
+        return any ? KnownTruth.FALSE : KnownTruth.TRUE;
+    }
+
+    private static void validateKnownAction(ModelParameterRule.Action action, Map<String, Object> values) {
+        String field = action.getField();
+        if (!knownPath(values, field)) return;
+        Object value = read(values, field);
+        switch (action.getOperator()) {
+            case "required" -> { if (empty(value)) failField(field, "缺少必填参数"); }
+            case "forbidden" -> { if (!empty(value)) failField(field, "参数组合不支持"); }
+            case "minimum" -> { if (value != null && magnitude(value).compareTo(decimal(action.getValue())) < 0) failField(field, minimumMessage(action.getValue())); }
+            case "maximum" -> { if (value != null && magnitude(value).compareTo(decimal(action.getValue())) > 0) failField(field, maximumMessage(action.getValue())); }
+            case "maximum_sum" -> {
+                if (!knownPath(values, action.getValueField())) return;
+                Object other = read(values, action.getValueField());
+                if (value != null && other != null && decimal(value).signum() >= 0
+                        && decimal(value).add(decimal(other)).compareTo(decimal(action.getValue())) > 0) {
+                    failField(field, "输入与输出合计超过允许上限，最大合计为 " + displayConstraint(action.getValue()));
+                }
+            }
+            case "choices" -> { if (value != null && !allowed(value, (List<?>) action.getValue())) failField(field, choicesMessage((List<?>) action.getValue())); }
+            default -> { }
+        }
+    }
+
+    /** A missing key is unknown, while an explicitly null ancestor proves that every child path is known empty. */
+    private static boolean knownPath(Map<String, Object> values, String path) {
+        Object current = values;
+        for (String part : path.split("\\.")) {
+            if (current == null) return true;
+            if (!(current instanceof Map<?, ?> map) || !map.containsKey(part)) return false;
+            current = map.get(part);
+        }
+        return true;
+    }
+
     @SuppressWarnings("unchecked")
     private static void applyDefaults(List<ModelParameter> fields, Map<String, Object> data) {
         for (ModelParameter field : safe(fields)) {
@@ -338,6 +453,10 @@ public final class ModelParameterValidator {
     }
 
     private static void checkValue(ModelParameter field, Object value, String path) {
+        if(field.getAlternatives()!=null&&!field.getAlternatives().isEmpty()) {
+            for(var alternative:field.getAlternatives())try{checkValue(alternative,value,path);return;}catch(ServiceException incompatible){/* Try the next official type. */}
+            failField(path,"参数不符合任何允许的联合类型");
+        }
         boolean valid = switch (field.getType()) {
             case "string" -> value instanceof String;
             case "number" -> value instanceof Number;
@@ -434,6 +553,6 @@ public final class ModelParameterValidator {
         };
     }
     private static <T> List<T> safe(List<T> list) { return list == null ? List.of() : list; }
-    private static void failField(String field, String message) { log.info("模型参数校验失败: field={}, reason={}", field, message); throw new ServiceException(field + "：" + message); }
-    private static void fail(String message) { log.info("模型参数定义无效: {}", message); throw new ServiceException(message); }
+    private static void failField(String field, String message) { log.info("模型参数校验失败: field={}, reason={}", field, message); throw new ServiceException(field + "：" + message).setDetailMessage(MediaPreparationErrorCode.MODEL_PARAMETERS_INVALID.name()); }
+    private static void fail(String message) { log.info("模型参数定义无效: {}", message); throw new ServiceException(message).setDetailMessage(MediaPreparationErrorCode.MODEL_CAPABILITY_INVALID.name()); }
 }

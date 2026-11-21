@@ -8,13 +8,29 @@ public interface TextStreamCallbacks {
     /** 注册当前上游响应体，供真正取消时从其他线程主动关闭阻塞读取。 */
     default void onResponseBody(AutoCloseable responseBody) {}
 
+    /** Internal diagnostics only. Consumers must not mutate or retain the frame or its private contents. */
+    default void onProtocolFrame(com.fasterxml.jackson.databind.JsonNode frame) {}
+
+    /** The upstream explicitly emitted its terminal marker. This is not a business success signal. */
+    default void onProtocolEndMarker() {}
+
+    /** Server-owned strategy selects public body text; it must never publish raw frames itself. */
+    default String projectPublicTextPreview(String eventJson) { return ""; }
+
+    /** Display-only projection, separate from provider result aggregation and tool execution. */
+    default void onPublicTextPreviewDelta(String delta) {}
+
+    /** Provider-returned thinking; opt-in consumer, separate from public summaries and final text. */
+    default void onProviderReasoningDelta(String content) {}
+
     // 业务含义：模型输出的可见正文增量片段（多段拼接即为完整回复）。
     void onDelta(String textDelta);
 
     /**
-     * 上游明确公开的思考内容增量，仅用于本次实时响应，不得写入任务快照或业务记录。
+     * 上游协议明确标记为可公开展示的推理摘要增量。原始 reasoning/thinking 字段不得调用此回调；
+     * 摘要仅用于本次实时响应，不得写入任务快照、对话历史或业务记录。
      */
-    default void onReasoningDelta(String reasoningDelta) {}
+    default void onPublicReasoningSummaryDelta(String summaryDelta) {}
 
     /** 完整且已结束的助手工具调用消息；调用方负责工具执行和续轮。 */
     default void onToolMessage(com.aid.media.dto.MediaTextGenerateRequest.TextMessageItem message) {}
@@ -24,6 +40,21 @@ public interface TextStreamCallbacks {
 
     // 业务含义：流式链路异常（HTTP 非 200、JSON 解析失败、上游业务错误体等）。
     void onError(String message, Throwable cause);
+
+    /**
+     * 上游返回了可判定的失败证据。HTTP 状态、错误快照和 usage 必须作为一个整体传递，
+     * 避免只转发安全短文案后把明确拒绝误判为结果未知。
+     */
+    default void onFailure(TextProviderFailureEvidence failure) {
+        if (failure == null) {
+            onError("上游请求失败", null);
+            return;
+        }
+        if (ProviderUsageSupport.hasAnyProviderUsage(failure.usage())) {
+            onUsage(failure.usage());
+        }
+        onError(failure.message(), failure.asException());
+    }
 
     // 业务含义：上游正常结束（读到 [DONE] 或流关闭且无未处理错误）。
     void onComplete();

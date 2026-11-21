@@ -106,27 +106,25 @@ public final class ModelCapabilityResolver {
         if (!isVideoAspectRatioFollowInput(modelConfig)) {
             return resolveAspectRatio(modelConfig, requested);
         }
-        String requestedValue = StrUtil.trimToNull(requested);
-        if (StrUtil.isBlank(requestedValue)) {
+        String trimmed = StrUtil.trimToNull(requested);
+        if (StrUtil.isBlank(trimmed)) {
             return resolveVideoProviderAspectRatio(modelConfig);
         }
         JsonNode capability = parseCapability(modelConfig.getCapabilityJson());
-        String configuredValue = matchOption(
-                readOptions(capability, KEY_ASPECT_RATIO_OPTIONS), requestedValue);
-        if (Objects.nonNull(configuredValue)) {
-            return configuredValue;
+        String matched = matchOption(readOptions(capability, KEY_ASPECT_RATIO_OPTIONS), trimmed);
+        if (Objects.nonNull(matched)) {
+            return matched;
         }
         String providerValue = resolveVideoProviderAspectRatio(modelConfig);
-        if (StrUtil.isNotBlank(providerValue)
-                && normalize(providerValue).equals(normalize(requestedValue))) {
+        if (StrUtil.isNotBlank(providerValue) && normalize(providerValue).equals(normalize(trimmed))) {
             return providerValue;
         }
-        String normalized = normalize(requestedValue);
+        String normalized = normalize(trimmed);
         if (isConcreteAspectRatio(normalized)) {
             return normalized;
         }
         log.info("跟随输入视频目标比例格式错误: modelCode={}, aspectRatio={}",
-                modelConfig.getModelCode(), requestedValue);
+                modelConfig.getModelCode(), trimmed);
         throw new ServiceException(MSG_ASPECT_RATIO_UNSUPPORTED);
     }
 
@@ -161,12 +159,11 @@ public final class ModelCapabilityResolver {
         if (StrUtil.isBlank(normalized) || !CONCRETE_ASPECT_RATIO.matcher(normalized).matches()) {
             return false;
         }
-        String[] dimensions = normalized.split(":", -1);
+        String[] parts = normalized.split(":", -1);
         try {
-            double width = Double.parseDouble(dimensions[0]);
-            double height = Double.parseDouble(dimensions[1]);
-            return width > 0D && height > 0D
-                    && Double.isFinite(width) && Double.isFinite(height);
+            double width = Double.parseDouble(parts[0]);
+            double height = Double.parseDouble(parts[1]);
+            return width > 0D && height > 0D && Double.isFinite(width) && Double.isFinite(height);
         } catch (NumberFormatException ex) {
             return false;
         }

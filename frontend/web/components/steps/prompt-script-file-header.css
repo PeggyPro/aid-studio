@@ -6,7 +6,7 @@
   align-items: stretch;
   padding: 6px 8px;
   height: 82px;
-  background: rgba(18, 18, 18, 1);
+  background: var(--ui-bg, rgba(18, 18, 18, 1));
   border: 1px solid transparent;
   border-radius: var(--radius-lg);
 }
@@ -89,7 +89,7 @@
 
 .prompt-script-file-header--scene-modal .scene-file-name {
   font-size: 12px;
-  color: #cfe5ff;
+  color: var(--ui-text, #cfe5ff);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -104,22 +104,42 @@
   width: 100%;
   margin-left: 0;
   margin-top: auto;
-  height: 28px;
+  min-height: 28px;
+  height: auto;
+}
+
+.prompt-script-file-header .generate-prompt-with-quote {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex: 0 1 auto;
+  min-width: 0;
+  height: 100%;
+}
+
+.prompt-script-file-header .generate-prompt-with-quote .billing-quote-hint {
+  flex: 0 0 auto;
+  width: max-content;
+}
+
+.prompt-script-file-header .generate-prompt-with-quote .generate-prompt-btn {
+  flex: 0 0 auto;
 }
 
 /* 仅非 outline 的生成按钮需要深色底（避免覆盖 modal-dark 的描边「生成提示词」） */
-.prompt-script-file-header--panel
+:where(html:not([data-aid-ui="v10"])) .prompt-script-file-header--panel
   .prompt-row-actions
   .generate-prompt-btn:not(.generate-prompt-btn--outline),
-.prompt-script-file-header--scene-modal
+:where(html:not([data-aid-ui="v10"])) .prompt-script-file-header--scene-modal
   .prompt-row-actions
   .generate-prompt-btn:not(.generate-prompt-btn--outline) {
-  background: rgba(18, 18, 18, 1) !important;
-  border: 1px solid rgba(74, 231, 253, 0.3) !important;
+  background: var(--ui-bg, rgba(18, 18, 18, 1)) !important;
+  border: 1px solid var(--ui-hair, rgba(74, 231, 253, 0.3)) !important;
 }
 
 .prompt-script-file-header .ref-link-btn {
-  color: rgba(216, 230, 252, 0.9);
+  color: var(--ui-text, rgba(216, 230, 252, 0.9));
   padding-left: 0;
   font-size: 13px;
 }
@@ -132,7 +152,7 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  color: rgba(216, 230, 252, 0.9);
+  color: var(--ui-text, rgba(216, 230, 252, 0.9));
   font-size: 13px;
   user-select: none;
   pointer-events: none;
@@ -185,19 +205,19 @@
   height: 40px;
   border-radius: 999px;
   padding: 0 18px;
-  color: #4ae7fd !important;
+  color: var(--ui-brand, #4ae7fd) !important;
   font-size: 13px;
   font-weight: 500;
   background: transparent !important;
-  border: 1px solid rgba(74, 231, 253, 0.65) !important;
+  border: 1px solid var(--ui-hair, rgba(74, 231, 253, 0.65)) !important;
   box-shadow: none !important;
 }
 
 .prompt-script-file-header .generate-prompt-btn--outline:hover,
 .prompt-script-file-header .generate-prompt-btn--outline:active {
-  background: rgba(9, 13, 20, 0.9) !important;
-  border-color: rgba(74, 231, 253, 0.65) !important;
-  color: #4ae7fd !important;
+  background: var(--ui-bg, rgba(9, 13, 20, 0.9)) !important;
+  border-color: var(--ui-ring, rgba(74, 231, 253, 0.65)) !important;
+  color: var(--ui-brand, #4ae7fd) !important;
   box-shadow: none !important;
 }
 
@@ -206,15 +226,15 @@
   height: 40px;
   border-radius: 999px !important;
   padding: 0 16px !important;
-  color: rgba(225, 239, 255, 0.95) !important;
-  background: rgba(15, 45, 72, 0.95) !important;
-  border: 1px solid rgba(74, 231, 253, 0.18) !important;
+  color: var(--ui-text, rgba(225, 239, 255, 0.95)) !important;
+  background: var(--ui-raised, rgba(15, 45, 72, 0.95)) !important;
+  border: 1px solid var(--ui-hair, rgba(74, 231, 253, 0.18)) !important;
 }
 
 .prompt-script-file-header--modal-dark .ref-link-btn:hover {
-  color: #fff !important;
-  background: rgba(22, 58, 92, 1) !important;
-  border-color: rgba(74, 231, 253, 0.35) !important;
+  color: var(--ui-text, #fff) !important;
+  background: var(--ui-hover, rgba(22, 58, 92, 1)) !important;
+  border-color: var(--ui-ring, rgba(74, 231, 253, 0.35)) !important;
 }
 /*.prompt-script-file-header--modal-dark .ref-link-btn:focus {*/
 /*  color: #fff !important;*/

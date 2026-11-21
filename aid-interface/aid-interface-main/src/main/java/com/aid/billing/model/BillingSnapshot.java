@@ -12,6 +12,15 @@ import java.util.Map;
 @Data
 public class BillingSnapshot {
 
+    /** Existing wallet settlement replay; not a fabricated provider usage observation. */
+    private String settlementRecoverySource;
+    private String settlementRecoveryLedgerDigest;
+
+    /** 历史失败错误结算按原流水退回的审计；不覆盖原始冻结价格。 */
+    private BigDecimal failedTextRefundOriginalAmount;
+    private String failedTextRefundOperator;
+    private String failedTextRefundTime;
+
     /** 模型ID */
     private Long modelId;
 
@@ -53,6 +62,10 @@ public class BillingSnapshot {
 
     /** 完整计费规则JSON（文本结算重算时使用，避免依赖实时模型配置） */
     private String billingRuleJson;
+
+    /** 历史冻结快照字段，新任务以人民币记账。 */
+    private String priceCurrency;
+    private BigDecimal exchangeRateToCny;
 
     /** 命中的SKU编码（SKU模式） */
     private String skuCode;
@@ -140,6 +153,36 @@ public class BillingSnapshot {
 
     /** 实际扣费积分（结算后回填） */
     private BigDecimal actualAmount;
+
+    /** Run总预算模式；为空表示兼容旧计费路径。 */
+    private String budgetMode;
+
+    /** Run唯一总授权及用户批准修订。 */
+    private Long billingAuthorizationId;
+    private Long billingAuthorizationRevision;
+
+    /** 本次真实调用的预算预留。 */
+    private Long billingReservationId;
+    private Long billingReservationRevision;
+
+    /** 预算所属通用Runtime运行与可选物理步骤。 */
+    private Long runtimeRunId;
+    private Long runtimeStepId;
+    /** Immutable creation-ticket fences. They are independent and must never be collapsed to one token. */
+    private Long runtimeRunFencingToken;
+    private Long runtimeStepFencingToken;
+    private String stableStepKey;
+    private Integer billingAttemptNo;
+
+    /** 与媒体任务幂等键一致的逻辑调用键及报价摘要。 */
+    private String logicalCallKey;
+    private String requestDigest;
+    private String quoteId;
+    private String quoteDigest;
+    private java.util.Date quoteExpiresAt;
+
+    /** 用户对本次调用授权的最大可扣金额；存在时禁止超预扣补扣。 */
+    private BigDecimal authorizedChargeCap;
 
     /** 退款积分（结算后回填） */
     private BigDecimal refundAmount;
@@ -233,14 +276,42 @@ public class BillingSnapshot {
 
     /** 上游回传的实际输入视频秒数 */
     private Integer actualInputVideoSeconds;
+
+    /** 上游返回的精确输入视频秒数，保留小数供审计。 */
+    private BigDecimal actualInputVideoExactSeconds;
+
+    /** 冻结规则：输入计费时长至少为输出时长。 */
+    private Boolean inputVideoMinimumOutputDuration;
     /** 每秒单价快照（PER_SECOND 计费口径使用） */
     private BigDecimal pricePerSecond;
+
+    /** Frozen optional composite pricing; null preserves all existing media billing behavior. */
+    private CompositeVideoTokenPricing compositeVideoTokens;
+    private BigDecimal estimatedCompositeInputAmount;
+    private BigDecimal estimatedCompositeOutputAmount;
+    private java.util.Map<String, Object> compositeProviderUsage;
+    /** PROVIDER_USAGE / PARTIAL_PROVIDER_USAGE / ESTIMATED; never label a missing usage as zero cost. */
+    private String compositeUsageSource;
+    private BigDecimal compositeInputAmount;
+    private BigDecimal compositeTextAmount;
+    private BigDecimal compositeReasoningAmount;
+    private BigDecimal compositeVideoAmount;
+    private Long actualMediaDurationMs;
+    private BigDecimal officialVideoBillingSeconds;
+    private BigDecimal compositeCalculatedCredits;
+    private BigDecimal compositeAmountAboveHold;
 
     /** 预扣时的预计时长秒数 */
     private Integer expectedDurationSeconds;
 
     /** 结算时的实际时长秒数 */
     private Integer actualDurationSeconds;
+
+    /** 按秒音频等服务提供的精确秒数；兼容旧整秒审计字段。 */
+    private BigDecimal actualDurationExactSeconds;
+
+    /** 按首/次套餐的可信数量；旧快照缺省按一次。 */
+    private Integer packageQuantity;
     /** SKU 整包价快照（SKU_PACKAGE 计费口径使用） */
     private BigDecimal skuPackagePrice;
 }

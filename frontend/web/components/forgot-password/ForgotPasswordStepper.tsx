@@ -31,7 +31,7 @@ export function ForgotPasswordStepper({ step }: ForgotPasswordStepperProps) {
               <span
                 className="inline-block text-[1.875rem] font-normal leading-8"
                 style={{
-                  fontFamily: '"Lantinghei SC", "PingFang SC", "Microsoft YaHei", sans-serif'
+                  fontFamily: 'var(--ui-font)'
                 }}
               >
                 {item.id}

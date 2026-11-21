@@ -73,7 +73,7 @@
 .edit-storyboard-dubbing-modal .skeleton-textarea,
 .edit-storyboard-dubbing-modal .skeleton-select,
 .edit-storyboard-dubbing-modal .skeleton-primary-btn {
-  background: linear-gradient(90deg, #2b2b2b 20%, #444444 50%, #2b2b2b 80%);
+  background: var(--ui-primary, linear-gradient(90deg, #2b2b2b 20%, #444444 50%, #2b2b2b 80%));
   background-size: 300% 100%;
   animation: storyboard-skeleton-shimmer 1.4s linear infinite;
 }

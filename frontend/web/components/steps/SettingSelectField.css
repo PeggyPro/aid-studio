@@ -4,7 +4,7 @@
   height: calc(36px * var(--create-editor-scale, 1));
   border-radius: calc(8px * var(--create-editor-scale, 1));
   border: none;
-  background: #121212;
+  background: var(--ui-bg, #121212);
   color: var(--gray-700);
   display: flex;
   align-items: center;
@@ -42,7 +42,7 @@
   height: 100%;
   min-height: 0;
   overflow: hidden;
-  background: rgba(6, 10, 18, 0.55);
+  background: var(--ui-bg, rgba(6, 10, 18, 0.55));
   padding: calc(0.75rem * var(--create-editor-scale, 1)) calc(1rem * var(--create-editor-scale, 1));
   box-sizing: border-box;
 }
@@ -75,7 +75,7 @@
   align-self: start;
   width: 100%;
   box-sizing: border-box;
-  background: rgba(12, 16, 24, 0.85);
+  background: var(--ui-bg, rgba(12, 16, 24, 0.85));
   border-radius: var(--radius-md);
   border: calc(1px * var(--create-editor-scale, 1)) solid var(--gray-200);
   cursor: pointer;
@@ -89,8 +89,8 @@
 }
 
 .setting-select-option.is-selected {
-  border-color: rgba(74, 231, 253, 0.55);
-  box-shadow: 0 0 0 calc(1px * var(--create-editor-scale, 1)) rgba(74, 231, 253, 0.25);
+  border-color: var(--ui-ring, rgba(74, 231, 253, 0.55));
+  box-shadow: var(--ui-no-shadow, 0 0 0 calc(1px * var(--create-editor-scale, 1)) rgba(74, 231, 253, 0.25));
 }
 
 .setting-select-option-thumb {
@@ -98,7 +98,7 @@
   height: calc(92px * var(--create-editor-scale, 1));
   flex-shrink: 0;
   border-radius: var(--radius-sm);
-  background: rgba(6, 10, 18, 0.55);
+  background: var(--ui-bg, rgba(6, 10, 18, 0.55));
   display: flex;
   align-items: center;
   justify-content: center;
@@ -143,9 +143,9 @@
 .setting-select-panel-fixed {
   box-sizing: border-box;
   border-radius: var(--radius-md, calc(8px * var(--create-editor-scale, 1)));
-  background: rgba(19, 23, 34, 0.98);
-  border: calc(1px * var(--create-editor-scale, 1)) solid rgba(74, 231, 253, 0.22);
-  box-shadow: 0 calc(12px * var(--create-editor-scale, 1)) calc(36px * var(--create-editor-scale, 1)) rgba(0, 0, 0, 0.45);
+  background: var(--ui-surface, rgba(19, 23, 34, 0.98));
+  border: calc(1px * var(--create-editor-scale, 1)) solid var(--ui-hair, rgba(74, 231, 253, 0.22));
+  box-shadow: var(--ui-no-shadow, 0 calc(12px * var(--create-editor-scale, 1)) calc(36px * var(--create-editor-scale, 1)) rgba(0, 0, 0, 0.45));
   overflow: hidden;
 }
 
@@ -158,3 +158,8 @@
 .setting-select-fade-leave-to {
   opacity: 0;
 }
+
+.setting-reference-unavailable { display: grid; place-content: center; justify-items: center; gap: 7px; width: 100%; height: 100%; color: var(--gray-500); font-size: 10px; line-height: 1.4; }
+.setting-reference-unavailable > .anticon { font-size: 23px; opacity: .7; }
+.setting-reference-loading { color: var(--gray-500); font-size: 10px; }
+.setting-select-option:focus-visible { outline: 2px solid var(--accent-400, #aebfe2); outline-offset: -2px; }

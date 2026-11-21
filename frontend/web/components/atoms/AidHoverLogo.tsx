@@ -1,8 +1,9 @@
 'use client'
 
-import { useEffect, useRef, useState, type CSSProperties } from 'react'
+import { useEffect,useRef,useState,type CSSProperties } from 'react'
 import './AidHoverLogo.css'
 
+/** AID 线稿 logo：入场与 hover / 定时重播时按笔画顺序描边绘制（pathLength 归一化 dash 动画） */
 const LOGO_PARTS = [
   {
     id: 'letter-a',
@@ -30,61 +31,121 @@ const DRAW_DURATION_MS = 680
 const HOVER_DRAW_DURATION_MS = 400
 const PERIODIC_INTERVAL_MS = 10_000
 const STAGGER_END_MS = LOGO_PARTS[LOGO_PARTS.length - 1].delayMs
+const INTRO_TOTAL_MS = STAGGER_END_MS + DRAW_DURATION_MS + 80
+const HOVER_TOTAL_MS = STAGGER_END_MS + HOVER_DRAW_DURATION_MS + 60
 
 type DrawMode = 'intro' | 'hover'
 
-export default function AidHoverLogo({
-  alt = 'AID',
-  className
-}: {
+interface AidHoverLogoProps {
   alt?: string
   className?: string
-}) {
+}
+
+export default function AidHoverLogo({ alt = 'AID', className }: AidHoverLogoProps) {
   const [isDrawing, setIsDrawing] = useState(false)
   const [isComplete, setIsComplete] = useState(false)
-  const [reducedMotion, setReducedMotion] = useState(false)
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false)
   const [drawMode, setDrawMode] = useState<DrawMode>('intro')
   const [drawCycle, setDrawCycle] = useState(0)
-  const drawingRef = useRef(false)
+
+  // 逻辑判断用镜像 ref，避免 interval / timeout 闭包读到过期 state
+  const reducedRef = useRef(false)
   const introFinishedRef = useRef(false)
+  const isDrawingRef = useRef(false)
+  const drawModeRef = useRef<DrawMode>('intro')
+  const hoverCooldownRef = useRef(false)
   const completeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const periodicTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  function clearTimers() {
-    if (completeTimerRef.current) clearTimeout(completeTimerRef.current)
-    if (periodicTimerRef.current) clearInterval(periodicTimerRef.current)
+  function clearCompleteTimer() {
+    if (completeTimerRef.current) {
+      clearTimeout(completeTimerRef.current)
+      completeTimerRef.current = null
+    }
+  }
+
+  function clearPeriodicTimer() {
+    if (periodicTimerRef.current) {
+      clearInterval(periodicTimerRef.current)
+      periodicTimerRef.current = null
+    }
+  }
+
+  function finishDraw(totalMs: number) {
+    clearCompleteTimer()
+    const mode = drawModeRef.current
+    completeTimerRef.current = setTimeout(() => {
+      isDrawingRef.current = false
+      setIsDrawing(false)
+      setIsComplete(true)
+      introFinishedRef.current = true
+      completeTimerRef.current = null
+
+      if (mode === 'intro') {
+        startPeriodicDraw()
+      }
+    }, totalMs)
   }
 
   function playDraw(mode: DrawMode) {
-    if (drawingRef.current || reducedMotion) return
-    drawingRef.current = true
-    setDrawMode(mode)
-    setDrawCycle((value) => value + 1)
-    setIsComplete(false)
-    setIsDrawing(false)
-    requestAnimationFrame(() => setIsDrawing(true))
-    const duration = STAGGER_END_MS + (mode === 'intro' ? DRAW_DURATION_MS : HOVER_DRAW_DURATION_MS) + 80
-    completeTimerRef.current = setTimeout(() => {
-      drawingRef.current = false
-      introFinishedRef.current = true
-      setIsDrawing(false)
+    if (reducedRef.current) {
       setIsComplete(true)
-    }, duration)
+      introFinishedRef.current = true
+      return
+    }
+
+    drawModeRef.current = mode
+    setDrawMode(mode)
+    setDrawCycle((c) => c + 1)
+    isDrawingRef.current = false
+    setIsDrawing(false)
+    setIsComplete(false)
+
+    requestAnimationFrame(() => {
+      isDrawingRef.current = true
+      setIsDrawing(true)
+      finishDraw(mode === 'intro' ? INTRO_TOTAL_MS : HOVER_TOTAL_MS)
+    })
+  }
+
+  function triggerReplayDraw() {
+    if (reducedRef.current) return
+    if (!introFinishedRef.current) return
+    if (isDrawingRef.current) return
+    if (hoverCooldownRef.current) return
+
+    hoverCooldownRef.current = true
+    playDraw('hover')
+    window.setTimeout(() => {
+      hoverCooldownRef.current = false
+    }, HOVER_TOTAL_MS)
+  }
+
+  function startPeriodicDraw() {
+    clearPeriodicTimer()
+    periodicTimerRef.current = setInterval(triggerReplayDraw, PERIODIC_INTERVAL_MS)
+  }
+
+  function onPointerEnter() {
+    triggerReplayDraw()
   }
 
   useEffect(() => {
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    setReducedMotion(reduced)
+    reducedRef.current = reduced
+    setPrefersReducedMotion(reduced)
+
     if (reduced) {
-      introFinishedRef.current = true
       setIsComplete(true)
+      introFinishedRef.current = true
     } else {
       playDraw('intro')
-      periodicTimerRef.current = setInterval(() => {
-        if (introFinishedRef.current) playDraw('hover')
-      }, PERIODIC_INTERVAL_MS)
     }
-    return clearTimers
+
+    return () => {
+      clearCompleteTimer()
+      clearPeriodicTimer()
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -92,19 +153,29 @@ export default function AidHoverLogo({
     'aid-hover-logo__group',
     isDrawing ? 'is-drawing' : '',
     isComplete ? 'is-complete' : '',
-    reducedMotion ? 'is-reduced' : '',
+    prefersReducedMotion ? 'is-reduced' : '',
     drawMode === 'hover' ? 'is-hover-draw' : ''
-  ].filter(Boolean).join(' ')
+  ]
+    .filter(Boolean)
+    .join(' ')
 
   return (
     <span
       className={className ? `aid-hover-logo ${className}` : 'aid-hover-logo'}
       role="img"
       aria-label={alt}
-      onMouseEnter={() => introFinishedRef.current && playDraw('hover')}
-      onFocus={() => introFinishedRef.current && playDraw('hover')}
+      onMouseEnter={onPointerEnter}
+      onFocus={onPointerEnter}
     >
-      <svg className="aid-hover-logo__svg" viewBox="0 0 56 56" width="56" height="56" fill="none" aria-hidden="true">
+      <svg
+        className="aid-hover-logo__svg"
+        viewBox="0 0 56 56"
+        width="56"
+        height="56"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+        aria-hidden="true"
+      >
         <g className={groupClass}>
           {LOGO_PARTS.map((part) => (
             <path

@@ -17,7 +17,7 @@ export function estimateStudioCredits(input: {
   const base = Math.max(0, input.costCredits ?? FALLBACK_COST[mediaKind])
   const count = Math.max(1, Math.floor(input.count ?? 1))
   const duration = mediaKind === 'video' ? Math.max(1, input.durationSeconds ?? 1) : 1
-  return Math.round(base * count * duration)
+  return Math.round(base * count * duration * 10_000) / 10_000
 }
 
 export function studioCreditPresentation(
@@ -30,7 +30,10 @@ export function studioCreditPresentation(
       ariaLabel: '当前模型免费'
     }
   }
-  const amount = Math.max(0, Math.round(credits))
+  const amount = new Intl.NumberFormat('zh-CN', {
+    useGrouping: false,
+    maximumFractionDigits: 4
+  }).format(Math.max(0, credits))
   if (options?.authoritative) {
     return {
       visible: String(amount),

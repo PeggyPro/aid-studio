@@ -2,17 +2,21 @@ import type {
   StudioCanvasNode,
   StudioFlowBinding,
   StudioFlowEdge,
-  StudioFlowStep
+  StudioFlowStep,
+  StudioGroup
 } from '@/types/studio'
+import { reconcileStudioGroupsForNodes } from './studioGroup'
 import { placeNewStudioNodesWithoutOverlap } from './studioNodePlacement'
 
 export interface StudioFlowGraphSnapshot {
   nodes: StudioCanvasNode[]
   edges: StudioFlowEdge[]
+  groups?: StudioGroup[]
 }
 
 /**
- * 服务端快照覆盖流程业务字段；本地只保留流程实体的布局。
+ * 服务端快照覆盖流程业务字段；本地只保留布局、选择/折叠和用户连线。
+ * 不带 flowBinding 的画布专属节点始终保留。
  */
 export function reconcileStudioFlowGraph(
   current: StudioFlowGraphSnapshot,
@@ -41,6 +45,7 @@ export function reconcileStudioFlowGraph(
       ? [[node.data.flowBinding.bindingKey, node] as const]
       : [])
   )
+  const legacyBusinessNodes = new Set(current.nodes.filter(isLegacyStudioFlowBusinessNode).map((node) => node.id))
   const existingByBinding = new Map(directExistingByBinding)
   current.nodes.forEach((node) => {
     if (node.data.flowBinding) return
@@ -73,6 +78,9 @@ export function reconcileStudioFlowGraph(
       flowLayoutOnly: undefined
     })
   })
+  const canvasOnlyNodes = current.nodes.filter((node) =>
+    !node.data.flowBinding && !legacyBusinessNodes.has(node.id)
+  )
   const preservedFailedStepNodes = current.nodes.flatMap((node) => {
     const binding = node.data.flowBinding
     if (!binding || !shouldPreserveBinding(binding) || incomingBindings.has(binding.bindingKey)) return []
@@ -80,13 +88,18 @@ export function reconcileStudioFlowGraph(
       ? { ...node, data: { ...node.data, ...unavailableFlowData(node.data) } }
       : node]
   })
-  let nodes = [...preservedFailedStepNodes, ...flowNodes]
+  let nodes = [...canvasOnlyNodes, ...preservedFailedStepNodes, ...flowNodes]
   if (newFlowNodeIds.size) {
     nodes = placeNewStudioNodesWithoutOverlap(nodes, (node) => newFlowNodeIds.has(node.id))
   }
+  const reconciledGroups = current.groups ? reconcileStudioGroupsForNodes(nodes, current.groups) : null
+  if (reconciledGroups) nodes = reconciledGroups.nodes
   const survivingIds = new Set(nodes.map((node) => node.id))
   const preservedFailedStepIds = new Set(preservedFailedStepNodes.map((node) => node.id))
 
+  const userEdges = current.edges.filter((edge) =>
+    !edge.data?.flowManaged && survivingIds.has(edge.source) && survivingIds.has(edge.target)
+  )
   const incomingManagedBindings = new Set(incoming.edges.flatMap((edge) =>
     edge.data?.flowManaged && edge.data.bindingKey ? [edge.data.bindingKey] : []
   ))
@@ -118,7 +131,8 @@ export function reconcileStudioFlowGraph(
   })
   return {
     nodes,
-    edges: [...preservedManagedEdges, ...managedEdges]
+    edges: [...userEdges, ...preservedManagedEdges, ...managedEdges],
+    ...(reconciledGroups ? { groups: reconciledGroups.groups } : {})
   }
 }
 
@@ -177,7 +191,9 @@ function mergeServerNodeWithLocalLayout(
       // 模型、参数和 Composer 引用是本次画布会话的提交配置；业务刷新不能把
       // 用户刚选择的值重置为 createStudioNode 的空值或默认值。
       ...localComposerData,
-      composerAgentOpen: local.data.composerAgentOpen
+      composerAgentOpen: local.data.composerAgentOpen,
+      highlightRefNodeId: local.data.highlightRefNodeId,
+      groupId: local.data.groupId
     }
   }
 }

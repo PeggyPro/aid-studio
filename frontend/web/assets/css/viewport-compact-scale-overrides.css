@@ -148,7 +148,7 @@ html[data-viewport-compact-scale='1'] .select-asset-image-modal-wrap .saim-sideb
 }
 
 html[data-viewport-compact-scale='1'] .select-asset-image-modal-wrap .saim-sidebar-scroll:hover::-webkit-scrollbar-thumb {
-  background: rgba(120, 140, 170, 0.45) !important;
+  background: var(--ui-raised, rgba(120, 140, 170, 0.45)) !important;
   border-radius: 4px !important;
 }
 
@@ -182,7 +182,7 @@ html[data-viewport-compact-scale='1'] .select-asset-image-modal-wrap .saim-main-
 }
 
 html[data-viewport-compact-scale='1'] .select-asset-image-modal-wrap .saim-main-scroll:hover::-webkit-scrollbar-thumb {
-  background: rgba(120, 140, 170, 0.45) !important;
+  background: var(--ui-raised, rgba(120, 140, 170, 0.45)) !important;
   border-radius: 4px !important;
 }
 }
@@ -191,7 +191,12 @@ html[data-viewport-compact-scale='1'] .ant-select-dropdown,
 html[data-viewport-compact-scale='1'] .ant-popover,
 html[data-viewport-compact-scale='1'] .ant-dropdown,
 html[data-viewport-compact-scale='1'] .ant-tooltip,
-html[data-viewport-compact-scale='1'] .ant-picker-dropdown {
+html[data-viewport-compact-scale='1'] .ant-picker-dropdown,
+html[data-viewport-compact-scale='1'] .driver-popover,
+html[data-viewport-compact-scale='1'] .onboarding-driver-popover,
+html[data-viewport-compact-scale='1'] .onboarding-spotlight-ring,
+html[data-viewport-compact-scale='1'] .onboarding-spotlight-connector,
+html[data-viewport-compact-scale='1'] .onboarding-spotlight-skip {
   zoom: calc(1 / var(--viewport-scale-factor, 0.75));
 }
 

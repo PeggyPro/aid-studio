@@ -118,8 +118,12 @@ public final class TextTokenEstimator {
     private static String toolContext(MediaTextGenerateRequest request) {
         if (request == null) return "";
         java.util.List<Object> values = new java.util.ArrayList<>();
+        values.add(com.aid.media.security.PromptConfidentialityPolicy.wrap(""));
         if (request.getOptions() != null && request.getOptions().get("suffix") instanceof String suffix) values.add(suffix);
         if (request.getOptions() != null && request.getOptions().get("tools") != null) values.add(request.getOptions().get("tools"));
+        if (request.getOptions() != null && Boolean.TRUE.equals(request.getOptions().get("_aid_structured_output_enabled"))
+                && request.getOptions().get("_aid_structured_output_schema") != null)
+            values.add(request.getOptions().get("_aid_structured_output_schema"));
         if (request.getMessages() != null) for (var message : request.getMessages()) {
             if (message == null) continue;
             if (message.getResponseItems() != null) values.add(message.getResponseItems());
@@ -134,52 +138,11 @@ public final class TextTokenEstimator {
     }
 
     private static long balancedQuarterTokens(String text) {
-        if (text == null || text.isEmpty()) {
-            return 0L;
-        }
-        long units = 0L;
-        int asciiRun = 0;
-        for (int offset = 0; offset < text.length();) {
-            int cp = text.codePointAt(offset);
-            offset += Character.charCount(cp);
-            if (cp <= 0x7f && Character.isLetterOrDigit(cp)) {
-                asciiRun++;
-                units = safeAdd(units, 1L);
-                continue;
-            }
-            if (asciiRun > 0) {
-                units = safeAdd(units, 1L + (asciiRun >= 32 ? asciiRun : 0L));
-                asciiRun = 0;
-            }
-            if (cp <= 0x7f && Character.isWhitespace(cp)) {
-                continue;
-            }
-            if (cp <= 0x7f) {
-                units = safeAdd(units, 4L);
-            } else if (Character.isSupplementaryCodePoint(cp)) {
-                units = safeAdd(units, 8L);
-            } else {
-                units = safeAdd(units, 6L);
-            }
-        }
-        if (asciiRun > 0) {
-            units = safeAdd(units, 1L + (asciiRun >= 32 ? asciiRun : 0L));
-        }
-        return units;
+        return com.aid.context.TextContentMetrics.measure(text).quarterTokens();
     }
 
     private static long utf8Length(String text) {
-        if (text == null || text.isEmpty()) {
-            return 0L;
-        }
-        long bytes = 0L;
-        for (int offset = 0; offset < text.length();) {
-            int cp = text.codePointAt(offset);
-            offset += Character.charCount(cp);
-            bytes = safeAdd(bytes, cp <= 0x7f ? 1L : cp <= 0x7ff ? 2L
-                    : Character.isSupplementaryCodePoint(cp) ? 4L : 3L);
-        }
-        return bytes;
+        return com.aid.context.TextContentMetrics.measure(text).utf8Bytes();
     }
 
     /** 多模态预授权使用保守内部估算；最终结算以供应商 usage 为准。 */

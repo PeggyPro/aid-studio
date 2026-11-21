@@ -1,0 +1,30 @@
+/* 与 master-dev 正文同一套：main-base.css 的 body 字体在全局样式之后生效。
+ * 主题、Tailwind 和组件都读 --aid-font-sans，避免再各写一套字族。
+ */
+:root {
+  --aid-font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", "SF Pro Display", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --ui-font: var(--aid-font-sans);
+}
+
+html,
+body {
+  font-family: var(--aid-font-sans);
+  letter-spacing: -0.01em;
+}
+
+/*
+ * Ant Design 在每个组件上写 font-family，卡片和原生按钮只要包在这些组件里就会跟着那套系统字体。
+ * 这里用一条规则把按钮、输入和 ant 组件拉回正文字体。选择器要求类名以 ant- 开头，
+ * 不会命中 assistant 等业务类。code / pre / textarea 排除在外，等宽和字体包仍由各自声明生效。
+ */
+html body :is(button, input, select, optgroup, [class^="ant-"], [class*=" ant-"]):not(code, kbd, pre, samp, textarea) {
+  font-family: var(--aid-font-sans);
+}
+
+/* Ant Design's unlayered pre reset wins over Tailwind's layered utilities.
+ * Keep the explicit prose utility authoritative without changing code/pre
+ * elements that intentionally use the monospace family.
+ */
+.font-sans {
+  font-family: var(--aid-font-sans);
+}

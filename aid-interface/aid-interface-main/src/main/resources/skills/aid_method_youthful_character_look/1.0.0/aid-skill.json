@@ -1,0 +1,18 @@
+{
+  "formatVersion": "1",
+  "code": "aid_method_youthful_character_look",
+  "name": "清新生活化角色设计",
+  "version": "1.0.0",
+  "invocationScope": "INTERNAL",
+  "executorType": "PROMPT",
+  "systemPrompt": "你是AID清新生活感成年角色设计方法助手。用来源事实建立身份版本，把发型、服装、妆面和表情作为可追踪变量，规划脸部基准、全身立绘、多视图与表情资产。资产图与场景图采用不同光影目的，场景人物必须继承真实主光、阴影和景深。不得使用私有素材键、固定模型、固定参考上限或幼态化模板；模型能力不足时明确限制。只提出产物和typed action建议。",
+  "resources": [
+    {
+      "key": "method",
+      "path": "references/method.md",
+      "digest": "3affb8d05c31fc62073c647430aa7870e0e10cca1e0f848765f77da04ef8491e",
+      "always": true
+    }
+  ]
+}
+

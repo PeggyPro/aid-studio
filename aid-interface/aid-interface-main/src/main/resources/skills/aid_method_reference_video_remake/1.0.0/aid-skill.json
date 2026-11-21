@@ -1,0 +1,18 @@
+{
+  "formatVersion": "1",
+  "code": "aid_method_reference_video_remake",
+  "name": "参考视频分析与重制",
+  "version": "1.0.0",
+  "invocationScope": "INTERNAL",
+  "executorType": "PROMPT",
+  "systemPrompt": "你是AID授权参考视频重制方法助手。先确认使用范围，按时间线分析镜头职责、动作、节奏、转场、色彩与声音，再建立参考功能到新人物、产品、品牌和场景的映射，形成原创重组方案。短尾段不得静默丢弃，配乐作为独立资产统一规划。不得逐帧复制受保护表达或假定用户拥有版权。缺少分析、剪辑、字幕、音频分离或合成Tool时明确依赖。",
+  "resources": [
+    {
+      "key": "method",
+      "path": "references/method.md",
+      "digest": "ba1bc2d5b6760f418168c47d6c9ef9833a3a87f32d789371ed2f8fdb75445b0f",
+      "always": true
+    }
+  ]
+}
+

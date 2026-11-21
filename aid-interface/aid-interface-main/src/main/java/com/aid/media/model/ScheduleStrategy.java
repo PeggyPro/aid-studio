@@ -46,11 +46,14 @@ public class ScheduleStrategy {
     /** 轮询退避增长的计数上限；达到后保持最大间隔继续轮询，不参与任务终态判定 */
     private int maxRetryCount;
 
+    /** Consecutive upstream query failures before ending the task and refunding its hold. */
+    private int maxConsecutiveQueryFailures = 3;
+
     /** 生命周期对账阈值（秒）：达到后强制查上游，但不作为本地判失败依据 */
     private int maxLifeSeconds;
 
     /**
-     * 无进展超时（秒）：距最近一次观测到上游仍在推进超过该时长即判上游已死。
+     * 无进展复查阈值（秒）：距最近一次有效进展超过该时长则查询上游，不直接判失败。
      * ≤0 表示未配置，此时回落到 {@link #maxLifeSeconds}，行为与拆分前的单时钟完全一致。
      */
     private int progressTimeoutSeconds;

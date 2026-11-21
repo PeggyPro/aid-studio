@@ -13,7 +13,7 @@ requeueStep3SseItemToEnd,
 tryAcquireStep3SseSlot
 } from '~/utils/step3SseConcurrencyGate'
 import { resolveFormImageEditPrefill, shouldApplyFormImageDialoguePrefill } from '~/utils/formImageEditPrefill'
-import { storyboardPromptHtmlToPlain } from '~/utils/storyboardPromptAssetRef'
+import { htmlToPlainText } from '~/utils/htmlPlain'
 import type {
   EditSceneImageModalCtx,
   ResolvedEditSceneImageModalProps
@@ -93,7 +93,7 @@ useEffect(() => {
       preserveComposer: preserveDialogueComposer.current,
       selectionChanged,
       modalJustOpened,
-      currentInstructionPlain: storyboardPromptHtmlToPlain(dialogueInstructionHtml.get() || ''),
+      currentInstructionPlain: htmlToPlainText(dialogueInstructionHtml.get() || ''),
       incomingPromptText
     })
   ) {

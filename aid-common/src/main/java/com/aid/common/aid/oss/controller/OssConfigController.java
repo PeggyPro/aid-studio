@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.aid.common.aid.oss.core.OssTemplate;
+import com.aid.common.aid.oss.config.OssConfigManager;
 import com.aid.common.aid.oss.vo.OssUploadLimitsVO;
 import com.aid.common.core.domain.AjaxResult;
 
@@ -28,6 +29,9 @@ public class OssConfigController
     @Autowired
     private OssTemplate ossTemplate;
 
+    @Autowired
+    private OssConfigManager ossConfigManager;
+
     /**
      * 刷新OSS配置
      * 在配置页面修改后点击"刷新配置"按钮调用
@@ -36,8 +40,16 @@ public class OssConfigController
     @PostMapping("/refresh")
     public AjaxResult refresh()
     {
-        ossTemplate.refresh();
+        ossConfigManager.synchronizeConfig();
         return AjaxResult.success();
+    }
+
+    /** 所有已登录后台页面可读取配置状态；不泄露任何配置值。 */
+    @PreAuthorize("isAuthenticated()")
+    @GetMapping("/status")
+    public AjaxResult getConfigurationStatus()
+    {
+        return AjaxResult.success(ossConfigManager.getConfigurationStatus());
     }
 
     /**

@@ -1,0 +1,61 @@
+@import '../theme/studio-surface-motion.css';
+
+/* A self-contained panel supplies its own material and corners exactly once. */
+.studio-canvas-popover--content-surface.ant-popover :is(.ant-popover-container, .ant-popover-inner) { padding: 0; border: 0; border-radius: inherit; background: transparent; box-shadow: none; }
+.studio-canvas-popover--content-surface :is(.ant-popover-content, .ant-popover-inner-content) { padding: 0; border-radius: inherit; }
+
+.studio-composer-popup-fit {
+  display: flow-root;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+/* 依据最终 placement 决定展开轴和原点，兼容视口边缘翻转与节点缩放。 */
+.studio-canvas-popover-motion {
+  --studio-popup-origin: center bottom;
+  --studio-popup-start: scaleY(.8);
+}
+.studio-canvas-popover-motion[class*='-placement-bottom'] { --studio-popup-origin: center top; }
+.studio-canvas-popover-motion[class*='-placement-left'] {
+  --studio-popup-origin: right center;
+  --studio-popup-start: scaleX(.8);
+}
+.studio-canvas-popover-motion[class*='-placement-right'] {
+  --studio-popup-origin: left center;
+  --studio-popup-start: scaleX(.8);
+}
+
+.studio-canvas-popover-in-enter,
+.studio-canvas-popover-in-appear { opacity: 0; }
+.studio-canvas-popover-in-enter-active,
+.studio-canvas-popover-in-appear-active,
+.studio-canvas-popover-in-leave-active {
+  opacity: 1;
+  animation: studio-surface-presence var(--studio-surface-enter-duration) linear both;
+}
+.studio-canvas-popover-motion .ant-popover-container { transform-origin: var(--studio-popup-origin); }
+.studio-canvas-popover-in-enter-active .ant-popover-container,
+.studio-canvas-popover-in-appear-active .ant-popover-container {
+  animation: studio-popup-expand var(--studio-surface-enter-duration) var(--studio-surface-enter-ease) both;
+}
+.studio-canvas-popover-in-leave-active { pointer-events: none; }
+.studio-canvas-popover-in-leave-active .ant-popover-container {
+  animation: studio-popup-collapse var(--studio-surface-exit-duration) var(--studio-surface-exit-ease) both;
+}
+@keyframes studio-popup-expand {
+  from { opacity: 0; transform: var(--studio-popup-start); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes studio-popup-collapse {
+  from { opacity: 1; transform: none; }
+  to { opacity: 0; transform: var(--studio-popup-start); }
+}
+.studio-canvas-popover-in-enter[style*='-1000vw'],
+.studio-canvas-popover-in-appear[style*='-1000vw'] { visibility: hidden; }
+
+@media (prefers-reduced-motion: reduce) {
+  .studio-canvas-popover-in-enter,
+  .studio-canvas-popover-in-appear { opacity: 1; }
+  .studio-canvas-popover-motion,
+  .studio-canvas-popover-motion .ant-popover-container { animation: none !important; }
+}

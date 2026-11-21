@@ -12,14 +12,10 @@ captureCreationLiveGenScope,
 matchesCreationLiveGenScope
 } from '~/composables/useCreationLiveGenScopeGuard'
 import { getRouteLikeSnapshot } from '~/composables/useRouteLike'
-import {
-fetchUserTaskDetailOnce,
-} from '~/composables/useTaskSseFollow'
-import type { TaskProgressEventData } from '~/composables/useTaskStream'
 import { useCreationStore } from '~/stores/creation'
 import type { StoryboardPanel } from '~/types'
 import type { UserTaskDetailData,UserTaskRow } from '~/types/business-api'
-import { userStoryboardGenerateScript } from '~/utils/businessApi'
+import { userStoryboardGenerateScript, userTaskDetailCached } from '~/utils/businessApi'
 import { buildStoryboardScriptSubmitBody } from '~/utils/storyboardScriptSubmitBody'
 import { stripStoryboardScriptSkeletonPanels } from '~/utils/storyboardPanelMap'
 import {
@@ -33,13 +29,11 @@ pickOngoingStoryboardScriptTask,
 refreshStoryboardScriptPanelsFromApi as refreshPanelsFromApi,
 resolveScenePlotCountHint,
 seedStoryboardScriptProgressFromDetailRecord as seedProgressFromDetailRecord,
-trackStoryboardScriptTaskUntilDone,
-type StoryboardScriptTrackOutcome
+trackStoryboardScriptTaskUntilDone
 } from '~/utils/storyboardScriptBatchTrack'
 import {
 resumeUserTask
 } from '~/utils/taskPartialFailed'
-import { EMPTY_COUNT_PROGRESS } from '~/utils/taskSseProgressText'
 import {
 fetchFlowUserTaskList,
 filterUserTaskRowsForEpisode
@@ -62,19 +56,13 @@ function createStoryboardScriptBatchGenerate() {
   let stopRequested = false
   let resumeFollowGeneration = 0
   let restoreSessionInFlight: Promise<void> | null = null
+  let restoreScopeKey = ''
   let followInFlight: Promise<{
     ok: boolean
     panels: StoryboardPanel[]
     message?: string
   }> | null = null
-
-  const trackCtx = {
-    isStopRequested: () => stopRequested,
-    getResumeFollowGeneration: () => resumeFollowGeneration,
-    setStreamCloser: (closer: (() => void) | null) => {
-      streamCloser = closer
-    }
-  }
+  let followOwner: { taskId: number; scopeKey: string; generation: number } | null = null
 
   function closeStream() {
     const close = streamCloser
@@ -103,17 +91,10 @@ function createStoryboardScriptBatchGenerate() {
     getStore().applyStoryboardScriptSseProgress(p)
   }
 
-  async function seedProgressFromTaskDetail(taskId: number) {
-    const detail = await fetchUserTaskDetailOnce(taskId)
-    seedProgressFromDetailRecord(detail)
-  }
-
-  async function trackTaskUntilDone(
-    taskId: number,
-    onSseProgress: (p: TaskProgressEventData) => void,
-    options?: { startDetail?: UserTaskDetailData | null }
-  ): Promise<StoryboardScriptTrackOutcome> {
-    return trackStoryboardScriptTaskUntilDone(taskId, onSseProgress, trackCtx, options)
+  function isFollowingTask(taskId: number) {
+    return !!followInFlight && followOwner?.taskId === taskId &&
+      followOwner.scopeKey === captureCreationLiveGenScope().scopeKey &&
+      followOwner.generation === resumeFollowGeneration
   }
 
   async function followExistingTask(
@@ -125,14 +106,21 @@ function createStoryboardScriptBatchGenerate() {
     panels: StoryboardPanel[]
     message?: string
   }> {
+    if (followInFlight && isFollowingTask(taskId)) return followInFlight
+
+    closeStream()
+    const routeCtx = captureCreationLiveGenScope()
+    const owner = { taskId, scopeKey: routeCtx.scopeKey, generation: resumeFollowGeneration }
+    followOwner = owner
+    const isCurrent = () => followOwner === owner && owner.generation === resumeFollowGeneration &&
+      matchesCreationLiveGenScope(routeCtx)
+
     const run = async (): Promise<{
       ok: boolean
       panels: StoryboardPanel[]
       message?: string
     }> => {
-      const followGen = resumeFollowGeneration
       stopRequested = false
-      const routeCtx = captureCreationLiveGenScope()
       syncActiveTaskIdToStore(taskId)
       getStore().setStoryboardGenerating(true)
       getStore().setStoryboardError(null)
@@ -146,21 +134,19 @@ function createStoryboardScriptBatchGenerate() {
       if (!getStore().storyboardGenerationProgress.total) {
         getStore().setStoryboardProgress(0, progressTotal)
       }
-      if (options?.startDetail) {
-        seedProgressFromDetailRecord(options.startDetail)
-      } else {
-        await seedProgressFromTaskDetail(taskId)
-      }
-
-      // 生成过程中只靠 SSE 更新进度文案，不轮询 storyboard/list（等终态再拉一次）
+      const startDetail = options?.startDetail ?? await userTaskDetailCached(taskId, { force: true }).catch(() => null)
+      if (isCurrent() && !stopRequested) seedProgressFromDetailRecord(startDetail)
       const workingPanels = stripStoryboardScriptSkeletonPanels(currentPanels)
 
-      const outcome = await trackTaskUntilDone(taskId, (p) => {
-        if (followGen !== resumeFollowGeneration) return
-        if (!matchesCreationLiveGenScope(routeCtx)) return
-        applySseProgress(p)
-      })
-      if (followGen !== resumeFollowGeneration) {
+      const outcome = await trackStoryboardScriptTaskUntilDone(taskId, applySseProgress, {
+        isCurrent,
+        isStopRequested: () => stopRequested,
+        registerStop: (stop) => {
+          streamCloser = stop
+          return () => { if (streamCloser === stop) streamCloser = null }
+        }
+      }, startDetail)
+      if (!isCurrent()) {
         return {
           ok: false,
           panels: workingPanels,
@@ -169,21 +155,6 @@ function createStoryboardScriptBatchGenerate() {
       }
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('create-flow-global-tasks-updated'))
-      }
-
-      /** 剧集隔离：已切集时只写任务所属 scope 桶；禁止先动当前集扁平字段（syncActiveTaskIdToStore 写当前 scope） */
-      if (!matchesCreationLiveGenScope(routeCtx)) {
-        getStore().mergeStep4PlusLiveGenForScopeKey(routeCtx.scopeKey, {
-          isGeneratingStoryboard: false,
-          storyboardGenerationProgress: { ...EMPTY_COUNT_PROGRESS },
-          storyboardGenerationError: null,
-          storyboardScriptActiveTaskId: null
-        })
-        return { ok: false, panels: workingPanels, message: '已切换作品，任务仍在后台进行' }
-      }
-
-      if (!outcome.partial && !outcome.ongoing) {
-        syncActiveTaskIdToStore(null)
       }
 
       if (outcome.ongoing) {
@@ -200,12 +171,19 @@ function createStoryboardScriptBatchGenerate() {
       // 仅在任务终态（成功 / 部分失败 / 失败）后拉一次分镜列表
       let panels = workingPanels
       try {
-        panels = await refreshPanelsFromApi()
+        panels = await refreshPanelsFromApi(isCurrent)
       } catch (e: unknown) {
-        if (outcome.ok) {
-          return { ok: false, panels: workingPanels, message: bizErr(e) || '分镜已生成，但刷新列表失败' }
+        if (isCurrent() && outcome.ok) {
+          const text = `分镜已生成，但同步列表失败：${bizErr(e)}`
+          syncActiveTaskIdToStore(null)
+          applyStoryboardScriptFailedOutcome(text, workingPanels)
+          return { ok: false, panels: workingPanels, message: text }
         }
       }
+      if (!isCurrent()) {
+        return { ok: false, panels: workingPanels, message: '任务仍在后台执行，请稍候或刷新页面自动恢复进度' }
+      }
+      if (!outcome.partial) syncActiveTaskIdToStore(null)
 
       if (outcome.ok) {
         const total = Math.max(
@@ -249,6 +227,7 @@ function createStoryboardScriptBatchGenerate() {
     } finally {
       if (followInFlight === pending) {
         followInFlight = null
+        followOwner = null
       }
     }
   }
@@ -265,15 +244,18 @@ function createStoryboardScriptBatchGenerate() {
     onPanelsUpdate: (panels: StoryboardPanel[]) => void,
     onShowGeneratingSkeleton: () => void
   ): Promise<void> {
+    if (isFollowingTask(Number(getStore().storyboardScriptActiveTaskId))) return Promise.resolve()
+    const { scopeKey } = captureCreationLiveGenScope()
     return restoreStoryboardScriptGeneration({
       getStore,
-      getRestoreSessionInFlight: () => restoreSessionInFlight,
+      getRestoreSessionInFlight: () => restoreScopeKey === scopeKey ? restoreSessionInFlight : null,
       setRestoreSessionInFlight: (pending) => {
+        restoreScopeKey = pending ? scopeKey : ''
         restoreSessionInFlight = pending
       },
       nextResumeFollowGeneration: () => ++resumeFollowGeneration,
       getResumeFollowGeneration: () => resumeFollowGeneration,
-      getFollowInFlight: () => followInFlight,
+      hasCurrentFollow: () => isFollowingTask(Number(getStore().storyboardScriptActiveTaskId)),
       activeTaskId,
       isTaskFollowPaused,
       followExistingTask,
@@ -287,7 +269,7 @@ function createStoryboardScriptBatchGenerate() {
    */
   async function runBatchGenerate(
     currentPanels: StoryboardPanel[],
-    options?: { manualAgentModelPick?: boolean; sceneIds?: number[] }
+    options?: { manualAgentModelPick?: boolean; sceneIds?: number[]; overwrite?: boolean }
   ): Promise<{
     ok: boolean
     panels: StoryboardPanel[]
@@ -295,13 +277,17 @@ function createStoryboardScriptBatchGenerate() {
   }> {
     stopRequested = false
     taskProgressMessage.value = ''
+    const scope = captureCreationLiveGenScope()
+    const switched = { ok: false, panels: currentPanels, message: '已切换作品，任务仍在后台执行' }
     const submitBody = await buildStoryboardScriptSubmitBody({
       store: getStore(),
       route: getRouteLikeSnapshot(),
       currentPanels,
       sceneIds: options?.sceneIds,
-      manualAgentModelPick: options?.manualAgentModelPick
+      manualAgentModelPick: options?.manualAgentModelPick,
+      overwrite: options?.overwrite
     })
+    if (!matchesCreationLiveGenScope(scope)) return switched
     if (!submitBody) {
       return { ok: false, panels: currentPanels, message: '缺少项目信息，请从「我的作品」打开作品后再操作' }
     }
@@ -313,6 +299,7 @@ function createStoryboardScriptBatchGenerate() {
     try {
       submitted = await userStoryboardGenerateScript(submitBody)
     } catch (e: unknown) {
+      if (!matchesCreationLiveGenScope(scope)) return switched
       const msg = bizErr(e)
       if (isStoryboardScriptTaskBusyMessage(msg)) {
         let tasks: UserTaskRow[] = []
@@ -325,6 +312,7 @@ function createStoryboardScriptBatchGenerate() {
         } catch {
           tasks = []
         }
+        if (!matchesCreationLiveGenScope(scope)) return switched
         const ongoingTask = pickOngoingStoryboardScriptTask(
           tasks,
           getStore().storyboardScriptActiveTaskId
@@ -346,6 +334,7 @@ function createStoryboardScriptBatchGenerate() {
       return { ok: false, panels: currentPanels, message: msg }
     }
 
+    if (!matchesCreationLiveGenScope(scope)) return switched
     const taskId = parseTaskId(submitted.taskId)
     if (!taskId) {
       return { ok: false, panels: currentPanels, message: '提交失败：未返回任务ID' }
@@ -384,12 +373,16 @@ function createStoryboardScriptBatchGenerate() {
     }
     stopRequested = false
     taskProgressMessage.value = ''
+    const scope = captureCreationLiveGenScope()
     let resumeTotalBatches = 0
     try {
       const resumed = await resumeUserTask(id, 'storyboard_script_batch')
       resumeTotalBatches = Number(resumed.totalBatches)
     } catch (e: unknown) {
       return { ok: false, panels: currentPanels, message: bizErr(e) }
+    }
+    if (!matchesCreationLiveGenScope(scope)) {
+      return { ok: false, panels: currentPanels, message: '已切换作品，任务仍在后台进行' }
     }
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('create-flow-global-tasks-updated'))
@@ -401,15 +394,9 @@ function createStoryboardScriptBatchGenerate() {
     if (Number.isFinite(resumeTotalBatches) && resumeTotalBatches > 0) {
       getStore().setStoryboardProgress(0, resumeTotalBatches)
     }
-    const result = await followExistingTask(id, currentPanels, {
+    return followExistingTask(id, currentPanels, {
       progressTotalHint: resumeTotalBatches > 0 ? resumeTotalBatches : undefined
     })
-    if (result.ok) {
-      applyStoryboardScriptSuccessOutcome()
-    } else if (!stopRequested && !result.message?.includes('部分') && !result.message?.includes('续生')) {
-      applyStoryboardScriptFailedOutcome(result.message || '分镜续生失败', result.panels)
-    }
-    return result
   }
 
   async function resumeTrackFromGlobal(
@@ -423,15 +410,7 @@ function createStoryboardScriptBatchGenerate() {
     getStore().removePausedTaskFollow(id)
     getStore().setStoryboardGenerating(true)
     getStore().setStoryboardError(null)
-    const result = await followExistingTask(id, currentPanels)
-    if (result.ok) {
-      applyStoryboardScriptSuccessOutcome()
-    } else if (!stopRequested) {
-      if (!result.message?.includes('部分') && !result.message?.includes('续生')) {
-        applyStoryboardScriptFailedOutcome(result.message || '分镜生成失败', result.panels)
-      }
-    }
-    return result
+    return followExistingTask(id, currentPanels)
   }
 
   const {
@@ -450,11 +429,15 @@ function createStoryboardScriptBatchGenerate() {
     refreshPanelsFromApi,
     syncActiveTaskIdToStore,
     resumeTrackFromGlobal,
-    nextResumeFollowGeneration: () => resumeFollowGeneration++
+    nextResumeFollowGeneration: () => {
+      restoreSessionInFlight = null
+      return ++resumeFollowGeneration
+    }
   })
 
   return {
     activeTaskId,
+    isFollowingTask,
     taskProgressMessage,
     runBatchGenerate,
     requestStop,

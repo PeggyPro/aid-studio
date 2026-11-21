@@ -198,6 +198,10 @@ public final class FixedJobRegistry
      * 可选任务：日志清理归档类，允许用户开关。
      */
     private static final List<JobDef> DEFS = List.of(
+            fixed("assistantRecoveryTask.reconcile", "assistantRecoveryTask.reconcile(20)",
+                    "助手运行恢复扫描", "0/30 * * * * ?", 30, 10, 300,
+                    ScheduleConstants.MISFIRE_DO_NOTHING,
+                    "按数据库租约和 fencing token 恢复到期助手运行，仅调用协调器核对，不直接重提供应商任务"),
             // ==================== 固定任务（禁止关闭） ====================
             fixed("mediaTask.dispatch", "mediaTask.dispatch", "媒体任务统一调度中心",
                     "0/10 * * * * ?", 10, 5, 30, ScheduleConstants.MISFIRE_DO_NOTHING,

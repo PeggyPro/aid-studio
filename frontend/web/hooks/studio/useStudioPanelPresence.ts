@@ -1,14 +1,24 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 
 export const STUDIO_PANEL_MOTION_MS = 220
+
+const motionPreference = '(prefers-reduced-motion: reduce)'
+const readReducedMotion = () => typeof window !== 'undefined' && Boolean(window.matchMedia?.(motionPreference).matches)
+const subscribeReducedMotion = (notify: () => void) => {
+  const media = typeof window !== 'undefined' ? window.matchMedia?.(motionPreference) : undefined
+  media?.addEventListener('change', notify)
+  return () => media?.removeEventListener('change', notify)
+}
+const serverReducedMotion = () => false
 
 export function useStudioPanelPresence(
   open: boolean,
   options?: { reducedMotion?: boolean; durationMs?: number }
 ) {
-  const reducedMotion = Boolean(options?.reducedMotion)
+  const systemReducedMotion = useSyncExternalStore(subscribeReducedMotion, readReducedMotion, serverReducedMotion)
+  const reducedMotion = options?.reducedMotion ?? systemReducedMotion
   const durationMs = options?.durationMs ?? STUDIO_PANEL_MOTION_MS
   const [held, setHeld] = useState(open)
   const heldRef = useRef(open)

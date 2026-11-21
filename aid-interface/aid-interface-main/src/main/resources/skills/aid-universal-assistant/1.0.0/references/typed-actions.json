@@ -1,0 +1,1079 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "aid.assistant-loop.decision-reference.v1",
+  "title": "AID assistant-loop/v1 single-decision output reference",
+  "description": "Resource-side reference only. The frozen agent version outputSchemaJson is authoritative at runtime.",
+  "type": "object",
+  "required": [
+    "protocolVersion",
+    "decisionId",
+    "observedRunRevision",
+    "observedPlanRevision",
+    "action",
+    "chat",
+    "ask",
+    "plan",
+    "tool",
+    "skill",
+    "checkpoint",
+    "complete",
+    "fail"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "protocolVersion": {
+      "const": "assistant-loop/v1"
+    },
+    "decisionId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100
+    },
+    "observedRunRevision": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "observedPlanRevision": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "action": {
+      "enum": [
+        "CHAT",
+        "ASK",
+        "PLAN",
+        "TOOL",
+        "SKILL",
+        "CHECKPOINT",
+        "COMPLETE",
+        "FAIL"
+      ]
+    },
+    "chat": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/chat"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "ask": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/ask"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "plan": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/plan"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "tool": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/tool"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "skill": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/skill"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "checkpoint": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/checkpoint"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "complete": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/complete"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "fail": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/fail"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "$defs": {
+    "message": {
+      "type": "object",
+      "required": [
+        "format",
+        "content"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "format": {
+          "const": "MARKDOWN"
+        },
+        "content": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100000
+        }
+      }
+    },
+    "chat": {
+      "type": "object",
+      "required": [
+        "message",
+        "suggestedNextActions"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "message": {
+          "$ref": "#/$defs/message"
+        },
+        "suggestedNextActions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 8
+        }
+      }
+    },
+    "option": {
+      "type": "object",
+      "required": [
+        "optionId",
+        "label",
+        "description",
+        "exclusive"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "optionId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 500
+        },
+        "exclusive": {
+          "type": "boolean"
+        }
+      }
+    },
+    "question": {
+      "type": "object",
+      "required": [
+        "questionId",
+        "type",
+        "title",
+        "description",
+        "required",
+        "minSelections",
+        "maxSelections",
+        "allowFreeText",
+        "options"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "questionId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "type": {
+          "enum": [
+            "SINGLE",
+            "MULTI",
+            "TEXT"
+          ]
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 1000
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "minSelections": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "maxSelections": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "allowFreeText": {
+          "type": "boolean"
+        },
+        "options": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "$ref": "#/$defs/option"
+          }
+        }
+      }
+    },
+    "ask": {
+      "type": "object",
+      "required": [
+        "requestKey",
+        "contextDigest",
+        "reason",
+        "questions"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "requestKey": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "contextDigest": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        },
+        "questions": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 20,
+          "items": {
+            "$ref": "#/$defs/question"
+          }
+        }
+      }
+    },
+    "deliverable": {
+      "type": "object",
+      "required": [
+        "logicalArtifactId",
+        "artifactType",
+        "required"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "logicalArtifactId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "artifactType": {
+          "type": "string",
+          "minLength": 1
+        },
+        "required": {
+          "type": "boolean"
+        }
+      }
+    },
+    "planStep": {
+      "type": "object",
+      "required": [
+        "stableStepId",
+        "position",
+        "operationKind",
+        "executorKind",
+        "bindingCode",
+        "bindingVersion",
+        "dependsOn",
+        "inputArtifactRefs",
+        "outputLogicalArtifactIds",
+        "retryClass",
+        "maxAttempts",
+        "approvalScope"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "stableStepId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "position": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "operationKind": {
+          "type": "string",
+          "minLength": 1
+        },
+        "executorKind": {
+          "enum": [
+            "TOOL",
+            "SKILL"
+          ]
+        },
+        "bindingCode": {
+          "type": "string",
+          "minLength": 1
+        },
+        "bindingVersion": {
+          "type": "string",
+          "minLength": 1
+        },
+        "dependsOn": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "inputArtifactRefs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "outputLogicalArtifactIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "retryClass": {
+          "type": "string",
+          "minLength": 1
+        },
+        "approvalScope": {
+          "type": "string",
+          "minLength": 1
+        },
+        "maxAttempts": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10
+        }
+      }
+    },
+    "plan": {
+      "type": "object",
+      "required": [
+        "parentRevision",
+        "goal",
+        "assumptions",
+        "deliverables",
+        "steps",
+        "completionCriteria"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "parentRevision": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "goal": {
+          "type": "string",
+          "minLength": 1
+        },
+        "assumptions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "deliverables": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/deliverable"
+          }
+        },
+        "steps": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/planStep"
+          }
+        },
+        "completionCriteria": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 100,
+          "items": {
+            "$ref": "#/$defs/planCriterion"
+          }
+        }
+      }
+    },
+    "contextRevision": {
+      "type": "object",
+      "required": [
+        "kind",
+        "objectId",
+        "revision"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "minLength": 1
+        },
+        "objectId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "revision": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "tool": {
+      "type": "object",
+      "required": [
+        "invocationId",
+        "stableStepId",
+        "attemptNo",
+        "toolCode",
+        "contractVersion",
+        "operationKind",
+        "arguments",
+        "inputArtifactRefs",
+        "expectedContextRevisions"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "invocationId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "stableStepId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "attemptNo": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "toolCode": {
+          "type": "string",
+          "minLength": 1
+        },
+        "contractVersion": {
+          "type": "string",
+          "minLength": 1
+        },
+        "operationKind": {
+          "type": "string",
+          "minLength": 1
+        },
+        "arguments": {
+          "type": "object"
+        },
+        "inputArtifactRefs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "expectedContextRevisions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/contextRevision"
+          }
+        }
+      }
+    },
+    "skill": {
+      "type": "object",
+      "required": [
+        "invocationId",
+        "stableStepId",
+        "attemptNo",
+        "skillCode",
+        "skillVersionId",
+        "packageDigest",
+        "input"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "invocationId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "stableStepId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "attemptNo": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "skillCode": {
+          "type": "string",
+          "minLength": 1
+        },
+        "skillVersionId": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]{0,18}$"
+        },
+        "packageDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "input": {
+          "type": "object"
+        }
+      }
+    },
+    "checkpoint": {
+      "type": "object",
+      "required": [
+        "checkpointId",
+        "summary",
+        "completedStableStepIds",
+        "artifactRefs",
+        "nextIntent"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "checkpointId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "summary": {
+          "type": "string",
+          "minLength": 1
+        },
+        "completedStableStepIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "artifactRefs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "nextIntent": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "criterionResult": {
+      "type": "object",
+      "required": [
+        "criterionId",
+        "criterionKind",
+        "passed",
+        "evidenceRefs"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "criterionId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "criterionKind": {
+          "enum": [
+            "TECHNICAL_ARCHIVE",
+            "CREATIVE_QUALITY",
+            "CONTENT_REQUIREMENT"
+          ]
+        },
+        "passed": {
+          "const": true
+        },
+        "evidenceRefs": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 100,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          }
+        }
+      }
+    },
+    "complete": {
+      "type": "object",
+      "required": [
+        "message",
+        "artifactRefs",
+        "completionCriteriaResults"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "message": {
+          "$ref": "#/$defs/message"
+        },
+        "artifactRefs": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 100,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          }
+        },
+        "completionCriteriaResults": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 100,
+          "items": {
+            "$ref": "#/$defs/criterionResult"
+          }
+        }
+      }
+    },
+    "fail": {
+      "type": "object",
+      "required": [
+        "code",
+        "userMessage",
+        "retryable",
+        "recoveryAction"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "type": "string",
+          "minLength": 1
+        },
+        "userMessage": {
+          "type": "string",
+          "minLength": 1
+        },
+        "retryable": {
+          "type": "boolean"
+        },
+        "recoveryAction": {
+          "enum": [
+            "ASK_USER",
+            "REPLAN",
+            "RETRY_LATER",
+            "NONE"
+          ]
+        }
+      }
+    },
+    "planCriterion": {
+      "type": "object",
+      "required": [
+        "criterionId",
+        "criterionKind",
+        "description"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "criterionId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "criterionKind": {
+          "enum": [
+            "TECHNICAL_ARCHIVE",
+            "CREATIVE_QUALITY",
+            "CONTENT_REQUIREMENT"
+          ]
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "action": {
+            "const": "CHAT"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "chat": {
+            "$ref": "#/$defs/chat"
+          },
+          "ask": {
+            "type": "null"
+          },
+          "plan": {
+            "type": "null"
+          },
+          "tool": {
+            "type": "null"
+          },
+          "skill": {
+            "type": "null"
+          },
+          "checkpoint": {
+            "type": "null"
+          },
+          "complete": {
+            "type": "null"
+          },
+          "fail": {
+            "type": "null"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "action": {
+            "const": "ASK"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "chat": {
+            "type": "null"
+          },
+          "ask": {
+            "$ref": "#/$defs/ask"
+          },
+          "plan": {
+            "type": "null"
+          },
+          "tool": {
+            "type": "null"
+          },
+          "skill": {
+            "type": "null"
+          },
+          "checkpoint": {
+            "type": "null"
+          },
+          "complete": {
+            "type": "null"
+          },
+          "fail": {
+            "type": "null"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "action": {
+            "const": "PLAN"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "chat": {
+            "type": "null"
+          },
+          "ask": {
+            "type": "null"
+          },
+          "plan": {
+            "$ref": "#/$defs/plan"
+          },
+          "tool": {
+            "type": "null"
+          },
+          "skill": {
+            "type": "null"
+          },
+          "checkpoint": {
+            "type": "null"
+          },
+          "complete": {
+            "type": "null"
+          },
+          "fail": {
+            "type": "null"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "action": {
+            "const": "TOOL"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "chat": {
+            "type": "null"
+          },
+          "ask": {
+            "type": "null"
+          },
+          "plan": {
+            "type": "null"
+          },
+          "tool": {
+            "$ref": "#/$defs/tool"
+          },
+          "skill": {
+            "type": "null"
+          },
+          "checkpoint": {
+            "type": "null"
+          },
+          "complete": {
+            "type": "null"
+          },
+          "fail": {
+            "type": "null"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "action": {
+            "const": "SKILL"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "chat": {
+            "type": "null"
+          },
+          "ask": {
+            "type": "null"
+          },
+          "plan": {
+            "type": "null"
+          },
+          "tool": {
+            "type": "null"
+          },
+          "skill": {
+            "$ref": "#/$defs/skill"
+          },
+          "checkpoint": {
+            "type": "null"
+          },
+          "complete": {
+            "type": "null"
+          },
+          "fail": {
+            "type": "null"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "action": {
+            "const": "CHECKPOINT"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "chat": {
+            "type": "null"
+          },
+          "ask": {
+            "type": "null"
+          },
+          "plan": {
+            "type": "null"
+          },
+          "tool": {
+            "type": "null"
+          },
+          "skill": {
+            "type": "null"
+          },
+          "checkpoint": {
+            "$ref": "#/$defs/checkpoint"
+          },
+          "complete": {
+            "type": "null"
+          },
+          "fail": {
+            "type": "null"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "action": {
+            "const": "COMPLETE"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "chat": {
+            "type": "null"
+          },
+          "ask": {
+            "type": "null"
+          },
+          "plan": {
+            "type": "null"
+          },
+          "tool": {
+            "type": "null"
+          },
+          "skill": {
+            "type": "null"
+          },
+          "checkpoint": {
+            "type": "null"
+          },
+          "complete": {
+            "$ref": "#/$defs/complete"
+          },
+          "fail": {
+            "type": "null"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "action": {
+            "const": "FAIL"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "chat": {
+            "type": "null"
+          },
+          "ask": {
+            "type": "null"
+          },
+          "plan": {
+            "type": "null"
+          },
+          "tool": {
+            "type": "null"
+          },
+          "skill": {
+            "type": "null"
+          },
+          "checkpoint": {
+            "type": "null"
+          },
+          "complete": {
+            "type": "null"
+          },
+          "fail": {
+            "$ref": "#/$defs/fail"
+          }
+        }
+      }
+    }
+  ],
+  "x-aid-semantics": {
+    "oneDecisionPerIteration": true,
+    "runtimeOutputSchemaIsAuthoritative": true,
+    "questionSelectionRules": {
+      "TEXT": {
+        "minSelections": null,
+        "maxSelections": null,
+        "allowFreeText": true,
+        "options": "empty"
+      },
+      "SINGLE": {
+        "bounds": "non-null-valid-integers",
+        "options": "non-empty",
+        "freeText": "accepted-only-when-allowFreeText-is-true"
+      },
+      "MULTI": {
+        "bounds": "non-null-valid-integers",
+        "options": "non-empty",
+        "freeText": "accepted-only-when-allowFreeText-is-true"
+      }
+    },
+    "runtimeDerives": [
+      "idempotency",
+      "quote",
+      "authorization",
+      "reservation",
+      "payer",
+      "nodeFence",
+      "billingBudgetContext"
+    ],
+    "unknownProviderAcceptance": "RECONCILE_BEFORE_RETRY",
+    "completionEvidenceRules": {
+      "planCriteriaMustMatchCompleteResults": true,
+      "technicalArchiveRequiresServerReceipt": true,
+      "creativeQualityAndContentRequirementRequirePassReviewReceipt": true
+    }
+  }
+}

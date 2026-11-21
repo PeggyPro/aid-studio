@@ -93,7 +93,7 @@ public class TokenDanceResponsesTextProviderClient extends AbstractTokenDanceTex
         }
         else if ("response.reasoning_summary_text.delta".equals(type))
         {
-            callbacks.onReasoningDelta(event.path("delta").asText(""));
+            callbacks.onPublicReasoningSummaryDelta(event.path("delta").asText(""));
         }
         Map<String, Object> usage = TokenDanceResponseMapper.usage(event);
         if (usage != null)

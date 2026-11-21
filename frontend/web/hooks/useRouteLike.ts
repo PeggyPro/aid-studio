@@ -7,7 +7,7 @@ import type { RouteLikeLocation,RouteLikeNavigator } from '~/types/routeLike'
 const embeddedRoutePathContext = createContext<string | null>(null)
 let embeddedSnapshotPath: string | null = null
 
-/** 嵌入式创作流程页面使用；未提供时普通流程路由行为完全不变。 */
+/** Studio 内嵌七步薄页面使用；未提供时普通流程路由行为完全不变。 */
 export function EmbeddedRouteLikeProvider({ path, children }: { path: string; children: ReactNode }) {
   useLayoutEffect(() => {
     embeddedSnapshotPath = path

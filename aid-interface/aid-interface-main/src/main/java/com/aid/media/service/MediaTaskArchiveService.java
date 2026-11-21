@@ -379,7 +379,7 @@ public class MediaTaskArchiveService {
         if (Objects.isNull(profileName)) {
             throw new IOException("存储目录非法");
         }
-        Path privateRoot = profile.resolveSibling(profileName + "-private").normalize();
+        Path privateRoot = Path.of(AidAppConfig.getPrivateProfile()).toAbsolutePath().normalize();
         Path archiveDirectory = privateRoot.resolve(archiveSubPath).normalize();
         if (!archiveDirectory.startsWith(privateRoot)) {
             throw new IOException("归档子路径非法");

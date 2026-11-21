@@ -1,5 +1,7 @@
 'use client'
 
+import { FlowActionIcon } from '~/components/common/FlowActionIcon'
+
 import { CreateEditorViewport } from '~/components/common/CreateEditorViewport'
 
 /**
@@ -74,7 +76,6 @@ import addSelIconRaw from '~/assets/img/icon/add-sel.svg'
 import fourlNorIconRaw from '~/assets/img/icon/fourl-nor.svg'
 import fourlSelIconRaw from '~/assets/img/icon/fourl-sel.svg'
 import deleteIconRaw from '~/assets/img/icon/del-black.svg'
-import starWhiteIconRaw from '~/assets/img/icon/star_white.svg'
 import regenerateIconRaw from '~/assets/img/icon/autGenerate.svg'
 import regenerateNorIconRaw from '~/assets/img/icon/cxsc-icon.svg'
 import '~/assets/css/history-record-card.css'
@@ -95,7 +96,6 @@ const addSelIcon = assetUrl(addSelIconRaw)
 const fourlNorIcon = assetUrl(fourlNorIconRaw)
 const fourlSelIcon = assetUrl(fourlSelIconRaw)
 const deleteIcon = assetUrl(deleteIconRaw)
-const starWhiteIcon = assetUrl(starWhiteIconRaw)
 const regenerateIcon = assetUrl(regenerateIconRaw)
 const regenerateNorIcon = assetUrl(regenerateNorIconRaw)
 
@@ -264,10 +264,9 @@ export function EditSceneImageModal(props: EditSceneImageModalProps) {
       onMouseLeave={() => setCanvasToolbarHoverKey(null)}
       onClick={props.resolveAutoRegenerateBillingRequest ? undefined : () => void handleAutoRegenerate()}
       icon={
-        <img
+        <FlowActionIcon
           className="toolbar-tab-icon"
           src={getCanvasToolbarIcon('regenerate')}
-          alt=""
         />
       }
     >
@@ -477,7 +476,7 @@ export function EditSceneImageModal(props: EditSceneImageModalProps) {
                           onMouseEnter={() => setCanvasToolbarHoverKey('drawing')}
                           onMouseLeave={() => setCanvasToolbarHoverKey(null)}
                           onClick={() => c.handleModifyImage(c.currentImageIndex.value)}
-                          icon={<img className="toolbar-tab-icon" src={getCanvasToolbarIcon('drawing')} alt="" />}
+                          icon={<FlowActionIcon className="toolbar-tab-icon" src={getCanvasToolbarIcon('drawing')} />}
                         >
                           点选改图
                         </Button>
@@ -512,7 +511,7 @@ export function EditSceneImageModal(props: EditSceneImageModalProps) {
                               className={canvasToolbarHoverKey === 'chat' ? 'toolbar-tab-hover' : ''}
                               onMouseEnter={() => setCanvasToolbarHoverKey('chat')}
                               onMouseLeave={() => setCanvasToolbarHoverKey(null)}
-                              icon={<img className="toolbar-tab-icon" src={getCanvasToolbarIcon('chat')} alt="" />}
+                              icon={<FlowActionIcon className="toolbar-tab-icon" src={getCanvasToolbarIcon('chat')} />}
                             >
                               生成设定图
                             </Button>
@@ -544,7 +543,7 @@ export function EditSceneImageModal(props: EditSceneImageModalProps) {
                             className={canvasToolbarHoverKey === 'chat' ? 'toolbar-tab-hover' : ''}
                             onMouseEnter={() => setCanvasToolbarHoverKey('chat')}
                             onMouseLeave={() => setCanvasToolbarHoverKey(null)}
-                            icon={<img className="toolbar-tab-icon" src={getCanvasToolbarIcon('chat')} alt="" />}
+                            icon={<FlowActionIcon className="toolbar-tab-icon" src={getCanvasToolbarIcon('chat')} />}
                           >
                             生成设定图
                           </Button>
@@ -559,7 +558,7 @@ export function EditSceneImageModal(props: EditSceneImageModalProps) {
                           onMouseEnter={() => setCanvasToolbarHoverKey('fourGrid')}
                           onMouseLeave={() => setCanvasToolbarHoverKey(null)}
                           onClick={() => void c.handleSceneSplitFourGrid(c.currentImageIndex.value)}
-                          icon={<img className="toolbar-tab-icon" src={getCanvasToolbarIcon('fourGrid')} alt="" />}
+                          icon={<FlowActionIcon className="toolbar-tab-icon" src={getCanvasToolbarIcon('fourGrid')} />}
                         >
                           拆分四宫格
                         </Button>
@@ -571,7 +570,7 @@ export function EditSceneImageModal(props: EditSceneImageModalProps) {
                           onMouseEnter={() => setCanvasToolbarHoverKey('chat')}
                           onMouseLeave={() => setCanvasToolbarHoverKey(null)}
                           onClick={() => c.handleDialogueImage(c.currentImageIndex.value)}
-                          icon={<img className="toolbar-tab-icon" src={getCanvasToolbarIcon('chat')} alt="" />}
+                          icon={<FlowActionIcon className="toolbar-tab-icon" src={getCanvasToolbarIcon('chat')} />}
                         >
                           对话作图
                         </Button>
@@ -602,7 +601,7 @@ export function EditSceneImageModal(props: EditSceneImageModalProps) {
                           className={canvasToolbarHoverKey === 'hd' ? 'toolbar-tab-hover' : ''}
                           onMouseEnter={() => setCanvasToolbarHoverKey('hd')}
                           onMouseLeave={() => setCanvasToolbarHoverKey(null)}
-                          icon={<img className="toolbar-tab-icon" src={getCanvasToolbarIcon('hd')} alt="" />}
+                          icon={<FlowActionIcon className="toolbar-tab-icon" src={getCanvasToolbarIcon('hd')} />}
                         >
                           变清晰
                         </Button>
@@ -616,7 +615,7 @@ export function EditSceneImageModal(props: EditSceneImageModalProps) {
                         onMouseEnter={() => setCanvasToolbarHoverKey('camera')}
                         onMouseLeave={() => setCanvasToolbarHoverKey(null)}
                         onClick={() => c.handleMultiAngle(c.currentImageIndex.value)}
-                        icon={<img className="toolbar-tab-icon" src={getCanvasToolbarIcon('camera')} alt="" />}
+                        icon={<FlowActionIcon className="toolbar-tab-icon" src={getCanvasToolbarIcon('camera')} />}
                       >
                         多机位
                       </Button>
@@ -630,7 +629,7 @@ export function EditSceneImageModal(props: EditSceneImageModalProps) {
                           onMouseEnter={() => setCanvasToolbarHoverKey('add')}
                           onMouseLeave={() => setCanvasToolbarHoverKey(null)}
                           onClick={() => void c.handleAddSceneImage()}
-                          icon={<img className="toolbar-tab-icon" src={getCanvasToolbarIcon('add')} alt="" />}
+                          icon={<FlowActionIcon className="toolbar-tab-icon" src={getCanvasToolbarIcon('add')} />}
                         >
                           {c.addImageButtonLabel()}
                         </Button>
@@ -644,7 +643,7 @@ export function EditSceneImageModal(props: EditSceneImageModalProps) {
                           onMouseEnter={() => setCanvasToolbarHoverKey('add')}
                           onMouseLeave={() => setCanvasToolbarHoverKey(null)}
                           onClick={() => void c.handleCancelAddImage(c.currentImageIndex.value)}
-                          icon={<img className="toolbar-tab-icon" src={getCanvasToolbarIcon('add')} alt="" />}
+                          icon={<FlowActionIcon className="toolbar-tab-icon" src={getCanvasToolbarIcon('add')} />}
                         >
                           {c.cancelAddDisabledTooltip() ? (
                             <Tooltip title={c.cancelAddDisabledTooltip()}>
@@ -664,7 +663,7 @@ export function EditSceneImageModal(props: EditSceneImageModalProps) {
                           onMouseEnter={() => setCanvasToolbarHoverKey('add')}
                           onMouseLeave={() => setCanvasToolbarHoverKey(null)}
                           onClick={() => void c.handleAddSceneImage()}
-                          icon={<img className="toolbar-tab-icon" src={getCanvasToolbarIcon('add')} alt="" />}
+                          icon={<FlowActionIcon className="toolbar-tab-icon" src={getCanvasToolbarIcon('add')} />}
                         >
                           {c.addImageButtonLabel()}
                         </Button>
@@ -789,13 +788,11 @@ export function EditSceneImageModal(props: EditSceneImageModalProps) {
                       />
                       <Button
                         type="primary"
-                        block
                         size="large"
                         className="generate-btn"
                         loading={c.showGenerateFooterButtonLoading()}
                         disabled={c.showGenerateFooterButtonLoading()}
                         onClick={() => void c.handleStartDialogueGenerate()}
-                        icon={<img src={starWhiteIcon} alt="" />}
                       >
                         开始生图
                       </Button>

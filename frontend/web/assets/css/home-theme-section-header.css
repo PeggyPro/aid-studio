@@ -16,7 +16,7 @@
   margin-bottom: 0;
   font-size: 1.25rem;
   font-weight: 700;
-  color: #fff;
+  color: var(--ui-text, #fff);
   display: block;
 }
 
@@ -24,7 +24,7 @@
   color: var(--home-muted);
   font-size: 14px;
   padding: 0.35rem 0.85rem;
-  background: rgba(0, 0, 0, 0.2);
+  background: var(--ui-soft, rgba(0, 0, 0, 0.2));
   border-radius: 999px;
 }
 
@@ -48,7 +48,7 @@
 .home-theme-static .user-page .page-title {
   font-size: 2.25rem;
   font-weight: 800;
-  color: #fff;
+  color: var(--ui-text, #fff);
   justify-content: center;
 }
 
@@ -75,7 +75,7 @@
 }
 
 .home-theme-static .user-card:hover {
-  border-color: rgba(74, 231, 253, 0.35);
+  border-color: var(--ui-ring, rgba(74, 231, 253, 0.35));
   transform: translateY(-2px);
 }
 
@@ -87,7 +87,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #fff;
+  color: var(--ui-text, #fff);
   font-weight: 700;
   flex-shrink: 0;
 }
@@ -95,7 +95,7 @@
 .home-theme-static .user-name {
   font-size: 1.0625rem;
   font-weight: 600;
-  color: #fff;
+  color: var(--ui-text, #fff);
   margin: 0 0 0.25rem;
 }
 
@@ -114,12 +114,12 @@
 }
 
 .home-theme-static .user-role-badge.admin {
-  background: rgba(14, 89, 250, 0.25);
+  background: var(--ui-raised, rgba(14, 89, 250, 0.25));
   color: var(--home-cyan);
 }
 
 .home-theme-static .user-role-badge.user {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--ui-soft, rgba(255, 255, 255, 0.08));
   color: var(--home-muted);
 }
 
@@ -140,7 +140,7 @@
 }
 
 .home-theme-static .user-detail-page .page-title {
-  color: #fff;
+  color: var(--ui-text, #fff);
   font-size: 2rem;
   font-weight: 800;
   margin-bottom: 0;
@@ -169,7 +169,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #fff;
+  color: var(--ui-text, #fff);
   font-size: 2rem;
   font-weight: 700;
   flex-shrink: 0;
@@ -178,7 +178,7 @@
 .home-theme-static .user-details .user-name {
   font-size: 1.75rem;
   font-weight: 700;
-  color: #fff;
+  color: var(--ui-text, #fff);
   margin: 0 0 1rem;
 }
 
@@ -212,12 +212,12 @@
 }
 
 .home-theme-static .role-badge.admin {
-  background: rgba(14, 89, 250, 0.25);
+  background: var(--ui-raised, rgba(14, 89, 250, 0.25));
   color: var(--home-cyan);
 }
 
 .home-theme-static .role-badge.user {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--ui-soft, rgba(255, 255, 255, 0.08));
   color: var(--home-muted);
 }
 

@@ -1,0 +1,18 @@
+{
+  "formatVersion": "1",
+  "code": "aid_method_observational_family_cinema",
+  "name": "家庭生活观察电影",
+  "version": "1.0.0",
+  "invocationScope": "INTERNAL",
+  "executorType": "PROMPT",
+  "systemPrompt": "你是AID生活观察电影方法助手。用日常任务、空间距离、物件使用、克制对白、停顿和环境声呈现家庭与生活关系，让场景通过微小行动产生可见变化。光线来自可信环境，音乐克制，字幕和混音作为后期层。不得引用、模仿或评价具体艺术家相似度，也不以固定滤镜和分贝替代场景判断。输出方法产物与typed action建议。",
+  "resources": [
+    {
+      "key": "method",
+      "path": "references/method.md",
+      "digest": "6e6ee20e3aa657287a60ff58f8af55450cde1cef87d6a3726aa17c5a107d7767",
+      "always": true
+    }
+  ]
+}
+

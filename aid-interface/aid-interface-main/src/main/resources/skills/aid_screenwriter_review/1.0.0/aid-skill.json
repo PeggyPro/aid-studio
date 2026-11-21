@@ -1,0 +1,25 @@
+{
+  "formatVersion": "1",
+  "code": "aid_screenwriter_review",
+  "name": "剧本审稿",
+  "version": "1.0.0",
+  "invocationScope": "INTERNAL",
+  "executorType": "PROMPT",
+  "readOnly": true,
+  "systemPrompt": "你是AID独立编剧审核助手。只审核运行时绑定的当前稿件revision，不改稿、不保存、不推进工作流。先查格式和事实，再查因果、场景变化、可表演性与对白策略；改编稿额外核对来源revision、覆盖空洞、必保项和授权边界。每个问题必须给出有界位置、必要短证据、实际影响、修订目标、严重度和STRUCTURAL/OBJECTIVE/CRAFT/AESTHETIC分类。审美偏好不能伪装成客观错误，证据不足必须返回PROVISIONAL，失败或跳过不得伪称通过。不输出模型私有思维链。",
+  "resources": [
+    {
+      "key": "review-method",
+      "path": "references/review-method.md",
+      "digest": "5acee8e4c215d38d5878c1e85e2038b97d7f54ffb935f3ee622bb2d42f63c51d",
+      "always": true
+    },
+    {
+      "key": "review-contract",
+      "path": "references/review-contract.json",
+      "digest": "655d333d90bc63c5828b0761fddcff07c8bb12792700b0432493aa5dc26bf979",
+      "always": true
+    }
+  ]
+}
+

@@ -41,14 +41,14 @@
 .create-step-scp .prop-form-title-prefix {
   font-size: 0.9375rem;
   font-weight: 600;
-  color: var(--home-text, #e6edf3);
+  color: var(--home-text, var(--ui-text, #e6edf3));
   white-space: nowrap;
 }
 
 .create-step-scp .character-form-title-editable,
 .create-step-scp .prop-form-title-editable {
   font-size: 14px;
-  color: var(--home-text, #e6edf3);
+  color: var(--home-text, var(--ui-text, #e6edf3));
   cursor: pointer;
   border-radius: var(--radius-md);
   transition: all 0.2s ease;
@@ -61,8 +61,7 @@
 
 .create-step-scp .character-form-title-editable:hover,
 .create-step-scp .prop-form-title-editable:hover {
-  background: rgba(14, 89, 250, 0.12);
-  color: var(--home-cyan, #4ae7fd);
+  color: var(--home-text, var(--ui-text, #e6edf3));
 }
 
 .create-step-scp .form-name-input,
@@ -83,7 +82,7 @@
 .create-step-scp .voiceover-label {
   font-size: 14px;
   line-height: 1;
-  color: var(--home-muted, #8e97a5);
+  color: var(--home-muted, var(--ui-muted, #8e97a5));
   white-space: nowrap;
 }
 
@@ -100,8 +99,8 @@
   padding: 0 12px !important;
   font-size: 14px !important;
   line-height: 1 !important;
-  color: var(--home-muted, #8e97a5) !important;
-  border: 1px solid #8e97a5 !important;
+  color: var(--home-muted, var(--ui-muted, #8e97a5)) !important;
+  border: 1px solid var(--ui-hair, #8e97a5) !important;
   border-radius: 999px !important;
   background: transparent !important;
   box-shadow: none !important;
@@ -109,8 +108,8 @@
 
 .create-step-scp .voiceover-btn.ant-btn:hover,
 .create-step-scp .voice-preview-btn.ant-btn:hover {
-  color: #4ae7fd !important;
-  border-color: rgba(74, 231, 253, 0.7) !important;
+  color: var(--ui-brand, #4ae7fd) !important;
+  border-color: var(--ui-ring, rgba(74, 231, 253, 0.7)) !important;
 }
 
 .create-step-scp .voiceover-btn .anticon {
@@ -119,7 +118,7 @@
 }
 
 .create-step-scp .voice-preview-btn.is-playing {
-  color: #ffd089 !important;
+  color: var(--ui-warning, #ffd089) !important;
   border-color: rgba(255, 166, 77, 0.6) !important;
   background: rgba(255, 166, 77, 0.12) !important;
 }
@@ -184,7 +183,7 @@
   padding-left: 12px;
   padding-right: 12px;
   padding-bottom: 12px;
-  background: #080d14;
+  background: var(--ui-bg, #080d14);
 }
 
 .create-step-scp .scene-image-form-content .asset-visual-generating-block {
@@ -211,18 +210,18 @@
 }
 
 .create-step-scp .form-image-card {
-  border: 1px solid rgba(74, 231, 253, 0.15);
+  border: 1px solid var(--ui-hair, rgba(74, 231, 253, 0.15));
   border-radius: var(--radius-lg);
   padding: 1rem;
-  background: rgba(12, 16, 24, 0.65);
+  background: var(--ui-bg, rgba(12, 16, 24, 0.65));
   flex-shrink: 0;
 }
 
 /* 手动添加后已有图片时，角色/道具形态卡片样式对齐自动卡片 */
 .create-step-scp .form-image-card.scene-card-auto {
   padding: 0;
-  background: rgba(8, 13, 24, 0.92);
-  border-color: rgba(74, 231, 253, 0.34);
+  background: var(--ui-bg, rgba(8, 13, 24, 0.92));
+  border-color: var(--ui-hair, rgba(74, 231, 253, 0.34));
   overflow: hidden;
   flex-shrink: 0;
 }

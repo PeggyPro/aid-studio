@@ -9,6 +9,39 @@
   gap: 0.75rem;
 }
 
+.create-step-scp .scp-stop-extract-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  min-height: 40px;
+  padding: 0 15px;
+  border: 1px solid var(--ui-hair, #464952);
+  border-radius: 9px;
+  background: var(--ui-raised, #24262b);
+  color: var(--ui-text, #f2f3f6);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.create-step-scp .scp-stop-extract-btn:hover {
+  border-color: var(--ui-danger, #ee8185);
+  background: var(--ui-hover, #30333a);
+}
+
+.create-step-scp .scp-stop-extract-btn:focus-visible {
+  outline: 2px solid var(--ui-ring, #4ae7fd);
+  outline-offset: 3px;
+}
+
+.create-step-scp .scp-stop-extract-btn__icon {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  background: var(--ui-danger, #ee8185);
+}
+
 .create-step-scp .extracting-placeholder {
   display: flex;
   align-items: center;
@@ -46,7 +79,7 @@
   margin: 0 0 0.65rem;
   font-size: 14px;
   line-height: 1.45;
-  color: var(--home-white);
+  color: var(--ui-text, var(--home-text, #e6edf3));
 }
 
 .create-step-scp .scp-pending-form-strip {
@@ -62,9 +95,10 @@
 .create-step-scp .scp-pending-form-card {
   flex: 0 0 auto;
   min-height: 250px;
-  border: 1px solid rgba(74, 231, 253, 0.22);
+  border: 1px solid var(--ui-hair, rgba(74, 231, 253, 0.22));
   border-radius: var(--radius-sm, 8px);
-  background: rgba(12, 16, 24, 0.85);
+  background: var(--ui-surface, var(--ui-bg, rgba(12, 16, 24, 0.85)));
+  color: var(--ui-text, var(--home-text, #e6edf3));
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -75,8 +109,8 @@
 }
 
 .create-step-scp .scp-pending-form-card:hover {
-  border-color: rgba(74, 231, 253, 0.42);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.28);
+  border-color: var(--ui-ring, rgba(74, 231, 253, 0.42));
+  box-shadow: var(--ui-no-shadow, 0 6px 20px rgba(0, 0, 0, 0.28));
 }
 
 .create-step-scp .scp-pending-form-card__head {
@@ -85,7 +119,7 @@
   justify-content: space-between;
   gap: 8px;
   padding: 10px 10px 8px;
-  border-bottom: 1px solid rgba(74, 231, 253, 0.12);
+  border-bottom: 1px solid var(--ui-hair, rgba(74, 231, 253, 0.12));
 }
 
 .create-step-scp .scp-pending-form-card__title {
@@ -98,14 +132,14 @@
 
 .create-step-scp .scp-pending-form-card__title-ico {
   flex-shrink: 0;
-  color: rgba(74, 231, 253, 0.85);
+  color: var(--ui-brand, rgba(74, 231, 253, 0.85));
   font-size: 14px;
 }
 
 .create-step-scp .scp-pending-form-card__title-text {
   font-size: 14px;
   font-weight: 600;
-  color: var(--home-text, #e6edf3);
+  color: var(--home-text, var(--ui-text, #e6edf3));
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -115,7 +149,7 @@
   flex-shrink: 0;
   font-size: 14px;
   font-weight: 600;
-  color: var(--home-text, #e6edf3);
+  color: var(--home-text, var(--ui-text, #e6edf3));
   white-space: nowrap;
 }
 
@@ -128,8 +162,7 @@
 }
 
 .create-step-scp .scp-pending-form-card__title-editable:hover {
-  color: var(--home-cyan, #4ae7fd);
-  background: rgba(14, 89, 250, 0.12);
+  color: var(--home-text, var(--ui-text, #e6edf3));
 }
 
 .create-step-scp .scp-pending-form-card__title-input {
@@ -145,7 +178,7 @@
   width: 28px;
   height: 28px;
   border-radius: 6px;
-  color: var(--home-muted, #8e97a5);
+  color: var(--home-muted, var(--ui-muted, #8e97a5));
   cursor: pointer;
   transition:
     color 0.15s ease,
@@ -153,8 +186,8 @@
 }
 
 .create-step-scp .scp-pending-form-card__more:hover {
-  color: var(--home-cyan, #4ae7fd);
-  background: rgba(74, 231, 253, 0.08);
+  color: var(--home-cyan, var(--ui-brand, #4ae7fd));
+  background: var(--ui-soft-hover, rgba(74, 231, 253, 0.08));
 }
 
 .create-step-scp .scp-pending-form-card__body {
@@ -168,29 +201,11 @@
 .create-step-scp .scp-pending-form-card__gen-btn {
   font-size: 14px;
   min-width: 108px;
-  padding: 4px 8px;
-  background: transparent !important;
-  border: 1px solid rgba(74, 231, 253, 0.3) !important;
-  box-shadow: none !important;
-  transform: none !important;
-  display: flex;
+  height: 32px;
+  padding: 0 16px;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-}
-
-/* 压过 main-btn-accent / antd primary hover 渐变实底，保持描边 + text-gradient */
-.create-step-scp .scp-pending-form-card__gen-btn.ant-btn-primary:not(:disabled):not(.ant-btn-disabled):hover,
-.create-step-scp .scp-pending-form-card__gen-btn.ant-btn-primary:not(:disabled):not(.ant-btn-disabled):focus,
-.create-step-scp .scp-pending-form-card__gen-btn.ant-btn-primary:not(:disabled):not(.ant-btn-disabled):active {
-  background: rgba(14, 89, 250, 0.12) !important;
-  border-color: rgba(74, 231, 253, 0.55) !important;
-  box-shadow: none !important;
-  transform: none !important;
-  color: inherit !important;
-}
-
-.create-step-scp .scp-pending-form-card__gen-btn .text-gradient {
-  -webkit-text-fill-color: transparent;
 }
 
 @media (max-width: 768px) {

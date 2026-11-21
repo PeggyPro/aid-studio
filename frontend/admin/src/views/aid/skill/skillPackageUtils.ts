@@ -1,5 +1,14 @@
 export const MAX_RESOURCE_BYTES = 100 * 1024;
 export const MAX_RESOURCE_TOTAL_BYTES = 512 * 1024;
+export const MAX_REFERENCE_PATH_LENGTH = 192;
+
+const REFERENCE_PATH_PATTERN = /^references\/[a-z0-9][a-z0-9._/-]{0,180}$/;
+
+/** Mirrors the Skill package DTO and storage path checks. File extensions are controlled by MIME type. */
+export function isSafeReferencePath(value: string | undefined) {
+  if (!value || value.length > MAX_REFERENCE_PATH_LENGTH || !REFERENCE_PATH_PATTERN.test(value)) return false;
+  return value.split('/').every((segment) => segment !== '' && segment !== '.' && segment !== '..');
+}
 
 export function utf8ByteLength(value: string) {
   return new TextEncoder().encode(value).length;

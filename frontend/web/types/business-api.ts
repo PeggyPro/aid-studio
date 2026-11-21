@@ -140,7 +140,6 @@ export interface AuthBasicPublicConfig {
   version_number?: string
   privacy_policy?: string
   terms_of_service?: string
-  membership_agreement?: string
   app_permissions_description?: string
   personal_information_collection_list?: string
   third_party_sdk_and_information_sharing_list?: string
@@ -220,6 +219,7 @@ export interface AuthPaymentPublicConfig {
 }
 
 export interface AuthPublicConfigData {
+  scriptLimits?: { seriesMaxChars: number; episodeMaxChars: number; movieMaxChars: number }
   captcha: AuthCaptchaPublicConfig
   smsPolicy: AuthCodePolicyConfig
   emailPolicy: AuthCodePolicyConfig
@@ -471,13 +471,51 @@ export type CreditConsumeListResponse = ApiListEnvelopeData<CreditConsumeRecordR
 /** /api/user/project/list */
 export type UserProjectType = 'movie' | 'series'
 
-/** POST /api/public/project/video */
+export interface UserProjectListRequest {
+  projectName?: string
+  projectType?: UserProjectType
+  status?: 0 | 1 | 2 | 3 | 4 | 5
+  pageNum?: number
+  pageSize?: number
+}
+
+/** /api/public/project/video */
 export interface PublicProjectVideoListRequest {
   projectName?: string
   /** movie 电影 / series 剧集；不传返回全部 */
   projectType?: UserProjectType
   pageNum?: number
   pageSize?: number
+}
+
+export interface PublicProjectVideoRow {
+  id: number
+  projectName: string
+  authorNickname?: string | null
+  projectType?: UserProjectType | string | null
+  projectDesc?: string | null
+  publishTime?: string | null
+  episodeCount?: number | null
+  coverUrl?: string | null
+  finalVideoUrl?: string | null
+  /** 列表预览用短视频；悬停播放优先使用此字段 */
+  previewVideoUrl?: string | null
+  /** 预览或主展示媒体的像素宽度；大于 0 时有效 */
+  mediaWidth?: number | null
+  /** 预览或主展示媒体的像素高度；大于 0 时有效 */
+  mediaHeight?: number | null
+  /** 规范化媒体比例，例如 16:9、9:16、1:1、4:3、3:4 或 21:9 */
+  aspectRatio?: string | null
+  /** 媒体比例的数据来源 */
+  ratioSource?: 'measured' | 'declared' | 'fallback' | null
+  allowPreview?: boolean | null
+  allowCopy?: boolean | null
+  canViewProjectContent?: boolean | null
+  viewProjectContentReasonCode?: PublicProjectAccessReasonCode | null
+  canCopyProject?: boolean | null
+  copyProjectReasonCode?: PublicProjectAccessReasonCode | null
+  copyRequiresLogin?: boolean | null
+  copyLabel?: string | null
 }
 
 export type PublicProjectAccessReasonCode =
@@ -491,21 +529,36 @@ export type PublicProjectAccessReasonCode =
   | 'PUBLISHED_SNAPSHOT_UNAVAILABLE'
   | (string & {})
 
-export interface PublicProjectVideoRow {
+/** 公开作品详情中的可播分集 */
+export interface PublicProjectEpisodeItem {
+  episodeId: number
+  episodeNo?: number | null
+  title?: string | null
+  coverUrl?: string | null
+  videoUrl?: string | null
+}
+
+/** /api/public/project/detail */
+export interface PublicProjectDetailRow {
   id: number
   projectName: string
   authorNickname?: string | null
   projectType?: UserProjectType | string | null
-  projectDesc?: string | null
-  publishTime?: string | null
-  episodeCount?: number | null
   coverUrl?: string | null
   finalVideoUrl?: string | null
+  /** 详情预览视频；为空时前端可回退 finalVideoUrl */
   previewVideoUrl?: string | null
   mediaWidth?: number | null
   mediaHeight?: number | null
   aspectRatio?: string | null
-  ratioSource?: string | null
+  ratioSource?: 'measured' | 'declared' | 'fallback' | null
+  publishTime?: string | null
+  updateTime?: string | null
+  projectDesc?: string | null
+  videoStyleType?: string | null
+  episodeCount?: number | null
+  /** 仅剧集类型返回，供切集播放 */
+  episodes?: PublicProjectEpisodeItem[] | null
   allowPreview?: boolean | null
   allowCopy?: boolean | null
   canViewProjectContent?: boolean | null
@@ -516,28 +569,156 @@ export interface PublicProjectVideoRow {
   copyLabel?: string | null
 }
 
-export interface PublicProjectEpisodeItem {
-  episodeId: number
-  episodeNo?: number | null
-  title?: string | null
-  coverUrl?: string | null
-  videoUrl?: string | null
+export interface ProjectSnapshotFlowNode {
+  id: string
+  type: string
+  stage: string
+  title: string
+  order: number
+  /** DTO contract returned by the matching normal workflow endpoint. */
+  contract?: string | null
+  /** Matching normal workflow endpoint; informational only, no live request is made. */
+  sourceEndpoint?: string | null
+  data: Record<string, unknown>
+  /** Frozen snapshot-only data kept outside the normal workflow DTO contract. */
+  snapshotMeta?: Record<string, unknown> | null
 }
 
-/** POST /api/public/project/detail */
-export interface PublicProjectDetailRow extends Omit<PublicProjectVideoRow, 'previewVideoUrl'> {
-  previewVideoUrl?: string | null
-  updateTime?: string | null
-  videoStyleType?: string | null
-  episodes?: PublicProjectEpisodeItem[] | null
+export interface ProjectSnapshotFlowEdge {
+  id: string
+  source: string
+  target: string
+  relation: string
 }
 
-export interface UserProjectListRequest {
+/** POST /api/public/project/preview */
+export interface ProjectSnapshotPreviewData {
+  projectId: number
+  projectName: string
+  projectType: UserProjectType | string
+  snapshotId: number
+  revisionNo: number
+  schemaVersion: number
+  snapshotHash: string
+  publishedAt: string
+  allowPreview: boolean
+  allowCopy: boolean
+  copyLabel?: string | null
+  nodes: ProjectSnapshotFlowNode[]
+  edges: ProjectSnapshotFlowEdge[]
+}
+
+/** POST /api/user/project/copy */
+export interface ProjectSnapshotCopyRequest {
+  id: number
+  requestId: string
   projectName?: string
-  projectType?: UserProjectType
-  status?: 0 | 1 | 2 | 3 | 4 | 5
+}
+
+export interface ProjectSnapshotCopyResult {
+  projectId: number
+  sourceProjectId: number
+  sourceSnapshotId: number
+  copyLabel: string
+  reused: boolean
+}
+
+export type DiscoveryMediaType = 'image' | 'video'
+
+export type DiscoveryReviewStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'REVOKED'
+
+export type DiscoverySourceType = 'USER' | 'ADMIN'
+
+export type DiscoveryRatioSource = 'declared'
+
+/** POST /api/public/discovery/page */
+export interface PublicDiscoveryPageRequest {
   pageNum?: number
   pageSize?: number
+  name?: string
+  mediaType?: DiscoveryMediaType
+}
+
+/** 发现媒体公共字段；公开展示与用户投稿管理各自扩展，禁止互相继承。 */
+export interface DiscoveryMediaBase {
+  id: number
+  name: string
+  description: string
+  mediaType: DiscoveryMediaType
+  coverUrl: string
+  mediaUrl: string | null
+  previewVideoUrl?: string | null
+  mediaWidth: number
+  mediaHeight: number
+  aspectRatio: string
+  ratioSource: DiscoveryRatioSource
+  sourceType: DiscoverySourceType
+}
+
+/** 发现广场公开作品；detail 与 page 共用同一稳定契约。 */
+export interface PublicDiscoveryItem extends DiscoveryMediaBase {
+  publisherName: string
+  publisherAvatar: string | null
+  publishTime: string | null
+}
+
+/** POST /api/public/discovery/detail */
+export interface PublicDiscoveryDetailRequest {
+  id: number
+}
+
+/** POST /api/user/discovery/submit */
+export interface UserDiscoverySubmitRequest {
+  mediaType: DiscoveryMediaType
+  name: string
+  description: string
+  coverUrl: string
+  mediaUrl: string
+  mediaWidth: number
+  mediaHeight: number
+  /** 前端按主媒体实际尺寸计算；当前服务端版本仍会按宽高自行校准。 */
+  aspectRatio: string
+  previewVideoUrl?: string | null
+}
+
+export interface UserDiscoverySubmitResult {
+  id: number
+}
+
+/** POST /api/user/discovery/my/page */
+export interface UserDiscoveryMyPageRequest {
+  pageNum?: number
+  pageSize?: number
+}
+
+/** POST /api/user/discovery/my/detail */
+export interface UserDiscoveryDetailRequest {
+  id: number
+}
+
+/** 我的投稿真实 DiscoveryManageVO；不包含公开侧 publisher 字段。 */
+export interface UserDiscoveryItem extends DiscoveryMediaBase {
+  userId: number
+  sourceType: 'USER'
+  submitterName: string
+  reviewStatus: DiscoveryReviewStatus
+  reviewReason?: string | null
+  reviewTime?: string | null
+  publishTime?: string | null
+  sortOrder: number
+  createTime: string | null
+  updateTime: string | null
+  status: '0' | '1'
+}
+
+/** POST /api/user/discovery/resubmit */
+export interface UserDiscoveryResubmitRequest extends UserDiscoverySubmitRequest {
+  id: number
+}
+
+/** POST /api/user/discovery/delete */
+export interface UserDiscoveryDeleteRequest {
+  id: number
 }
 
 export interface UserProjectRow {
@@ -858,7 +1039,7 @@ export interface AssetCenterDetailRequest {
   /** 分类编码（见资产中心统一分类编码表） */
   categoryCode: string
   /** 该分类业务表主键 ID */
-  id: number
+  id: number | string
 }
 
 export interface AssetCenterDetailVO {
@@ -1323,6 +1504,82 @@ export interface TouchEditPointDetectData {
   }
 }
 
+/** 元素编辑生成（前端先行契约） */
+export interface TouchEditGenerateRequest {
+  image: string
+  projectId?: number
+  edits: Array<{
+    id: string
+    source: 'point' | 'marquee' | 'brush'
+    kind: 'modify' | 'move'
+    rect: { x: number; y: number; w: number; h: number }
+    fromRect?: { x: number; y: number; w: number; h: number }
+    brushPath?: { x: number; y: number }[]
+    brushSize?: number
+    detectLabel?: string
+    instruction: string
+  }>
+}
+
+/** 兼容同步出图或异步 taskId */
+export interface TouchEditGenerateData {
+  taskId?: number
+  imageUrl?: string
+  recordId?: number
+  name?: string
+  data?: {
+    taskId?: number
+    imageUrl?: string
+    recordId?: number
+  }
+}
+
+/** 图层分离拆分（前端先行契约）POST /api/user/media/layer/split */
+export interface LayerSplitRequest {
+  image: string
+  projectId?: number
+  regions: Array<{
+    id: string
+    rect: { x: number; y: number; w: number; h: number }
+    prompt?: string
+  }>
+  autoDetect?: boolean
+}
+
+export interface LayerSplitData {
+  taskId?: number
+  backgroundResourceId?: string
+  backgroundUrl: string
+  canvasWidth?: number
+  canvasHeight?: number
+  layers: Array<{
+    id: string
+    resourceId?: string
+    mediaUrl: string
+    label?: string
+    rect?: { x: number; y: number; w: number; h: number }
+  }>
+}
+
+/** 图层分离合并（不耗积分）POST /api/user/media/layer/merge */
+export interface LayerMergeRequest {
+  backgroundUrl: string
+  layers: Array<{
+    id: string
+    mediaUrl: string
+    transform: {
+      rect: { x: number; y: number; w: number; h: number }
+      rotationDeg: number
+      flipX: boolean
+      flipY: boolean
+    }
+  }>
+}
+
+export interface LayerMergeData {
+  mediaUrl: string
+}
+
 /** @deprecated 请使用 UserAssetRpsCreateRequest + /api/user/asset/rps/create */
 export interface UserAssetCreateRequest {
   projectId: number
@@ -1411,12 +1668,12 @@ export interface ScriptUploadRequest {
   episodeId?: number
 }
 
-/** 通用项目或剧集 ID 请求。 */
+/** POST /api/user/project/submit-audit、/api/user/episode/submit-audit、/api/user/project/unpublish */
 export interface ProjectOrEpisodeIdRequest {
   id: number
 }
 
-/** POST /api/user/project/publish */
+/** POST /api/user/project/publish（公开时须同时提交描述与封面） */
 export interface UserProjectPublishRequest {
   id: number
   projectDesc: string
@@ -2504,6 +2761,7 @@ export interface EpisodeExportStatusResult {
   errorMsg?: string | null
   exportTaskId?: string | null
   pendingVideoUrl?: string | null
+  needReaudit?: boolean
 }
 
 /** POST /api/user/episode/timeline/get | save */
@@ -2634,6 +2892,7 @@ export interface ScriptSplitPreviewRequest {
   projectId: number
   scriptText: string
   episodeKeyword?: string | null
+  firstEpisodeNo?: number
 }
 
 export interface ScriptSplitPreviewItem {
@@ -2644,6 +2903,7 @@ export interface ScriptSplitPreviewItem {
 }
 
 export interface ScriptSplitPreviewVO {
+  firstEpisodeNo?: number
   totalEpisodes: number
   totalCharCount?: number | null
   episodeKeyword?: string | null
@@ -2770,6 +3030,9 @@ export interface UserModelListRequest {
 }
 
 export interface UserModelCapability {
+  /** 最大参考图张数；0 表示此模型能力不接收参考图。 */
+  maxReferenceImages?: number
+  minReferenceImages?: number
   aspectRatioOptions?: string[]
   defaultAspectRatio?: string
   sizeOptions?: string[]
@@ -2803,13 +3066,31 @@ export interface UserModelCapability {
   /** 部分动态模型以输入模态列表补充声明视频能力 */
   allowedInputs?: string[]
   allowCustomWH?: boolean
+  /** 图片高清型号允许的目标总像素。 */
+  maxOutputPixels?: number | null
+  promptOptional?: boolean | null
+  providerParameters?: Record<string, Record<string, unknown>> | null
   sceneRules?: Record<string, unknown>
 }
 
 export interface UserModelListItem {
+  /** 模型目录返回的文本输入开关；具体能力可覆盖默认能力。 */
+  supportsTextInput?: boolean | null
+  audio?: import('./audio-model').AudioClientContract | null
   id: number
   modelCode: string
   capabilityCode?: string | null
+  modelLogo?: string | null
+  availableCapabilities?: Array<{
+    audio?: import('./audio-model').AudioClientContract | null
+    code: string
+    label?: string | null
+    generateMode?: string | null
+    parameterSchema?: import('./modelParameters').ModelParameter[] | null
+    parameterRules?: import('./modelParameters').ModelParameterRule[] | null
+    presentation?: Record<string, unknown> | null
+    billing?: ModelBillingDetailVO | null
+  }>
   parameterSchema?: import('./modelParameters').ModelParameter[] | null
   parameterRules?: import('./modelParameters').ModelParameterRule[] | null
   legacyModelCodes?: string[]
@@ -2827,6 +3108,7 @@ export interface UserModelListItem {
   maxOutputCount?: number | null
   defaultOutputCount?: number | null
   supportsAspectRatio?: boolean | null
+  supportsSizePreset?: boolean | null
   supportsDuration?: boolean | null
   supportsMultiImageInput?: boolean | null
   defaultAspectRatio?: string | null
@@ -2854,6 +3136,7 @@ export interface UserModelListByFuncRequest {
 /** POST /api/user/model/listByFunc 批量出参分组 */
 export interface UserModelListByFuncGroupVO {
   funcCode?: string | null
+  defaultModelCode?: string | null
   funcName?: string | null
   modelType?: AiModelType | string | null
   generateMode?: string | null
@@ -3137,6 +3420,84 @@ export interface UserTaskDetailRequest {
   taskId: number
 }
 
+export type StudioVideoOperation =
+  | 'ENHANCE'
+  | 'REMOVE_SUBTITLE_AUTO'
+  | 'REMOVE_SUBTITLE_REGION'
+  | 'RESHOOT'
+  | 'CONTINUE'
+  | 'TRIM'
+  | 'CROP'
+  | 'DEPTH_CAPTURE'
+  | 'SUBJECT_REMOVE'
+  | 'SUBJECT_MODIFY'
+  | 'SUBJECT_REPLACE'
+  | 'SUBJECT_MATTING'
+  | 'VOICE_ONLY'
+  | 'BACKGROUND_ONLY'
+
+export type StudioVideoAudioOperation =
+  | 'SEPARATE_AUDIO_VIDEO'
+  | 'EXTRACT_VOCALS'
+  | 'EXTRACT_BACKGROUND_AUDIO'
+
+export interface StudioVideoAudioOperationRequest {
+  nodeId: string
+  targetNodeIds: {
+    videoNodeId: string
+    audioNodeId: string
+  }
+  sourceVideoUrl: string
+  operation: StudioVideoAudioOperation
+  projectId?: number
+  episodeId?: number
+  storyboardId?: number
+  sourceRecordId?: number
+}
+
+/** POST /api/user/studio/video/audio-operation：同步结果或统一异步 taskId。 */
+export interface StudioVideoAudioOperationData {
+  taskId?: number
+  videoUrl?: string
+  audioUrl?: string
+  videoRecordId?: number
+  audioRecordId?: number
+  data?: unknown
+}
+
+export interface StudioVideoOperationRequest {
+  nodeId: string
+  targetNodeId: string
+  sourceVideoUrl: string
+  operation: StudioVideoOperation
+  modelCode?: string
+  projectId?: number
+  episodeId?: number
+  storyboardId?: number
+  sourceRecordId?: number
+  parameters: {
+    resolution?: '1080' | '2K' | '4K' | '480' | '720'
+    interpolationMode?: 'none' | 'high_quality'
+    frameRate?: number
+    slowMotionFactor?: number
+    regions?: Array<{ x: number; y: number; width: number; height: number }>
+    clipRange?: { startSeconds: number; endSeconds: number }
+    cropRect?: { x: number; y: number; width: number; height: number }
+    prompt?: string
+    subjectEdits?: import('./studio-video-subject').StudioVideoSubjectMark[]
+  }
+}
+
+/** POST /api/user/studio/video/operation：支持同步结果或统一异步 taskId。 */
+export interface StudioVideoOperationData {
+  taskId?: number
+  videoUrl?: string
+  fileUrl?: string
+  outputUrl?: string
+  recordId?: number
+  data?: unknown
+}
+
 /** 停止/取消进行中的任务：POST /api/user/task/cancel（与后端约定，未上线时可能 404） */
 export interface UserTaskCancelRequest {
   taskId: number | string
@@ -3155,7 +3516,7 @@ export interface UserTaskCancelBatchData {
   runningCount?: number
   finishedCount?: number
   rejectedCount?: number
-  items?: Array<{ taskId: string; status: 'CANCELLED' | 'ALREADY_CANCELLED' | 'IN_PROGRESS' | 'FINISHED' | 'REJECTED' }>
+  items?: Array<{ taskId: string; status: 'CANCELLED' | 'ALREADY_CANCELLED' | 'IN_PROGRESS' | 'FINISHED' | 'REJECTED'; message?: string }>
 }
 
 /** 图片、视频、音频任务的统一预计进度与剩余时间。 */
@@ -3177,6 +3538,8 @@ export interface TaskEtaData {
   queuedCount?: number
   delayed?: boolean
   predictionVersion?: string
+  /** 上游结果核实导致等待的服务端原因码，不改变任务终态。 */
+  waitReasonCode?: string
 }
 
 export interface UserTaskDetailData {
@@ -3430,6 +3793,67 @@ export interface VoiceTagBundleData {
   enums?: Record<string, VoiceEnumItem[]>
 }
 
+/** 用户引导进度 — POST /api/user/onboarding/progress/* */
+export type OnboardingTourStatusApi = 'completed' | 'skipped' | 'in_progress'
+
+export interface OnboardingTourProgressRow {
+  tourId: string
+  status: OnboardingTourStatusApi
+  tourVersion: number
+  lastStepId?: string | null
+  updatedAt: string
+}
+
+export interface OnboardingProgressData {
+  schemaVersion: number
+  globalDismissed: boolean
+  updatedAt: string
+  tours: OnboardingTourProgressRow[]
+}
+
+export interface OnboardingProgressReportBody {
+  tourId: string
+  status: OnboardingTourStatusApi
+  tourVersion: number
+  lastStepId?: string | null
+  clientUpdatedAt: string
+}
+
+export interface OnboardingProgressSyncBody {
+  tours: OnboardingProgressReportBody[]
+}
+
+export interface OnboardingProgressDismissBody {
+  dismissed: boolean
+}
+
+export interface OnboardingProgressReportResult {
+  success: boolean
+  applied?: boolean
+}
+
+/** POST /api/user/home/banner/list */
+export type HomeBannerType = 'image' | 'video' | 'gif'
+export type HomeBannerLinkType = 'none' | 'external' | 'internal'
+
+export interface HomeBannerListRequest {
+  pageNum?: number
+  pageSize?: number
+}
+
+export interface HomeBannerVO {
+  id: number | string
+  title: string
+  summary?: string | null
+  bannerType: HomeBannerType | string
+  /** 封面图（视频类型 Banner 的静态封面） */
+  coverUrl?: string | null
+  resourceUrl: string
+  linkType: HomeBannerLinkType | string
+  linkUrl?: string | null
+  sortOrder?: number
+}
+
 /** POST /api/public/billing/detail */
 export interface PublicBillingDetailRequest {
   modelType?: AiModelType | string
@@ -3570,6 +3994,7 @@ export interface BillingQuoteRequest {
   quantity?: number
 }
 
+/** 数值展示域；Canvas HTTP 金额经严格 wire 校验后才进入此类型。 */
 export interface BillingQuoteVO {
   quoteType?: string | null
   modelCode?: string | null
@@ -3589,6 +4014,13 @@ export interface BillingQuoteVO {
   /** 服务端统一生成“免费 / 预计扣除 / 预扣约”文案。 */
   displayText?: string | null
   items?: BillingQuoteVO[] | null
+}
+
+/** Jackson 的 BigDecimal 返回十进制字符串；兼容历史数值响应，结算仍以服务端为准。 */
+export type BillingQuoteWire = Omit<BillingQuoteVO, 'amount' | 'preHoldAmount' | 'items'> & {
+  amount?: string | number | null
+  preHoldAmount?: string | number | null
+  items?: BillingQuoteWire[] | null
 }
 
 /** POST /api/user/faq/list */

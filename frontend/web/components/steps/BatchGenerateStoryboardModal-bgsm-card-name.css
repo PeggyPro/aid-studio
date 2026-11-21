@@ -3,13 +3,13 @@
 
 .bgsm-card-name {
   font-size: 14px;
-  color: #fff;
+  color: var(--ui-text, #fff);
   line-height: 20px;
 }
 
 .bgsm-footer {
   flex-shrink: 0;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  border-top: 1px solid var(--ui-hair, rgba(255, 255, 255, 0.06));
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
@@ -54,9 +54,9 @@
   align-items: center;
   padding: 0 11px;
   border-radius: 8px;
-  background: #0a0d12;
-  border: 1px solid rgba(78, 94, 122, 0.42);
-  color: #8e97a5;
+  background: var(--ui-bg, #0a0d12);
+  border: 1px solid var(--ui-hair, rgba(78, 94, 122, 0.42));
+  color: var(--ui-muted, #8e97a5);
   font-size: 14px;
 }
 
@@ -85,7 +85,7 @@
 .bgsm-video-model-select .model-name {
   font-size: 14px;
   line-height: 34px;
-  color: #e6edf3;
+  color: var(--ui-text, #e6edf3);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -93,7 +93,7 @@
 
 .bgsm-video-model-select .expand-icon {
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.45);
+  color: var(--ui-muted, rgba(255, 255, 255, 0.45));
 }
 
 .bgsm-field {
@@ -104,7 +104,7 @@
   display: block;
   margin-bottom: 6px;
   font-size: 12px;
-  color: #8e97a5;
+  color: var(--ui-muted, #8e97a5);
 }
 
 .bgsm-select {
@@ -113,18 +113,18 @@
 
 /* 压过全局 Select.selectorBg / 青边，与设计稿输入框一致 */
 html.app-shell-create .batch-generate-storyboard-wrap .bgsm-select.ant-select {
-  --ant-select-selector-bg: #0a0d12;
-  --ant-color-border: rgba(78, 94, 122, 0.42);
+  --ant-select-selector-bg: var(--ui-bg, #0a0d12);
+  --ant-color-border: var(--ui-hair, rgba(78, 94, 122, 0.42));
 }
 
 html.app-shell-create .batch-generate-storyboard-wrap .bgsm-select.ant-select .ant-select-selector,
 .bgsm-select .ant-select-selector {
   height: 40px !important;
   border-radius: 8px !important;
-  background: #0a0d12 !important;
-  background-color: #0a0d12 !important;
-  border: 1px solid rgba(78, 94, 122, 0.42) !important;
-  border-color: rgba(78, 94, 122, 0.42) !important;
+  background: var(--ui-bg, #0a0d12) !important;
+  background-color: var(--ui-bg, #0a0d12) !important;
+  border: 1px solid var(--ui-hair, rgba(78, 94, 122, 0.42)) !important;
+  border-color: var(--ui-hair, rgba(78, 94, 122, 0.42)) !important;
   box-shadow: none !important;
   display: flex !important;
   flex-wrap: nowrap !important;
@@ -140,7 +140,7 @@ html.app-shell-create .batch-generate-storyboard-wrap .bgsm-select.ant-select .a
 .bgsm-select .ant-select-selection-item,
 .bgsm-select.ant-select-open .ant-select-selection-item {
   line-height: 38px !important;
-  color: #e6edf3 !important;
+  color: var(--ui-text, #e6edf3) !important;
   overflow: hidden !important;
   text-overflow: ellipsis !important;
   white-space: nowrap !important;
@@ -148,11 +148,11 @@ html.app-shell-create .batch-generate-storyboard-wrap .bgsm-select.ant-select .a
 
 .bgsm-select .ant-select-selection-placeholder {
   line-height: 38px !important;
-  color: #8e97a5 !important;
+  color: var(--ui-muted, #8e97a5) !important;
 }
 
 .bgsm-select .ant-select-arrow {
-  color: rgba(255, 255, 255, 0.45) !important;
+  color: var(--ui-muted, rgba(255, 255, 255, 0.45)) !important;
   flex-shrink: 0 !important;
 }
 
@@ -162,9 +162,9 @@ html.app-shell-create .batch-generate-storyboard-wrap .bgsm-select.ant-select-op
 .bgsm-select:hover .ant-select-selector,
 .bgsm-select.ant-select-focused .ant-select-selector,
 .bgsm-select.ant-select-open .ant-select-selector {
-  border-color: rgba(120, 140, 170, 0.45) !important;
-  background: #0a0d12 !important;
-  background-color: #0a0d12 !important;
+  border-color: var(--ui-ring, rgba(120, 140, 170, 0.45)) !important;
+  background: var(--ui-bg, #0a0d12) !important;
+  background-color: var(--ui-bg, #0a0d12) !important;
   box-shadow: none !important;
 }
 
@@ -176,23 +176,23 @@ html.app-shell-create .batch-generate-storyboard-wrap .bgsm-field--video-model .
   min-height: 40px;
   padding: 0 11px !important;
   border-radius: 8px !important;
-  background: #0a0d12 !important;
-  border: 1px solid rgba(78, 94, 122, 0.42) !important;
+  background: var(--ui-bg, #0a0d12) !important;
+  border: 1px solid var(--ui-ring, rgba(78, 94, 122, 0.42)) !important;
   box-shadow: none !important;
 }
 
 html.app-shell-create .batch-generate-storyboard-wrap .bgsm-field--video-model .model-select-dropdown .selected-model:hover,
 .batch-generate-storyboard-wrap .bgsm-field--video-model .model-select-dropdown .selected-model:hover,
 .bgsm-video-model-select .selected-model:hover {
-  border-color: rgba(120, 140, 170, 0.45) !important;
-  background: #0a0d12 !important;
+  border-color: var(--ui-ring, rgba(120, 140, 170, 0.45)) !important;
+  background: var(--ui-bg, #0a0d12) !important;
 }
 
 html.app-shell-create .batch-generate-storyboard-wrap .bgsm-field--video-model .model-select-dropdown .selected-model.expanded,
 .batch-generate-storyboard-wrap .bgsm-field--video-model .model-select-dropdown .selected-model.expanded,
 .bgsm-video-model-select .selected-model.expanded {
-  background: #0a0d12 !important;
-  border-color: rgba(120, 140, 170, 0.45) !important;
+  background: var(--ui-bg, #0a0d12) !important;
+  border-color: var(--ui-ring, rgba(120, 140, 170, 0.45)) !important;
 }
 
 .bgsm-actions {
@@ -206,9 +206,9 @@ html.app-shell-create .batch-generate-storyboard-wrap .bgsm-field--video-model .
   width: 96px;
   height: 40px;
   border-radius: 6px !important;
-  border: 1px solid rgba(255, 255, 255, 0.2) !important;
-  background: #0d1018 !important;
-  color: #fff !important;
+  border: 1px solid var(--ui-hair, rgba(255, 255, 255, 0.2)) !important;
+  background: var(--ui-bg, #0d1018) !important;
+  color: var(--ui-text, #fff) !important;
 }
 
 .bgsm-btn-ok {
@@ -216,7 +216,7 @@ html.app-shell-create .batch-generate-storyboard-wrap .bgsm-field--video-model .
   height: 40px;
   border-radius: 6px !important;
   border: none !important;
-  background: linear-gradient(270deg, #0e59fa 0%, #00abd8 100%) !important;
+  background: var(--ui-surface, linear-gradient(270deg, #0e59fa 0%, #00abd8 100%)) !important;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -224,7 +224,7 @@ html.app-shell-create .batch-generate-storyboard-wrap .bgsm-field--video-model .
 }
 
 .bgsm-btn-ok--danger {
-  background: linear-gradient(270deg, #d9363e 0%, #ff5c5c 100%) !important;
+  background: var(--ui-surface, linear-gradient(270deg, #d9363e 0%, #ff5c5c 100%)) !important;
 }
 
 .bgsm-btn-ok img {
@@ -233,19 +233,19 @@ html.app-shell-create .batch-generate-storyboard-wrap .bgsm-field--video-model .
 }
 
 .bgsm-select-popup.ant-select-dropdown {
-  background: #111621 !important;
-  border: 1px solid rgba(74, 231, 253, 0.28) !important;
+  background: var(--ui-surface, #111621) !important;
+  border: 1px solid var(--ui-hair, rgba(74, 231, 253, 0.28)) !important;
 }
 
 .bgsm-select-popup .ant-select-item {
-  color: #e6edf3 !important;
+  color: var(--ui-text, #e6edf3) !important;
 }
 
 .bgsm-select-popup .ant-select-item-option-selected:not(.ant-select-item-option-disabled) {
-  background: rgba(74, 231, 253, 0.2) !important;
-  color: #4ae7fd !important;
+  background: var(--ui-soft, rgba(74, 231, 253, 0.2)) !important;
+  color: var(--ui-brand, #4ae7fd) !important;
 }
 
 .bgsm-select-popup .ant-select-item-option-active:not(.ant-select-item-option-disabled) {
-  background: rgba(74, 231, 253, 0.12) !important;
+  background: var(--ui-soft, rgba(74, 231, 253, 0.12)) !important;
 }

@@ -3,6 +3,7 @@ import { Alert, Button, Modal, Select, Space, Table, Tag, Typography } from 'ant
 import { sharedReadRequest } from '@/utils/sharedReadRequest';
 import type { Model } from './types';
 import { parameterPaths, type ModelCapabilityDefinition, type ModelParameter } from './modelDefinition';
+import OfficialAudioTemplatePicker from './OfficialAudioTemplatePicker';
 
 function addMissingFields(current: ModelParameter[], incoming: ModelParameter[]): ModelParameter[] {
   return [...current.map((field) => {
@@ -47,6 +48,7 @@ export default function ModelTemplatePicker({ modelId, modelType, upstreamModel,
     fixedParameters: Object.fromEntries(Object.entries(route.fixedParameters || {}).filter(([key]) => !['model', 'model_name', 'api_key', 'apiKey', 'Authorization', 'authorization'].includes(key))) });
   return <>
     <Space wrap style={{ marginBottom: 16 }}>
+    {modelType === 'audio' && <OfficialAudioTemplatePicker model={upstreamModel} current={current} onChange={onChange} />}
     <Button disabled={!modelType} onClick={async () => {
       setOpen(true); setLoading(true); setError(''); setSelected(undefined);
       try { const result = await sharedReadRequest('/aid/aidmodel/list', { modelType, pageNum: 1, pageSize: 1000 }); setModels((result.rows || []).filter((model: Model) => model.capabilities?.length)); }

@@ -34,18 +34,24 @@ async function guardUploadFiles(files: File[]): Promise<boolean> {
   return true
 }
 
-export async function uploadImageToOssWithToast(file: File): Promise<string | null> {
+export async function uploadImageToOssWithToast(
+  file: File,
+  onProgress?: (percent: number) => void,
+  options?: { showLoading?: boolean }
+): Promise<string | null> {
   if (!(await guardUploadFiles([file]))) return null
-  const close = message.loading('正在上传图片…', 0)
+  onProgress?.(0)
+  const close = options?.showLoading === false ? undefined : message.loading('正在上传图片…', 0)
   try {
-    const r = await ossRemoteUploadSingle(file, OSS_DIR.images)
+    const r = await ossRemoteUploadSingle(file, OSS_DIR.images, onProgress)
+    onProgress?.(100)
     return r.url
   } catch (e: unknown) {
     const err = e as { msg?: string; message?: string }
     message.error(err?.msg || err?.message || '图片上传失败')
     return null
   } finally {
-    close()
+    close?.()
   }
 }
 
@@ -64,11 +70,16 @@ export async function uploadImagesToOssWithToast(files: File[]): Promise<string[
   }
 }
 
-export async function uploadVideoToOssWithToast(file: File): Promise<string | null> {
+export async function uploadVideoToOssWithToast(
+  file: File,
+  onProgress?: (percent: number) => void
+): Promise<string | null> {
   if (!(await guardUploadFiles([file]))) return null
+  onProgress?.(0)
   const close = message.loading('正在上传视频…', 0)
   try {
-    const r = await ossRemoteUploadSingle(file, OSS_DIR.video)
+    const r = await ossRemoteUploadSingle(file, OSS_DIR.video, onProgress)
+    onProgress?.(100)
     return r.url
   } catch (e: unknown) {
     const err = e as { msg?: string; message?: string }

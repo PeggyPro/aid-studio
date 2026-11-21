@@ -44,6 +44,14 @@ public interface IAiModelConfigService {
         return selectByModelCodeForUser(modelCode, userId);
     }
 
+    /** 已建任务查询按原能力和协议绑定读取当前查询路径，不重新选择默认能力。 */
+    default AiModelConfigVo selectTaskCredentials(Long modelId, String modelCode, Long userId,
+                                                 String capabilityCode, String bindingCode) {
+        AiModelConfigVo credentials = selectTaskCredentials(modelId, modelCode, userId);
+        if (credentials != null) credentials.setTaskQuerySuffix(null);
+        return credentials;
+    }
+
     /**
      * 按模型分类查询优先级最高的模型。
      *

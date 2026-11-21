@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Modal, Select, message } from 'antd'
-import { CloseOutlined } from '@ant-design/icons'
+import { Select, message } from 'antd'
+import { AudioPickerModal } from './AudioPickerModal'
 import iconStartRaw from '~/assets/img/icon/icon_start.svg'
 import { assetUrl } from '~/utils/assetUrl'
 import { ShimmerImage } from '~/components/common/ShimmerImage'
@@ -58,10 +58,6 @@ const AGE_MAP: Record<string, string> = {
   adult: '成年',
   middle: '中年',
   elderly: '老年'
-}
-
-function popupContainer(triggerNode: HTMLElement) {
-  return (triggerNode?.closest?.('.ant-modal-content') as HTMLElement) || document.body
 }
 
 export function VoiceTimbrePickerModal({
@@ -225,20 +221,14 @@ export function VoiceTimbrePickerModal({
   }, [])
 
   return (
-    <Modal
+    <AudioPickerModal
       open={open}
-      width={860}
-      footer={null}
-      destroyOnHidden
-      wrapClassName="create-flow-modal voice-timbre-picker-wrap"
+      title="配音角色"
+      wrapClassName="voice-timbre-picker-wrap"
       className="voice-timbre-picker-modal"
-      centered
       onCancel={onCancel}
-      closeIcon={<CloseOutlined className="voice-picker-close" />}
     >
-      <div className="voice-picker-shell">
-        <h2 className="voice-picker-title">配音角色</h2>
-
+      <div>
         <div className="voice-picker-filters">
           <Select
             key={`fn-${filterResetKey}`}
@@ -249,7 +239,6 @@ export function VoiceTimbrePickerModal({
             options={nameOptions}
             placeholder="姓名"
             classNames={{ popup: { root: 'voice-picker-select-popup' } }}
-            getPopupContainer={popupContainer}
           />
           <Select
             key={`fa-${filterResetKey}`}
@@ -260,7 +249,6 @@ export function VoiceTimbrePickerModal({
             options={ageOptions}
             placeholder="年龄"
             classNames={{ popup: { root: 'voice-picker-select-popup' } }}
-            getPopupContainer={popupContainer}
           />
           <Select
             key={`fac-${filterResetKey}`}
@@ -271,7 +259,6 @@ export function VoiceTimbrePickerModal({
             options={accentOptions}
             placeholder="口音"
             classNames={{ popup: { root: 'voice-picker-select-popup' } }}
-            getPopupContainer={popupContainer}
           />
         </div>
 
@@ -340,7 +327,7 @@ export function VoiceTimbrePickerModal({
       </div>
 
       <audio ref={audioRef} className="voice-picker-audio" onEnded={onAudioEnded} onPause={onAudioPause} />
-    </Modal>
+    </AudioPickerModal>
   )
 }
 

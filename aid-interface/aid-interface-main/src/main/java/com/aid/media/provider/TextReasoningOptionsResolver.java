@@ -9,9 +9,17 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 /** 将内部思考配置映射为各文本协议的白名单参数。 */
 public final class TextReasoningOptionsResolver {
+
+    public enum RuntimeNormalization {
+        OPENAI_CHAT,
+        OPENAI_RESPONSES,
+        ANTHROPIC_MESSAGES,
+        GEMINI
+    }
 
     public static final String ENABLED_KEY = "_aid_reasoning_enabled";
     public static final String LEVEL_KEY = "_aid_reasoning_level";
@@ -86,7 +94,7 @@ public final class TextReasoningOptionsResolver {
                 }
             }
             case "AGNES" -> {
-                Map<String, Object> templateOptions = new LinkedHashMap<>();
+                Map<String, Object> templateOptions = copyMap(options.get("chat_template_kwargs"));
                 templateOptions.put("enable_thinking", enabled);
                 options.put("chat_template_kwargs", templateOptions);
             }
@@ -171,7 +179,7 @@ public final class TextReasoningOptionsResolver {
         return options;
     }
 
-    /** 将统一思考参数映射为 OpenAI Responses 的 reasoning.effort。 */
+    /** 将统一思考参数映射为 Responses 的 effort 和明确声明支持的公开摘要。 */
     public static Map<String, Object> resolveResponses(AiModelConfigVo model,
                                                         MediaTextGenerateRequest request,
                                                         Map<String, Object> source) {
@@ -191,7 +199,13 @@ public final class TextReasoningOptionsResolver {
                     : ("DEEPSEEK".equals(reasoningApiStyle(model))
                         ? normalizeDeepSeekLevel(requested) : normalizeOpenAiLevel(requested)))
                 : "none";
-        options.put("reasoning", Map.of("effort", effort));
+        Map<String, Object> reasoning = new LinkedHashMap<>();
+        reasoning.put("effort", effort);
+        if (enabled && request != null && Boolean.TRUE.equals(request.getIncludeReasoning())
+                && capabilityBoolean(model, "supportsReasoningSummary")) {
+            reasoning.put("summary", "auto");
+        }
+        options.put("reasoning", reasoning);
         return options;
     }
 
@@ -246,6 +260,129 @@ public final class TextReasoningOptionsResolver {
                 options.put("chat_template_kwargs", retained);
             }
         }
+    }
+
+    /**
+     * Removes fixed parameters already owned by the normalized text request without mutating the source map.
+     */
+    public static Map<String, Object> withoutNormalizedRuntimeControls(
+            AiModelConfigVo model, Map<String, Object> source, Map<String, Object> normalizedBody,
+            RuntimeNormalization normalization) {
+        Map<String, Object> fixed = source == null ? new LinkedHashMap<>() : new LinkedHashMap<>(source);
+        if (normalizedBody == null || normalizedBody.isEmpty()) {
+            return fixed;
+        }
+        // Transport streaming is owned by the concrete invocation even when the protocol uses
+        // a streaming endpoint rather than a body flag. A streaming body may retain unrelated
+        // stream_options siblings; a non-streaming body must not replay fixed stream options.
+        fixed.remove("stream");
+        if (normalizedBody.containsKey("stream_options")) {
+            removeNormalizedValue(fixed, "stream_options", normalizedBody.get("stream_options"));
+        } else {
+            fixed.remove("stream_options");
+        }
+        String style = declaredReasoningApiStyle(model);
+        if (style == null || !capabilityBoolean(model, "supportsReasoning")) {
+            return fixed;
+        }
+        if (RuntimeNormalization.OPENAI_RESPONSES.equals(normalization)) {
+            removeNormalizedValue(fixed, "reasoning", normalizedBody.get("reasoning"));
+            return fixed;
+        }
+        if (RuntimeNormalization.ANTHROPIC_MESSAGES.equals(normalization)) {
+            removeNormalizedValue(fixed, "thinking", normalizedBody.get("thinking"));
+            removeNormalizedValue(fixed, "output_config", normalizedBody.get("output_config"));
+            return fixed;
+        }
+        if (RuntimeNormalization.GEMINI.equals(normalization)) {
+            if (!"GEMINI".equals(style)) return fixed;
+            Object generationValue = normalizedBody.get("generationConfig");
+            Map<String, Object> generation = generationValue instanceof Map<?, ?> map ? copyMap(map) : Map.of();
+            if (generation.containsKey("thinkingConfig")) {
+                removeNormalizedValue(fixed, "thinkingConfig", generation.get("thinkingConfig"));
+                removeNestedNormalizedValue(fixed, "generationConfig", "thinkingConfig",
+                        generation.get("thinkingConfig"));
+            }
+            return fixed;
+        }
+        if (!RuntimeNormalization.OPENAI_CHAT.equals(normalization)) return fixed;
+        switch (style) {
+            case "QWEN" -> {
+                removeIfNormalized(fixed, normalizedBody, "enable_thinking");
+                removeIfNormalized(fixed, normalizedBody, "thinking_budget");
+                removeIfNormalized(fixed, normalizedBody, "reasoning_effort");
+            }
+            case "DEEPSEEK" -> {
+                removeNormalizedValue(fixed, "thinking", normalizedBody.get("thinking"));
+                removeIfNormalized(fixed, normalizedBody, "reasoning_effort");
+            }
+            case "AGNES" -> removeNestedIfNormalized(fixed, normalizedBody,
+                    "chat_template_kwargs", "enable_thinking");
+            case "GEMINI" -> removeNormalizedValue(fixed, "thinkingConfig",
+                    normalizedBody.get("thinkingConfig"));
+            case "OPENAI" -> removeIfNormalized(fixed, normalizedBody, "reasoning_effort");
+            default -> { }
+        }
+        return fixed;
+    }
+
+    private static String declaredReasoningApiStyle(AiModelConfigVo model) {
+        if (model == null || StrUtil.isBlank(model.getCapabilityJson())) return null;
+        try {
+            JsonNode value = MAPPER.readTree(model.getCapabilityJson()).get("reasoningApiStyle");
+            if (value == null || !value.isTextual() || StrUtil.isBlank(value.asText())) return null;
+            String style = value.asText().trim().toUpperCase(Locale.ROOT);
+            return Set.of("QWEN", "DEEPSEEK", "AGNES", "GEMINI", "OPENAI").contains(style)
+                    ? style : null;
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private static void removeIfNormalized(Map<String, Object> fixed, Map<String, Object> normalized,
+                                           String key) {
+        if (normalized.containsKey(key)) fixed.remove(key);
+    }
+
+    private static void removeNormalizedValue(Map<String, Object> fixed, String key, Object normalizedValue) {
+        if (normalizedValue == null) return;
+        Object fixedValue = fixed.get(key);
+        if (fixedValue instanceof Map<?, ?> fixedMap && normalizedValue instanceof Map<?, ?> normalizedMap) {
+            Map<String, Object> retained = copyMap(fixedMap);
+            normalizedMap.keySet().forEach(field -> retained.remove(String.valueOf(field)));
+            if (retained.isEmpty()) fixed.remove(key);
+            else fixed.put(key, retained);
+            return;
+        }
+        fixed.remove(key);
+    }
+
+    private static void removeNestedNormalizedValue(Map<String, Object> fixed, String parent, String child,
+                                                    Object normalizedValue) {
+        if (normalizedValue == null || !(fixed.get(parent) instanceof Map<?, ?> fixedParent)) return;
+        Map<String, Object> retainedParent = copyMap(fixedParent);
+        Object fixedValue = retainedParent.get(child);
+        if (fixedValue instanceof Map<?, ?> fixedMap && normalizedValue instanceof Map<?, ?> normalizedMap) {
+            Map<String, Object> retained = copyMap(fixedMap);
+            normalizedMap.keySet().forEach(field -> retained.remove(String.valueOf(field)));
+            if (retained.isEmpty()) retainedParent.remove(child);
+            else retainedParent.put(child, retained);
+        } else {
+            retainedParent.remove(child);
+        }
+        if (retainedParent.isEmpty()) fixed.remove(parent);
+        else fixed.put(parent, retainedParent);
+    }
+
+    private static void removeNestedIfNormalized(Map<String, Object> fixed, Map<String, Object> normalized,
+                                                 String parent, String child) {
+        if (!(normalized.get(parent) instanceof Map<?, ?> normalizedNested)
+                || !normalizedNested.containsKey(child)
+                || !(fixed.get(parent) instanceof Map<?, ?> fixedNested)) return;
+        Map<String, Object> retained = copyMap(fixedNested);
+        retained.remove(child);
+        if (retained.isEmpty()) fixed.remove(parent);
+        else fixed.put(parent, retained);
     }
 
     private static Map<String, Object> copyMap(Object value) {

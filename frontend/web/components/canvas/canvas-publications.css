@@ -1,0 +1,9 @@
+.canvas-publications { padding:32px; max-width:1600px; margin:auto; color:var(--home-text,#e8ecf4); }
+.canvas-publications>header { display:flex; align-items:center; justify-content:space-between; gap:24px; margin-bottom:28px; }
+.canvas-publications h1 { margin:0 0 8px; font-size:26px; }
+.canvas-publications p { color:var(--home-muted,#9aa3b5); line-height:1.6; }
+.canvas-publications>header .ant-input-search { max-width:320px; }
+.canvas-publication-work__progress { padding:12px 0; display:flex; align-items:center; flex-wrap:wrap; gap:12px; }
+@media(max-width:600px){.canvas-publications{padding:16px}.canvas-publications>header{align-items:stretch;flex-direction:column}.canvas-publications>header .ant-input-search{max-width:none}}
+
+.canvas-publications.canvas-publications--embedded { padding:0; max-width:none; margin:0; }

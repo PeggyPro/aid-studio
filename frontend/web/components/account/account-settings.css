@@ -1,17 +1,17 @@
 .account-settings-drawer .ant-drawer-content {
-  background: var(--create-surface-modal, #191a1d) !important;
+  background: var(--create-surface-modal, var(--ui-surface, #191a1d)) !important;
 }
 
 .account-settings-drawer .ant-drawer-header {
   min-height: 64px;
   padding: 0 24px !important;
-  background: rgba(25, 26, 29, 0.98) !important;
-  border-bottom: 1px solid rgba(74, 231, 253, 0.12) !important;
+  background: var(--ui-surface, rgba(25, 26, 29, 0.98)) !important;
+  border-bottom: 1px solid var(--ui-hair, rgba(74, 231, 253, 0.12)) !important;
 }
 
 .account-settings-drawer .ant-drawer-title,
 .account-settings-drawer .ant-drawer-close {
-  color: #fff !important;
+  color: var(--ui-text, #fff) !important;
 }
 
 .account-settings-drawer .ant-drawer-title {
@@ -21,7 +21,7 @@
 }
 
 .account-settings-drawer .ant-drawer-close:hover {
-  color: var(--home-cyan, #4ae7fd) !important;
+  color: var(--home-cyan, var(--ui-brand, #4ae7fd)) !important;
   background: transparent !important;
 }
 
@@ -43,13 +43,13 @@
   grid-template-columns: 220px minmax(0, 1fr);
   height: 100%;
   min-height: 0;
-  color: var(--home-text, rgba(255, 255, 255, 0.92));
+  color: var(--home-text, var(--ui-text, rgba(255, 255, 255, 0.92)));
 }
 
 .account-settings__nav {
   padding: 16px 12px;
-  background: #12141a;
-  border-right: 1px solid rgba(74, 231, 253, 0.08);
+  background: var(--ui-bg, #12141a);
+  border-right: 1px solid var(--ui-hair, rgba(74, 231, 253, 0.08));
 }
 
 .account-settings__nav button {
@@ -63,7 +63,7 @@
   border: 0;
   border-radius: 10px;
   background: transparent;
-  color: var(--home-muted, #8e97a5);
+  color: var(--home-muted, var(--ui-muted, #8e97a5));
   font-size: 14px;
   text-align: left;
   cursor: pointer;
@@ -78,7 +78,7 @@
   width: 28px;
   height: 28px;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--ui-soft, rgba(255, 255, 255, 0.04));
   color: inherit;
 }
 
@@ -88,23 +88,23 @@
 }
 
 .account-settings__nav button:hover {
-  color: #fff;
-  background: rgba(255, 255, 255, 0.04);
+  color: var(--ui-text, #fff);
+  background: var(--ui-soft-hover, rgba(255, 255, 255, 0.04));
 }
 
 .account-settings__nav button.is-active {
-  color: #fff;
-  background: var(--home-grad-tab, var(--home-grad, linear-gradient(90deg, rgba(14, 89, 250, 0.3) 0%, rgba(0, 171, 216, 0.1) 100%)));
+  color: var(--ui-text, #fff);
+  background: var(--ui-selected, var(--home-grad-tab, var(--home-grad, linear-gradient(90deg, rgba(14, 89, 250, 0.3) 0%, rgba(0, 171, 216, 0.1) 100%))));
 }
 
 .account-settings__nav button.is-active .account-settings__nav-icon {
-  color: var(--home-cyan, #4ae7fd);
-  background: rgba(74, 231, 253, 0.12);
+  color: var(--home-cyan, var(--ui-brand, #4ae7fd));
+  background: var(--ui-soft, rgba(74, 231, 253, 0.12));
 }
 
 .account-settings__nav button.is-danger:hover,
 .account-settings__nav button.is-danger.is-active {
-  color: #ffb7b8;
+  color: var(--ui-danger, #ffb7b8);
 }
 
 .account-settings__nav button.is-danger.is-active {
@@ -112,7 +112,7 @@
 }
 
 .account-settings__nav button.is-danger.is-active .account-settings__nav-icon {
-  color: #ff9b9d;
+  color: var(--ui-danger, #ff9b9d);
   background: rgba(255, 77, 79, 0.16);
 }
 
@@ -121,8 +121,8 @@
   overflow: auto;
   padding: 28px 32px 40px;
   background:
-    radial-gradient(ellipse 80% 40% at 0% 0%, rgba(74, 231, 253, 0.05), transparent 55%),
-    var(--create-surface-modal, #191a1d);
+    var(--ui-surface, radial-gradient(ellipse 80% 40% at 0% 0%, rgba(74, 231, 253, 0.05), transparent 55%),
+    var(--create-surface-modal, #191a1d));
 }
 
 .account-settings__section-head {
@@ -131,7 +131,7 @@
 
 .account-settings__section-head h3 {
   margin: 0 0 6px;
-  color: #fff;
+  color: var(--ui-text, #fff);
   font-size: 20px;
   font-weight: 600;
   line-height: 1.35;
@@ -139,7 +139,7 @@
 
 .account-settings__section-head p {
   margin: 0;
-  color: var(--home-muted, #8e97a5);
+  color: var(--home-muted, var(--ui-muted, #8e97a5));
   font-size: 13px;
   line-height: 1.6;
 }
@@ -148,9 +148,9 @@
 .account-settings__contact-card,
 .account-settings__action-card,
 .account-settings__history-list article {
-  border: 1px solid rgba(74, 231, 253, 0.08);
+  border: 1px solid var(--ui-hair, rgba(74, 231, 253, 0.08));
   border-radius: 8px;
-  background: #202839;
+  background: var(--ui-raised, #202839);
 }
 
 .account-settings__form-card,
@@ -168,7 +168,7 @@
 
 .account-settings__danger-card {
   border-color: rgba(255, 77, 79, 0.22);
-  background: #202839;
+  background: var(--ui-raised, #202839);
 }
 
 .account-settings__notice,
@@ -182,15 +182,15 @@
 }
 
 .account-settings__notice {
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.04);
-  color: var(--home-muted, #8e97a5);
+  border: 1px solid var(--ui-hair, rgba(255, 255, 255, 0.08));
+  background: var(--ui-soft, rgba(255, 255, 255, 0.04));
+  color: var(--home-muted, var(--ui-muted, #8e97a5));
 }
 
 .account-settings__danger-notice {
   border: 1px solid rgba(255, 77, 79, 0.28);
   background: rgba(255, 77, 79, 0.1);
-  color: #ffb7b8;
+  color: var(--ui-danger, #ffb7b8);
 }
 
 .account-settings__field {
@@ -203,7 +203,7 @@
 .account-settings__field > span {
   display: block;
   margin: 0 0 6px;
-  color: rgba(255, 255, 255, 0.82);
+  color: var(--ui-text, rgba(255, 255, 255, 0.82));
   font-size: 13px;
   line-height: 1.4;
 }
@@ -213,14 +213,14 @@
 }
 
 .account-settings-drawer .auth-dark-field-wrap--solid {
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--ui-hair, rgba(255, 255, 255, 0.08));
 }
 
 .account-settings__code-btn {
   border: 0;
   background: transparent;
   padding: 0;
-  color: var(--home-cyan, #4ae7fd);
+  color: var(--home-cyan, var(--ui-brand, #4ae7fd));
   font-size: 13px;
   font-weight: 500;
   white-space: nowrap;
@@ -228,7 +228,7 @@
 }
 
 .account-settings__code-btn:hover:not(:disabled) {
-  color: #fff;
+  color: var(--ui-text, #fff);
 }
 
 .account-settings__code-btn:disabled {
@@ -254,20 +254,20 @@
   border: 0;
   border-radius: 6px;
   background: transparent;
-  color: var(--home-muted, #8e97a5);
+  color: var(--home-muted, var(--ui-muted, #8e97a5));
   font-size: 13px;
   cursor: pointer;
 }
 
 .account-settings__channel-tabs button.is-active {
-  background: var(--home-grad-tab, var(--home-grad, linear-gradient(90deg, rgba(14, 89, 250, 0.35) 0%, rgba(0, 171, 216, 0.16) 100%)));
-  color: var(--home-cyan, #4ae7fd);
+  background: var(--ui-selected, var(--home-grad-tab, var(--home-grad, linear-gradient(90deg, rgba(14, 89, 250, 0.35) 0%, rgba(0, 171, 216, 0.16) 100%))));
+  color: var(--home-cyan, var(--ui-brand, #4ae7fd));
   font-weight: 500;
 }
 
 .account-settings__field-hint {
   margin: 0;
-  color: var(--home-muted, #8e97a5);
+  color: var(--home-muted, var(--ui-muted, #8e97a5));
   font-size: 12px;
   line-height: 1.5;
 }
@@ -309,34 +309,34 @@
   height: 40px;
   min-height: 40px;
   padding: 0 20px;
-  border: 1px solid rgba(255, 255, 255, 0.16) !important;
+  border: 1px solid var(--ui-hair, rgba(255, 255, 255, 0.16)) !important;
   border-radius: 8px !important;
-  background: rgba(255, 255, 255, 0.06) !important;
-  color: rgba(255, 255, 255, 0.9) !important;
+  background: var(--ui-soft, rgba(255, 255, 255, 0.06)) !important;
+  color: var(--ui-text, rgba(255, 255, 255, 0.9)) !important;
   box-shadow: none !important;
 }
 
 .account-settings-drawer .ant-btn-default:hover:not(:disabled) {
-  border-color: rgba(74, 231, 253, 0.45) !important;
-  color: var(--home-cyan, #4ae7fd) !important;
+  border-color: var(--ui-ring, rgba(74, 231, 253, 0.45)) !important;
+  color: var(--home-cyan, var(--ui-brand, #4ae7fd)) !important;
 }
 
 .account-settings-drawer .ant-btn-default.ant-btn-dangerous:not(.account-settings__danger-submit) {
   border-color: rgba(255, 77, 79, 0.5) !important;
   background: rgba(255, 77, 79, 0.12) !important;
-  color: #ffb7b8 !important;
+  color: var(--ui-danger, #ffb7b8) !important;
 }
 
 .account-settings-drawer .ant-btn-default.ant-btn-dangerous:not(.account-settings__danger-submit):hover:not(:disabled) {
   border-color: rgba(255, 77, 79, 0.75) !important;
   background: rgba(255, 77, 79, 0.2) !important;
-  color: #ffd2d3 !important;
+  color: var(--ui-text, #ffd2d3) !important;
 }
 
 .account-settings-drawer .ant-btn-default:disabled,
 .account-settings-drawer .ant-btn-default.ant-btn-disabled {
   opacity: 0.7;
-  color: rgba(255, 255, 255, 0.55) !important;
+  color: var(--ui-muted, rgba(255, 255, 255, 0.55)) !important;
 }
 
 .account-settings-drawer .ant-btn.ant-btn-dangerous.account-settings__danger-submit {
@@ -349,8 +349,8 @@
   padding: 0 20px;
   border: 0 !important;
   border-radius: 8px !important;
-  background: linear-gradient(270deg, #c62828 0%, #ff4d4f 100%) !important;
-  color: #fff !important;
+  background: var(--ui-surface, linear-gradient(270deg, #c62828 0%, #ff4d4f 100%)) !important;
+  color: var(--ui-text, #fff) !important;
   font-size: 14px;
   font-weight: 600;
   box-shadow: none !important;
@@ -358,7 +358,7 @@
 
 .account-settings-drawer .ant-btn.ant-btn-dangerous.account-settings__danger-submit:hover:not(:disabled) {
   opacity: 0.92;
-  color: #fff !important;
+  color: var(--ui-text, #fff) !important;
 }
 
 .account-settings-drawer .ant-btn.ant-btn-dangerous.account-settings__danger-submit:disabled,
@@ -367,7 +367,7 @@
   cursor: not-allowed;
   background: rgba(198, 40, 40, 0.42) !important;
   border: 1px solid rgba(255, 155, 157, 0.55) !important;
-  color: #ffd2d3 !important;
+  color: var(--ui-text, #ffd2d3) !important;
 }
 
 .account-settings-drawer .ant-checkbox-wrapper {
@@ -375,7 +375,7 @@
   align-items: center;
   width: fit-content;
   margin: 0;
-  color: rgba(255, 255, 255, 0.82);
+  color: var(--ui-text, rgba(255, 255, 255, 0.82));
   font-size: 13px;
   line-height: 1.4;
 }
@@ -384,18 +384,18 @@
   width: 16px;
   height: 16px;
   border-radius: 4px;
-  border-color: rgba(255, 255, 255, 0.28) !important;
-  background: #121212 !important;
+  border-color: var(--ui-hair, rgba(255, 255, 255, 0.28)) !important;
+  background: var(--ui-bg, #121212) !important;
 }
 
 .account-settings-drawer .ant-checkbox-checked .ant-checkbox-inner {
-  border-color: #00abd8 !important;
-  background: #00abd8 !important;
+  border-color: var(--ui-ring, #00abd8) !important;
+  background: var(--ui-raised, #00abd8) !important;
 }
 
 .account-settings-drawer .ant-checkbox:hover .ant-checkbox-inner,
 .account-settings-drawer .ant-checkbox-wrapper:hover .ant-checkbox-inner {
-  border-color: var(--home-cyan, #4ae7fd) !important;
+  border-color: var(--home-cyan, var(--ui-ring, #4ae7fd)) !important;
 }
 
 .account-settings__card-list {
@@ -440,14 +440,14 @@
 .account-settings__contact-head strong,
 .account-settings__action-card strong,
 .account-settings__history-top strong {
-  color: #fff;
+  color: var(--ui-text, #fff);
   font-size: 14px;
   font-weight: 600;
 }
 
 .account-settings__contact-head span,
 .account-settings__action-card span {
-  color: var(--home-muted, #8e97a5);
+  color: var(--home-muted, var(--ui-muted, #8e97a5));
   font-size: 13px;
   line-height: 1.5;
 }
@@ -456,27 +456,27 @@
   flex-shrink: 0;
   padding: 3px 10px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.06);
-  color: var(--home-muted, #8e97a5) !important;
+  background: var(--ui-soft, rgba(255, 255, 255, 0.06));
+  color: var(--home-muted, var(--ui-muted, #8e97a5)) !important;
   font-size: 12px !important;
   line-height: 1.4;
 }
 
 .account-settings__status.is-bound {
   background: rgba(82, 196, 26, 0.14);
-  color: #8ed765 !important;
+  color: var(--ui-success, #8ed765) !important;
 }
 
 .account-settings__status.is-failed {
   background: rgba(255, 77, 79, 0.14);
-  color: #ff9b9d !important;
+  color: var(--ui-danger, #ff9b9d) !important;
 }
 
 .account-settings__contact-form {
   max-width: 32.5rem;
   margin: 0;
   padding-top: 12px;
-  border-top: 1px solid rgba(74, 231, 253, 0.08);
+  border-top: 1px solid var(--ui-hair, rgba(74, 231, 253, 0.08));
 }
 
 .account-settings__wechat-card {
@@ -532,7 +532,7 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  color: #d7dbdf;
+  color: var(--ui-text, #d7dbdf);
   font-size: 15px;
 }
 
@@ -541,7 +541,7 @@
   height: 9px;
   border-radius: 50%;
   background: #52c41a;
-  box-shadow: 0 0 0 4px rgba(82, 196, 26, 0.12);
+  box-shadow: var(--ui-no-shadow, 0 0 0 4px rgba(82, 196, 26, 0.12));
 }
 
 .account-settings__history-list {
@@ -557,13 +557,13 @@
 .account-settings__history-meta {
   justify-content: flex-start;
   margin-top: 9px;
-  color: var(--home-muted, #8e97a5);
+  color: var(--home-muted, var(--ui-muted, #8e97a5));
   font-size: 12px;
 }
 
 .account-settings__history-list p {
   margin: 8px 0 0;
-  color: #aab1bb;
+  color: var(--ui-muted, #aab1bb);
   font-size: 12px;
 }
 
@@ -575,16 +575,16 @@
 .account-settings__pagination .ant-pagination-item a,
 .account-settings__pagination .ant-pagination-prev button,
 .account-settings__pagination .ant-pagination-next button {
-  color: var(--home-muted, #8e97a5) !important;
+  color: var(--home-muted, var(--ui-muted, #8e97a5)) !important;
 }
 
 .account-settings__pagination .ant-pagination-item-active {
-  border-color: var(--home-cyan, #4ae7fd) !important;
-  background: rgba(74, 231, 253, 0.08) !important;
+  border-color: var(--home-cyan, var(--ui-ring, #4ae7fd)) !important;
+  background: var(--ui-soft, rgba(74, 231, 253, 0.08)) !important;
 }
 
 .account-settings-drawer .ant-empty-description {
-  color: var(--home-muted, #8e97a5);
+  color: var(--home-muted, var(--ui-muted, #8e97a5));
 }
 
 .account-settings__loading,
@@ -595,7 +595,7 @@
   align-items: center;
   justify-content: center;
   gap: 14px;
-  color: var(--home-muted, #8e97a5);
+  color: var(--home-muted, var(--ui-muted, #8e97a5));
 }
 
 @media (max-width: 720px) {

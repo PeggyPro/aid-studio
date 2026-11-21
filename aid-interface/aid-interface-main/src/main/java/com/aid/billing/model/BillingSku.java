@@ -49,6 +49,9 @@ public class BillingSku {
     /** 输入官方原价（元/百万Token），仅 TEXT SKU 使用；null时降级到 price */
     private BigDecimal inputPricePerMillion;
 
+    /** 图像生成接口分别报告文字和图片输入量时的文字原价。 */
+    private BigDecimal imageRequestTextInputPricePerMillion;
+
     /** 输出官方原价（元/百万Token），仅 TEXT SKU 使用；null时降级到 price */
     private BigDecimal outputPricePerMillion;
 
@@ -63,6 +66,9 @@ public class BillingSku {
 
     /** 输入媒体计费（参考图/输入视频附加费）SKU 级覆盖；null 时回退规则级 inputPricing */
     private InputMediaPricing inputPricing;
+
+    /** Video output, textual output and thought usage coexist on this SKU, without matching a second SKU. */
+    private CompositeVideoTokenPricing compositeVideoTokens;
 
     /** 备注 */
     private String remark;

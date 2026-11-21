@@ -1,6 +1,6 @@
 'use client'
 
-import { Modal } from 'antd'
+import { ConfigProvider, Modal } from 'antd'
 import type { ReactNode } from 'react'
 
 interface GlobalSettingStyleDialogProps {
@@ -16,20 +16,21 @@ export function GlobalSettingStyleDialog({
   children
 }: GlobalSettingStyleDialogProps) {
   return (
-    <Modal
-      open={open}
-      title="更多风格"
-      width={840}
-      footer={null}
-      centered
-      destroyOnHidden
-      zIndex={12000}
-      className="global-setting global-setting-style-modal"
-      wrapClassName="create-flow-modal global-setting-style-modal-wrap"
-      onCancel={() => onOpenChange(false)}
-    >
-      {children}
-    </Modal>
+    <ConfigProvider theme={{ token: { zIndexPopupBase: 12000 } }}>
+      <Modal
+        open={open}
+        title="更多风格"
+        width={840}
+        footer={null}
+        centered
+        destroyOnHidden
+        className="global-setting global-setting-style-modal"
+        wrapClassName="create-flow-modal global-setting-style-modal-wrap"
+        onCancel={() => onOpenChange(false)}
+      >
+        {children}
+      </Modal>
+    </ConfigProvider>
   )
 }
 

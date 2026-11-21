@@ -17,6 +17,9 @@ import { motion } from 'framer-motion';
 import { useUserStore } from '@/store/useUserStore';
 import { useAdminBrandStore } from '@/store/useAdminBrandStore';
 import { getDashboardOverview } from '@/api/aid/dashboard';
+import Auth from '@/components/Auth';
+import { MediaTaskAnomalyDashboardCard } from '@/components/MediaTaskAnomaly';
+import { MEDIA_TASK_ANOMALY_PERMISSIONS } from '@/api/system/mediaTaskAnomaly';
 import ModelMonitor from '@/views/aid/modelmonitor';
 import './index.less';
 
@@ -253,10 +256,16 @@ export default function Dashboard() {
         </Row>
       </Spin>
 
+      <Auth permission={MEDIA_TASK_ANOMALY_PERMISSIONS.list}>
+        <MediaTaskAnomalyDashboardCard />
+      </Auth>
+
       {/* 算力调度看板：实时（自带轮询/刷新），放在首页底部作为重点观测区 */}
-      <div className="dashboard__board" style={{ marginTop: 6 }}>
-        <ModelMonitor />
-      </div>
+      <Auth permission="aid:modelmonitor:list">
+        <div className="dashboard__board" style={{ marginTop: 6 }}>
+          <ModelMonitor />
+        </div>
+      </Auth>
     </div>
   );
 }

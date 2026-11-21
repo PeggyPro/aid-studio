@@ -1,14 +1,13 @@
 'use client'
 
-import { DeploymentUnitOutlined, ExportOutlined, SearchOutlined } from '@ant-design/icons'
+import { ExportOutlined,SearchOutlined } from '@ant-design/icons'
+import { message,Modal,Tooltip } from 'antd'
 import { InfiniteScrollLoadFooter } from '~/components/common/InfiniteScrollLoadFooter'
 import { PageLoadingOverlay } from '~/components/common/PageLoadingOverlay'
-import { Button, Dropdown, message, Modal, Tooltip } from 'antd'
 import { useRouter,useSearchParams } from 'next/navigation'
-import type { CSSProperties,SyntheticEvent } from 'react'
+import type { CSSProperties,ReactNode,SyntheticEvent } from 'react'
 import { useCallback,useEffect,useMemo,useRef,useState } from 'react'
-import deleteWhiteIcon from '~/assets/img/home/delete-white.svg'
-import editWhiteIcon from '~/assets/img/home/edit-white.svg'
+import { WorksCardDeleteIcon } from '~/components/home/WorksCardActionIcons'
 import { useEnterCreateFlowOverlay } from '~/composables/useEnterCreateFlowOverlay'
 import { useInfiniteScrollPagination } from '~/composables/useInfiniteScrollPagination'
 import { useCreationStore } from '~/stores/creation'
@@ -25,9 +24,9 @@ import { API_DEFAULT_PAGE_SIZE } from '~/utils/business/shared'
 import { buildOpenProjectFlowQuery,resolveCreateFlowEntryPath } from '~/utils/createFlowProjectContext'
 import { CREATE_FLOW_STEP_ORDER,CREATE_SERIES_EPISODE_LIST_PATH } from '~/utils/createFlowRoutes'
 import { emptyImageIconUrl } from '~/utils/emptyImageIcon'
-import { buildStudioFlowCanvasHref } from '~/utils/studio/studioFlowNavigation'
 import {
   buildWorksPageHref,
+  isWorksProjectTab,
   resolveWorksPageTab,
   type WorksPageTab
 } from '~/utils/worksPageTab'
@@ -44,19 +43,19 @@ projectPublicLockUserHint,
 type AuditBadgeTone
 } from '~/utils/projectAudit'
 import WorksLibraryAddCard from './WorksLibraryAddCard'
-import WorksLibraryPublishedAction from './WorksLibraryPublishedAction'
+import DiscoverySubmissionsPanel from './DiscoverySubmissionsPanel'
 import './WorksLibraryPanel.css'
+import WorksLibraryPublishedAction from './WorksLibraryPublishedAction'
+import { CanvasProjectCollection } from '@/components/canvas/CanvasProjectCollection'
 
 type WorkCategory = WorksPageTab
 
 const workCoverPlaceholderUrl = assetUrl(emptyImageIconUrl)
-const deleteWhiteUrl = assetUrl(deleteWhiteIcon)
-const editWhiteUrl = assetUrl(editWhiteIcon)
 const WORKS_SCROLL_LOAD_THRESHOLD_PX = 240
 
 export interface WorksLibraryPanelProps {
   /** 独立「我的作品」页：打开创建作品弹窗；携带当前列表 Tab 以预选电影/剧集 */
-  onOpenCreate?: (tab: WorkCategory) => void
+  onOpenCreate?: (tab: 'film' | 'series') => void
 }
 
 type WorkListItem = Work & {
@@ -68,9 +67,11 @@ type WorkListItem = Work & {
   auditStatusTone?: AuditBadgeTone | null
 }
 
-const typeTabs: { label: string; value: WorkCategory }[] = [
+const typeTabs: { label: string; value: WorksPageTab }[] = [
   { label: '电影/短片', value: 'film' },
-  { label: '电视剧集', value: 'series' }
+  { label: '电视剧集', value: 'series' },
+  { label: '画布', value: 'canvas' },
+  { label: '我的投稿', value: 'submission' }
 ]
 
 function toWorkStatus(status?: number): Work['status'] {
@@ -114,7 +115,7 @@ function mapProjectToWorkItem(row: UserProjectRow): WorkListItem {
     episodeCount,
     isPublished: isProjectPublished(row.isPublic),
     auditStatusLabel: auditStatusBadgeLabel(row.status),
-    auditStatusTone: auditStatusBadgeTone(row.status),
+    auditStatusTone: auditStatusBadgeTone(row.status)
   }
 }
 
@@ -157,12 +158,18 @@ export function WorksLibraryPanel({ onOpenCreate }: WorksLibraryPanelProps) {
     resolveWorksPageTab(tabQuery, typeQuery)
   )
   const [searchQuery, setSearchQuery] = useState('')
+  const [canvasToolbarExtra, setCanvasToolbarExtra] = useState<ReactNode>(null)
+  const setCanvasToolbarExtraStable = useCallback((node: ReactNode | null) => {
+    setCanvasToolbarExtra(node)
+  }, [])
 
   useEffect(() => {
     setWorkType(resolveWorksPageTab(tabQuery, typeQuery))
+    setSearchQuery('')
   }, [tabQuery, typeQuery])
 
   function selectWorkType(tab: WorkCategory) {
+    setSearchQuery('')
     setWorkType(tab)
     const href = buildWorksPageHref(searchQueryString, tab)
     router.replace(href, { scroll: false })
@@ -259,6 +266,7 @@ export function WorksLibraryPanel({ onOpenCreate }: WorksLibraryPanelProps) {
     }
   })
   const listLoading = listRequestLoading || !listInitialLoaded
+  const showListEnd = myWorks.length > API_DEFAULT_PAGE_SIZE
 
   const previousWorkCountRef = useRef(0)
   const [appendedFromIndex, setAppendedFromIndex] = useState<number | null>(null)
@@ -330,6 +338,17 @@ export function WorksLibraryPanel({ onOpenCreate }: WorksLibraryPanelProps) {
     }
   }
 
+  function renderWorkTitle(work: Work, className: string) {
+    return (
+      <h3 className={className} title={work.title}>
+        <button type="button" className="works-lib-card__title-action" onClick={(event) => {
+          event.stopPropagation()
+          onWorkEditClick(work)
+        }}>{work.title}</button>
+      </h3>
+    )
+  }
+
   function onWorkEditClick(work: Work) {
     const item = work as WorkListItem
     if (item.category === 'series') {
@@ -339,9 +358,15 @@ export function WorksLibraryPanel({ onOpenCreate }: WorksLibraryPanelProps) {
     void openWork(work)
   }
 
+
   const publishNavigatingProjectIdRef = useRef<number | null>(null)
 
-  /** 从作品卡片返回当前创作步骤，再由成品预览执行发布。 */
+  /**
+   * 卡片右下角「发布至案例广场」：不再在列表内走发布/审核，
+   * 而是跳转到作品当前进行到的流程步骤（已完成则为成品预览），
+   * 由创作流程壳层根据 publishGuide 标记高亮引导：
+   * 未完成 → 当前流程 tab；已完成 →「导出/发布」。
+   */
   async function publishToCasePlazaFromCard(work: WorkListItem) {
     const projectId = Number(work.id)
     if (!Number.isFinite(projectId) || projectId <= 0) {
@@ -354,23 +379,23 @@ export function WorksLibraryPanel({ onOpenCreate }: WorksLibraryPanelProps) {
     try {
       resetProjectDetailHydrateCache(projectId)
       const projectTypeGuess = work.category === 'series' ? 'series' : 'movie'
-      const query = buildOpenProjectFlowQuery(projectId, {
+      const q = buildOpenProjectFlowQuery(projectId, {
         embedded: false,
         projectType: projectTypeGuess
       })
       const entryPath = await resolveCreateFlowEntryPath(projectId, projectTypeGuess)
-      router.push(`${entryPath}?${serializeFlowQuery(query)}`)
+      router.push(`${entryPath}?${serializeFlowQuery({ ...q, publishGuide: '1' })}`)
       await hydrateCreationStoreFromProjectDetail(useCreationStore.getState(), projectId, {
         force: true
       })
       const projectType = useCreationStore.getState().currentProjectType
       if (projectType && projectType !== projectTypeGuess) {
-        const nextQuery = buildOpenProjectFlowQuery(projectId, {
+        const q2 = buildOpenProjectFlowQuery(projectId, {
           embedded: false,
           projectType
         })
-        const nextEntryPath = await resolveCreateFlowEntryPath(projectId, projectType)
-        router.replace(`${nextEntryPath}?${serializeFlowQuery(nextQuery)}`)
+        const entryPath2 = await resolveCreateFlowEntryPath(projectId, projectType)
+        router.replace(`${entryPath2}?${serializeFlowQuery({ ...q2, publishGuide: '1' })}`)
       }
     } catch {
       endEnterCreateFlowOverlay()
@@ -399,10 +424,10 @@ export function WorksLibraryPanel({ onOpenCreate }: WorksLibraryPanelProps) {
           await userProjectUnpublish({ id: projectId })
           message.success('已取消发布')
           await fetchWorkList()
-        } catch (error: unknown) {
-          const detail = error as { msg?: string; message?: string }
-          message.error(detail?.msg || detail?.message || '取消发布失败')
-          throw error
+        } catch (e: unknown) {
+          const err = e as { msg?: string; message?: string }
+          message.error(err?.msg || err?.message || '取消发布失败')
+          throw e
         } finally {
           setUnpublishingProjectId(null)
         }
@@ -439,14 +464,16 @@ export function WorksLibraryPanel({ onOpenCreate }: WorksLibraryPanelProps) {
     ]
   }, [myWorks])
 
-  /** 单一入口：挂载时拉一次，切换 Tab 再拉；避免 onMounted + watch 叠成双请求 */
+  /** 单一入口：挂载时拉一次，切换 Tab 再拉；投稿 Tab 不走项目列表 */
   useEffect(() => {
+    if (!isWorksProjectTab(workType)) return
     void fetchWorkList()
   }, [workType, fetchWorkList])
 
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const prevSearchQueryRef = useRef(searchQuery)
   useEffect(() => {
+    if (!isWorksProjectTab(workType)) return
     if (prevSearchQueryRef.current === searchQuery) return
     prevSearchQueryRef.current = searchQuery
     if (searchTimerRef.current) clearTimeout(searchTimerRef.current)
@@ -465,6 +492,7 @@ export function WorksLibraryPanel({ onOpenCreate }: WorksLibraryPanelProps) {
   }, [])
 
   function goToCreate() {
+    if (workType !== 'film' && workType !== 'series') return
     onOpenCreate?.(workType)
   }
 
@@ -529,36 +557,13 @@ export function WorksLibraryPanel({ onOpenCreate }: WorksLibraryPanelProps) {
 
   return (
     <div
-      aria-busy={listLoading}
-      className={`works-page home-new-sub-page works-library-figma${
-        workType === 'series' ? ' works-library-figma--series-tab' : ''
-      }`}
+      aria-busy={isWorksProjectTab(workType) && listLoading}
+      className="works-page home-new-sub-page works-library-figma"
     >
-      {listLoading && <PageLoadingOverlay label="正在加载我的作品…" />}
+      {isWorksProjectTab(workType) && listLoading && <PageLoadingOverlay label="正在加载我的作品…" />}
       <div className="page-content works-library-figma__inner">
         <header className="works-lib-header">
           <h1 className="works-lib-header__title">我的作品</h1>
-          <Dropdown
-            trigger={['click']}
-            placement="bottomLeft"
-            menu={{
-              style: { maxHeight: 'min(420px, 65vh)', overflowY: 'auto', maxWidth: 'min(360px, 85vw)' },
-              items: filteredWorks.length
-                ? filteredWorks.map((work) => ({ key: work.id, label: work.title }))
-                : [{ key: 'empty', label: '暂无作品，请先新建作品', disabled: true }],
-              onClick: ({ key }) => {
-                const work = filteredWorks.find((item) => item.id === key)
-                if (!work) return
-                router.push(buildStudioFlowCanvasHref({
-                  projectId: Number(work.id),
-                  episodeId: work.category === 'film' ? 0 : null,
-                  from: 'works'
-                }))
-              }
-            }}
-          >
-            <Button icon={<DeploymentUnitOutlined />} aria-label="流程画布" title="选择作品，进入流程画布">流程画布</Button>
-          </Dropdown>
         </header>
 
         {/* <section class="works-lib-stats" aria-label="作品统计">
@@ -587,31 +592,44 @@ export function WorksLibraryPanel({ onOpenCreate }: WorksLibraryPanelProps) {
               </button>
             ))}
           </div>
-          <div className="works-lib-search">
-            <SearchOutlined className="works-lib-search__ico" />
-            <input
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              type="search"
-              className="works-lib-search__input"
-              placeholder="搜索作品..."
-              autoComplete="off"
-            />
-          </div>
+          {workType === 'canvas' ? canvasToolbarExtra : null}
+          {workType !== 'submission' ? (
+            <div className="works-lib-search">
+              <SearchOutlined className="works-lib-search__ico" />
+              <input
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                type="search"
+                className="works-lib-search__input"
+                placeholder={workType === 'canvas' ? '搜索画布名称' : '搜索作品...'}
+                aria-label={workType === 'canvas' ? '搜索画布名称' : '搜索作品'}
+                autoComplete="off"
+              />
+            </div>
+          ) : null}
         </section>
 
-        <div ref={worksLibGridRef} className="works-lib-grid">
+        {workType === 'canvas' ? (
+          <CanvasProjectCollection
+            variant="library"
+            query={searchQuery}
+            onQueryChange={setSearchQuery}
+            onToolbarExtra={setCanvasToolbarExtraStable}
+          />
+        ) : workType === 'submission' ? (
+          <DiscoverySubmissionsPanel />
+        ) : (
+          <div ref={worksLibGridRef} className="works-lib-grid">
           <WorksLibraryAddCard label="新建作品" onClick={goToCreate} />
           {filteredWorks.map((work, workIdx) => (
             <article
               key={work.id}
               className={`works-lib-card${
-                work.category === 'series' ? ' works-lib-card--series' : ''
-              }${
                 appendedFromIndex !== null && workIdx >= appendedFromIndex
                   ? ' works-lib-card--appended'
                   : ''
               }`}
+              onClick={() => onWorkEditClick(work)}
               style={
                 appendedFromIndex !== null && workIdx >= appendedFromIndex
                   ? ({
@@ -649,14 +667,7 @@ export function WorksLibraryPanel({ onOpenCreate }: WorksLibraryPanelProps) {
                     onError={(ev) => onWorkCoverImgError(ev, work.id)}
                   />
                 )}
-                {work.category === 'series' ? (
-                  <div className="works-lib-card__cover-meta">
-                    <h3 className="works-lib-card__cover-title">{work.title}</h3>
-                    <span className="works-lib-card__cover-updated">
-                      最后更新 {formatDate(work.updatedAt)}
-                    </span>
-                  </div>
-                ) : null}
+                {/* 审核状态固定在左上角，卡片悬停时也保持可见。 */}
                 {work.auditStatusLabel ? (
                   <span
                     className={`works-lib-card__cover-badge ${auditBadgeClass(
@@ -676,25 +687,23 @@ export function WorksLibraryPanel({ onOpenCreate }: WorksLibraryPanelProps) {
                       deleteWork(work)
                     }}
                   >
-                    <img src={deleteWhiteUrl} alt="" />
-                  </button>
-                  <button
-                    type="button"
-                    className="works-lib-card__cover-btn"
-                    aria-label="编辑"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      onWorkEditClick(work)
-                    }}
-                  >
-                    <img src={editWhiteUrl} alt="" />
+                    <WorksCardDeleteIcon />
                   </button>
                 </div>
               </div>
               <div className="works-lib-card__body">
-                {work.category === 'series' ? (
-                  <div className="works-lib-card__episodes works-lib-card__episodes--series">
-                    <div className="works-lib-card__ep-toolbar">
+                <h3 className="works-lib-card__title" title={work.title}>
+                  <button type="button" className="works-lib-card__title-action" onClick={(event) => {
+                    event.stopPropagation()
+                    onWorkEditClick(work)
+                  }}>{work.title}</button>
+                </h3>
+                <div className="works-lib-card__row">
+                  <span className="works-lib-card__updated">
+                    最后更新 {formatDate(work.updatedAt)}
+                  </span>
+                  {work.category === 'series' ? (
+                    <div className="works-lib-card__row-trailing">
                       <span className="works-lib-card__ep-label">
                         集数 <em>{work.episodeCount ?? 0}</em>
                       </span>
@@ -718,56 +727,47 @@ export function WorksLibraryPanel({ onOpenCreate }: WorksLibraryPanelProps) {
                         </button>
                       )}
                     </div>
-                  </div>
-                ) : (
-                  <>
-                    <h3 className="works-lib-card__title">{work.title}</h3>
-                    <div className="works-lib-card__row">
-                      <span className="works-lib-card__updated">
-                        最后更新 {formatDate(work.updatedAt)}
-                      </span>
-                      {work.isPublished ? (
-                        <WorksLibraryPublishedAction
-                          loading={unpublishingProjectId === Number(work.id)}
-                          onCancel={() => cancelPublishWork(work)}
-                        />
-                      ) : (
-                        <Tooltip
-                          title="发布至案例广场"
-                          placement="top"
-                          classNames={{ root: 'works-lib-publish-tooltip' }}
-                        >
-                          <button
-                            type="button"
-                            className="works-lib-card__open"
-                            aria-label="发布至案例广场"
-                            onClick={(event) => {
-                              event.stopPropagation()
-                              void publishToCasePlazaFromCard(work)
-                            }}
-                          >
-                            <ExportOutlined />
-                          </button>
-                        </Tooltip>
-                      )}
-                    </div>
-                  </>
-                )}
+                  ) : work.isPublished ? (
+                    <WorksLibraryPublishedAction
+                      loading={unpublishingProjectId === Number(work.id)}
+                      onCancel={() => cancelPublishWork(work)}
+                    />
+                  ) : (
+                    <Tooltip
+                      title="发布至案例广场"
+                      placement="top"
+                      classNames={{ root: 'works-lib-publish-tooltip' }}
+                    >
+                      <button
+                        type="button"
+                        className="works-lib-card__open"
+                        aria-label="发布至案例广场"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          void publishToCasePlazaFromCard(work)
+                        }}
+                      >
+                        <ExportOutlined />
+                      </button>
+                    </Tooltip>
+                  )}
+                </div>
               </div>
             </article>
           ))}
-          {myWorks.length > 0 ? (
+          {listHasMore || listLoadingMore || showListEnd ? (
             <div ref={setLoadMoreTrigger} className="works-lib-list-footer">
               <InfiniteScrollLoadFooter
                 loading={listLoadingMore}
                 hasMore={listHasMore}
-                hasItems
+                hasItems={showListEnd}
                 loadingText="正在加载更多作品…"
                 endText="已加载全部作品"
               />
             </div>
           ) : null}
         </div>
+        )}
       </div>
     </div>
   )

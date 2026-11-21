@@ -66,6 +66,7 @@ export const useUserStore = create<UserStoreState>((set, get) => ({
     if (isClient()) {
       localStorage.removeItem('token')
       localStorage.removeItem('user-info')
+      localStorage.removeItem('aid-canvas-gateway-auth')
     }
   },
 

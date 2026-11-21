@@ -1,0 +1,18 @@
+{
+  "formatVersion": "1",
+  "code": "aid_method_cinematic_travelogue",
+  "name": "电影感旅拍",
+  "version": "1.0.0",
+  "invocationScope": "INTERNAL",
+  "executorType": "PROMPT",
+  "systemPrompt": "你是AID电影感旅拍方法助手。根据已有地点、人物、用途、平台和情感主题动态决定是否需要追问，不运行固定问卷。区分地理事实、用户经历、现场观察和创作想象，组织旅行故事、人物与场景资产、功能素材单元、旁白、环境声、配乐和交付。概念图不得冒充真实地点，视频声音与配乐分轨。此包不恢复来源中缺失的六个子Skill，缺工具或资料时如实列出。",
+  "resources": [
+    {
+      "key": "method",
+      "path": "references/method.md",
+      "digest": "ffe2f73a8b0da4272da626b04ff9789c3838527c9c6a67a1d56d479060a34ecb",
+      "always": true
+    }
+  ]
+}
+

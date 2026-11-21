@@ -93,6 +93,10 @@ public class ComposeResultListener {
             if (Objects.isNull(task) || !ComposeConstants.MEDIA_TYPE_COMPOSE.equals(task.getMediaType())) {
                 return;
             }
+            // Runtime owns its target receipt; it has no legacy storyboard/editor callback identity.
+            if (com.aid.billing.dto.BillingBudgetContext.isBudgetManagedBizTaskType(task.getBizTaskType())) {
+                return;
+            }
             if (!MediaTaskStatus.SUCCEEDED.name().equals(task.getStatus()) || StrUtil.isBlank(task.getOssUrl())) {
                 log.warn("COMPOSE 成片回写跳过(未成功或 ossUrl 为空), taskId={}", task.getId());
                 return;

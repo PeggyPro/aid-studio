@@ -1,4 +1,4 @@
-@import '../composer-flow.css';
+@import '../../home/composer/home-composer-flow.css';
 @import './agent-thinking.css';
 
 .agent-conversation-panel {
@@ -15,7 +15,9 @@
   flex: 1;
   flex-direction: column;
   overflow: hidden;
-  background: #191a1d;
+  background: var(--studio-ui-panel, var(--ui-surface, #191a1d));
+  /* 实底对话容器不建立背景滤镜层，异步恢复的消息应直接参与首屏绘制。 */
+  backdrop-filter: none;
 }
 
 .agent-conversation-panel__header {
@@ -37,15 +39,30 @@
 .agent-conversation-panel__brand-icon,
 .story-script-agent-panel__brand-icon {
   display: block;
-  width: 22px;
-  height: 22px;
+  width: 28px;
+  height: 28px;
+  overflow: hidden;
+}
+
+.agent-conversation-panel__brand-icon.liquid-orb .liquid-orb__halo,
+.story-script-agent-panel__brand-icon.liquid-orb .liquid-orb__halo {
+  inset: -10%;
+  filter: blur(6px);
+  opacity: 0.45;
 }
 
 .agent-conversation-panel__brand strong,
 .story-script-agent-panel__brand strong {
-  color: #e9eef5;
+  color: var(--studio-ui-text, var(--ui-text, #e9eef5));
   font-size: 14px;
   font-weight: 650;
+}
+
+.agent-conversation-panel__header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
 }
 
 .agent-conversation-panel__header button,
@@ -58,6 +75,13 @@
   border: 0;
   background: transparent;
   cursor: pointer;
+}
+
+.agent-conversation-panel__header button:focus-visible,
+.story-script-agent-panel__header button:focus-visible {
+  border-radius: 7px;
+  outline: 2px solid color-mix(in srgb, var(--studio-ui-accent, var(--ui-ring, #4ae7fd)) 74%, white);
+  outline-offset: 2px;
 }
 
 .agent-conversation-panel__messages {
@@ -77,7 +101,7 @@
   display: flex;
   flex-direction: column;
   border-radius: 16px;
-  background: #262931;
+  background: var(--studio-ui-control, var(--ui-raised, #262931));
 }
 
 .agent-conversation-panel__input-wrap.has-context-chips,
@@ -92,7 +116,7 @@
   flex: 1;
   resize: none;
   padding: 14px 16px 48px;
-  color: #fff;
+  color: var(--studio-ui-text, var(--ui-text, #fff));
   border: 0;
   outline: 0;
   background: transparent;
@@ -102,7 +126,7 @@
 }
 
 .agent-conversation-panel__input-wrap textarea::placeholder {
-  color: #8e97a5;
+  color: var(--studio-ui-muted, var(--ui-muted, #8e97a5));
 }
 
 .agent-conversation-panel__composer-tools {
@@ -146,10 +170,10 @@
   max-width: 100%;
   padding: 4px 8px;
   overflow: hidden;
-  color: #d7dee8;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--studio-ui-text, var(--ui-text, #d7dee8));
+  border: 1px solid var(--studio-ui-border, var(--ui-hair, rgba(255, 255, 255, 0.08)));
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--studio-ui-control, var(--ui-soft, rgba(255, 255, 255, 0.04)));
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 12px;
@@ -161,11 +185,11 @@
   flex-direction: column;
   gap: 10px;
   padding: 18px 8px 8px;
-  color: #9aa3b0;
+  color: var(--studio-ui-muted, var(--ui-muted, #9aa3b0));
 }
 
 .agent-conversation-empty strong {
-  color: #e9eef5;
+  color: var(--studio-ui-text, var(--ui-text, #e9eef5));
   font-size: 14px;
 }
 
@@ -180,15 +204,15 @@
   align-items: flex-start;
   gap: 2px;
   padding: 10px;
-  color: #e9eef5;
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  color: var(--studio-ui-text, var(--ui-text, #e9eef5));
+  border: 1px solid var(--studio-ui-border, var(--ui-hair, rgba(255, 255, 255, 0.06)));
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--studio-ui-control, var(--ui-soft, rgba(255, 255, 255, 0.03)));
   text-align: left;
   cursor: pointer;
 }
 
 .agent-conversation-empty__skills small {
-  color: #8e97a5;
+  color: var(--studio-ui-muted, var(--ui-muted, #8e97a5));
   font-size: 12px;
 }

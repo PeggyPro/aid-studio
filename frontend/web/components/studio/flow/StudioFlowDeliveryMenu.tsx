@@ -1,8 +1,8 @@
 'use client'
 
-import { Button, Dropdown } from 'antd'
+import { Button, Dropdown, Tooltip } from 'antd'
 import { ExportOutlined } from '@ant-design/icons'
-import { useStudioFlowExportContext } from './StudioFlowExportProvider'
+import { useStudioFlowPublishExportContext } from './StudioFlowPublishExportProvider'
 
 export function StudioFlowDeliveryMenu({
   compact = false,
@@ -11,20 +11,24 @@ export function StudioFlowDeliveryMenu({
   compact?: boolean
   disabled?: boolean
 }) {
-  const flowExport = useStudioFlowExportContext()
-  if (!flowExport) return null
+  const publishExport = useStudioFlowPublishExportContext()
+  if (!publishExport) return null
 
   const {
     exportMenuOpen,
     onExportMenuOpenChange,
     previewExportBusy,
     onExportFullVideo,
-    onExportSegments
-  } = flowExport
+    onExportSegments,
+    publishToCasePlazaDisabled,
+    publishToCasePlazaTooltip,
+    getPublishTooltipPopupContainer,
+    onPublishToCasePlaza
+  } = publishExport
 
   const menu = (
-    <div className="studio-flow-delivery-menu" role="menu" aria-label="导出">
-      <div className="studio-flow-delivery-menu__title">导出</div>
+    <div className="studio-flow-delivery-menu" role="menu" aria-label="导出与发布">
+      <div className="studio-flow-delivery-menu__title">导出与发布</div>
       <button
         type="button"
         className="studio-flow-delivery-menu__btn"
@@ -43,6 +47,30 @@ export function StudioFlowDeliveryMenu({
       >
         导出分段素材
       </button>
+      {publishToCasePlazaDisabled ? (
+        <Tooltip
+          title={publishToCasePlazaTooltip}
+          placement="left"
+          styles={{ root: { zIndex: 11000, maxWidth: '280px' } }}
+          getPopupContainer={getPublishTooltipPopupContainer}
+        >
+          <span className="studio-flow-delivery-menu__btn-wrap">
+            <button type="button" className="studio-flow-delivery-menu__btn studio-flow-delivery-menu__btn--secondary" role="menuitem" disabled>
+              发布至案例广场
+            </button>
+          </span>
+        </Tooltip>
+      ) : (
+        <button
+          type="button"
+          className="studio-flow-delivery-menu__btn studio-flow-delivery-menu__btn--secondary"
+          role="menuitem"
+          disabled={previewExportBusy}
+          onClick={onPublishToCasePlaza}
+        >
+          发布至案例广场
+        </button>
+      )}
     </div>
   )
 
@@ -64,7 +92,7 @@ export function StudioFlowDeliveryMenu({
         disabled={disabled || previewExportBusy}
         loading={previewExportBusy}
       >
-        {compact ? '交付' : '导出'}
+        {compact ? '交付' : '导出/发布'}
       </Button>
     </Dropdown>
   )

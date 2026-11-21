@@ -1,7 +1,7 @@
 import { message } from 'antd'
 import { useCreationStore } from '~/stores/creation'
 import { userScriptUpload } from '~/utils/businessApi'
-import { scriptApiTextToEditorHtml } from '~/utils/htmlPlain'
+import { plainPureTextCharCount, scriptApiTextToEditorHtml } from '~/utils/htmlPlain'
 import {
   assertScriptPlainTextFile,
   SCRIPT_UPLOAD_ACCEPT,
@@ -11,6 +11,7 @@ import {
 export interface ImportScriptFilePickerOptions {
   acceptAssetType: 'image' | 'video' | 'media' | 'script' | 'all'
   multiple: boolean
+  currentScriptMaxChars?: number
   /** 解析当前选中节点对应的项目数字 ID（供剧本上传） */
   getProjectId: () => string | null
   /** 与创作上下文一致的剧集 ID（>0 时随剧本上传传给接口） */
@@ -164,9 +165,17 @@ export function openImportScriptFilePicker(opts: ImportScriptFilePickerOptions) 
           try {
             try {
               await assertScriptPlainTextFile(file)
+              if (opts.currentScriptMaxChars !== undefined) {
+                if (file.size > 10 * 1024 * 1024) throw new Error('剧本文件不能超过 10MB')
+                const text = new TextDecoder('utf-8', { fatal: true }).decode(await file.arrayBuffer())
+                const charCount = plainPureTextCharCount(text.replace(/<\/?br\s*\/?>/gi, ''))
+                if (charCount > opts.currentScriptMaxChars) {
+                  throw new Error('本集剧本超过 ' + opts.currentScriptMaxChars.toLocaleString('zh-CN') + ' 字')
+                }
+              }
             } catch (err: unknown) {
               const errObj = err as { message?: string }
-              message.error(errObj?.message || '内容非文本')
+              message.error(err instanceof TypeError ? '请将剧本另存为 UTF-8 编码的 TXT 文件' : errObj?.message || '内容非文本')
               return
             }
             const importEpisodeId = opts.getImportEpisodeId()

@@ -14,6 +14,7 @@ import { Modal,message } from 'antd'
 import { useRouter } from 'next/navigation'
 import { Suspense,useEffect,useMemo,useRef,useState } from 'react'
 import tvIconRaw from '~/assets/img/icon/tv.svg'
+import { SeriesScriptImport } from '~/components/create/SeriesScriptImport'
 import SeriesProjectAssetCard from '~/components/create/SeriesProjectAssetCard'
 import { InfiniteScrollLoadFooter } from '~/components/common/InfiniteScrollLoadFooter'
 import { useInfiniteScrollPagination } from '~/hooks/useInfiniteScrollPagination'
@@ -37,6 +38,7 @@ htmlPlainTextLength,
 resolveStoryScriptEditorHtmlAfterApiLoad,
 storyScriptOriginalTextForApi
 } from '~/utils/htmlPlain'
+import { isProjectPublicLockError,projectPublicLockUserHint } from '~/utils/projectAudit'
 import './series-episode-list.css'
 
 const tvIconUrl = assetUrl(tvIconRaw)
@@ -99,6 +101,7 @@ function SeriesEpisodeListClient() {
   const [activeTab, setActiveTab] = useState<TabKey>('episodes')
   const activeTabRef = useRef<TabKey>('episodes')
   const [adding, setAdding] = useState(false)
+  const addingRef = useRef(false)
   const [generatingEpisodeId, setGeneratingEpisodeId] = useState<number | null>(null)
   const generatingEpisodeIdRef = useRef<number | null>(null)
   const [deletingEpisodeId, setDeletingEpisodeId] = useState<number | null>(null)
@@ -110,8 +113,12 @@ function SeriesEpisodeListClient() {
   const [projectAssetsLoading, setProjectAssetsLoading] = useState(false)
   const projectAssetsFetchTokenRef = useRef(0)
 
-  /** 已加载/加载中的 projectId：effect 因 store 水合后置触发时，同项目不重复拉列表 */
-  const episodesLoadedProjectIdRef = useRef<number | null>(null)
+  const routeProjectId = Number(route.query.projectId ?? route.query.id ?? route.query.workId)
+  const projectId = Number.isFinite(routeProjectId) && routeProjectId > 0 ? routeProjectId : currentProjectId
+  const projectIdRef = useRef(projectId)
+  projectIdRef.current = projectId
+  const [importing, setImporting] = useState(false)
+  const [importBusy, setImportBusy] = useState(false)
 
   function setGenerating(id: number | null) {
     generatingEpisodeIdRef.current = id
@@ -132,11 +139,7 @@ function SeriesEpisodeListClient() {
   const sortedProjectAssets = useMemo(() => sortAssetRows(projectAssets), [projectAssets])
 
   function projectIdFromRoute(): number | null {
-    const routePid = Number(route.query.projectId ?? route.query.id ?? route.query.workId)
-    const pid =
-      useCreationStore.getState().currentProjectId ??
-      (Number.isFinite(routePid) && routePid > 0 ? routePid : null)
-    return pid
+    return projectIdRef.current
   }
 
   const fetchEpisodePage = async (pageNum: number, pageSize: number) => {
@@ -166,7 +169,6 @@ function SeriesEpisodeListClient() {
     pageSize: 20,
     onError: (error, { reset }) => {
       if (reset) {
-        episodesLoadedProjectIdRef.current = null
         useCreationStore.getState().setSeriesEpisodeListTotal(0)
       }
       const err = error as { msg?: string; message?: string }
@@ -197,7 +199,8 @@ function SeriesEpisodeListClient() {
   }
 
   function resolveEpisodeIdForAssets(): number | null {
-    const fromStore = useCreationStore.getState().currentEpisodeId
+    const store = useCreationStore.getState()
+    const fromStore = store.currentProjectId === projectIdFromRoute() ? store.currentEpisodeId : null
     if (fromStore != null && fromStore > 0) return fromStore
     const fromRoute = Number(route.query.episodeId)
     if (Number.isFinite(fromRoute) && fromRoute > 0) return fromRoute
@@ -288,15 +291,7 @@ function SeriesEpisodeListClient() {
     })
   }
 
-  async function loadEpisodes(opts?: { force?: boolean }) {
-    const pid = projectIdFromRoute()
-    if (!pid) {
-      episodesLoadedProjectIdRef.current = null
-      await reloadEpisodes()
-      return
-    }
-    if (!opts?.force && episodesLoadedProjectIdRef.current === pid) return
-    episodesLoadedProjectIdRef.current = pid
+  async function loadEpisodes() {
     if (episodeScrollRootRef.current) episodeScrollRootRef.current.scrollTop = 0
     await reloadEpisodes()
   }
@@ -315,11 +310,13 @@ function SeriesEpisodeListClient() {
   }
 
   async function onAddEpisode() {
+    if (addingRef.current) return
     const pid = projectIdFromRoute()
     if (!pid) {
       message.warning('缺少项目信息')
       return
     }
+    addingRef.current = true
     setAdding(true)
     try {
       const sorted = await userEpisodeList({ projectId: pid })
@@ -330,11 +327,16 @@ function SeriesEpisodeListClient() {
         comicTitle: `第${nextNo}集`
       })
       message.success('已新增一集')
-      await loadEpisodes({ force: true })
+      await loadEpisodes()
     } catch (e: unknown) {
+      if (isProjectPublicLockError(e)) {
+        message.error(projectPublicLockUserHint())
+        return
+      }
       const err = e as { msg?: string; message?: string }
       message.error(err?.msg || err?.message || '新增失败')
     } finally {
+      addingRef.current = false
       setAdding(false)
     }
   }
@@ -357,8 +359,12 @@ function SeriesEpisodeListClient() {
           if (store.currentEpisodeId === ep.id) {
             store.setCurrentProjectContext({ episodeId: null })
           }
-          await loadEpisodes({ force: true })
+          await loadEpisodes()
         } catch (e: unknown) {
+          if (isProjectPublicLockError(e)) {
+            message.error(projectPublicLockUserHint())
+            return
+          }
           const err = e as { msg?: string; message?: string }
           message.error(err?.msg || err?.message || '删除失败')
           throw e
@@ -417,15 +423,18 @@ function SeriesEpisodeListClient() {
     }
   }
 
-  // 原 onMounted + watch([route.query.projectId, route.query.id, route.query.workId, currentProjectId])
+  // 项目身份是加载的唯一依赖；effect 重建必须重新发起有效请求，不能被页面级缓存闸门拦截。
   useEffect(() => {
-    void loadEpisodes()
+    setImporting(false)
+    setProjectAssets([])
+    setProjectAssetsLoading(false)
+    episodesRef.current = []
+    void reloadEpisodes()
     const tab = activeTabRef.current
-    if (tab === 'characters' || tab === 'props' || tab === 'scenes') {
-      void loadProjectAssets()
-    }
+    if (tab !== 'episodes') void loadProjectAssets()
+    return () => { projectAssetsFetchTokenRef.current += 1 }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [route.query.projectId, route.query.id, route.query.workId, currentProjectId])
+  }, [projectId, reloadEpisodes])
 
   // 原 onUnmounted
   useEffect(() => {
@@ -439,13 +448,14 @@ function SeriesEpisodeListClient() {
       <div className="series-ep-list__toolbar">
         {/* 与 EditStoryboardImageModal 右侧 config-tabs--three / config-tab 一致 */}
         <div className="series-ep-list__segment-wrap">
-          <div className="series-ep-list__segment-tabs" role="tablist">
+          <div className="series-ep-list__segment-tabs" role="tablist" aria-label="项目内容">
             {tabs.map((tab) => (
               <button
                 key={tab.key}
                 type="button"
                 role="tab"
                 className={`series-ep-list__segment-tab${activeTab === tab.key ? ' active' : ''}`}
+                disabled={importBusy}
                 aria-selected={activeTab === tab.key}
                 onClick={() => onTabClick(tab.key)}
               >
@@ -455,33 +465,51 @@ function SeriesEpisodeListClient() {
           </div>
         </div>
         {activeTab === 'episodes' ? (
-          <button
-            type="button"
-            className="series-ep-list__add"
-            disabled={adding}
-            onClick={onAddEpisode}
-          >
-            <PlusOutlined />
-            新增一集
-          </button>
+          <div className="series-ep-list__actions">
+            {sortedEpisodes.length > 0 ? (
+              <button
+                type="button"
+                className="series-ep-list__add"
+                disabled={importBusy}
+                onClick={() => setImporting((value) => !value)}
+              >
+                {importing ? '返回剧集列表' : '导入整部剧本'}
+              </button>
+            ) : null}
+            <button
+              type="button"
+              className="series-ep-list__add series-ep-list__add--primary"
+              disabled={adding || importing || importBusy || !projectId}
+              onClick={onAddEpisode}
+            >
+              <PlusOutlined />
+              新增一集
+            </button>
+          </div>
         ) : null}
       </div>
 
       {activeTab === 'episodes' ? (
         <div className="series-ep-list__body" ref={episodeScrollRootRef}>
-          {loading ? (
+          {!projectId ? (
+            <div className="series-ep-list__empty" role="alert">缺少项目信息，请从作品列表重新进入。</div>
+          ) : loading ? (
             <div className="series-ep-list__loading">加载中…</div>
           ) : episodesLoadError && episodes.length === 0 ? (
             <div className="series-ep-list__empty">
-              加载分集失败，<button type="button" onClick={() => void loadEpisodes({ force: true })}>点击重试</button>
+              加载分集失败，<button type="button" onClick={() => void loadEpisodes()}>点击重试</button>
             </div>
-          ) : sortedEpisodes.length === 0 ? (
-            <div className="series-ep-list__empty">暂无分集，点击「新增一集」开始</div>
+          ) : sortedEpisodes.length === 0 || importing ? (
+            <SeriesScriptImport key={projectId} projectId={projectId} onBusyChange={setImportBusy} onImported={() => {
+              setImporting(false)
+              void loadEpisodes()
+            }} />
           ) : (
             <div
               className="series-ep-list__table"
               role="table"
               aria-label="剧集列表"
+              data-onboarding="episode-list"
             >
               <div className="series-ep-list__thead" role="row">
                 <span
@@ -524,7 +552,10 @@ function SeriesEpisodeListClient() {
                   <div className="series-ep-list__cell series-ep-list__cell--actions" role="cell">
                     <button
                       type="button"
-                      className="series-ep-list__btn series-ep-list__btn--primary"
+                      className="series-ep-list__btn series-ep-list__btn--generate"
+                      data-onboarding={
+                        sortedEpisodes[0]?.id === ep.id ? 'episode-enter' : undefined
+                      }
                       disabled={generatingEpisodeId !== null || deletingEpisodeId !== null}
                       onClick={() => void generateEpisode(ep)}
                     >
@@ -532,7 +563,7 @@ function SeriesEpisodeListClient() {
                     </button>
                     <button
                       type="button"
-                      className="series-ep-list__btn series-ep-list__btn--ghost"
+                      className="series-ep-list__btn series-ep-list__btn--delete"
                       disabled={deletingEpisodeId !== null || generatingEpisodeId !== null}
                       onClick={() => deleteEpisode(ep)}
                     >

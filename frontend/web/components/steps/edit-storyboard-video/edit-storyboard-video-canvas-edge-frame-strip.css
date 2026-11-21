@@ -20,7 +20,7 @@
 
 .edit-storyboard-video-modal .edge-frame-label {
   font-size: calc(12px * var(--create-editor-scale, 1));
-  color: rgba(188, 205, 228, 0.75);
+  color: var(--ui-text, rgba(188, 205, 228, 0.75));
   line-height: 1;
 }
 
@@ -28,9 +28,9 @@
   position: relative;
   width: 100%;
   aspect-ratio: 16 / 10;
-  border: calc(1px * var(--create-editor-scale, 1)) dashed rgba(120, 140, 170, 0.45);
+  border: calc(1px * var(--create-editor-scale, 1)) dashed var(--ui-hair, rgba(120, 140, 170, 0.45));
   border-radius: calc(8px * var(--create-editor-scale, 1));
-  background: rgba(12, 18, 28, 0.55);
+  background: var(--ui-bg, rgba(12, 18, 28, 0.55));
   overflow: hidden;
   cursor: pointer;
   padding: 0;
@@ -57,7 +57,7 @@
   align-items: center;
   justify-content: center;
   gap: calc(6px * var(--create-editor-scale, 1));
-  color: rgba(188, 205, 228, 0.65);
+  color: var(--ui-muted, rgba(188, 205, 228, 0.65));
   font-size: calc(12px * var(--create-editor-scale, 1));
 }
 
@@ -70,7 +70,7 @@
   border: 0;
   border-radius: 50%;
   background: rgba(255, 77, 79, 0.95);
-  color: #fff;
+  color: var(--ui-text, #fff);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -96,10 +96,10 @@
   flex-shrink: 0;
   width: calc(32px * var(--create-editor-scale, 1));
   height: calc(32px * var(--create-editor-scale, 1));
-  border: calc(1px * var(--create-editor-scale, 1)) solid rgba(74, 231, 253, 0.35);
+  border: calc(1px * var(--create-editor-scale, 1)) solid var(--ui-hair, rgba(74, 231, 253, 0.35));
   border-radius: calc(8px * var(--create-editor-scale, 1));
-  background: rgba(74, 231, 253, 0.08);
-  color: #4ae7fd;
+  background: var(--ui-soft, rgba(74, 231, 253, 0.08));
+  color: var(--ui-brand, #4ae7fd);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -108,8 +108,8 @@
 }
 
 .edit-storyboard-video-modal .edge-frame-swap:hover {
-  background: rgba(74, 231, 253, 0.16);
-  border-color: rgba(74, 231, 253, 0.65);
+  background: var(--ui-soft-hover, rgba(74, 231, 253, 0.16));
+  border-color: var(--ui-ring, rgba(74, 231, 253, 0.65));
 }
 
 .edit-storyboard-video-modal .tab-placeholder {
@@ -130,7 +130,7 @@
 
 .edit-storyboard-video-modal .panel-skeleton .ant-skeleton-content .ant-skeleton-title,
 .edit-storyboard-video-modal .panel-skeleton .ant-skeleton-content .ant-skeleton-paragraph > li {
-  background: linear-gradient(90deg, #2b2b2b 20%, #444444 50%, #2b2b2b 80%);
+  background: var(--ui-surface, linear-gradient(90deg, #2b2b2b 20%, #444444 50%, #2b2b2b 80%));
   background-size: 300% 100%;
   animation: storyboard-skeleton-shimmer 1.4s linear infinite;
 }
@@ -152,8 +152,8 @@
 .edit-storyboard-video-modal .skeleton-history-panel,
 .edit-storyboard-video-modal .skeleton-canvas-panel,
 .edit-storyboard-video-modal .skeleton-config-panel {
-  border: calc(1px * var(--create-editor-scale, 1)) solid rgba(128, 154, 188, 0.26);
-  background: rgba(25, 26, 29, 1);
+  border: calc(1px * var(--create-editor-scale, 1)) solid var(--ui-hair, rgba(128, 154, 188, 0.26));
+  background: var(--ui-surface, rgba(25, 26, 29, 1));
   min-height: 0;
 }
 

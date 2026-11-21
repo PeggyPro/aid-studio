@@ -1,0 +1,33 @@
+{
+  "planning": {
+    "owner": "MAIN_AGENT",
+    "fixedStages": false,
+    "revisable": true,
+    "checkpointPolicy": "DYNAMIC_HIGH_IMPACT"
+  },
+  "copilot": {
+    "advanceReversibleWork": true,
+    "protectUserEdits": true,
+    "adoptionRequiresRuntimeCas": true
+  },
+  "longSource": {
+    "requiresAuthorizedImmutableRefs": true,
+    "tracksChunks": true,
+    "tracksCoverage": true,
+    "tracksWordOrCharacterCount": true,
+    "supportsEpisodeOrChapterTargets": true
+  },
+  "methods": {
+    "craft": "aid_screenwriter_craft",
+    "adapt": "aid_screenwriter_adapt",
+    "review": "aid_screenwriter_review",
+    "selection": "DYNAMIC_FROM_PINNED_SKILL_CATALOG"
+  },
+  "artifacts": {
+    "immutableRevisions": true,
+    "contentHash": true,
+    "candidateSeparateFromAdopted": true,
+    "finalizeBeforeComplete": true
+  }
+}
+

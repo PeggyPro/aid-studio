@@ -1,9 +1,11 @@
 /** 用户侧权威计费报价；只读、无冻结和扣费副作用。 */
 import axios, { type AxiosRequestConfig } from 'axios'
-import type { ApiEnvelope, BillingQuoteRequest, BillingQuoteVO } from '~/types/business-api'
+import type { ApiEnvelope, BillingQuoteRequest, BillingQuoteVO, BillingQuoteWire } from '~/types/business-api'
 import { request } from '~/utils/api'
+import { canvasApiPost } from '~/utils/canvas/canvasApiClient'
 import { unwrap } from '~/utils/business/shared'
 import { useUserStore } from '~/stores/user'
+import { CANVAS_QUOTE_TIMEOUT_MS, requestCanvasQuote } from '@/utils/canvas/canvasQuote'
 
 const pending = new Map<string, Promise<BillingQuoteVO>>()
 const settled = new Map<string, { at: number; value: BillingQuoteVO }>()
@@ -64,4 +66,12 @@ export async function userBillingQuote(
     })
   pending.set(key, promise)
   return subscribe(promise, config?.signal)
+}
+
+/** 独立画布继续使用隔离网关的模型与 SKU 报价。 */
+export async function canvasUserBillingQuote(body: BillingQuoteRequest, ownerSignal?: AbortSignal): Promise<BillingQuoteVO> {
+  const request = structuredClone(body)
+  return requestCanvasQuote('billing', request, async signal => unwrap(await canvasApiPost<BillingQuoteWire>(
+    '/api/user/billing/quote', request, { signal, requestTimeoutMs: CANVAS_QUOTE_TIMEOUT_MS }
+  )), ownerSignal)
 }

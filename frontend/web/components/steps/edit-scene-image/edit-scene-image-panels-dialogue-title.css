@@ -4,7 +4,7 @@
 .dialogue-title {
   font-size: calc(1.125rem * var(--create-editor-scale, 1));
   font-weight: 600;
-  color: #0F172A;
+  color: var(--ui-text, #0F172A);
   margin: 0;
 }
 
@@ -57,7 +57,7 @@
 
 .dialogue-message.user .message-avatar {
   background: var(--primary-500);
-  color: white;
+  color: var(--ui-text, white);
 }
 
 .dialogue-message.assistant .message-avatar {
@@ -86,12 +86,12 @@
 
 .dialogue-message.user .message-content p {
   background: var(--primary-500);
-  color: white;
+  color: var(--ui-text, white);
 }
 
 .dialogue-message.assistant .message-content p {
   background: var(--create-surface-panel);
-  color: #0F172A;
+  color: var(--ui-text, #0F172A);
   border: calc(1px * var(--create-editor-scale, 1)) solid var(--gray-200);
 }
 
@@ -168,7 +168,7 @@
 }
 
 .card-image-top-actions .card-action-btn {
-  background: rgba(255, 255, 255, 0.9);
+  background: var(--ui-raised, rgba(255, 255, 255, 0.9));
   backdrop-filter: blur(calc(4px * var(--create-editor-scale, 1)));
   border: calc(1px * var(--create-editor-scale, 1)) solid var(--gray-200);
   color: var(--gray-700);

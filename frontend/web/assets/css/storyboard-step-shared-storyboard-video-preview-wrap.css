@@ -20,7 +20,7 @@
 
 .storyboard-step .storyboard-block-title {
   font-size: 12px;
-  color: var(--home-muted, #8e97a5);
+  color: var(--home-muted, var(--ui-muted, #8e97a5));
   margin-bottom: 0.45rem;
   font-weight: 600;
 }
@@ -39,7 +39,7 @@
   height: 40px;
   justify-content: center;
   border-radius:0 0 8px 8px;
-  background: rgba(9, 13, 22, 0.66);
+  background: var(--ui-bg, rgba(9, 13, 22, 0.66));
   backdrop-filter: blur(2px);
   pointer-events: auto;
 }
@@ -48,7 +48,7 @@
   border-radius: 6px;
   border: none !important;
   background: none !important;
-  color: rgba(230, 237, 243, 0.9);
+  color: var(--ui-text, rgba(230, 237, 243, 0.9));
   font-size: 14px;
   display: flex;
   height: 100%;
@@ -70,8 +70,8 @@ html.app-shell-create .storyboard-step .asset-action-footer .ant-btn:focus-visib
 .storyboard-step .asset-action-footer .ant-btn:hover,
 .storyboard-step .asset-action-footer .ant-btn:focus,
 .storyboard-step .asset-action-footer .ant-btn:focus-visible {
-  background: rgba(74, 231, 253, 0.16) !important;
-  color: #e9fbff !important;
+  background: var(--ui-soft-hover, rgba(74, 231, 253, 0.16)) !important;
+  color: var(--ui-text, #e9fbff) !important;
   border: none !important;
   border-color: transparent !important;
   box-shadow: none !important;
@@ -95,9 +95,9 @@ html.app-shell-create .storyboard-step .asset-action-footer .ant-btn:focus-visib
   justify-content: center;
   gap: 0.35rem;
   height: 58px;
-  border: 1px solid rgba(74, 231, 253, 0.45);
+  border: 1px solid var(--ui-hair, rgba(74, 231, 253, 0.45));
   border-radius: 8px;
-  background: rgba(7, 13, 23, 0.95);
+  background: var(--ui-bg, rgba(7, 13, 23, 0.95));
 }
 
 .storyboard-step .storyboard-list > .storyboard-insert-gap:last-child .storyboard-insert-dash-line {
@@ -109,18 +109,18 @@ html.app-shell-create .storyboard-step .asset-action-footer .ant-btn:focus-visib
   height: 20px;
   border: none;
   background: transparent;
-  color: #dbe7f4;
+  color: var(--ui-text, #dbe7f4);
 }
 
 .storyboard-step .storyboard-list > .storyboard-insert-gap:last-child .storyboard-insert-plus:hover {
   background: transparent;
-  color: #ffffff;
+  color: var(--ui-text, #ffffff);
   transform: none;
 }
 
 .storyboard-step .storyboard-list > .storyboard-insert-gap:last-child .storyboard-insert-label {
   font-size: 16px;
-  color: #dbe7f4;
+  color: var(--ui-text, #dbe7f4);
   max-width: none;
   display: inline-flex;
   align-items: center;
@@ -171,7 +171,7 @@ html.app-shell-create .storyboard-step .asset-action-footer .ant-btn:focus-visib
   width: 100%;
   height: auto;
   min-height: 0;
-  border: 1px solid rgba(74, 231, 253, 0.12);
+  border: 1px solid var(--ui-hair, rgba(74, 231, 253, 0.12));
   background: var(--create-surface-panel);
   border-radius: var(--radius-lg);
   overflow: hidden;
@@ -185,7 +185,7 @@ html.app-shell-create .storyboard-step .asset-action-footer .ant-btn:focus-visib
   justify-content: space-between;
   gap: 0.5rem;
   padding: 0.75rem 1rem;
-  border-bottom: 1px solid rgba(74, 231, 253, 0.08);
+  border-bottom: 1px solid var(--ui-hair, rgba(74, 231, 253, 0.08));
   flex-shrink: 0;
 }
 

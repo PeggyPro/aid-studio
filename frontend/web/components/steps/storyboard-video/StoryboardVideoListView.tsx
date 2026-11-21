@@ -1,5 +1,7 @@
 'use client'
 
+import { flowRowMotionStyle } from '~/utils/v10Motion'
+
 import type { MutableRefObject } from 'react'
 import { ReactSortable } from 'react-sortablejs'
 import type { SortableEvent } from 'sortablejs'
@@ -100,7 +102,7 @@ export function StoryboardVideoListView(props: StoryboardVideoListViewProps) {
             </div>
           </div>
         ) : null}
-        <div className="storyboard-list-item">
+        <div className="storyboard-list-item" style={flowRowMotionStyle(index)}>
           <div className="storyboard-list-header">
             <span
               className="storyboard-drag-handle"

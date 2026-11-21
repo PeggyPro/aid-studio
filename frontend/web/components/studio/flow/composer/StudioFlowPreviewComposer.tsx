@@ -25,7 +25,7 @@ export function StudioFlowPreviewComposer({ node }: { node: StudioCanvasNode }) 
         node={node}
         readOnly
         showSend={false}
-        placeholder={previewReady ? '成品视频已就绪，可在下方预览或导出。' : '尚未生成成品，请先在分镜视频与配音步骤完成生成。'}
+        placeholder={previewReady ? '成品视频已就绪，可在下方预览、导出或发布。' : '尚未生成成品，请先在分镜视频与配音步骤完成生成。'}
       />
       <div className="studio-flow-composer__actions-row">
         <Button

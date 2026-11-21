@@ -59,22 +59,28 @@ public class ViduVideoProviderClient implements VideoProviderClient {
     @Override
     public ProviderSubmitResult submit(AiModelConfigVo modelConfig, MediaVideoGenerateRequest request) {
         com.aid.media.provider.VideoProviderConfigurationValidator.validate(modelConfig);
-        // Vidu 请求体没有参考音频字段，本 Provider 也从不下发 referenceAudios：正文里的 @音频N
-        // 在 Vidu 侧必然是悬空引用（模型读到「参考音频1」却在整个请求里找不到任何音频），
-        // 故固定按 0 条走统一的编号越界规则，与参考图同一套处理，不为音频单开分支。
+        ViduScenario scenario = resolveScenario(modelConfig, request);
+        String upstream = com.aid.media.provider.ModelCodeResolver.resolveUpstreamModel(modelConfig, request.getModelName());
+        int dispatchedAudios = "viduq4-preview".equals(upstream)
+                && scenario == ViduScenario.REFERENCE_TO_VIDEO && request.getReferenceAudios() != null
+                ? request.getReferenceAudios().size() : 0;
         int dispatchedImages = ReferenceImageLimiter.resolveMax(modelConfig, 0);
         // 主体调用形态（options.subjects 非空）：@主体名 是官方引用语义，用保留主体引用的清洗；其余场景全量清洗
         if (hasOptionKey(request, ViduConstants.OPTIONS_SUBJECTS)) {
-            ReferencePromptSanitizer.sanitizeInPlacePreservingSubjectRefs(request, dispatchedImages, 0);
+            ReferencePromptSanitizer.sanitizeInPlacePreservingSubjectRefs(request, dispatchedImages, dispatchedAudios);
         } else {
-            ReferencePromptSanitizer.sanitizeInPlace(request, dispatchedImages, 0);
+            ReferencePromptSanitizer.sanitizeInPlace(request, dispatchedImages, dispatchedAudios);
         }
         applyDialogueCaptionGuard(request);
-        ViduScenario scenario = resolveScenario(modelConfig, request);
         String submitUrl = buildApiUrl(modelConfig.getBaseUrl(), modelConfig.getApiSuffix());
         Map<String, Object> body = buildSubmitBody(request, modelConfig, scenario);
         String bodyJson = JSONUtil.toJsonStr(com.aid.model.definition.ModelConfiguredRequestBody.apply(modelConfig, body, request));
-        String raw = doPost(submitUrl, modelConfig.getApiKey(), bodyJson);
+        HttpResponseSnapshot response = doPost(submitUrl, modelConfig.getApiKey(), bodyJson);
+        if (response.statusCode() >= 300 && response.statusCode() <= 599) {
+            return com.aid.media.provider.ProviderSubmissionFailures.httpResponse(
+                    response.statusCode(), response.body(), modelConfig.getModelCode());
+        }
+        String raw = response.body();
         JsonNode root = ProviderResponseHelper.readTree(raw);
         String taskId = ProviderResponseHelper.readText(root,
             ViduConstants.JSON_TASK_ID, ViduConstants.JSON_PATH_DATA_TASK_ID, ViduConstants.JSON_PATH_DATA_ID,
@@ -99,7 +105,7 @@ public class ViduVideoProviderClient implements VideoProviderClient {
     @Override
     public ProviderTaskResult query(AiModelConfigVo modelConfig, String providerTaskId) {
         String queryUrl = buildTaskUrl(modelConfig.getBaseUrl(), modelConfig.getTaskQuerySuffix(), providerTaskId);
-        HttpQueryResponse response = doGet(queryUrl, modelConfig.getApiKey());
+        HttpResponseSnapshot response = doGet(queryUrl, modelConfig.getApiKey());
         String raw = response.body();
         if (response.statusCode() == 429 || response.statusCode() >= 500) {
             log.warn("vidu video query 可重试 HTTP 异常, taskId={}, status={}",
@@ -268,6 +274,9 @@ public class ViduVideoProviderClient implements VideoProviderClient {
         // 多发一个官方参数表不存在的顶层 images，Vidu 对多余字段会拒单
         mergeTopLevelOptions(body, request);
         applyScenarioSpecificFields(body, request, scenario);
+        if ("viduq4-preview".equals(modelName)) {
+            applyQ4Inputs(body, request, scenario);
+        }
         if (scenario == ViduScenario.MULTI_FRAME) {
             validateMultiFrameBody(body);
         }
@@ -276,6 +285,33 @@ public class ViduVideoProviderClient implements VideoProviderClient {
         // 最后按官方各端点的字段白名单裁剪：Vidu 对多余字段会返回 FieldUnwanted 拒单
         pruneUnsupportedFields(body, scenario);
         return body;
+    }
+
+    private void applyQ4Inputs(Map<String, Object> body, MediaVideoGenerateRequest request, ViduScenario scenario) {
+        boolean reference = scenario == ViduScenario.REFERENCE_TO_VIDEO;
+        if (!reference && scenario != ViduScenario.IMAGE_TO_VIDEO) {
+            throw new ServiceException("Vidu Q4 仅支持图生视频和参考生视频");
+        }
+        Object images = body.get(ViduConstants.JSON_IMAGES);
+        if (!(images instanceof List<?> list) || list.isEmpty() || list.size() > (reference ? 15 : 1)) {
+            throw new ServiceException(reference ? "Vidu Q4 参考生视频需要 1 至 15 张参考图" : "Vidu Q4 图生视频需要一张首帧图");
+        }
+        if (reference && StrUtil.isBlank(request.getPrompt())) {
+            throw new ServiceException("Vidu Q4 参考生视频需要提示词");
+        }
+        if (request.getReferenceAudios() != null && !request.getReferenceAudios().isEmpty()) {
+            if (!reference || request.getReferenceAudios().size() > 3) {
+                throw new ServiceException("Vidu Q4 仅在参考生视频中支持最多 3 个参考音频");
+            }
+            List<String> sounds = new ArrayList<>();
+            for (var audio : request.getReferenceAudios()) {
+                if (audio == null || StrUtil.isBlank(audio.getSampleUrl())) {
+                    throw new ServiceException("参考音频地址无效");
+                }
+                sounds.add(audio.getSampleUrl());
+            }
+            body.put("sounds", sounds);
+        }
     }
 
     /** 官方 multiframe 必须为 1 张 start_image + 2~9 个 image_settings，提交前硬拒绝边界错误。 */
@@ -313,9 +349,9 @@ public class ViduVideoProviderClient implements VideoProviderClient {
         if (images instanceof List<?> list && !list.isEmpty()) {
             List<String> urls = new ArrayList<>();
             for (Object item : list) {
-                if (item != null) {
-                    urls.add(String.valueOf(item));
-                }
+                if (!(item instanceof String value) || value.isBlank())
+                    throw com.aid.media.provider.ProviderSubmissionFailures.notSent("参考图列表包含无效图片");
+                urls.add(value);
             }
             body.put(ViduConstants.JSON_IMAGES,
                     com.aid.media.provider.ReferenceImageBase64Support.toDataUris(urls));
@@ -740,7 +776,7 @@ public class ViduVideoProviderClient implements VideoProviderClient {
         return ProviderEndpointUtils.buildTaskQueryUrl(baseUrl, taskQuerySuffix, providerTaskId);
     }
 
-    private String doPost(String url, String apiKey, String json) {
+    private HttpResponseSnapshot doPost(String url, String apiKey, String json) {
         // POST 请求：官方要求 Authorization: Token {apiKey}。
         // 仅用标准 Authorization 头，避免 API Key 双点暴露。
         try (HttpResponse response = HttpRequest.post(url)
@@ -749,24 +785,22 @@ public class ViduVideoProviderClient implements VideoProviderClient {
             .body(json)
             .timeout(ViduConstants.HTTP_TIMEOUT_MS)
             .execute()) {
-            // 返回原始响应给上游统一解析。
-            return response.body();
+            return new HttpResponseSnapshot(response.getStatus(), response.body());
         }
     }
 
-    private HttpQueryResponse doGet(String url, String apiKey) {
+    private HttpResponseSnapshot doGet(String url, String apiKey) {
         // GET 请求：同样采用 Token 鉴权。
         try (HttpResponse response = HttpRequest.get(url)
             .header(HttpConstants.HEADER_AUTHORIZATION, ViduConstants.AUTH_TOKEN_PREFIX + apiKey)
             .header(HttpConstants.HEADER_CONTENT_TYPE, HttpConstants.CONTENT_TYPE_JSON)
             .timeout(ViduConstants.HTTP_TIMEOUT_MS)
             .execute()) {
-            return new HttpQueryResponse(response.getStatus(), response.body());
+            return new HttpResponseSnapshot(response.getStatus(), response.body());
         }
     }
 
-    /** Vidu 查询响应快照，用于同时判断 HTTP 状态与业务状态。 */
-    private record HttpQueryResponse(int statusCode, String body) {
+    private record HttpResponseSnapshot(int statusCode, String body) {
     }
 
     // 视频场景枚举：用于确定请求体结构（路径已移到数据库 api_suffix 字段）。

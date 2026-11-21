@@ -1,4 +1,20 @@
 import { request } from '@/utils/request'
+import { getToken } from '@/utils/auth'
+
+const currentPending = new Map<string, Promise<any>>()
+const currentCache = new Map<string, { value: any; time: number }>()
+const refreshPending = new Map<string, Promise<any>>()
+const configKey = (category: string) => `${getToken() || ''}:${category}`
+
+export function getRealtimeOrigins() {
+  const key = configKey('realtime-origins')
+  const existing = currentPending.get(key)
+  if (existing) return existing
+  const pending = request({ url: '/aidconfig/aidconfig/realtime-origins', method: 'get' })
+    .finally(() => { if (currentPending.get(key) === pending) currentPending.delete(key) })
+  currentPending.set(key, pending)
+  return pending
+}
 
 // 查询配置信息列表
 export function listAidconfig(query) {
@@ -45,18 +61,39 @@ export function delAidconfig(id) {
 
 // 刷新配置（让后端重新从数据库加载配置）
 export function refreshConfig(category) {
-  return request({
+  const key = configKey(category)
+  const running = refreshPending.get(key)
+  if (running) return running
+  const task = request({
     url: `/${category}/config/refresh`,
     method: 'post'
-  })
+  }).then(async (result) => {
+    // 已在途的旧配置查询先完成，再失效缓存；同步后的权威刷新复用同一入口。
+    const pending = currentPending.get(key)
+    if (pending) await pending.catch(() => {})
+    currentCache.delete(key)
+    return result
+  }).finally(() => refreshPending.delete(key))
+  refreshPending.set(key, task)
+  return task
 }
 
 // 获取当前生效的配置
 export function getCurrentConfig(category) {
-  return request({
+  const key = configKey(category)
+  const pending = currentPending.get(key)
+  if (pending) return pending
+  const cached = currentCache.get(key)
+  if (cached && Date.now() - cached.time < 1500) return Promise.resolve(cached.value)
+  const task = request({
     url: `/${category}/config/current`,
     method: 'get'
-  })
+  }).then((value) => {
+    currentCache.set(key, { value, time: Date.now() })
+    return value
+  }).finally(() => currentPending.delete(key))
+  currentPending.set(key, task)
+  return task
 }
 
 /** 测试消息队列连接（无参） */

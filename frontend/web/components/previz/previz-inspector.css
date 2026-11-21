@@ -1,0 +1,16 @@
+/* Embedded modeling properties use the same panel and typography as the director inspector. */
+.director-inspector__scroll.director-modeling-controls { background: var(--director-panel); }
+.director-inspector__scroll .pv-inspector { min-width: 0; padding: 0; font: inherit; font-size: 12px; line-height: 1.6; color: var(--director-text); }
+.director-inspector__scroll .pv-inspector .pv-section-heading { font-size: 13px; font-weight: 600; }
+.director-inspector__scroll .pv-inspector .pv-section-heading small { font-size: 11px; font-weight: 400; }
+.director-inspector__scroll .pv-inspector :is(.pv-field,.pv-number,.pv-labeled-choice,.pv-property-label) { font-size: 12px; }
+.director-inspector__scroll .pv-property-group > summary { padding: 8px 0; min-height: 36px; border-bottom: 1px solid var(--director-line); border-radius: 0; background: transparent; font-weight: 550; }
+.director-inspector__scroll .pv-property-group__toggle { width: 20px; height: 20px; background: transparent; }
+.pv-inspector .pv-property-label { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.pv-inspector .pv-property-label > span:first-child { flex: 1; min-width: 0; }
+.pv-inspector .pv-property-label > .studio-canvas-tooltip-trigger { flex: 0 0 auto; }
+.pv-inspector button.pv-add-keyframe { display: inline-flex; align-items: center; justify-content: center; gap: 4px; min-height: 28px; padding: 4px 8px; border: 1px solid var(--pv-border); border-radius: 7px; background: var(--pv-field); color: var(--pv-text); font: inherit; font-size: 12px; line-height: 1.4; white-space: nowrap; cursor: pointer; }
+.pv-inspector button.pv-add-keyframe:hover:not(:disabled) { background: var(--pv-hover); }
+.pv-inspector button.pv-add-keyframe:disabled { opacity: .45; cursor: not-allowed; }
+.pv-inspector button.pv-add-keyframe:focus-visible { outline: 2px solid var(--pv-accent); outline-offset: 2px; }
+.director-inspector__scroll .pv-inspector .pv-vector { gap: 6px; }

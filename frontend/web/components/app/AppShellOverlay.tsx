@@ -5,7 +5,11 @@ import { usePathname } from 'next/navigation'
 import { ViewportCompactScaleToggle } from '@/components/common/ViewportCompactScaleToggle'
 import { useAuthPublicConfig } from '~/composables/useAuthPublicConfig'
 import { useEnterCreateFlowOverlay } from '~/composables/useEnterCreateFlowOverlay'
+import { usePublicSiteHead } from '~/composables/usePublicSiteHead'
 import { endCreateFlowNavTransition, isCreateFlowNavPath } from '~/utils/createFlowNavSerialize'
+import { AppLoadingIndicator } from '~/components/common/AppLoadingIndicator'
+
+import { RouteLoadingScreen } from '~/components/common/PageLoadingOverlay'
 
 import './AppShellOverlay.css'
 
@@ -80,6 +84,7 @@ function useRouteReadySignal(onReady: () => void) {
 }
 
 export function AppShellOverlay() {
+  usePublicSiteHead()
 
   const pathname = usePathname()
   const { siteName } = useAuthPublicConfig()
@@ -287,37 +292,21 @@ export function AppShellOverlay() {
     <>
       {showGlobalLoading && (
         <div
-          className="global-page-loading"
+          className="global-page-loading aid-loading-screen"
           role="status"
           aria-live="polite"
           aria-label="页面加载中"
         >
-          <div className="global-page-loading__inner">
-            <div className="global-page-loading__logo">{brandDisplayName}</div>
-            <div className="global-page-loading__dots">
-              <span></span>
-              <span></span>
-              <span></span>
-            </div>
-            <p>页面加载中...</p>
-          </div>
+          <AppLoadingIndicator label="页面加载中…" brand={brandDisplayName} />
         </div>
       )}
 
       <ViewportCompactScaleToggle />
 
+      {/* OnboardingProvider 已由 app/layout.tsx 挂载（原 app.vue 在此处挂载），不重复挂载 */}
 
       {routeOverlayVisible && (
-        <div className="route-overlay" role="status" aria-live="polite" aria-label="页面切换中">
-          <div className="route-overlay__inner">
-            <div className="route-overlay__glow" />
-            <div className="route-overlay__brand">{brandShortName}</div>
-            <div className="route-overlay__hint">正在进入创作流程…</div>
-            <div className="route-overlay__bar" aria-hidden="true">
-              <i />
-            </div>
-          </div>
-        </div>
+        <RouteLoadingScreen label="正在进入创作流程…" brand={brandShortName} />
       )}
     </>
   )

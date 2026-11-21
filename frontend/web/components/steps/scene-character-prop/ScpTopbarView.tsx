@@ -1,6 +1,8 @@
 'use client'
 
 import { Button, Dropdown, Tooltip } from 'antd'
+import { HomeSegmented } from '~/components/home/theme/HomeSegmented'
+import { FlowActionIcon } from '~/components/common/FlowActionIcon'
 import {
   DeleteOutlined,
   DownOutlined,
@@ -10,24 +12,20 @@ import {
   ThunderboltOutlined
 } from '@ant-design/icons'
 import { assetUrl } from '~/utils/assetUrl'
+import { useOnboardingPrepareFlags } from '~/utils/onboardingPrepareAnchor'
 import iconAddSceneRaw from '~/assets/img/icon/extract.svg'
-import iconAddSceneSelRaw from '~/assets/img/icon/extract-sel.svg'
 import iconAddCharacterRaw from '~/assets/img/icon/character.svg'
-import iconAddPropSelRaw from '~/assets/img/icon/character-sel.svg'
 import iconAddPropRaw from '~/assets/img/icon/prop.svg'
-import iconAddCharacterSelRaw from '~/assets/img/icon/prop-sel.svg'
 import { tabs } from './useScpDerived'
 import type { ScpCtx } from './types'
 
 const iconAddScene = assetUrl(iconAddSceneRaw)
-const iconAddSceneSel = assetUrl(iconAddSceneSelRaw)
 const iconAddCharacter = assetUrl(iconAddCharacterRaw)
-const iconAddPropSel = assetUrl(iconAddPropSelRaw)
 const iconAddProp = assetUrl(iconAddPropRaw)
-const iconAddCharacterSel = assetUrl(iconAddCharacterSelRaw)
 
 /** 顶部切换：场景 / 角色 / 道具 + 顶栏「添加」与「批量操作」 */
 export function ScpTopbarView({ ctx }: { ctx: ScpCtx }) {
+  const scpOnboardingShowBatchOps = useOnboardingPrepareFlags((s) => s.scpOnboardingShowBatchOps)
   const isExtracting = ctx.isExtracting()
   const localValue = ctx.localValue.value
   const activeTab = ctx.activeTab.value
@@ -36,31 +34,12 @@ export function ScpTopbarView({ ctx }: { ctx: ScpCtx }) {
   const topbarAddIconNor =
     activeTab === 'scene' ? iconAddScene : activeTab === 'character' ? iconAddCharacter : iconAddProp
 
-  /** 顶栏「添加」：悬停且可点时展示选中态图标 */
-  const topbarAddIconSel =
-    activeTab === 'scene'
-      ? iconAddSceneSel
-      : activeTab === 'character'
-        ? iconAddCharacterSel
-        : iconAddPropSel
-
   return (
     <div className="scp-topbar">
-      <div className="scp-tabs" role="tablist" aria-label="素材准备切换">
-        {tabs.map((t) => (
-          <button
-            key={t.key}
-            type="button"
-            className={`scp-tab${activeTab === t.key ? ' active' : ''}${isExtracting ? ' disabled' : ''}`}
-            disabled={isExtracting}
-            onClick={() => {
-              if (!isExtracting) ctx.activeTab.set(t.key)
-            }}
-          >
-            <span className="scp-tab-label">{t.label}</span>
-            {ctx.isTabLoading(t.key) ? <LoadingOutlined className="scp-tab-loading" spin /> : null}
-          </button>
-        ))}
+      <div data-onboarding="scp-tabs">
+        <HomeSegmented value={activeTab} className="flow-segmented" ariaLabel="素材准备切换" disabled={isExtracting}
+          options={tabs.map((tab) => ({value:tab.key,label:tab.label,busy:ctx.isTabLoading(tab.key),adornment:ctx.isTabLoading(tab.key) ? <LoadingOutlined className="scp-tab-loading flow-generation-spinner" spin /> : undefined}))}
+          onChange={(value) => { if (!isExtracting) ctx.activeTab.set(value) }} />
       </div>
       {!isExtracting &&
       ((activeTab === 'scene' && localValue.scenes.length > 0) ||
@@ -84,22 +63,16 @@ export function ScpTopbarView({ ctx }: { ctx: ScpCtx }) {
           onClick={ctx.handleEmptyAssetAddClick}
           icon={
             <span className="scp-topbar-add-btn__ico-wrap">
-              <img
+              <FlowActionIcon
                 src={topbarAddIconNor}
-                alt=""
-                className="scp-topbar-add-btn__ico scp-topbar-add-btn__ico--nor"
-              />
-              <img
-                src={topbarAddIconSel}
-                alt=""
-                className="scp-topbar-add-btn__ico scp-topbar-add-btn__ico--sel"
+                className="scp-topbar-add-btn__ico"
               />
             </span>
           }
         >
           {ctx.emptyAssetAddLabel()}
         </Button>
-        {!isExtracting && ctx.showBatchGenerateTopbarBtn() ? (
+        {!isExtracting && (ctx.showBatchGenerateTopbarBtn() || scpOnboardingShowBatchOps) ? (
           <Dropdown
             open={ctx.batchOpsDropdownOpen.value}
             onOpenChange={(v) => ctx.batchOpsDropdownOpen.set(v)}
@@ -119,6 +92,7 @@ export function ScpTopbarView({ ctx }: { ctx: ScpCtx }) {
                         <button
                           type="button"
                           className="scp-topbar-ops-panel__item scp-topbar-ops-panel__item--disabled"
+                          data-onboarding="scp-batch-form-generate"
                           disabled
                           role="menuitem"
                         >
@@ -131,6 +105,7 @@ export function ScpTopbarView({ ctx }: { ctx: ScpCtx }) {
                     <button
                       type="button"
                       className="scp-topbar-ops-panel__item"
+                      data-onboarding="scp-batch-form-generate"
                       role="menuitem"
                       onClick={ctx.handleBatchFormGenerateClick}
                     >
@@ -141,6 +116,7 @@ export function ScpTopbarView({ ctx }: { ctx: ScpCtx }) {
                   <button
                     type="button"
                     className="scp-topbar-ops-panel__item"
+                    data-onboarding="scp-batch-image-generate"
                     role="menuitem"
                     disabled={ctx.batchImageGenerateMenuDisabled()}
                     onClick={ctx.handleBatchImageGenerateClick}
@@ -175,8 +151,9 @@ export function ScpTopbarView({ ctx }: { ctx: ScpCtx }) {
             )}
           >
             <Button
-              type="primary"
+              type="default"
               className="scp-topbar-batch-btn scp-topbar-ops-btn"
+              data-onboarding="scp-batch-ops"
               loading={
                 ctx.batchGenerateTopbarLoading() ||
                 ctx.batchDeleteSubmitting.value ||

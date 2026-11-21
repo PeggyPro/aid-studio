@@ -1,0 +1,51 @@
+.studio-emotion-overlay {
+  position: absolute;
+  z-index: 12;
+  touch-action: none;
+}
+.studio-emotion-overlay[data-manual-mode] {
+  cursor: crosshair;
+  user-select: none;
+}
+.studio-emotion-face {
+  position: absolute;
+  padding: 0;
+  background: transparent;
+  border: 1px solid #e1ddff;
+  border-radius: 10px;
+  cursor: pointer;
+  box-shadow: 0 0 0 1px #30284080;
+  transition:
+    border-color 150ms,
+    box-shadow 150ms;
+}
+.studio-emotion-face:hover,
+.studio-emotion-face:focus-visible {
+  border-color: #ff686e;
+  box-shadow: 0 0 0 3px #ff686e;
+  outline: none;
+}
+.studio-emotion-face.is-selected {
+  border-width: 2px;
+  border-color: #fff;
+}
+.studio-emotion-face > span {
+  position: absolute;
+  bottom: -25px;
+  left: 0;
+  white-space: nowrap;
+  padding: 3px 6px;
+  border-radius: 4px;
+  background: #16171de6;
+  color: #fff;
+  font-size: 12px;
+}
+.studio-emotion-face.is-draft {
+  border-style: dashed;
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .studio-emotion-face {
+    transition: none;
+  }
+}

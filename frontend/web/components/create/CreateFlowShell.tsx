@@ -11,7 +11,8 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { message } from 'antd'
 import { suspendAllTaskSseFollows } from '~/composables/useTaskSseFollow'
 import { useRouteLike, useRouteLikeNavigator } from '~/composables/useRouteLike'
-import HomeNewSidebar from '~/components/layout/HomeNewSidebar'
+import { isProjectPublicLockError, projectPublicLockUserHint } from '~/utils/projectAudit'
+import { AppSidebar } from '~/components/layout/AppSidebar'
 import { CREATE_FLOW_STEP_ORDER, isSeriesEpisodeListPath, isSeriesFlowChromePath, isSeriesScriptUploadPath, routePathToCreationStep } from '~/utils/createFlowRoutes'
 import { createFlowPageKey } from '~/utils/createFlowNavSerialize'
 import { getCreateFlowDisplaySteps } from '~/utils/createFlowStepMeta'
@@ -25,25 +26,27 @@ import { useScriptChangeExtractGate } from '~/composables/useScriptChangeExtract
 import { useCreateFlowExtractAgents } from '~/composables/useCreateFlowExtractAgents'
 import { useCreateFlowGlobalSettingModal } from '~/composables/useCreateFlowGlobalSettingModal'
 import { useCreateFlowRouteAndSteps } from '~/composables/useCreateFlowRouteAndSteps'
-import { useCreateFlowSidebarChrome } from '~/composables/useCreateFlowSidebarChrome'
 import { useCreateFlowShellLiveGenBootstrap } from '~/composables/useCreateFlowShellLiveGenBootstrap'
 import { useCreateFlowStepNavigationFeedback } from '~/hooks/useCreateFlowStepNavigationFeedback'
 import { useCreateFlowStepPreload } from '~/hooks/useCreateFlowStepPreload'
 import { useGlobalSettingProjectHydrate } from '~/composables/useGlobalSettingProjectHydrate'
 import { useCreateFlowTitleMeasure } from '~/composables/useCreateFlowTitleMeasure'
-import { usePreviewPublicationState } from '~/hooks/usePreviewPublicationState'
+import { usePreviewPublicationState } from '~/composables/usePreviewPublicationState'
 import { htmlPlainTextLength } from '~/utils/htmlPlain'
 import { userEpisodeList, userProjectUpdate } from '~/utils/businessApi'
 import { checkSeriesProjectConfigStoryboardGuard, resolveSeriesProjectConfigAccess } from '~/utils/seriesProjectConfigGuard'
+import {
+  hasProjectSceneCharacterPropAssets
+} from '~/utils/projectConfigAssetGuard'
 import { isDubbingFlowStepGenerating, isStoryboardScriptFlowStepGenerating, isStoryboardVideoFlowStepGenerating as checkStoryboardVideoFlowStepGenerating } from '~/utils/storyboardFlowStepLoading'
 import { isStep3FlowStepGenerating } from '~/utils/step3LiveGenRestore'
 import type { CreationStep } from '~/types'
 import { useRouter } from 'next/navigation'
-import { PageLoadingOverlay } from '~/components/common/PageLoadingOverlay'
-import { useRouteNavigation } from '~/hooks/useRouteNavigation'
-import { buildStudioFlowCanvasHref } from '~/utils/studio/studioFlowNavigation'
-import { parseStudioEpisodeId } from '~/utils/studio/studioFlowEntry'
-import { isProjectPublicLockError, projectPublicLockUserHint } from '~/utils/projectAudit'
+import {
+  CREATE_FLOW_ENTRY_GUIDE_QUERY_KEY,
+  CREATE_FLOW_ENTRY_GUIDE_VALUE,
+  isPublicProjectPreviewQuery
+} from '~/utils/publicProjectPreviewNavigation'
 import { CreateFlowToolbar } from './create-flow-shell/CreateFlowToolbar'
 import { CreateFlowStepStrip } from './create-flow-shell/CreateFlowStepStrip'
 import { CreateFlowShellOverlays } from './create-flow-shell/CreateFlowShellOverlays'
@@ -51,23 +54,18 @@ import { CreateFlowShellSkeleton } from './create-flow-shell/CreateFlowShellSkel
 import { CreateFlowStepLoading } from './create-flow-shell/CreateFlowStepLoading'
 import { useCreateFlowPublishExport } from './create-flow-shell/useCreateFlowPublishExport'
 import { useCreateFlowGlobalTasks } from './create-flow-shell/useCreateFlowGlobalTasks'
+import { useCreateFlowPublishGuide } from './create-flow-shell/useCreateFlowPublishGuide'
 import './create-flow-shell/create-flow-shell.css'
 import './create-flow-shell/create-flow-shell-steps.css'
 
-const CREATE_FLOW_ENTRY_GUIDE_QUERY_KEY = 'flowGuide' as const
-const CREATE_FLOW_ENTRY_GUIDE_VALUE = 'project-entry' as const
-
 export function CreateFlowShell({ children }: { children: ReactNode }) {
   const route = useRouteLike()
+  const publicProjectReadOnly = isPublicProjectPreviewQuery(route.query)
   const routeRef = useRef(route)
   useLayoutEffect(() => {
     routeRef.current = route
   }, [route])
   const router = useRouter()
-  const { navigate, isPending: navigationPending } = useRouteNavigation()
-  useEffect(() => {
-    router.prefetch('/create/studio')
-  }, [router])
   const navigator = useRouteLikeNavigator()
 
   const isSeriesScriptUpload = isSeriesScriptUploadPath(route.path)
@@ -108,30 +106,6 @@ export function CreateFlowShell({ children }: { children: ReactNode }) {
     stepNavigation.beginStepNavigation
   )
   const globalSetting = useCreateFlowGlobalSettingModal()
-  const {
-    showRechargeModal,
-    setShowRechargeModal,
-    showUserMenuCard,
-    userMenuDropdownRef,
-    userMenuCardStyle,
-    goLogin,
-    goHomeFromCreate,
-    openWorksPanel,
-    openAssetsPanel,
-    openInvite,
-    openTutorial,
-    toggleUserMenu,
-    openFaq,
-    openBilling,
-    openAccountSettingsFromMenu,
-    openRechargeFromMenu,
-    handleLogout,
-    handleDocumentClick,
-    updateUserMenuPosition,
-    handleRechargePaid,
-    handleOpenRechargeByEvent,
-    setUserMenuTriggerElement
-  } = useCreateFlowSidebarChrome()
   const titleMeasure = useCreateFlowTitleMeasure(pageReady)
 
   const {
@@ -151,8 +125,6 @@ export function CreateFlowShell({ children }: { children: ReactNode }) {
     toolbarPrimaryDisabled,
     toolbarPrimaryTooltip,
     goBack,
-    saveDraft,
-    saveDraftSubmitting,
     syncProjectContextFromRoute,
     fetchCreationStepStatus,
     isConnectorTrailDone,
@@ -190,10 +162,11 @@ export function CreateFlowShell({ children }: { children: ReactNode }) {
   const [showProjectGenConfigModal, setShowProjectGenConfigModal] = useState(false)
 
   const isPreviewStep = flowStepIndex >= steps.length - 1
-  const { isPublished: previewIsPublished, auditFailureReason: previewAuditFailureReason } =
-    usePreviewPublicationState({ pageReady, isPreviewStep })
   const highlightEntryFlowTabs =
     String(route.query[CREATE_FLOW_ENTRY_GUIDE_QUERY_KEY] ?? '') === CREATE_FLOW_ENTRY_GUIDE_VALUE
+  const { isPublished: previewIsPublished, auditFailureReason: previewAuditFailureReason } =
+    usePreviewPublicationState({ pageReady, isPreviewStep })
+
   const toolbarPrimaryLoading = nextStepDelayLoading || nextStepSubmitting
 
   const activeProjectId = currentProjectId && currentProjectId > 0
@@ -210,21 +183,6 @@ export function CreateFlowShell({ children }: { children: ReactNode }) {
     handleSubmit
   })
 
-  const openFlowCanvas = useCallback(() => {
-    const projectId = activeProjectIdRef.current
-    if (!projectId) {
-      message.warning('请先保存作品后再进入流程画布')
-      return
-    }
-    const state = useCreationStore.getState()
-    const rawEpisode = routeRef.current.query.episodeId
-    const routeEpisode = parseStudioEpisodeId(String(Array.isArray(rawEpisode) ? rawEpisode[0] ?? '' : rawEpisode ?? ''))
-    const episodeId = state.currentProjectType === 'movie'
-      ? 0
-      : routeEpisode ?? (state.currentProjectId === projectId ? state.currentEpisodeId : null)
-    navigate(buildStudioFlowCanvasHref({ projectId, episodeId, from: 'steps' }))
-  }, [navigate])
-
   const openProjectGenConfig = useCallback(() => {
     if (!activeProjectIdRef.current) {
       message.warning('请先选择作品后再配置生成参数')
@@ -232,6 +190,7 @@ export function CreateFlowShell({ children }: { children: ReactNode }) {
     }
     setShowProjectGenConfigModal(true)
   }, [setShowProjectGenConfigModal])
+
 
   /** 进入创作流程时 bootstrap 权威 task/list，切换步骤与各弹窗恢复均复用缓存 */
   const prevActivePidRef = useRef<number | null | undefined>(undefined)
@@ -251,8 +210,41 @@ export function CreateFlowShell({ children }: { children: ReactNode }) {
   const [seriesProjectConfigChecking, setSeriesProjectConfigChecking] = useState(false)
   const seriesProjectConfigCheckingRef = useRef(false)
   const [seriesProjectConfigContentLocked, setSeriesProjectConfigContentLocked] = useState(false)
+  const [assetConfigLocked, setAssetConfigLocked] = useState(false)
+  const projectConfigContentLocked = seriesProjectConfigContentLocked || assetConfigLocked
+  const projectConfigLockReason: 'storyboard' | 'assets' | undefined = seriesProjectConfigContentLocked
+    ? 'storyboard'
+    : assetConfigLocked
+      ? 'assets'
+      : undefined
+  const styleLocked = useCreationStore((s) => s.formData.globalSetting.styleLocked === true)
 
   const { hydrateFromProjectApi } = useGlobalSettingProjectHydrate()
+
+  useEffect(() => {
+    const pid = activeProjectId
+    if (!pid) {
+      setAssetConfigLocked(false)
+      return
+    }
+    const creation = useCreationStore.getState()
+    const episodeId = creation.currentEpisodeId ?? 0
+    const immediate = creation.formData.globalSetting.styleLocked === true
+      || Boolean(creation.formData.sceneCharacter.scenes?.length)
+      || Boolean(creation.formData.sceneCharacter.characters?.length)
+      || Boolean(creation.formData.sceneCharacter.props?.length)
+    setAssetConfigLocked(immediate)
+    let cancelled = false
+    void hasProjectSceneCharacterPropAssets(pid, episodeId, {
+      styleLocked: creation.formData.globalSetting.styleLocked === true,
+      sceneCharacter: creation.formData.sceneCharacter
+    }).then((hasAssets) => {
+      if (!cancelled && activeProjectIdRef.current === pid) setAssetConfigLocked(hasAssets)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [activeProjectId, currentEpisodeId, styleLocked])
 
   const onSeriesProjectConfigClick = useCallback(async () => {
     if (seriesProjectConfigCheckingRef.current) return
@@ -278,14 +270,16 @@ export function CreateFlowShell({ children }: { children: ReactNode }) {
       }
       const hydrated = await hydrateFromProjectApi(routeRef.current, { force: true })
       if (!hydrated || activeProjectIdRef.current !== pid) return
+      const creation = useCreationStore.getState()
+      const hasAssets = await hasProjectSceneCharacterPropAssets(pid, creation.currentEpisodeId ?? 0, {
+        styleLocked: creation.formData.globalSetting.styleLocked === true,
+        sceneCharacter: creation.formData.sceneCharacter
+      })
+      if (activeProjectIdRef.current !== pid) return
+      setAssetConfigLocked(hasAssets)
       setSeriesProjectConfigContentLocked(access.mode === 'content-locked')
       globalSetting.openGlobalSettingModal()
     } catch (e: unknown) {
-      if (isProjectPublicLockError(e)) {
-        message.error(projectPublicLockUserHint())
-        useCreationStore.getState().setWorkTitle(workTitleSaveBaselineRef.current)
-        return
-      }
       const err = e as { msg?: string; message?: string }
       message.error(err?.msg || err?.message || '打开项目配置失败')
     } finally {
@@ -296,7 +290,15 @@ export function CreateFlowShell({ children }: { children: ReactNode }) {
 
   const globalTasks = useCreateFlowGlobalTasks({ goToCreateStep })
 
+  const publishGuide = useCreateFlowPublishGuide({
+    route,
+    pageReady,
+    isPreviewStep,
+    exportMenuOpen: publishExport.exportMenuOpen
+  })
+
   const handleNextStepWithDelay = useCallback(async () => {
+    publishGuide.clearPublishGuide()
     if (toolbarPrimaryDisabled || toolbarPrimaryLoading) return
     setNextStepDelayLoading(true)
     try {
@@ -305,13 +307,14 @@ export function CreateFlowShell({ children }: { children: ReactNode }) {
     } finally {
       setNextStepDelayLoading(false)
     }
-  }, [runNextStep, toolbarPrimaryDisabled, toolbarPrimaryLoading])
+  }, [publishGuide, runNextStep, toolbarPrimaryDisabled, toolbarPrimaryLoading])
 
   const onFlowStepPillClick = useCallback(
     (index: number) => {
+      publishGuide.clearPublishGuide()
       void handleStepClick(index)
     },
-    [handleStepClick]
+    [handleStepClick, publishGuide]
   )
 
   // ---- 项目配置弹窗（CreateFirstStepModal）----
@@ -366,13 +369,18 @@ export function CreateFlowShell({ children }: { children: ReactNode }) {
     setProjectTypeDraft: setGlobalSettingProjectTypeDraft,
     updateField: updateGlobalSettingDraftField,
     patchStyle: patchGlobalSettingDraftStyle,
-    save: () => handleGlobalSettingConfirm({ navigateAfterSave: false })
+    save: () => handleGlobalSettingConfirm({
+      navigateAfterSave: false,
+      contentConfigLocked: projectConfigContentLocked
+    }),
+    contentConfigLocked: projectConfigContentLocked,
+    contentConfigLockReason: projectConfigLockReason
   }
 
   useCreateFlowShellLiveGenBootstrap({
     route,
     syncProjectContextFromRoute,
-    enabled: true
+    enabled: !publicProjectReadOnly
   })
 
   const { titleMeasureRef, titleMeasureText, titleInputWrapStyle, syncTitleInputWidth } =
@@ -414,6 +422,11 @@ export function CreateFlowShell({ children }: { children: ReactNode }) {
         globalSetting: { ...storeNow.formData.globalSetting, title: trimmed }
       })
     } catch (e: unknown) {
+      if (isProjectPublicLockError(e)) {
+        message.error(projectPublicLockUserHint())
+        useCreationStore.getState().setWorkTitle(workTitleSaveBaselineRef.current)
+        return
+      }
       const err = e as { msg?: string; message?: string }
       message.error(err?.msg || err?.message || '保存标题失败')
       useCreationStore.getState().setWorkTitle(workTitleSaveBaselineRef.current)
@@ -463,13 +476,6 @@ export function CreateFlowShell({ children }: { children: ReactNode }) {
       return
     }
 
-    document.addEventListener('click', handleDocumentClick)
-    window.addEventListener('resize', updateUserMenuPosition)
-    window.addEventListener('scroll', updateUserMenuPosition, true)
-    window.addEventListener(
-      'open-recharge-modal',
-      handleOpenRechargeByEvent as EventListener
-    )
     const t = setTimeout(() => {
       const finishPageReady = () => {
         const store = useCreationStore.getState()
@@ -498,13 +504,6 @@ export function CreateFlowShell({ children }: { children: ReactNode }) {
     }, 0)
     return () => {
       clearTimeout(t)
-      document.removeEventListener('click', handleDocumentClick)
-      window.removeEventListener('resize', updateUserMenuPosition)
-      window.removeEventListener('scroll', updateUserMenuPosition, true)
-      window.removeEventListener(
-        'open-recharge-modal',
-        handleOpenRechargeByEvent as EventListener
-      )
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -550,6 +549,7 @@ export function CreateFlowShell({ children }: { children: ReactNode }) {
   )
   const stepInitAdvanceQuery = String(route.query.stepInitAdvance ?? '')
   useEffect(() => {
+    if (publicProjectReadOnly) return
     if (stepApiLoading || !step3AssetListSyncReady || !hasScript) return
     if (stepInitAdvanceQuery === '1' || stepInitAdvanceQuery === 'true') return
     if (routePathToCreationStep(route.path) !== 'scene-character') return
@@ -573,7 +573,8 @@ export function CreateFlowShell({ children }: { children: ReactNode }) {
     hasScript,
     stepApiLoading,
     stepInitAdvanceQuery,
-    pendingOpenContinueExtractModal
+    pendingOpenContinueExtractModal,
+    publicProjectReadOnly
   ])
 
   // 原 watch([pageReady, query ids], immediate)：就绪后同步标题保存基线
@@ -629,7 +630,6 @@ export function CreateFlowShell({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  void currentEpisodeId
   void navigator
 
   /** 步骤 / 作品 / 剧集变化时重挂内容区并播进场动画；无关 query 不换 key */
@@ -651,21 +651,37 @@ export function CreateFlowShell({ children }: { children: ReactNode }) {
 
   const mainView = (
     <div className="main-layout">
-      <HomeNewSidebar
-        onBrand={goHomeFromCreate}
-        onGallery={goHomeFromCreate}
-        onWorks={openWorksPanel}
-        onAssets={openAssetsPanel}
-        onTutorial={() => void openTutorial()}
-        onInvite={openInvite}
-        onLogin={goLogin}
-        onToggleUserMenu={toggleUserMenu}
-        onUserMenuTriggerChange={setUserMenuTriggerElement}
-      />
+      <AppSidebar flow />
 
       <div className="create-main">
         <div className="create-main__flow-stack">
           <CreateFlowToolbar
+            stepNavigation={!isSeriesFlowChrome ? (
+              <CreateFlowStepStrip
+                displaySteps={displaySteps}
+                flowStepIndex={optimisticFlowStepIndex}
+                stepStatus={stepStatus}
+                unlockedStepIndex={Math.max(unlockedStepIndex, flowStepIndex)}
+                stepRealIndex={stepRealIndex}
+                isConnectorTrailDone={isConnectorTrailDone}
+                isPillDisabled={(index) =>
+                  publicProjectReadOnly
+                    ? stepNavigation.pendingStep != null
+                    : stepNavigation.pendingStep != null || toolbarPrimaryLoading || isStepPillDisabled(index)
+                }
+                publishGuideActive={publishGuide.publishGuideActive}
+                publishGuideTooltipOpen={publishGuide.publishGuideTooltipOpen}
+                isPreviewStep={isPreviewStep}
+                highlightAll={highlightEntryFlowTabs}
+                sceneCharacterGenerating={isExtractingAssets || isStep3VisualStepGenerating}
+                storyboardScriptGenerating={isStoryboardScriptStepGenerating}
+                storyboardVideoGenerating={isStoryboardVideoFlowStepGenerating}
+                dubbingGenerating={isDubbingStepGenerating}
+                onPillClick={onFlowStepPillClick}
+                onPillIntent={preloadCreateStepRoute}
+              />
+            ) : null}
+            readOnly={publicProjectReadOnly}
             isSeriesScriptUpload={isSeriesScriptUpload}
             isSeriesEpisodeList={isSeriesEpisodeList}
             titleMeasureRef={titleMeasureRef}
@@ -678,7 +694,6 @@ export function CreateFlowShell({ children }: { children: ReactNode }) {
             seriesProjectConfigChecking={seriesProjectConfigChecking}
             onSeriesProjectConfigClick={() => void onSeriesProjectConfigClick()}
             activeProjectId={activeProjectId}
-            onOpenFlowCanvas={openFlowCanvas}
             onGlobalTaskStop={(task) => void globalTasks.handleGlobalTaskStop(task)}
             onGlobalTaskRestart={(task) => void globalTasks.handleGlobalTaskRestart(task)}
             resolveGlobalTaskRestartBillingRequest={
@@ -692,13 +707,12 @@ export function CreateFlowShell({ children }: { children: ReactNode }) {
             flowStepIndex={flowStepIndex}
             globalSettingConfirmLoading={globalSettingConfirmLoading}
             onGlobalSettingSave={() => void globalSettingContext.save()}
-            saveDraftSubmitting={saveDraftSubmitting}
             toolbarPrimaryLoading={toolbarPrimaryLoading}
-            saveDraft={() => void saveDraft()}
             isPreviewStep={isPreviewStep}
             exportMenuOpen={publishExport.exportMenuOpen}
             onExportMenuOpenChange={(open) => void publishExport.onExportMenuOpenChange(open)}
             previewExportBusy={publishExport.previewExportBusy}
+            publishGuideActive={publishGuide.publishGuideActive}
             onExportFullVideo={() => void publishExport.onExportFullVideo()}
             onExportSegments={() => void publishExport.onExportSegments()}
             publishToCasePlazaDisabled={publishExport.publishToCasePlazaDisabled}
@@ -718,26 +732,7 @@ export function CreateFlowShell({ children }: { children: ReactNode }) {
                 <span className="preview-audit-failure__reason">{previewAuditFailureReason}</span>
               </div>
             ) : null}
-            {!isSeriesFlowChrome ? (
-              <CreateFlowStepStrip
-                displaySteps={displaySteps}
-                flowStepIndex={optimisticFlowStepIndex}
-                stepStatus={stepStatus}
-                unlockedStepIndex={Math.max(unlockedStepIndex, flowStepIndex)}
-                stepRealIndex={stepRealIndex}
-                isConnectorTrailDone={isConnectorTrailDone}
-                isPillDisabled={(index) =>
-                  stepNavigation.pendingStep != null || toolbarPrimaryLoading || isStepPillDisabled(index)
-                }
-                highlightAll={highlightEntryFlowTabs}
-                sceneCharacterGenerating={isExtractingAssets || isStep3VisualStepGenerating}
-                storyboardScriptGenerating={isStoryboardScriptStepGenerating}
-                storyboardVideoGenerating={isStoryboardVideoFlowStepGenerating}
-                dubbingGenerating={isDubbingStepGenerating}
-                onPillClick={onFlowStepPillClick}
-                onPillIntent={preloadCreateStepRoute}
-              />
-            ) : null}
+
 
             <div className="preview-panel">
               <div
@@ -759,11 +754,10 @@ export function CreateFlowShell({ children }: { children: ReactNode }) {
 
   return (
     <createFlowShellContext.Provider value={shellContextValue}>
-      {navigationPending && <PageLoadingOverlay label="正在进入流程画布…" />}
-      <div className={`create-page${isSeriesFlowChrome ? ' create-page--series-upload' : ''}`}>
+      <div className={`create-page${isSeriesFlowChrome ? ' create-page--series-upload' : ''}${publicProjectReadOnly ? ' create-page--public-readonly' : ''}`}>
         {!pageReady ? skeletonView : mainView}
 
-        <CreateFlowShellOverlays
+        {!publicProjectReadOnly ? <CreateFlowShellOverlays
           extractModal={{
             open: showExtractAgentModal,
             agents: extractAgents,
@@ -776,16 +770,12 @@ export function CreateFlowShell({ children }: { children: ReactNode }) {
             onModelCodesChange: extract.updateExtractModelCodes,
             onStart: extract.startExtractAssets
           }}
-          rechargeModal={{
-            open: showRechargeModal,
-            onOpenChange: setShowRechargeModal,
-            onPaid: handleRechargePaid
-          }}
           globalSettingModal={{
             open: showGlobalSettingModal,
             flowEditMode: true,
             projectTypeLocked: globalSettingProjectTypeLocked,
-            contentConfigLocked: seriesProjectConfigContentLocked,
+            contentConfigLocked: projectConfigContentLocked,
+            contentConfigLockReason: projectConfigLockReason,
             confirmLoading: globalSettingConfirmLoading,
             title: creationTitleDraft,
             projectType: globalSettingProjectTypeDraft,
@@ -805,7 +795,7 @@ export function CreateFlowShell({ children }: { children: ReactNode }) {
             onConfirm: () =>
               void handleGlobalSettingConfirm({
                 navigateAfterSave: false,
-                contentConfigLocked: seriesProjectConfigContentLocked
+                contentConfigLocked: projectConfigContentLocked
               })
           }}
           projectConfigModal={{
@@ -814,16 +804,6 @@ export function CreateFlowShell({ children }: { children: ReactNode }) {
             episodeId: currentEpisodeId,
             onOpenChange: setShowProjectGenConfigModal
           }}
-          userMenu={{
-            ref: userMenuDropdownRef,
-            open: showUserMenuCard,
-            floatingStyle: userMenuCardStyle,
-            onFaq: openFaq,
-            onBilling: openBilling,
-            onRecharge: openRechargeFromMenu,
-            onAccountSettings: openAccountSettingsFromMenu,
-            onLogout: handleLogout
-          }}
           publishModal={{
             open: publishExport.publishCasePlazaModalOpen,
             projectId: activeProjectId,
@@ -831,7 +811,7 @@ export function CreateFlowShell({ children }: { children: ReactNode }) {
             onOpenChange: publishExport.setPublishModalOpen,
             onSuccess: (payload) => void publishExport.onPublishCasePlazaMetaSuccess(payload)
           }}
-        />
+        /> : null}
       </div>
     </createFlowShellContext.Provider>
   )

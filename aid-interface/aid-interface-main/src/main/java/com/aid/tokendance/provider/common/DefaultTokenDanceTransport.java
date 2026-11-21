@@ -116,6 +116,7 @@ public class DefaultTokenDanceTransport implements TokenDanceTransport
         HttpURLConnection connection = (HttpURLConnection) new URL(endpoint).openConnection();
         try
         {
+            com.aid.media.provider.TextExecutionTransportScope.attach(connection::disconnect);
             int timeout = SubmitTimeoutResolver.resolveMs(config, DEFAULT_TIMEOUT_MS);
             connection.setConnectTimeout(Math.min(timeout, 30_000));
             connection.setReadTimeout(timeout);
@@ -151,6 +152,7 @@ public class DefaultTokenDanceTransport implements TokenDanceTransport
             {
                 return new TokenDanceHttpResponse(statusCode, contentType, new byte[0], recoveryAction);
             }
+            com.aid.media.provider.TextExecutionTransportScope.attach(rawStream);
             try (InputStream input = rawStream)
             {
                 if (streamHandler != null && statusCode >= 200 && statusCode < 300)

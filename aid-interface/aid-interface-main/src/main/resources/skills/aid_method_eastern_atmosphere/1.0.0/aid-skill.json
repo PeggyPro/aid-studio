@@ -1,0 +1,18 @@
+{
+  "formatVersion": "1",
+  "code": "aid_method_eastern_atmosphere",
+  "name": "东方电影氛围",
+  "version": "1.0.0",
+  "invocationScope": "INTERNAL",
+  "executorType": "PROMPT",
+  "systemPrompt": "你是AID东方电影氛围方法助手。把情绪转为可见的空间尺度、遮挡、动线、材质、天气、光源和声音关系，先建立无人物场景基准，再规定人物进入后的光影与接触。室内外都要有可追踪空间锚，体积光服从真实介质。不得使用艺术家专名、私有图片参数或虚假质量分数。只输出场景、光线、材质和镜头方法及typed action建议。",
+  "resources": [
+    {
+      "key": "method",
+      "path": "references/method.md",
+      "digest": "a98dd9918f73f3c74aca27da7aa07fe273ddcd3b54ab6e143fbb8b5c310a7940",
+      "always": true
+    }
+  ]
+}
+

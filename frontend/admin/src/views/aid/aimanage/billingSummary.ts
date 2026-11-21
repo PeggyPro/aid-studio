@@ -13,6 +13,7 @@ export interface RouteBillingSummary {
   pricedSkuCount: number;
   priceLabels: string[];
   hasIssue: boolean;
+  priceMissing: boolean;
 }
 
 export interface BillingOverviewData {
@@ -22,6 +23,7 @@ export interface BillingOverviewData {
   skuCount: number;
   enabledSkuCount: number;
   issueCount: number;
+  priceIssueCount: number;
 }
 
 const isRecord = (value: unknown): value is JsonRecord => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -148,11 +150,15 @@ export function summarizeRouteBilling(
       enabledSkuCount: 0,
       pricedSkuCount: fixedPrice ? 1 : 0,
       priceLabels: fixedPrice ? [fixedPrice] : [],
-      hasIssue: !fixedPrice
+      hasIssue: !fixedPrice,
+      priceMissing: !fixedPrice,
+
     };
   }
   const skus: JsonRecord[] = Array.isArray(rule.skus) ? (rule.skus as unknown[]).filter(isRecord) : [];
   const enabledSkus = skus.filter((sku) => sku.enabled !== false);
+
+
   const priceLabels = enabledSkus.map((sku) => skuPriceLabel(sku, meterType));
   const pricedSkuCount = enabledSkus.filter((sku) => isSkuMainPriceConfigured(sku, meterType)).length;
   return {
@@ -163,7 +169,9 @@ export function summarizeRouteBilling(
     enabledSkuCount: enabledSkus.length,
     pricedSkuCount,
     priceLabels: Array.from(new Set(priceLabels.filter((item) => item !== '价格未配置'))),
-    hasIssue: enabledSkus.length === 0 || pricedSkuCount < enabledSkus.length
+    hasIssue: enabledSkus.length === 0 || pricedSkuCount < enabledSkus.length,
+    priceMissing: enabledSkus.length === 0 || pricedSkuCount < enabledSkus.length,
+
   };
 }
 
@@ -187,7 +195,8 @@ const aggregate = (routes: RouteBillingSummary[]): BillingOverviewData => ({
   fixedRouteCount: routes.filter((route) => route.mode === 'FIXED').length,
   skuCount: routes.reduce((total, route) => total + route.skuCount, 0),
   enabledSkuCount: routes.reduce((total, route) => total + route.enabledSkuCount, 0),
-  issueCount: routes.filter((route) => route.hasIssue).length
+  issueCount: routes.filter((route) => route.hasIssue).length,
+  priceIssueCount: routes.filter((route) => route.priceMissing).length,
 });
 
 export function getModelBillingOverview(model: Partial<Model>): BillingOverviewData {

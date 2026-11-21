@@ -94,6 +94,7 @@ public final class AiConfigJsonValidator
         }
         provider.setExtraBody(sanitizeRuntimeTextOptions(provider.getExtraBody()));
         validateJsonObjectIfPresent("schedule_strategy_json", provider.getScheduleStrategyJson());
+        validateQueryFailureLimit(provider.getScheduleStrategyJson());
         validateJsonObjectIfPresent("extra_headers", provider.getExtraHeaders());
         validateJsonObjectIfPresent("extra_body", provider.getExtraBody());
         validateJsonObjectIfPresent("extra_query", provider.getExtraQuery());
@@ -103,6 +104,18 @@ public final class AiConfigJsonValidator
     /**
      * Vidu 开启回调时必须提供完整 HTTP/HTTPS 地址，避免配置表显示已开启但运行时只能降级轮询。
      */
+    private static void validateQueryFailureLimit(String json) {
+        if (StrUtil.isBlank(json)) return;
+        try {
+            JsonNode value = OBJECT_MAPPER.readTree(json).get("maxConsecutiveQueryFailures");
+            if (value != null && (!value.isIntegralNumber() || !value.canConvertToInt()
+                    || value.intValue() < 1 || value.intValue() > 100))
+                throw new ServiceException("连续查询失败上限必须为1至100的整数");
+        } catch (java.io.IOException invalid) {
+            throw new ServiceException("调度策略必须为合法 JSON 对象");
+        }
+    }
+
     private static void validateViduCallback(AidAiProvider provider)
     {
         if (!"vidu".equalsIgnoreCase(StrUtil.trim(provider.getProviderCode()))
@@ -150,10 +163,53 @@ public final class AiConfigJsonValidator
         model.setCapabilityJson(com.aid.aid.service.support.MediaCapabilityNormalizer.normalizeJson(model.getCapabilityJson()));
         validateJsonObjectIfPresent("billing_rule_json", model.getBillingRuleJson());
         validateJsonObjectIfPresent("schedule_strategy_json", model.getScheduleStrategyJson());
+        validateQueryFailureLimit(model.getScheduleStrategyJson());
         validateJsonObjectIfPresent("capability_json", model.getCapabilityJson());
         validateJsonObjectIfPresent("param_mapping_json", model.getParamMappingJson());
         validateJsonObjectIfPresent("extra_body", model.getExtraBody());
         ModelBillingRuleValidator.validate(model);
+        validateCapability(model, providerCode, adapterSupportsReferenceAudio);
+    }
+
+    /** 保存入口检查默认投影及全部路由，停用路由也不能保存不可解析的媒体约束。 */
+    public static void validate(AidAiModel model, String providerCode,
+                                java.util.function.Predicate<String> referenceAudioDeliverable)
+    {
+        if (model == null) return;
+        validate(model, providerCode, referenceAudioDeliverable.test(model.getProtocol()));
+        if (model.getCapabilities() == null) return;
+        for (int ci = 0; ci < model.getCapabilities().size(); ci++) {
+            var capability = model.getCapabilities().get(ci);
+            if (capability == null || capability.getBindings() == null) continue;
+            for (int ri = 0; ri < capability.getBindings().size(); ri++) {
+                var route = capability.getBindings().get(ri);
+                if (route == null) continue; // 结构校验由模型定义服务处理。
+                AidAiModel projected = new AidAiModel();
+                cn.hutool.core.bean.BeanUtil.copyProperties(model, projected);
+                projected.setProtocol(route.getProtocol());
+                projected.setGenerateMode(capability.getGenerateMode());
+                if (route.getUpstreamModel() != null) projected.setRealModelCode(route.getUpstreamModel());
+                route.setCapability(com.aid.aid.service.support.MediaCapabilityNormalizer.normalize(route.getCapability()));
+                projected.setCapabilityJson(OBJECT_MAPPER.valueToTree(
+                        route.getCapability() == null ? Map.of() : route.getCapability()).toString());
+                try {
+                    validateCapability(projected, providerCode, referenceAudioDeliverable.test(route.getProtocol()));
+                } catch (ServiceException ex) {
+                    // 只带索引和字段名，避免把配置值或供应商凭证写入错误响应。
+                    String path = "capabilities[" + ci + "].bindings[" + ri + "]";
+                    String message = ex.getMessage();
+                    throw new ServiceException(message.contains("capabilityJson")
+                            ? message.replace("capabilityJson", path + ".capability") : path + "：" + message);
+                }
+            }
+        }
+    }
+
+    /** 默认投影与每条调用路由使用相同的能力校验，不重复校验模型级价格。 */
+    public static void validateCapability(AidAiModel model, String providerCode, boolean adapterSupportsReferenceAudio)
+    {
+        model.setCapabilityJson(com.aid.aid.service.support.MediaCapabilityNormalizer.normalizeJson(model.getCapabilityJson()));
+        validateJsonObjectIfPresent("capability_json", model.getCapabilityJson());
         validateMediaCapability(model.getCapabilityJson());
         validateTextCapability(model);
         validateViduModelCallback(model);
@@ -347,6 +403,10 @@ public final class AiConfigJsonValidator
                 || REFERENCE_AUDIO_PROTOCOLS.contains(normalizeCode(model.getProtocol()))
                 || isAgnes25Model(model, providerCode)
                 || isWan3DashscopeModel(model)
+                || ("vidu".equals(normalizeCode(providerCode))
+                    && "vidu-video".equals(normalizeCode(model.getProtocol()))
+                    && "viduq4-preview".equals(normalizeCode(StrUtil.blankToDefault(model.getRealModelCode(), model.getModelCode())))
+                    && "reference_to_video".equals(normalizeCode(model.getGenerateMode())))
                 || ("tokendance".equals(normalizeCode(providerCode)) && Set.of("tokendance:seedance:generations",
                     "tokendance:wan3:video-synthesis", "tokendance:minimax:video_generation_v2").contains(normalizeCode(model.getProtocol())));
         if (!deliverable)
@@ -485,13 +545,13 @@ public final class AiConfigJsonValidator
             if (!root.isObject()) throw new IllegalArgumentException("根节点必须是对象");
             validateMediaCapabilityObject(root, "capabilityJson");
             JsonNode scenes = root.path("sceneRules");
-            if (!scenes.isMissingNode() && !scenes.isNull() && !scenes.isObject()) throw new IllegalArgumentException("sceneRules 必须是对象");
+            if (!scenes.isMissingNode() && !scenes.isNull() && !scenes.isObject()) throw new IllegalArgumentException("capabilityJson.sceneRules 必须是对象");
             if (scenes.isObject()) {
                 var fields = scenes.fields();
                 while (fields.hasNext()) {
                     var field = fields.next();
                     JsonNode scene = field.getValue();
-                    String path = "sceneRules." + field.getKey();
+                    String path = "capabilityJson.sceneRules." + field.getKey();
                     if (scene.isNull()) continue;
                     if (!scene.isObject()) throw new IllegalArgumentException(path + " 必须是对象");
                     validateMediaCapabilityObject(scene, path);
@@ -507,6 +567,16 @@ public final class AiConfigJsonValidator
     }
 
     private static void validateMediaCapabilityObject(JsonNode capability, String path) {
+        for (String kind : List.of("Images", "Videos", "Audios")) {
+            validateMediaCount(capability, "minReference" + kind, 0, path);
+            validateMediaCount(capability, "maxReference" + kind, -1, path);
+            JsonNode min = capability.get("minReference" + kind);
+            JsonNode max = capability.get("maxReference" + kind);
+            if (min != null && !min.isNull() && max != null && !max.isNull()
+                    && max.decimalValue().signum() >= 0 && min.decimalValue().compareTo(max.decimalValue()) > 0)
+                throw new IllegalArgumentException(path + ".minReference" + kind + " 不能大于最大值");
+        }
+        validateMediaCount(capability, "maxReferenceMaterials", -1, path);
         for (String prefix : List.of("referenceImage", "referenceVideo", "referenceAudio")) {
             for (String suffix : List.of("MinDurationSeconds", "MaxDurationSeconds", "MaxTotalDurationSeconds", "MaxFileSizeMb",
                     "MinDimensionPixels", "MaxDimensionPixels", "MinPixels", "MaxPixels", "MinWidth", "MaxWidth",
@@ -540,6 +610,15 @@ public final class AiConfigJsonValidator
             if (value != null && !value.isNull() && (!value.isNumber() || value.decimalValue().signum() < 0))
                 throw new IllegalArgumentException(path + "." + field + " 必须是非负数字");
         }
+    }
+
+    private static void validateMediaCount(JsonNode capability, String field, int minimum, String path) {
+        JsonNode value = capability.get(field);
+        if (value != null && !value.isNull() && (!value.isNumber()
+                || value.decimalValue().stripTrailingZeros().scale() > 0
+                || value.decimalValue().compareTo(BigDecimal.valueOf(minimum)) < 0
+                || value.decimalValue().compareTo(BigDecimal.valueOf(Integer.MAX_VALUE)) > 0))
+            throw new IllegalArgumentException(path + "." + field + " 必须是" + (minimum == -1 ? "-1或非负整数" : "非负整数"));
     }
 
     /** 校验文本多模态和统一思考能力字段。 */
@@ -582,7 +661,7 @@ public final class AiConfigJsonValidator
                     "maxInputAudios", "maxInputDocuments"))
             {
                 JsonNode value = capability.get(field);
-                if (value != null && (!value.isIntegralNumber() || value.asInt() < -1))
+                if (value != null && !value.isNull() && (!value.isIntegralNumber() || value.asInt() < -1))
                 {
                     throw new IllegalArgumentException(field + "非法");
                 }
@@ -598,7 +677,7 @@ public final class AiConfigJsonValidator
                     "maxInputMediaTotalFileSizeMb"))
             {
                 JsonNode value = capability.get(field);
-                if (value != null && (!value.isNumber() || value.decimalValue().signum() < 0))
+                if (value != null && !value.isNull() && (!value.isNumber() || value.decimalValue().signum() < 0))
                 {
                     throw new IllegalArgumentException(field + "非法");
                 }
@@ -607,7 +686,7 @@ public final class AiConfigJsonValidator
                     "defaultReasoningBudgetTokens", "maxReasoningBudgetTokens"))
             {
                 JsonNode value = capability.get(field);
-                if (value != null && (!value.isIntegralNumber() || value.asLong() < 0L))
+                if (value != null && !value.isNull() && (!value.isIntegralNumber() || value.asLong() < 0L))
                 {
                     throw new IllegalArgumentException(field + "非法");
                 }
@@ -668,7 +747,7 @@ public final class AiConfigJsonValidator
         JsonNode value = capability.get(countField);
         // 未声明上限与显式禁止是不同状态；官方未公开数量限制的目录不能伪造为零。
         // 非法类型已由上面的字段校验拒绝，显式零值仍与已开启的输入模态冲突。
-        if (value == null)
+        if (value == null || value.isNull())
         {
             return;
         }

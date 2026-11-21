@@ -14,30 +14,25 @@ import com.aid.aid.service.IAidAiProviderService;
 import com.aid.aid.service.IAidConfigService;
 import com.aid.media.enums.MediaTaskStatus;
 import com.aid.compose.config.MpsConfigManager;
-import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
 
 import cn.hutool.core.util.StrUtil;
 
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 媒体任务并发限流服务：基于 Redis 原子计数实现「全局 → 用户 → 模型 → 供应商」四维并发准入。
+ * 媒体任务并发限流服务：基于持久执行许可实现「全局 → 用户 → 模型 → 供应商」四维并发准入。
  * 平台全局上限最大（所有任务之和不得超过），其下依次为用户级、模型级（所有人对该模型的在途请求）、
  * 供应商级（该供应商下所有模型的在途请求之和）。
  *
- * 本类是供应商 / 模型两个维度并发上限的<strong>唯一权威执行方</strong>，计数对象为 aid_media_task 在途数
+ * 本类是供应商 / 模型两个维度并发上限的<strong>唯一权威执行方</strong>，计数对象为仍持有执行许可的请求
  * （即一次真实的上游厂商请求）。任务排队队列（com.aid.rps.queue）只管全局 / 用户两维的业务任务准入，
  * 不再重复表达供应商 / 模型并发，避免同一概念被两处配置。
  *
@@ -45,18 +40,15 @@ import java.util.concurrent.ConcurrentHashMap;
  * - 全局 / 用户：aid_config（category=media）media_concurrent_limit_global / media_concurrent_limit_user；
  * - 模型：aid_ai_model.schedule_strategy_json.maxConcurrency（&lt;=0 或缺失 = 不限，仅受供应商上限约束）；
  * - 供应商：aid_ai_provider.schedule_strategy_json.maxConcurrency（&lt;=0 或缺失 = 不限，仅受全局上限约束）。
- * 四类配置均带 5 秒本地缓存，后台修改后最迟 5 秒生效；计数在应用启动时从数据库重建自愈。
+ * 四类配置均带 5 秒本地缓存，后台修改后最迟 5 秒生效；执行许可独立持久化，重启不从未终态任务重新制造计数。
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class MediaConcurrencyLimiter {
 
-    // Redis Key 前缀。
-    private static final String KEY_GLOBAL = "media:concurrent:global";
+    // 兼容旧身份桶格式；执行计数持久化在独立许可表。
     private static final String KEY_USER_PREFIX = "media:concurrent:user:";
-    private static final String KEY_MODEL_PREFIX = "media:concurrent:model:";
-    private static final String KEY_PROVIDER_PREFIX = "media:concurrent:provider:";
 
     /** 模型/供应商维度缺省占位桶（模型缺失、COMPOSE 等不在模型表的任务统一落此桶，按不限处理） */
     private static final String NONE_BUCKET = "none";
@@ -71,6 +63,8 @@ public class MediaConcurrencyLimiter {
     private static final String CONFIG_GLOBAL_LIMIT = "media_concurrent_limit_global";
     private static final String CONFIG_USER_LIMIT = "media_concurrent_limit_user";
     private static final String CONFIG_USER_LIMIT_PREFIX = "media_concurrent_limit_user_";
+    private static final String CONFIG_RECONCILIATION_WAIT_MINUTES = "media_reconciliation_queue_wait_minutes";
+    private static final String CONFIG_RECONCILIATION_ALLOWANCE = "media_reconciliation_permit_allowance";
 
     // 本地配置缓存刷新间隔（秒）。
     private static final long CONFIG_CACHE_TTL_SECONDS = 5L;
@@ -78,61 +72,28 @@ public class MediaConcurrencyLimiter {
     // 默认限流阈值（aid_config 无记录时兜底）。
     private static final int DEFAULT_GLOBAL_LIMIT = 50;
     private static final int DEFAULT_USER_LIMIT = 5;
+    private static final int DEFAULT_RECONCILIATION_WAIT_MINUTES = 30;
+    private static final int DEFAULT_RECONCILIATION_ALLOWANCE = 5;
 
     /** 表示"不限制"的并发值（模型/供应商维度缺省不限） */
     public static final int UNLIMITED = Integer.MAX_VALUE;
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
-    // 使用 StringRedisTemplate（纯字符串序列化），确保 Lua 脚本 tonumber() 正常工作。
-    private final StringRedisTemplate stringRedisTemplate;
+    // 持久执行许可统一承担四维准入与幂等释放。
+    private final MediaExecutionPermitService executionPermits;
     private final AidMediaTaskMapper aidMediaTaskMapper;
     private final IAidConfigService aidConfigService;
     private final IAidAiModelService aidAiModelService;
     private final IAidAiProviderService aidAiProviderService;
     private final MpsConfigManager mpsConfigManager;
 
-    // Lua 脚本：四维原子 check + acquire。按平台 → 用户 → 模型 → 供应商顺序判定，全部有余量才一次性 INCR 四个计数。
-    // 注意：用 `if g` 而非 `if g ~= false`，因为对不存在的 key 返回 nil 而非 false，
-    // 而 Lua 中 `nil ~= false` 为 true 会导致 tonumber(nil) 比较报错。
-    // 返回值：1=成功；-1=全局满；-2=用户满；-3=模型满；-4=供应商满。
-    private static final DefaultRedisScript<Long> ACQUIRE_SCRIPT = new DefaultRedisScript<>(
-        "local g = redis.call('GET', KEYS[1]) " +
-        "if g and tonumber(g) >= tonumber(ARGV[1]) then return -1 end " +
-        "local u = redis.call('GET', KEYS[2]) " +
-        "if u and tonumber(u) >= tonumber(ARGV[2]) then return -2 end " +
-        "local m = redis.call('GET', KEYS[3]) " +
-        "if m and tonumber(m) >= tonumber(ARGV[3]) then return -3 end " +
-        "local p = redis.call('GET', KEYS[4]) " +
-        "if p and tonumber(p) >= tonumber(ARGV[4]) then return -4 end " +
-        "redis.call('INCR', KEYS[1]) " +
-        "redis.call('INCR', KEYS[2]) " +
-        "redis.call('INCR', KEYS[3]) " +
-        "redis.call('INCR', KEYS[4]) " +
-        "return 1",
-        Long.class
-    );
-
-    /**
-     * 原子比较释放 Lua 脚本：仅当 current > 0 才 DECR，否则保持 0，
-     * 避免计数被打到负数后永久绕过并发上限。
-     */
-    private static final DefaultRedisScript<Long> RELEASE_SCRIPT = new DefaultRedisScript<>(
-        "local v = redis.call('GET', KEYS[1]) " +
-        "if not v then return 0 end " +
-        "local n = tonumber(v) " +
-        "if not n or n <= 0 then " +
-        "  redis.call('SET', KEYS[1], '0') " +
-        "  return 0 " +
-        "end " +
-        "return redis.call('DECR', KEYS[1])",
-        Long.class
-    );
-
     // 本地配置缓存：上次刷新时间 + 缓存值。
     private volatile long configCacheTime = 0;
     private volatile int cachedGlobalLimit = DEFAULT_GLOBAL_LIMIT;
     private volatile int cachedUserLimit = DEFAULT_USER_LIMIT;
+    private volatile int cachedReconciliationWaitMinutes = DEFAULT_RECONCILIATION_WAIT_MINUTES;
+    private volatile int cachedReconciliationAllowance = DEFAULT_RECONCILIATION_ALLOWANCE;
 
     /** 用户专属上游并发覆盖：media_concurrent_limit_user_{userId}。 */
     private final Map<Long, long[]> userLimitOverrideCache = new ConcurrentHashMap<>();
@@ -156,65 +117,110 @@ public class MediaConcurrencyLimiter {
         }
     }
 
-    /**
-     * 应用启动时从数据库修正 Redis 计数，防止 Redis 重启或 Key 丢失后计数不准。
-     */
-    @PostConstruct
-    public void initRedisCounters() {
-        try {
-            rebuildCountersFromDb();
-            log.info("媒体并发限流: Redis 计数已从数据库修正完成");
-        } catch (Exception e) {
-            // 启动时修正失败不影响主流程，仅打印警告。
-            log.warn("媒体并发限流: Redis 计数修正失败，将以当前 Redis 值为准", e);
-        }
-    }
-
-    /**
-     * 尝试抢占四维并发坑位（不抛异常）。
-     *
-     * @param userId    用户 ID（匿名时可为 null）
-     * @param modelCode 规范模型编码（aid_media_task.model_name；无法提供时可为 null，模型/供应商维度按不限处理）
-     * @return true=抢占成功可立即提交，false=任一维度并发已满需排队
-     */
-    public boolean tryAcquire(Long userId, String modelCode) {
+    /** Reserve a durable identity before creating or dispatching a media task. */
+    public String reserve(Long taskId, Long userId, String modelCode) {
         int globalLimit = refreshConfig();
-        int userLimit = getUserLimitValue(userId);
         ModelMeta meta = resolveModelMeta(modelCode);
-        int providerLimit = resolveProviderLimit(meta.providerId);
-
-        // 使用 StringRedisTemplate 执行 Lua 脚本，ARGV 为纯字符串（不带 JSON 引号）。
-        Long result = stringRedisTemplate.execute(
-            ACQUIRE_SCRIPT,
-            List.of(KEY_GLOBAL, resolveUserKey(userId), resolveModelKey(modelCode), resolveProviderKey(meta.providerId)),
-            String.valueOf(globalLimit),
-            String.valueOf(userLimit),
-            String.valueOf(meta.modelLimit),
-            String.valueOf(providerLimit)
-        );
-
-        return result != null && result == 1L;
+        return executionPermits.reserve(taskId, userId, resolveUserKey(userId),
+                StrUtil.blankToDefault(modelCode, NONE_BUCKET), meta.providerId,
+                new MediaExecutionPermitService.Limits(globalLimit, getUserLimitValue(userId),
+                        meta.modelLimit, resolveProviderLimit(meta.providerId), cachedReconciliationAllowance));
     }
 
-    /**
-     * 任务终态时释放四维并发坑位（逐维原子 CAS 释放，计数到 0 后不再递减为负数）。
-     * 释放的模型/供应商桶按当前配置解析：若任务在途期间运营改了模型所属供应商，可能出现单次维度偏差，
-     * 由启动重建 {@link #rebuildCountersFromDb()} 自愈，且 CAS 地板保证不会出现负数。
-     *
-     * @param userId    用户 ID（匿名时可为 null）
-     * @param modelCode 规范模型编码（aid_media_task.model_name，可为 null）
-     */
-    public void release(Long userId, String modelCode) {
-        try {
-            ModelMeta meta = resolveModelMeta(modelCode);
-            stringRedisTemplate.execute(RELEASE_SCRIPT, List.of(KEY_GLOBAL));
-            stringRedisTemplate.execute(RELEASE_SCRIPT, List.of(resolveUserKey(userId)));
-            stringRedisTemplate.execute(RELEASE_SCRIPT, List.of(resolveModelKey(modelCode)));
-            stringRedisTemplate.execute(RELEASE_SCRIPT, List.of(resolveProviderKey(meta.providerId)));
-        } catch (Exception e) {
-            // 释放失败仅打日志，不影响任务状态流转。
-            log.warn("媒体并发限流: 释放坑位失败, userId={}, modelCode={}", userId, modelCode, e);
-        }
+    /** A read-only reason; it never reserves or releases an admission. */
+    public String getQueueWaitReason(AidMediaTask task) {
+        return task == null ? null : getQueueWaitReason(java.util.List.of(task));
+    }
+
+    /** Only considered after admission refused a new request. Zero disables this deadline. */
+    public boolean isReconciliationQueueWaitExpired(AidMediaTask task, long nowMillis) {
+        refreshConfig();
+        int waitMinutes = cachedReconciliationWaitMinutes;
+        return waitMinutes > 0 && task.getCreateTime() != null
+                && nowMillis - task.getCreateTime().getTime() >= waitMinutes * 60_000L
+                && MediaQueueWaitPolicy.UPSTREAM_RECONCILIATION.equals(getQueueWaitReason(task));
+    }
+
+    /** Parent estimates batch children by owner/model, avoiding one query per child. */
+    public String getQueueWaitReason(java.util.List<AidMediaTask> group) {
+        if (group == null || group.isEmpty()) return null;
+        var candidates = group.stream().filter(t -> t != null && t.getId() != null
+                && ("QUEUED".equals(t.getStatus()) || "PENDING".equals(t.getStatus()))).toList();
+        if (candidates.isEmpty()) return null;
+        AidMediaTask first = candidates.get(0);
+        if (candidates.stream().anyMatch(t -> !java.util.Objects.equals(t.getUserId(), first.getUserId())
+                || !java.util.Objects.equals(t.getModelName(), first.getModelName())))
+            throw new IllegalArgumentException("MEDIA_WAIT_GROUP_IDENTITY_INVALID");
+        ModelMeta meta = resolveModelMeta(first.getModelName());
+        return executionPermits.queueWaitReason(candidates.stream().map(AidMediaTask::getId).toList(),
+                resolveUserKey(first.getUserId()), StrUtil.blankToDefault(first.getModelName(), NONE_BUCKET),
+                meta.providerId, new MediaExecutionPermitService.Limits(refreshConfig(),
+                        getUserLimitValue(first.getUserId()), meta.modelLimit, resolveProviderLimit(meta.providerId),
+                        cachedReconciliationAllowance));
+    }
+
+    public String getCapacityWaitReason(AidMediaTask task) {
+        if (task == null || task.getId() == null || !"QUEUED".equals(task.getStatus())) return null;
+        ModelMeta meta = resolveModelMeta(task.getModelName());
+        return executionPermits.capacityWaitReason(task.getId(), resolveUserKey(task.getUserId()),
+                StrUtil.blankToDefault(task.getModelName(), NONE_BUCKET), meta.providerId,
+                new MediaExecutionPermitService.Limits(refreshConfig(), getUserLimitValue(task.getUserId()),
+                        meta.modelLimit, resolveProviderLimit(meta.providerId), cachedReconciliationAllowance));
+    }
+
+    public void activate(AidMediaTask task, Runnable closeTransport) {
+        activate(task, "TEXT".equals(task.getMediaType()), closeTransport);
+    }
+
+    public void activate(AidMediaTask task, boolean synchronous, Runnable closeTransport) {
+        executionPermits.activate(task.getExecutionPermitToken(),
+                synchronous ? synchronousMode(task) : MediaExecutionPermitService.Mode.SUBMITTING, closeTransport);
+    }
+
+    private static MediaExecutionPermitService.Mode synchronousMode(AidMediaTask task) {
+        return switch(task.getMediaType()) {
+            case "TEXT" -> MediaExecutionPermitService.Mode.SYNC_TEXT;
+            case "IMAGE" -> MediaExecutionPermitService.Mode.SYNC_IMAGE;
+            case "AUDIO" -> MediaExecutionPermitService.Mode.SYNC_AUDIO;
+            default -> throw new IllegalArgumentException("Unsupported synchronous media contract");
+        };
+    }
+
+    public void requireOwned(AidMediaTask task) {
+        executionPermits.requireOwned(task.getExecutionPermitToken());
+    }
+
+    public void release(AidMediaTask task) {
+        if (task != null && task.getExecutionPermitToken() != null)
+            executionPermits.release(task.getExecutionPermitToken(),
+                    MediaExecutionPermitService.ReleaseReason.TASK_TERMINAL);
+    }
+
+    /** Capture this token before scheduling a terminal callback; never re-read a newer task token. */
+    public void releaseToken(String token) {
+        if (token != null) executionPermits.release(token,
+                MediaExecutionPermitService.ReleaseReason.TASK_TERMINAL);
+    }
+
+    public void abortReservation(String token) {
+        if (token != null) executionPermits.release(token,
+                MediaExecutionPermitService.ReleaseReason.RESERVATION_ABORTED);
+    }
+
+    public void closeTextExecution(AidMediaTask task) {
+        if (task != null && "TEXT".equals(task.getMediaType()) && task.getExecutionPermitToken() != null)
+            executionPermits.release(task.getExecutionPermitToken(),
+                    MediaExecutionPermitService.ReleaseReason.LOCAL_TEXT_CONNECTION_CLOSED);
+    }
+
+    public void closeSynchronousExecution(AidMediaTask task) {
+        if (task != null && task.getExecutionPermitToken() != null)
+            executionPermits.finishLocalCall(task.getExecutionPermitToken());
+    }
+
+    public boolean releaseReturnedSynchronous(AidMediaTask task) {
+        return executionPermits.releaseReturnedSynchronous(task.getExecutionPermitToken(), task.getId(),
+                synchronousMode(task));
     }
 
     /**
@@ -232,8 +238,19 @@ public class MediaConcurrencyLimiter {
         if (current == null || !MediaTaskStatus.QUEUED.name().equals(current.getStatus())) {
             return null;
         }
+        return queuePosition(current, false);
+    }
+
+    public Integer getModelQueuePosition(AidMediaTask current) {
+        if (current == null || !MediaTaskStatus.QUEUED.name().equals(current.getStatus())
+                || current.getCreateTime() == null) return null;
+        return queuePosition(current, true);
+    }
+
+    private Integer queuePosition(AidMediaTask current, boolean sameModel) {
         LambdaQueryWrapper<AidMediaTask> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(AidMediaTask::getStatus, MediaTaskStatus.QUEUED.name());
+        if (sameModel) wrapper.eq(AidMediaTask::getModelName, current.getModelName());
         wrapper.and(w -> w
             .lt(AidMediaTask::getCreateTime, current.getCreateTime())
             .or()
@@ -246,137 +263,33 @@ public class MediaConcurrencyLimiter {
         return ahead.intValue() + 1;
     }
 
-    /**
-     * 查询系统当前总并发数。
-     */
     public int getGlobalCount() {
-        return readCounter(KEY_GLOBAL);
+        return (int) Math.min(Integer.MAX_VALUE, executionPermits.count(null, null, null));
     }
 
-    /**
-     * 查询指定用户当前并发数。
-     */
     public int getUserCount(Long userId) {
-        if (userId == null) {
-            return 0;
-        }
-        return readCounter(KEY_USER_PREFIX + userId);
+        return userId == null ? 0 : (int) Math.min(Integer.MAX_VALUE,
+                executionPermits.count(resolveUserKey(userId), null, null));
     }
 
-    /**
-     * 查询指定模型当前在途请求数。
-     */
     public int getModelCount(String modelCode) {
-        if (StrUtil.isBlank(modelCode)) {
-            return 0;
-        }
-        return readCounter(KEY_MODEL_PREFIX + modelCode);
+        return StrUtil.isBlank(modelCode) ? 0 : (int) Math.min(Integer.MAX_VALUE,
+                executionPermits.count(null, modelCode, null));
     }
 
-    /**
-     * 查询指定供应商当前在途请求数。
-     */
     public int getProviderCount(Long providerId) {
-        if (providerId == null) {
-            return 0;
-        }
-        return readCounter(KEY_PROVIDER_PREFIX + providerId);
+        return providerId == null ? 0 : (int) Math.min(Integer.MAX_VALUE,
+                executionPermits.count(null, null, providerId));
     }
 
-    /**
-     * 批量查询多个模型当前在途请求数（一次 pipeline 往返，避免 N 次 GET）。
-     *
-     * @param modelCodes 模型编码集合
-     * @return modelCode -&gt; 在途数（缺失/异常按 0 记）
-     */
     public Map<String, Integer> getModelCountBatch(List<String> modelCodes) {
-        Map<String, Integer> result = new HashMap<>();
-        if (modelCodes == null || modelCodes.isEmpty()) {
-            return result;
-        }
-        List<String> keys = new ArrayList<>(modelCodes.size());
-        for (String code : modelCodes) {
-            keys.add(resolveModelKey(code));
-        }
-        List<Integer> counts = pipelineGetCount(keys);
-        for (int i = 0; i < modelCodes.size(); i++) {
-            Integer c = (counts != null && i < counts.size()) ? counts.get(i) : null;
-            result.put(modelCodes.get(i), c == null ? 0 : c);
-        }
-        return result;
+        return executionPermits.countModels(modelCodes);
     }
 
-    /**
-     * 批量查询多个供应商当前在途请求数（一次 pipeline 往返）。
-     *
-     * @param providerIds 供应商 ID 集合
-     * @return providerId -&gt; 在途数（缺失/异常按 0 记）
-     */
     public Map<Long, Integer> getProviderCountBatch(List<Long> providerIds) {
-        Map<Long, Integer> result = new HashMap<>();
-        if (providerIds == null || providerIds.isEmpty()) {
-            return result;
-        }
-        List<String> keys = new ArrayList<>(providerIds.size());
-        for (Long id : providerIds) {
-            keys.add(resolveProviderKey(id));
-        }
-        List<Integer> counts = pipelineGetCount(keys);
-        for (int i = 0; i < providerIds.size(); i++) {
-            Integer c = (counts != null && i < counts.size()) ? counts.get(i) : null;
-            result.put(providerIds.get(i), c == null ? 0 : c);
-        }
-        return result;
+        return executionPermits.countProviders(providerIds);
     }
 
-    /**
-     * 对一组 key 执行 pipeline GET，返回与入参等长同序的计数列表（异常返回 null，调用方按 0 兜底）。
-     */
-    private List<Integer> pipelineGetCount(List<String> keys) {
-        try {
-            List<Object> raw = stringRedisTemplate.executePipelined(
-                (org.springframework.data.redis.core.RedisCallback<Object>) connection -> {
-                    org.springframework.data.redis.connection.StringRedisConnection sconn =
-                        (org.springframework.data.redis.connection.StringRedisConnection) connection;
-                    for (String key : keys) {
-                        sconn.get(key);
-                    }
-                    return null;
-                });
-            List<Integer> counts = new ArrayList<>(keys.size());
-            for (Object o : raw) {
-                counts.add(parseCount(o));
-            }
-            return counts;
-        } catch (Exception e) {
-            log.warn("媒体并发限流: 批量读取在途计数失败(监控降级，按0兜底), keys={}", keys.size(), e);
-            return null;
-        }
-    }
-
-    /**
-     * 把 pipeline 返回值解析为非负计数（null/非数字/负数按 0 记）。
-     * 显式处理 byte[]：连接工厂未按 String 反序列化时直接 String.valueOf 会得到 "[B@..."，
-     * 解析失败静默变 0，让监控数字失真且难排查。
-     */
-    private static int parseCount(Object raw) {
-        if (raw == null) {
-            return 0;
-        }
-        String text = (raw instanceof byte[])
-            ? new String((byte[]) raw, java.nio.charset.StandardCharsets.UTF_8)
-            : String.valueOf(raw);
-        try {
-            return Math.max(Integer.parseInt(text.trim()), 0);
-        } catch (NumberFormatException e) {
-            log.warn("媒体并发限流: 在途计数解析失败(按0兜底), raw={}", text);
-            return 0;
-        }
-    }
-
-    /**
-     * 获取系统全局并发上限。
-     */
     public int getGlobalLimit() {
         refreshConfig();
         return cachedGlobalLimit;
@@ -428,108 +341,6 @@ public class MediaConcurrencyLimiter {
     }
 
     /**
-     * 读取指定计数 Key 的当前值（缺失/异常按 0）。
-     */
-    private int readCounter(String key) {
-        String val = stringRedisTemplate.opsForValue().get(key);
-        if (val == null) {
-            return 0;
-        }
-        try {
-            int count = Integer.parseInt(val);
-            return Math.max(count, 0);
-        } catch (NumberFormatException e) {
-            return 0;
-        }
-    }
-
-    /**
-     * 从数据库重建 Redis 计数器（启动时调用）。
-     * 全局/用户/模型/供应商四维一并重建；重建后清理各前缀下未重建的残留 Key
-     * （含匿名/IP 桶——其计数无法按 IP 从 DB 恢复，残留正数会把该 IP 永久限流，一并删除）。
-     */
-    private void rebuildCountersFromDb() {
-        // 特别标注：本查询只取重建所需的最小字段（id + userId + modelName），新增依赖字段时须同步补充 select。
-        LambdaQueryWrapper<AidMediaTask> wrapper = new LambdaQueryWrapper<>();
-        wrapper.select(AidMediaTask::getId, AidMediaTask::getUserId, AidMediaTask::getModelName);
-        // 查询所有 PENDING + PROCESSING + WAIT_POLL + WAIT_CALLBACK 任务（QUEUED 的不算并发）。
-        wrapper.in(AidMediaTask::getStatus, MediaTaskStatus.PENDING.name(), MediaTaskStatus.PROCESSING.name(),
-            MediaTaskStatus.WAIT_POLL.name(), MediaTaskStatus.WAIT_CALLBACK.name());
-        List<AidMediaTask> activeTasks = aidMediaTaskMapper.selectList(wrapper);
-
-        // 本次重建实际写入的 Key 集合，供后续清理"未重建的残留 Key"使用。
-        Set<String> writtenKeys = new HashSet<>();
-
-        int activeCount = activeTasks == null ? 0 : activeTasks.size();
-        // 全局总数（无活跃任务时清零）。
-        stringRedisTemplate.opsForValue().set(KEY_GLOBAL, String.valueOf(activeCount));
-
-        if (activeCount > 0) {
-            // 按用户 / 模型 / 供应商三维分组统计。
-            Map<String, Integer> userCounts = new HashMap<>();
-            Map<String, Integer> modelCounts = new HashMap<>();
-            Map<String, Integer> providerCounts = new HashMap<>();
-            for (AidMediaTask t : activeTasks) {
-                if (t.getUserId() != null) {
-                    userCounts.merge(KEY_USER_PREFIX + t.getUserId(), 1, Integer::sum);
-                }
-                modelCounts.merge(resolveModelKey(t.getModelName()), 1, Integer::sum);
-                // 供应商按模型反查（带 5 秒缓存，重复模型不重复查库）。
-                ModelMeta meta = resolveModelMeta(t.getModelName());
-                providerCounts.merge(resolveProviderKey(meta.providerId), 1, Integer::sum);
-            }
-            writeCounters(userCounts, writtenKeys);
-            writeCounters(modelCounts, writtenKeys);
-            writeCounters(providerCounts, writtenKeys);
-        }
-
-        // 清理三个前缀下未重建的残留 Key（不含全局 Key，全局已覆盖写）。
-        cleanupStaleKeys(KEY_USER_PREFIX, writtenKeys);
-        cleanupStaleKeys(KEY_MODEL_PREFIX, writtenKeys);
-        cleanupStaleKeys(KEY_PROVIDER_PREFIX, writtenKeys);
-
-        log.info("媒体并发限流: 从数据库修正完成, globalCount={}, keyCount={}", activeCount, writtenKeys.size());
-    }
-
-    /**
-     * 批量写入分组计数并登记到已写集合。
-     */
-    private void writeCounters(Map<String, Integer> counts, Set<String> writtenKeys) {
-        for (Map.Entry<String, Integer> entry : counts.entrySet()) {
-            stringRedisTemplate.opsForValue().set(entry.getKey(), String.valueOf(entry.getValue()));
-            writtenKeys.add(entry.getKey());
-        }
-    }
-
-    /**
-     * 清理指定前缀下本次重建未写入的残留 Key。
-     * 用 SCAN 按批游标迭代替代 KEYS 通配符查询，避免大集群下 O(N) 阻塞。
-     */
-    private void cleanupStaleKeys(String prefix, Set<String> writtenKeys) {
-        try {
-            org.springframework.data.redis.core.ScanOptions options = org.springframework.data.redis.core.ScanOptions
-                    .scanOptions()
-                    .match(prefix + "*")
-                    .count(200)
-                    .build();
-            try (org.springframework.data.redis.core.Cursor<String> cursor =
-                         stringRedisTemplate.scan(options)) {
-                while (cursor.hasNext()) {
-                    String key = cursor.next();
-                    if (key == null || !key.startsWith(prefix)) {
-                        continue;
-                    }
-                    if (!writtenKeys.contains(key)) {
-                        stringRedisTemplate.delete(key);
-                    }
-                }
-            }
-        } catch (Exception e) {
-            log.warn("媒体并发限流: 清理残留 Key 失败, prefix={}", prefix, e);
-        }
-    }
-
-    /**
      * 刷新本地配置缓存（5 秒间隔从 aid_config 表读取）。
      */
     private int refreshConfig() {
@@ -540,6 +351,12 @@ public class MediaConcurrencyLimiter {
         try {
             cachedGlobalLimit = readConfigValue(CONFIG_GLOBAL_LIMIT, DEFAULT_GLOBAL_LIMIT);
             cachedUserLimit = readConfigValue(CONFIG_USER_LIMIT, DEFAULT_USER_LIMIT);
+            int waitMinutes = readConfigValue(CONFIG_RECONCILIATION_WAIT_MINUTES, DEFAULT_RECONCILIATION_WAIT_MINUTES);
+            cachedReconciliationWaitMinutes = waitMinutes >= 0 && waitMinutes <= 1440
+                    ? waitMinutes : DEFAULT_RECONCILIATION_WAIT_MINUTES;
+            int allowance = readConfigValue(CONFIG_RECONCILIATION_ALLOWANCE, DEFAULT_RECONCILIATION_ALLOWANCE);
+            cachedReconciliationAllowance = allowance >= 0 && allowance <= 20
+                    ? allowance : DEFAULT_RECONCILIATION_ALLOWANCE;
             configCacheTime = now;
         } catch (Exception e) {
             log.warn("媒体并发限流: 读取配置失败，使用缓存值", e);
@@ -593,7 +410,6 @@ public class MediaConcurrencyLimiter {
                     Wrappers.<AidAiModel>lambdaQuery()
                             .select(AidAiModel::getModelCode, AidAiModel::getProviderId, AidAiModel::getScheduleStrategyJson)
                             .eq(AidAiModel::getModelCode, modelCode)
-                            .eq(AidAiModel::getDelFlag, "0")
                             .last("LIMIT 1"), false);
             if (model != null) {
                 providerId = model.getProviderId();
@@ -706,13 +522,4 @@ public class MediaConcurrencyLimiter {
         return KEY_USER_PREFIX + "anon:" + safeIp;
     }
 
-    /** 模型维度计数 Key（编码为空 → none 占位桶）。 */
-    private String resolveModelKey(String modelCode) {
-        return KEY_MODEL_PREFIX + (StrUtil.isBlank(modelCode) ? NONE_BUCKET : modelCode);
-    }
-
-    /** 供应商维度计数 Key（providerId 为空 → none 占位桶）。 */
-    private String resolveProviderKey(Long providerId) {
-        return KEY_PROVIDER_PREFIX + (providerId == null ? NONE_BUCKET : providerId);
-    }
 }

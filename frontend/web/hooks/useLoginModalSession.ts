@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAuthPublicConfig } from '@/hooks/useAuthPublicConfig'
 import { useAuthSendCode } from '@/hooks/useAuthSendCode'
 import { useWechatLogin } from '@/components/login/useWechatLogin'
+import { ONBOARDING_PENDING_WELCOME_KEY } from '~/config/onboarding'
 import { closeLoginModal, useLoginModalStore, type LoginModalTab } from '@/stores/loginModal'
 import { useUserStore } from '@/stores/user'
 import type { LoginData } from '~/types/business-api'
@@ -23,7 +24,12 @@ import { mapLoginDataToUser } from '~/utils/userProfile'
 
 const LOGIN_SEND_CODE_COUNTDOWN_SCOPE = 'login-send-code'
 const LOGIN_CAPTCHA_EL = '#login-captcha-box'
-export function useLoginModalSession() {
+function markPendingWelcomeTour() {
+  if (typeof window === 'undefined') return
+  sessionStorage.setItem(ONBOARDING_PENDING_WELCOME_KEY, '1')
+}
+
+export function useLoginModalSession({ smsOnly = false }: { smsOnly?: boolean } = {}) {
   const router = useRouter()
   const tab = useLoginModalStore((s) => s.tab)
   const inviteCode = useLoginModalStore((s) => s.inviteCode)
@@ -31,8 +37,6 @@ export function useLoginModalSession() {
   const setTab = useLoginModalStore((s) => s.setTab)
 
   const {
-    smsLoginEnabled,
-    emailLoginEnabled,
     wechatLoginEnabled,
     siteName,
     platformLogoUrl,
@@ -54,7 +58,8 @@ export function useLoginModalSession() {
     countdownScope: LOGIN_SEND_CODE_COUNTDOWN_SCOPE,
     captchaBindEl: LOGIN_CAPTCHA_EL,
     account,
-    inviteCode
+    inviteCode,
+    smsOnly
   })
 
   const codeLoginPresentation = authSend.codeLoginPresentation
@@ -75,6 +80,7 @@ export function useLoginModalSession() {
       const userStore = useUserStore.getState()
       userStore.login(mapLoginDataToUser(data, account.trim()), data.token)
       void useUserStore.getState().fetchProfile()
+      markPendingWelcomeTour()
       message.success('登录成功', 2)
       const next = redirect && redirect !== '/' ? redirect : ''
       closeLoginModal()
@@ -84,7 +90,9 @@ export function useLoginModalSession() {
     },
     [account, redirect, router]
   )
-  completeLoginRef.current = completeLogin
+  useEffect(() => {
+    completeLoginRef.current = completeLogin
+  }, [completeLogin])
 
   const handleCodeLogin = useCallback(async (): Promise<{
     data: LoginData
@@ -155,12 +163,12 @@ export function useLoginModalSession() {
       if (cancelled) return
       const codeEnabled = getCodeLoginPresentation(
         cfg?.login?.smsEnabled === true,
-        cfg?.login?.emailEnabled === true
+        !smsOnly && cfg?.login?.emailEnabled === true
       ).enabled
       const wechatEnabled = cfg?.login?.wechatEnabled === true
       const current = useLoginModalStore.getState().tab
       if (current === 'code' && !codeEnabled) {
-        setTab(wechatEnabled ? 'wechat' : 'password')
+        setTab(!smsOnly && wechatEnabled ? 'wechat' : 'password')
       } else if (current === 'wechat' && !wechatEnabled) {
         setTab(codeEnabled ? 'code' : 'password')
       }

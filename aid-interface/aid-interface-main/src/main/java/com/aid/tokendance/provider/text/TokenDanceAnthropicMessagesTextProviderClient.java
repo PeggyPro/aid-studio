@@ -145,8 +145,9 @@ public class TokenDanceAnthropicMessagesTextProviderClient extends AbstractToken
         }
         else if ("thinking_delta".equals(type))
         {
-            callbacks.onReasoningDelta(delta.path("thinking").asText(""));
+            callbacks.onProviderReasoningDelta(delta.path("thinking").asText(""));
         }
+        // Signatures and redacted/encrypted blocks remain in the provider's tool context only.
         Map<String, Object> usage = TokenDanceResponseMapper.usage(event);
         if (usage != null)
         {

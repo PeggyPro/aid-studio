@@ -10,7 +10,7 @@
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background: var(--shimmer-image-bg, rgba(14, 18, 28, 0.92));
+  background: var(--shimmer-image-bg, var(--v10-load-base, var(--ui-bg, rgba(14, 18, 28, 0.92))));
 }
 
 .shimmer-image__reveal {
@@ -92,12 +92,7 @@
   inset: 0;
   z-index: 2;
   overflow: hidden;
-  background: linear-gradient(
-    145deg,
-    rgba(14, 18, 30, 0.98) 0%,
-    rgba(22, 30, 48, 1) 52%,
-    rgba(14, 18, 30, 0.98) 100%
-  );
+  background: var(--v10-load-base, color-mix(in srgb, var(--ui-text, #fff) 8%, var(--ui-surface, #12151c)));
   pointer-events: none;
 }
 
@@ -110,9 +105,9 @@
   background: linear-gradient(
     180deg,
     transparent 28%,
-    rgba(74, 231, 253, 0.03) 42%,
-    rgba(74, 231, 253, 0.1) 50%,
-    rgba(74, 231, 253, 0.03) 58%,
+    var(--v10-media-sheen-edge, color-mix(in srgb, var(--ui-text, #fff) 8%, transparent)) 42%,
+    var(--v10-media-sheen, color-mix(in srgb, var(--ui-text, #fff) 34%, transparent)) 50%,
+    var(--v10-media-sheen-edge, color-mix(in srgb, var(--ui-text, #fff) 8%, transparent)) 58%,
     transparent 72%
   );
   transform: translateY(-55%);
@@ -135,9 +130,9 @@
   background: linear-gradient(
     90deg,
     transparent 28%,
-    rgba(74, 231, 253, 0.03) 42%,
-    rgba(74, 231, 253, 0.1) 50%,
-    rgba(74, 231, 253, 0.03) 58%,
+    var(--v10-media-sheen-edge, color-mix(in srgb, var(--ui-text, #fff) 8%, transparent)) 42%,
+    var(--v10-media-sheen, color-mix(in srgb, var(--ui-text, #fff) 34%, transparent)) 50%,
+    var(--v10-media-sheen-edge, color-mix(in srgb, var(--ui-text, #fff) 8%, transparent)) 58%,
     transparent 72%
   );
   transform: translateX(-55%);
@@ -151,9 +146,9 @@
   background: linear-gradient(
     90deg,
     transparent 28%,
-    rgba(74, 231, 253, 0.03) 42%,
-    rgba(74, 231, 253, 0.1) 50%,
-    rgba(74, 231, 253, 0.03) 58%,
+    var(--v10-media-sheen-edge, color-mix(in srgb, var(--ui-text, #fff) 8%, transparent)) 42%,
+    var(--v10-media-sheen, color-mix(in srgb, var(--ui-text, #fff) 34%, transparent)) 50%,
+    var(--v10-media-sheen-edge, color-mix(in srgb, var(--ui-text, #fff) 8%, transparent)) 58%,
     transparent 72%
   );
   transform: translateX(-55%);
@@ -187,12 +182,12 @@
   background: linear-gradient(
     90deg,
     transparent 0%,
-    rgba(74, 231, 253, 0.75) 22%,
-    rgba(255, 255, 255, 0.92) 50%,
-    rgba(74, 231, 253, 0.75) 78%,
+    var(--v10-scan, color-mix(in srgb, var(--ui-brand, #4ae7fd) 70%, transparent)) 22%,
+    var(--v10-scan-core, color-mix(in srgb, var(--ui-text, #fff) 88%, transparent)) 50%,
+    var(--v10-scan, color-mix(in srgb, var(--ui-brand, #4ae7fd) 70%, transparent)) 78%,
     transparent 100%
   );
-  box-shadow: 0 5px 14px -2px rgba(74, 231, 253, 0.42);
+  box-shadow: 0 5px 14px -2px var(--v10-scan-glow, color-mix(in srgb, var(--ui-brand, #4ae7fd) 42%, transparent));
   animation: shimmer-image-scan-line-vertical var(--shimmer-reveal-ms) cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
@@ -215,12 +210,12 @@
   background: linear-gradient(
     180deg,
     transparent 0%,
-    rgba(74, 231, 253, 0.75) 22%,
-    rgba(255, 255, 255, 0.92) 50%,
-    rgba(74, 231, 253, 0.75) 78%,
+    var(--v10-scan, color-mix(in srgb, var(--ui-brand, #4ae7fd) 70%, transparent)) 22%,
+    var(--v10-scan-core, color-mix(in srgb, var(--ui-text, #fff) 88%, transparent)) 50%,
+    var(--v10-scan, color-mix(in srgb, var(--ui-brand, #4ae7fd) 70%, transparent)) 78%,
     transparent 100%
   );
-  box-shadow: 5px 0 14px -2px rgba(74, 231, 253, 0.42);
+  box-shadow: 5px 0 14px -2px var(--v10-scan-glow, color-mix(in srgb, var(--ui-brand, #4ae7fd) 42%, transparent));
   animation: shimmer-image-scan-line-horizontal var(--shimmer-reveal-ms) cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
@@ -241,9 +236,4 @@
   height: 100%;
 }
 
-.shimmer-image--error .shimmer-image__shimmer--loop {
-  animation: none;
-  inset: 0;
-  transform: none;
-  background: rgba(74, 231, 253, 0.06);
-}
+/* 加载失败时占位继续流光，避免新主题下变成一块纯色。 */

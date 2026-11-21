@@ -26,6 +26,9 @@ public class ComposeCommand {
     /** 输出分辨率档（SD/HD/FHD/2K/4K），默认 FHD(1080P) */
     private String resolution;
 
+    /** 原视频声音是否保留；null 沿用原行为，false 只使用显式配音/BGM。 */
+    private Boolean sourceAudioEnabled;
+
     /** 计费用户ID */
     private Long userId;
 

@@ -12,6 +12,7 @@ const GLOBAL_FEEDBACK_Z_INDEX = 20000
 export const AID_ANTD_THEME: ThemeConfig = {
   algorithm: theme.darkAlgorithm,
   token: {
+    fontFamily: 'inherit',
     colorPrimary: '#00abd8',
     colorInfo: '#00abd8',
     colorLink: '#4ae7fd',

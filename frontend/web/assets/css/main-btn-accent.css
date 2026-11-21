@@ -156,8 +156,8 @@
 /* 手绘风格背景图案 */
 .bg-pattern-hand-drawn {
   background-image: 
-    radial-gradient(circle at 20px 20px, var(--gray-200) 1.5%, transparent 0%),
-    radial-gradient(circle at 80px 80px, var(--accent-200) 1%, transparent 0%);
+    var(--ui-no-image, radial-gradient(circle at 20px 20px, var(--gray-200) 1.5%, transparent 0%),
+    radial-gradient(circle at 80px 80px, var(--accent-200) 1%, transparent 0%));
   background-size: 100px 100px;
   opacity: 0.4;
 }
@@ -195,29 +195,43 @@
 }
 
 /* ================================
+   渐变实心按钮 - 防右侧 1px 亮缝
+   仅 border-color: transparent 会保留边框槽，WebKit 下渐变会挤出高亮边。
+   ================================ */
+.home-grad-btn {
+  border: none !important;
+  overflow: hidden;
+  background-image: var(--home-grad-btn);
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+  background-clip: padding-box;
+}
+
+/* ================================
    Ant Design 定制 - 深灰+橙色主题
    ================================ */
 .ant-btn-primary:not(:disabled):not(.ant-btn-disabled) {
-  background: var(--gradient-primary);
-  border-color: transparent !important;
-  color: #FFFFFF !important;
+  background: var(--home-grad-btn, var(--gradient-primary));
+  border: none !important;
+  color: var(--studio-ui-inverse, var(--ui-on-primary, #FFFFFF)) !important;
   box-shadow: var(--shadow-md);
   transition: all var(--transition-base);
   letter-spacing: 0.02em;
+  overflow: hidden;
 }
 
 .ant-btn-primary:not(:disabled):not(.ant-btn-disabled):hover {
   transform: translateY(-2px);
   box-shadow: var(--shadow-lg);
   background: var(--gradient-accent) !important;
-  color: #FFFFFF !important;
-  border-color: transparent !important;
+  color: var(--studio-ui-inverse, var(--ui-on-primary, #FFFFFF)) !important;
+  border: none !important;
 }
 
 .ant-btn-primary:not(:disabled):not(.ant-btn-disabled):focus,
 .ant-btn-primary:not(:disabled):not(.ant-btn-disabled):active {
   transform: translateY(0);
-  border-color: transparent !important;
+  border: none !important;
 }
 
 /* 去掉鼠标交互时浏览器/Ant Design 的瞬时白框，同时保留键盘可见焦点。 */
@@ -228,7 +242,7 @@ button:focus:not(:focus-visible) {
 
 .ant-btn:focus-visible,
 button:focus-visible {
-  outline: 2px solid rgba(74, 231, 253, 0.72);
+  outline: 2px solid var(--studio-ui-border-strong, var(--ui-ring, rgba(74, 231, 253, 0.72)));
   outline-offset: 2px;
 }
 

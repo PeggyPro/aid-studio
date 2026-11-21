@@ -49,7 +49,7 @@
 .edit-storyboard-video-modal .skeleton-textarea,
 .edit-storyboard-video-modal .skeleton-select,
 .edit-storyboard-video-modal .skeleton-primary-btn {
-  background: linear-gradient(90deg, #2b2b2b 20%, #444444 50%, #2b2b2b 80%);
+  background: var(--ui-primary, linear-gradient(90deg, #2b2b2b 20%, #444444 50%, #2b2b2b 80%));
   background-size: 300% 100%;
   animation: storyboard-skeleton-shimmer 1.4s linear infinite;
 }
@@ -73,26 +73,26 @@
   align-items: center;
   gap: calc(0.5rem * var(--create-editor-scale, 1));
   padding: calc(0.5rem * var(--create-editor-scale, 1)) calc(1rem * var(--create-editor-scale, 1));
-  border: calc(1px * var(--create-editor-scale, 1)) solid rgba(120, 140, 170, 0.28);
-  background: rgba(18, 24, 36, 0.85);
+  border: calc(1px * var(--create-editor-scale, 1)) solid var(--ui-hair, rgba(120, 140, 170, 0.28));
+  background: var(--ui-surface, rgba(18, 24, 36, 0.85));
   border-radius: var(--radius-md);
   cursor: pointer;
   font-size: calc(0.875rem * var(--create-editor-scale, 1));
-  color: rgba(188, 205, 228, 0.85);
+  color: var(--ui-text, rgba(188, 205, 228, 0.85));
   transition: all 0.2s ease;
 }
 
 .edit-storyboard-video-modal .view-btn:hover {
-  border-color: rgba(74, 231, 253, 0.45);
-  background: rgba(74, 231, 253, 0.08);
+  border-color: var(--ui-ring, rgba(74, 231, 253, 0.45));
+  background: var(--ui-soft-hover, rgba(74, 231, 253, 0.08));
 }
 
 .edit-storyboard-video-modal .view-btn.active {
-  border-color: rgba(74, 231, 253, 0.85);
-  background: rgba(74, 231, 253, 0.12);
-  color: #4ae7fd;
+  border-color: var(--ui-ring, rgba(74, 231, 253, 0.85));
+  background: var(--ui-soft, rgba(74, 231, 253, 0.12));
+  color: var(--ui-brand, #4ae7fd);
   font-weight: 600;
-  box-shadow: 0 0 0 calc(2px * var(--create-editor-scale, 1)) rgba(74, 231, 253, 0.12);
+  box-shadow: var(--ui-shadow, 0 0 0 calc(2px * var(--create-editor-scale, 1)) rgba(74, 231, 253, 0.12));
 }
 
 .edit-storyboard-video-modal .view-btn-icon {
@@ -139,7 +139,7 @@
 
 .edit-storyboard-video-modal .video-source {
   padding: calc(0.125rem * var(--create-editor-scale, 1)) calc(0.5rem * var(--create-editor-scale, 1));
-  background: rgba(6, 10, 18, 0.55);
+  background: var(--ui-bg, rgba(6, 10, 18, 0.55));
   border-radius: var(--radius-sm);
   color: var(--gray-600);
 }
@@ -162,7 +162,7 @@
   margin-inline: auto;
   border-radius: var(--radius-sm);
   overflow: hidden;
-  background: rgba(6, 10, 18, 0.55);
+  background: var(--ui-bg, rgba(6, 10, 18, 0.55));
   aspect-ratio: 16 / 9;
   height: auto;
 }
@@ -198,21 +198,21 @@
 
 .edit-storyboard-video-modal .video-action-btn,
 .edit-storyboard-dubbing-modal .video-action-btn {
-  color: rgba(255, 255, 255, 0.9) !important;
-  background: rgba(0, 0, 0, 0.4) !important;
+  color: var(--ui-text, rgba(255, 255, 255, 0.9)) !important;
+  background: var(--ui-bg, rgba(0, 0, 0, 0.4)) !important;
 }
 
 .edit-storyboard-video-modal .video-action-btn:hover,
 .edit-storyboard-dubbing-modal .video-action-btn:hover {
-  color: white !important;
-  background: rgba(0, 0, 0, 0.6) !important;
+  color: var(--ui-text, white) !important;
+  background: var(--ui-bg, rgba(0, 0, 0, 0.6)) !important;
 }
 
 .edit-storyboard-video-modal .btn-set-storyboard-done,
 .edit-storyboard-dubbing-modal .btn-set-storyboard-done {
   flex-shrink: 0;
   font-size: calc(14px * var(--create-editor-scale, 1));
-  color: #52c41a !important;
+  color: var(--ui-success, #52c41a) !important;
   background: rgba(82, 196, 26, 0.12) !important;
   border-color: rgba(82, 196, 26, 0.4) !important;
 }
@@ -221,7 +221,7 @@
 .edit-storyboard-video-modal .btn-set-storyboard-done:focus,
 .edit-storyboard-dubbing-modal .btn-set-storyboard-done:hover,
 .edit-storyboard-dubbing-modal .btn-set-storyboard-done:focus {
-  color: #73d13d !important;
+  color: var(--ui-success, #73d13d) !important;
   background: rgba(82, 196, 26, 0.2) !important;
   border-color: rgba(82, 196, 26, 0.55) !important;
 }

@@ -29,6 +29,7 @@ public final class BillingRouteDimensions {
             }
         }
         params.put("protocol", model.getProtocol());
+        if (model.getCapabilityCode() != null) params.put("capabilityCode", model.getCapabilityCode());
         params.put("operation", operation);
         params.put("scene", params.getOrDefault("generateMode", operation));
         input.setParams(params);

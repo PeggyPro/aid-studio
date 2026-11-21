@@ -12,11 +12,11 @@ import java.util.stream.Stream;
 public final class DiagnosticHttp {
     private DiagnosticHttp() { }
     public static <T> HttpResponse<T> send(HttpClient client,HttpRequest request,HttpResponse.BodyHandler<T> handler) throws IOException,InterruptedException {
-        if(DiagnosticCapture.current()==null) return client.send(request,handler);
+        if(DiagnosticCapture.current()==null) return com.aid.media.provider.TextExecutionTransportScope.send(client,request,handler);
         DiagnosticCapture.registerHeaders(request.headers().map());
         DiagnosticCapture.transportMetadata(request.uri().toString(),request.method());
         HttpResponse<T> response;
-        try {response=client.send(request,handler);}
+        try {response=com.aid.media.provider.TextExecutionTransportScope.send(client,request,handler);}
         catch(IOException | InterruptedException error){DiagnosticCapture.transportFailure(error);throw error;}
         Object body=response.body();
         String upstream=response.headers().firstValue("x-request-id").orElse(null);

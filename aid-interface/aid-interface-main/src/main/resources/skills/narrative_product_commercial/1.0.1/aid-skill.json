@@ -1,0 +1,21 @@
+{
+  "formatVersion": 1,
+  "code": "narrative_product_commercial",
+  "name": "剧情化产品广告",
+  "version": "1.0.1",
+  "invocationScope": "INTERNAL",
+  "executorType": "PROMPT",
+  "outputKind": "TEXT",
+  "masterPath": "SKILL.md",
+  "masterDigest": "602404a03ff4ab980b8eddcf0fe129ccdecd7563e646238912bb65d3169cf5aa",
+  "systemPromptPath": "SKILL.md",
+  "systemPromptDigest": "602404a03ff4ab980b8eddcf0fe129ccdecd7563e646238912bb65d3169cf5aa",
+  "resources": [
+    {
+      "key": "commercial_beats",
+      "path": "references/commercial_beats.md",
+      "digest": "64cc7d6a09383b49ded32e1e20991e325f10d21aaa6ff47fdf45121f46ba076f",
+      "always": false
+    }
+  ]
+}

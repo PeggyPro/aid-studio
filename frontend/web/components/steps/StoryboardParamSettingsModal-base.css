@@ -5,13 +5,13 @@
 
 /* 与 BatchRegenerateDubbingModal .brdm 同高 */
 .spsm-inner {
-  color: #e6edf3;
+  color: var(--ui-text, #e6edf3);
   height: 698px;
   max-height: calc(100vh - 80px);
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: rgba(25, 26, 29, 1);
+  background: var(--ui-surface, rgba(25, 26, 29, 1));
 }
 
 .spsm-header {
@@ -27,7 +27,7 @@
   margin: 0;
   font-size: 16px;
   font-weight: 600;
-  color: rgba(225, 239, 255, 0.95);
+  color: var(--ui-text, rgba(225, 239, 255, 0.95));
 }
 
 .spsm-close {
@@ -39,14 +39,14 @@
   border: none;
   border-radius: 6px;
   background: transparent;
-  color: rgba(142, 151, 165, 1);
+  color: var(--ui-muted, rgba(142, 151, 165, 1));
   cursor: pointer;
   font-size: 14px;
 }
 
 .spsm-close:hover {
-  color: rgba(225, 239, 255, 0.9);
-  background: rgba(74, 231, 253, 0.08);
+  color: var(--ui-text, rgba(225, 239, 255, 0.9));
+  background: var(--ui-soft-hover, rgba(74, 231, 253, 0.08));
 }
 
 .spsm-body {
@@ -84,8 +84,8 @@
   flex-direction: column;
   gap: 2px;
   border-radius: 8px;
-  border: 1px dashed rgba(74, 231, 253, 0.3);
-  background: rgba(18, 18, 18, 1);
+  border: 1px dashed var(--ui-hair, rgba(74, 231, 253, 0.3));
+  background: var(--ui-bg, rgba(18, 18, 18, 1));
   cursor: pointer;
   font-size: 12px;
   white-space: nowrap;
@@ -103,14 +103,14 @@
 .spsm-upload-btn div {
   max-width: 100%;
   overflow: hidden;
-  color: #8e97a5 !important;
+  color: var(--ui-on-primary, #8e97a5) !important;
   line-height: 16px;
   text-overflow: ellipsis;
 }
 
 .spsm-upload-btn:hover {
-  border-color: rgba(74, 231, 253, 0.55);
-  color: rgba(225, 239, 255, 0.85);
+  border-color: var(--ui-ring, rgba(74, 231, 253, 0.55));
+  color: var(--ui-on-primary, rgba(225, 239, 255, 0.85));
 }
 
 .spsm-hidden-scrollbar {
@@ -126,7 +126,7 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  background: rgba(18, 18, 18, 1);
+  background: var(--ui-bg, rgba(18, 18, 18, 1));
   padding: 12px;
   box-sizing: border-box;
   border-radius: 8px;
@@ -147,14 +147,14 @@
 }
 
 .spsm-grid-empty span {
-  color: #8e97a5!important;
+  color: var(--ui-muted, #8e97a5)!important;
 }
 
 .spsm-grid-item {
   position: relative;
   border-radius: 8px;
   overflow: hidden;
-  border: 1px solid rgba(74, 231, 253, 0.3);
+  border: 1px solid var(--ui-hair, rgba(74, 231, 253, 0.3));
   cursor: pointer;
   transition:
     border-color 0.15s ease,
@@ -165,7 +165,7 @@
 }
 
 .spsm-grid-item:hover {
-  border-color: rgba(74, 231, 253, 0.5);
+  border-color: var(--ui-ring, rgba(74, 231, 253, 0.5));
 }
 
 .spsm-grid-item .ant-image {
@@ -180,10 +180,10 @@
 }
 
 .spsm-grid-item--selected {
-  border: 1px solid rgba(74, 231, 253, 1);
+  border: 1px solid var(--ui-ring, rgba(74, 231, 253, 1));
   box-shadow:
-    0 0 0 1px rgba(74, 231, 253, 0.25),
-    0 0 16px rgba(74, 231, 253, 0.12);
+    var(--ui-no-shadow, 0 0 0 1px rgba(74, 231, 253, 0.25),
+    0 0 16px rgba(74, 231, 253, 0.12));
 }
 
 .spsm-grid-select {
@@ -208,7 +208,7 @@
   display: block;
   padding: 6px 6px 4px 0;
   font-size: 12px;
-  color: rgba(142, 151, 165, 1);
+  color: var(--ui-muted, rgba(142, 151, 165, 1));
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -226,8 +226,8 @@
   font-size: 14px;
   border: none;
   border-radius: 4px;
-  background: rgba(0, 0, 0, 0.55);
-  color: #fff;
+  background: var(--ui-bg, rgba(0, 0, 0, 0.55));
+  color: var(--ui-text, #fff);
   cursor: pointer;
   z-index: 2;
 }

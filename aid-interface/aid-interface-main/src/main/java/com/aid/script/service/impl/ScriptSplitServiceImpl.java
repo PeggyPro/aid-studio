@@ -4,11 +4,10 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
@@ -26,6 +25,9 @@ import com.aid.script.dto.ScriptSplitPreviewRequest;
 import com.aid.script.helper.ScriptEpisodeSplitter;
 import com.aid.script.helper.ScriptEpisodeSplitter.EpisodeSegment;
 import com.aid.script.service.IScriptSplitService;
+import com.aid.script.service.ScriptLimitsService;
+import com.alibaba.fastjson2.JSON;
+import cn.hutool.crypto.digest.DigestUtil;
 import com.aid.script.vo.ScriptSplitConfirmVO;
 import com.aid.script.vo.ScriptSplitEpisodeItemVO;
 import com.aid.script.vo.ScriptSplitPreviewVO;
@@ -51,12 +53,6 @@ public class ScriptSplitServiceImpl implements IScriptSplitService {
     /** 剧集状态：草稿 */
     private static final int EPISODE_STATUS_DRAFT = 0;
 
-    /** 整篇剧本字数上限（与整篇上传口径一致） */
-    private static final int MAX_TOTAL_WORDS = 100000;
-
-    /** 单集字数上限（与单集上传口径一致） */
-    private static final int MAX_EPISODE_WORDS = 10000;
-
     /** 单次分集数量上限（防误配分集词切出海量集） */
     private static final int MAX_EPISODES = 200;
 
@@ -65,12 +61,6 @@ public class ScriptSplitServiceImpl implements IScriptSplitService {
 
     /** 单集标题最大长度（超长截断，防止分集行整段长文本进标题） */
     private static final int TITLE_MAX_LENGTH = 50;
-
-    /** 确认入库锁 Key 前缀（项目级，防连点重复建集） */
-    private static final String CONFIRM_LOCK_PREFIX = "script:split:lock:";
-
-    /** 确认入库锁 TTL（秒） */
-    private static final long CONFIRM_LOCK_TTL_SECONDS = 60L;
 
     /**
      * HTML 标签检测（与剧本保存口径一致：仅允许 Markdown 与换行标签）。
@@ -90,34 +80,35 @@ public class ScriptSplitServiceImpl implements IScriptSplitService {
     /** 剧本服务（逐集建剧本记录） */
     private final IAidComicScriptService aidComicScriptService;
 
-    /** Redis 客户端（确认入库防连点锁） */
-    private final StringRedisTemplate stringRedisTemplate;
-
     /** 编程式事务模板：批量建集在锁内以事务提交，保证「事务提交后再释放锁」 */
     private final TransactionTemplate transactionTemplate;
 
     /** 项目内容守卫：公开期间禁止剧集增删（与直接建集接口同口径） */
     private final IProjectContentGuardService projectContentGuardService;
+    private final ScriptLimitsService scriptLimitsService;
+    private final JdbcTemplate jdbcTemplate;
 
     @Override
     public ScriptSplitPreviewVO previewSplit(ScriptSplitPreviewRequest request, Long userId) {
-        validateProject(request.getProjectId(), userId);
+        validateProject(request.getProjectId(), userId, false);
         List<EpisodeSegment> segments = parseAndValidate(request);
 
+        long firstEpisodeNo = resolveNextEpisodeNo(request.getProjectId());
         List<ScriptSplitEpisodeItemVO> items = new ArrayList<>(segments.size());
         int totalChars = 0;
         for (EpisodeSegment segment : segments) {
             ScriptSplitEpisodeItemVO item = new ScriptSplitEpisodeItemVO();
-            item.setEpisodeNo(segment.getSequenceNo());
+            item.setEpisodeNo(Math.toIntExact(firstEpisodeNo + segment.getSequenceNo() - 1));
             item.setTitle(resolveTitle(segment));
             item.setDescription(ScriptEpisodeSplitter.summarize(segment.getContent(), DESCRIPTION_LENGTH));
-            int charCount = countWord(segment.getContent());
+            int charCount = ScriptLimitsService.countChars(segment.getContent());
             item.setCharCount(charCount);
             totalChars += charCount;
             items.add(item);
         }
         ScriptSplitPreviewVO result = new ScriptSplitPreviewVO();
         result.setTotalEpisodes(items.size());
+        result.setFirstEpisodeNo(firstEpisodeNo);
         result.setTotalCharCount(totalChars);
         result.setEpisodeKeyword(StrUtil.blankToDefault(request.getEpisodeKeyword(), "第一集").trim());
         result.setItems(items);
@@ -126,29 +117,28 @@ public class ScriptSplitServiceImpl implements IScriptSplitService {
 
     @Override
     public ScriptSplitConfirmVO confirmSplit(ScriptSplitPreviewRequest request, Long userId) {
-        AidComicProject project = validateProject(request.getProjectId(), userId);
-        // 公开锁：批量建集与直接建集同口径，项目公开期间禁止剧集增删
-        projectContentGuardService.assertProjectEditable(request.getProjectId());
-        // 项目级防连点锁：确认入库是批量建集写操作，连点会成倍创建剧集。
-        // 锁在事务外获取、事务提交后才释放，保证并发请求读 max(episode_no) 时上一批已可见
-        String lockKey = CONFIRM_LOCK_PREFIX + request.getProjectId();
-        Boolean locked = stringRedisTemplate.opsForValue()
-                .setIfAbsent(lockKey, "1", CONFIRM_LOCK_TTL_SECONDS, TimeUnit.SECONDS);
-        if (!Boolean.TRUE.equals(locked)) {
-            log.info("剧本分集确认锁竞争失败, projectId={}, userId={}", request.getProjectId(), userId);
-            throw new ServiceException("导入中请稍候");
-        }
-        try {
-            List<EpisodeSegment> segments = parseAndValidate(request);
-            // 批量建集在编程式事务内执行：任一集失败全部回滚
-            return transactionTemplate.execute(status -> doConfirmSplit(request, userId, segments, project));
-        } finally {
-            try {
-                stringRedisTemplate.delete(lockKey);
-            } catch (Exception ex) {
-                log.warn("剧本分集确认锁释放异常, projectId={}", request.getProjectId(), ex);
+        return transactionTemplate.execute(status -> {
+            AidComicProject project = validateProject(request.getProjectId(), userId, true);
+            String normalizedText = request.getScriptText().replace("\\r\\n", "\\n");
+            String keyword = StrUtil.blankToDefault(request.getEpisodeKeyword(), "第一集").trim();
+            String digest = DigestUtil.sha256Hex(keyword + "\\n" + normalizedText);
+            List<String> receipts = jdbcTemplate.queryForList(
+                    "SELECT result_json FROM aid_script_import_receipt WHERE project_id = ? AND content_hash = ?",
+                    String.class, request.getProjectId(), digest);
+            if (!receipts.isEmpty()) {
+                return JSON.parseObject(receipts.get(0), ScriptSplitConfirmVO.class);
             }
-        }
+            projectContentGuardService.assertProjectEditable(request.getProjectId());
+            List<EpisodeSegment> segments = parseAndValidate(request);
+            long firstEpisodeNo = resolveNextEpisodeNo(request.getProjectId());
+            if (request.getFirstEpisodeNo() != null && !request.getFirstEpisodeNo().equals(firstEpisodeNo)) {
+                throw new ServiceException("剧集列表已变化，请重新预览再导入");
+            }
+            ScriptSplitConfirmVO result = doConfirmSplit(request, userId, segments, project, firstEpisodeNo);
+            jdbcTemplate.update("INSERT INTO aid_script_import_receipt(project_id, content_hash, result_json) VALUES (?, ?, ?)",
+                    request.getProjectId(), digest, JSON.toJSONString(result));
+            return result;
+        });
     }
 
     /**
@@ -160,9 +150,7 @@ public class ScriptSplitServiceImpl implements IScriptSplitService {
      * @return 入库结果
      */
     private ScriptSplitConfirmVO doConfirmSplit(ScriptSplitPreviewRequest request, Long userId,
-                                                List<EpisodeSegment> segments, AidComicProject project) {
-        // 集号在项目现有最大集号上顺延（max(episode_no)+1）
-        long nextEpisodeNo = resolveNextEpisodeNo(request.getProjectId());
+                                                List<EpisodeSegment> segments, AidComicProject project, long nextEpisodeNo) {
 
         List<ScriptSplitConfirmVO.CreatedEpisodeVO> created = new ArrayList<>(segments.size());
         Date now = new Date();
@@ -183,7 +171,9 @@ public class ScriptSplitServiceImpl implements IScriptSplitService {
             episode.setDelFlag(DEL_FLAG_NORMAL);
             episode.setCreateTime(now);
             episode.setCreateBy(String.valueOf(userId));
-            aidComicEpisodeService.save(episode);
+            if (!aidComicEpisodeService.save(episode)) {
+                throw new ServiceException("创建剧集失败");
+            }
 
             // 建剧本：该集正文，版本1、使用中
             AidComicScript script = new AidComicScript();
@@ -197,7 +187,9 @@ public class ScriptSplitServiceImpl implements IScriptSplitService {
             script.setDelFlag(DEL_FLAG_NORMAL);
             script.setCreateTime(now);
             script.setCreateBy(String.valueOf(userId));
-            aidComicScriptService.save(script);
+            if (!aidComicScriptService.save(script)) {
+                throw new ServiceException("保存剧本失败");
+            }
 
             ScriptSplitConfirmVO.CreatedEpisodeVO item = new ScriptSplitConfirmVO.CreatedEpisodeVO();
             item.setEpisodeId(episode.getId());
@@ -222,7 +214,7 @@ public class ScriptSplitServiceImpl implements IScriptSplitService {
      * @param projectId 项目ID
      * @param userId    当前用户ID
      */
-    private AidComicProject validateProject(Long projectId, Long userId) {
+    private AidComicProject validateProject(Long projectId, Long userId, boolean lock) {
         // 查询字段精简：校验需归属与类型 + 建集继承的默认模式（新增使用字段时此处必须同步补充）
         AidComicProject project = aidComicProjectService.getOne(
                 Wrappers.<AidComicProject>lambdaQuery()
@@ -230,7 +222,8 @@ public class ScriptSplitServiceImpl implements IScriptSplitService {
                                 AidComicProject::getProjectType,
                                 AidComicProject::getDefaultGenMode, AidComicProject::getDefaultCreationMode)
                         .eq(AidComicProject::getId, projectId)
-                        .eq(AidComicProject::getDelFlag, DEL_FLAG_NORMAL));
+                        .eq(AidComicProject::getDelFlag, DEL_FLAG_NORMAL)
+                        .last(lock, "FOR UPDATE"));
         if (Objects.isNull(project) || !Objects.equals(project.getUserId(), userId)) {
             log.error("剧本分集项目缺失或越权, projectId={}, userId={}", projectId, userId);
             throw new ServiceException("项目不存在");
@@ -250,18 +243,23 @@ public class ScriptSplitServiceImpl implements IScriptSplitService {
      */
     private List<EpisodeSegment> parseAndValidate(ScriptSplitPreviewRequest request) {
         String text = request.getScriptText();
+        if (text.length() > 4_000_000) {
+            throw new ServiceException("剧本文本过大，请删减后重试");
+        }
         assertOnlyLineBreakHtml(text);
-        int totalWords = countWord(text);
-        if (totalWords > MAX_TOTAL_WORDS) {
-            log.info("剧本分集整篇超字数, projectId={}, words={}, max={}",
-                    request.getProjectId(), totalWords, MAX_TOTAL_WORDS);
-            throw new ServiceException("剧本超10万");
+        ScriptLimitsService.Limits limits = scriptLimitsService.current();
+        ScriptLimitsService.validate(text, limits.seriesMaxChars(), "整篇剧本");
+        int malformedHeading = ScriptEpisodeSplitter.firstMalformedHeadingLine(text, request.getEpisodeKeyword());
+        if (malformedHeading > 0) {
+            String sample = StrUtil.blankToDefault(request.getEpisodeKeyword(), "第一集").trim();
+            throw new ServiceException("第" + malformedHeading + "行分集标题格式不符，请统一使用「"
+                    + sample + "」的格式，并将标题单独写在一行");
         }
         List<EpisodeSegment> segments = ScriptEpisodeSplitter.split(text, request.getEpisodeKeyword());
         if (CollectionUtil.isEmpty(segments)) {
             log.info("剧本分集未命中分集词, projectId={}, keyword={}",
                     request.getProjectId(), request.getEpisodeKeyword());
-            throw new ServiceException("未识别分集词");
+            throw new ServiceException("未找到分集标题，请将第一集、第二集等标题单独写在一行");
         }
         if (segments.size() > MAX_EPISODES) {
             log.info("剧本分集集数超限, projectId={}, episodes={}, max={}",
@@ -269,17 +267,17 @@ public class ScriptSplitServiceImpl implements IScriptSplitService {
             throw new ServiceException("分集过多");
         }
         for (EpisodeSegment segment : segments) {
-            if (StrUtil.isBlank(segment.getContent())) {
-                log.info("剧本分集存在空集, projectId={}, sequenceNo={}",
-                        request.getProjectId(), segment.getSequenceNo());
-                throw new ServiceException("第" + segment.getSequenceNo() + "集无内容");
+            String ordinal = segment.getRawOrdinal();
+            int expected = segment.getSequenceNo();
+            if (ordinal != null && !matchesOrdinal(ordinal, expected)) {
+                throw new ServiceException("第" + segment.getHeadingLine() + "行集号为" + ordinal
+                        + "，预期第" + expected + "集，请检查重复、缺失或乱序");
             }
-            int words = countWord(segment.getContent());
-            if (words > MAX_EPISODE_WORDS) {
-                log.info("剧本分集单集超字数, projectId={}, sequenceNo={}, words={}",
-                        request.getProjectId(), segment.getSequenceNo(), words);
-                throw new ServiceException("第" + segment.getSequenceNo() + "集超1万字");
+            if (!segment.isBodyPresent() || ScriptLimitsService.countChars(segment.getContent()) == 0) {
+                throw new ServiceException("第" + segment.getHeadingLine() + "行的第" + expected + "集没有正文");
             }
+            ScriptLimitsService.validate(segment.getContent(), limits.episodeMaxChars(),
+                    "第" + expected + "集剧本");
         }
         return segments;
     }
@@ -333,17 +331,17 @@ public class ScriptSplitServiceImpl implements IScriptSplitService {
         }
     }
 
-    /**
-     * 统计有效字数（剔除换行标签与全部空白，与剧本上传口径一致）。
-     *
-     * @param text 文本
-     * @return 字数
-     */
-    private int countWord(String text) {
-        if (StrUtil.isBlank(text)) {
-            return 0;
+    private boolean matchesOrdinal(String rawOrdinal, int expected) {
+        if (rawOrdinal.matches("[0-9]+")) {
+            return rawOrdinal.replaceFirst("^0+(?!$)", "").equals(Integer.toString(expected));
         }
-        String pure = BR_TAG_PATTERN.matcher(text).replaceAll("");
-        return pure.replaceAll("\\s+", "").length();
+        String normal = cn.hutool.core.convert.NumberChineseFormatter.format(expected, false);
+        if (normal.startsWith("一十")) {
+            normal = normal.substring(1);
+        }
+        return rawOrdinal.equals(normal)
+                || (normal.startsWith("十") && rawOrdinal.equals("一" + normal))
+                || (expected == 2 && "两".equals(rawOrdinal))
+                || (expected == 200 && "两百".equals(rawOrdinal));
     }
 }

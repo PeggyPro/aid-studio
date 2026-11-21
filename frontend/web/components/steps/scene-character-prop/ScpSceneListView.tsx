@@ -1,5 +1,9 @@
 'use client'
 
+import { flowRowMotionStyle } from '~/utils/v10Motion'
+
+import { FlowActionIcon } from '~/components/common/FlowActionIcon'
+
 import { Button, Input, Tooltip } from 'antd'
 import { EnvironmentOutlined, LoadingOutlined } from '@ant-design/icons'
 import { ShimmerImage } from '~/components/common/ShimmerImage'
@@ -32,12 +36,14 @@ export function ScpSceneListView({ ctx }: { ctx: ScpCtx }) {
         {/* 场景列表：统一为原「手动」单列布局（含自动识别项） */}
         {ctx.visibleManualScenesList().length > 0 ? (
           <div className="scene-cards-manual">
-            {ctx.visibleManualScenesList().map((scene) => (
+            {ctx.visibleManualScenesList().map((scene, rowIndex) => (
               <div
                 key={`manual-scene-${scene.index}`}
                 className="scene-card-wrapper"
+                style={flowRowMotionStyle(rowIndex)}
                 data-scp-asset-tab="scene"
                 data-scp-asset-index={scene.index}
+                data-scp-asset-id={ctx.sceneAssetIds.value[scene.index] ?? undefined}
               >
                 {/* 头部横条：和卡片同级，占满一行 */}
                 <div className="scene-card-header-bar">
@@ -92,7 +98,7 @@ export function ScpSceneListView({ ctx }: { ctx: ScpCtx }) {
                   <div className="character-form-content scene-image-form-content">
                     <div className="asset-visual-generating-block" role="status" aria-live="polite">
                       <div className="asset-visual-generating-block__shimmer" aria-hidden="true" />
-                      <LoadingOutlined spin className="asset-visual-generating-block__icon" />
+                      <LoadingOutlined spin className="asset-visual-generating-block__icon flow-generation-spinner" />
                       <p className="asset-visual-generating-block__text">正在生成场景图…</p>
                     </div>
                   </div>
@@ -171,7 +177,7 @@ export function ScpSceneListView({ ctx }: { ctx: ScpCtx }) {
                         </div>
                         <div className="scene-card-image-footer asset-action-footer">
                           <Button
-                            icon={<img src={iconPreview} alt="" className="footer-action-icon" />}
+                            icon={<FlowActionIcon src={iconPreview} className="footer-action-icon" />}
                             onClick={() => ctx.handlePreviewSceneImageByIndex(scene.index, imgIdx)}
                           >
                             预览
@@ -197,9 +203,8 @@ export function ScpSceneListView({ ctx }: { ctx: ScpCtx }) {
                             >
                               <Button
                                 icon={
-                                  <img
+                                  <FlowActionIcon
                                     src={iconAutGenerate}
-                                    alt=""
                                     className="footer-action-icon"
                                   />
                                 }
@@ -210,7 +215,7 @@ export function ScpSceneListView({ ctx }: { ctx: ScpCtx }) {
                           ) : (
                             <Button
                               icon={
-                                <img src={iconReplace} alt="" className="footer-action-icon" />
+                                <FlowActionIcon src={iconReplace} className="footer-action-icon" />
                               }
                               onClick={() =>
                                 ctx.handleSceneImageMiddleActionByIndex(scene.index, imgIdx)
@@ -220,7 +225,7 @@ export function ScpSceneListView({ ctx }: { ctx: ScpCtx }) {
                             </Button>
                           )}
                           <Button
-                            icon={<img src={iconDownload} alt="" className="footer-action-icon" />}
+                            icon={<FlowActionIcon src={iconDownload} className="footer-action-icon" />}
                             onClick={() => ctx.handleDownloadSceneImageByIndex(scene.index, imgIdx)}
                           >
                             下载
@@ -245,16 +250,14 @@ export function ScpSceneListView({ ctx }: { ctx: ScpCtx }) {
                           onConfirm={() => ctx.handleAutoGenerateScene(scene.index)}
                         >
                           <Button
-                            type="primary"
-                            className="asset-generate-card__action asset-generate-card__action--primary"
+                            className="asset-generate-card__action"
                             disabled={
                               !ctx.canAutoGenerateSceneImage(scene.index) ||
                               sceneGenerationStatus[scene.index] === 'generating'
                             }
                           >
-                            <img
+                            <FlowActionIcon
                               src={iconAutGenerate}
-                              alt=""
                               className="asset-generate-card__action-icon"
                               aria-hidden="true"
                             />
@@ -266,9 +269,8 @@ export function ScpSceneListView({ ctx }: { ctx: ScpCtx }) {
                           className="asset-generate-card__action"
                           onClick={() => ctx.handleImportSceneImage(scene.index)}
                         >
-                          <img
+                          <FlowActionIcon
                             src={iconManual}
-                            alt=""
                             className="asset-generate-card__action-icon"
                             aria-hidden="true"
                           />

@@ -1,0 +1,84 @@
+.studio-composer-voice {
+  display: grid;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-items: end;
+}
+.studio-composer-voice__normal,
+.studio-composer-voice__listening {
+  grid-area: 1 / 1;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  transition: opacity 180ms ease, transform 240ms cubic-bezier(.2, .8, .2, 1), visibility 0s;
+}
+.studio-composer-voice__normal { opacity: 1; visibility: visible; }
+.studio-composer-voice__listening {
+  height: 28px;
+  padding-right: 2px;
+  border-radius: 999px;
+  background: var(--studio-ui-control);
+  color: var(--studio-ui-text);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateX(12px) scale(.92);
+  pointer-events: none;
+  transition: opacity 180ms ease, transform 240ms cubic-bezier(.2, .8, .2, 1), visibility 0s 240ms;
+}
+.studio-composer-voice.is-active .studio-composer-voice__listening {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(0) scale(1);
+  pointer-events: auto;
+  transition: opacity 180ms ease, transform 240ms cubic-bezier(.2, .8, .2, 1), visibility 0s;
+}
+.studio-composer-voice.is-active .studio-composer-voice__normal {
+  opacity: 0;
+  visibility: hidden;
+  transform: translateX(-8px) scale(.96);
+  pointer-events: none;
+  transition: opacity 180ms ease, transform 240ms cubic-bezier(.2, .8, .2, 1), visibility 0s 240ms;
+}
+.studio-composer-voice__trigger,
+.studio-composer-voice__close,
+.studio-composer-voice__mic {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--studio-ui-control-ink, var(--studio-ui-text, #aeb7c6));
+  font-size: 14px;
+}
+.studio-composer-voice__trigger,
+.studio-composer-voice__close { cursor: pointer; transition: background 160ms, color 160ms; }
+.studio-composer-voice__mic { background: var(--studio-ui-selected); color: var(--studio-ui-selected-ink, var(--studio-ui-text)); }
+.studio-composer-voice__trigger:hover:not(:disabled),
+.studio-composer-voice__close:hover { background: var(--studio-ui-hover, var(--studio-ui-selected)); color: var(--studio-ui-hover-ink, var(--studio-ui-text)); }
+.studio-composer-voice__trigger:active:not(:disabled),
+.studio-composer-voice__close:active { background: var(--studio-ui-press, var(--studio-ui-selected)); }
+.studio-composer-voice__trigger:disabled { color: var(--studio-ui-muted); cursor: not-allowed; }
+.studio-composer-voice button:focus-visible { outline: 2px solid var(--studio-ui-accent); outline-offset: 2px; }
+.studio-composer-voice__wave { display: flex; align-items: center; justify-content: center; gap: 2px; width: 72px; height: 18px; }
+.studio-composer-voice__wave i {
+  display: block;
+  width: 2px;
+  height: 16px;
+  border-radius: 2px;
+  background: currentColor;
+  transform: scaleY(var(--voice-bar-scale, .12));
+  transition: transform 80ms linear;
+}
+.studio-composer-voice__sr { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+@media (max-width: 480px) { .studio-composer-voice__wave { width: 56px; } }
+@media (prefers-reduced-motion: reduce) {
+  .studio-composer-voice__normal, .studio-composer-voice__listening,
+  .studio-composer-voice.is-active .studio-composer-voice__normal,
+  .studio-composer-voice.is-active .studio-composer-voice__listening,
+  .studio-composer-voice button, .studio-composer-voice__wave i { transition: none; }
+}

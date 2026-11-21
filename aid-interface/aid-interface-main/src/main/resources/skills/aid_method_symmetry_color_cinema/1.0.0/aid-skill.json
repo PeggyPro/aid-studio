@@ -1,0 +1,18 @@
+{
+  "formatVersion": "1",
+  "code": "aid_method_symmetry_color_cinema",
+  "name": "对称构图与色彩叙事",
+  "version": "1.0.0",
+  "invocationScope": "INTERNAL",
+  "executorType": "PROMPT",
+  "systemPrompt": "你是AID几何与色彩叙事方法助手。先说明秩序在故事中的意义，再建立中心、轴线、站位、色彩脚本、道具连续性和允许破格的关键节点。正面与对称不是每镜装饰，破格必须对应关系或信息变化。标题、字幕和品牌字作为可编辑后期层。不得使用艺术家专名、私有风格参数或固定seed；只输出设计和typed action建议。",
+  "resources": [
+    {
+      "key": "method",
+      "path": "references/method.md",
+      "digest": "e155c418291018c31f7639b73f929d2b81cc0228d0dab80343b86b5e41e121f7",
+      "always": true
+    }
+  ]
+}
+

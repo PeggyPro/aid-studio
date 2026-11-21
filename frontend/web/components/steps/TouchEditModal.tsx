@@ -8,12 +8,9 @@ import { userTouchEditPointDetect } from '~/utils/businessApi'
 import { assetUrl } from '~/utils/assetUrl'
 import { createClientId } from '~/utils/clientId'
 import closeIconRaw from '~/assets/img/icon/close.svg'
-import starWhiteIconRaw from '~/assets/img/icon/star_white.svg'
 import './TouchEditModal.css'
 
 const closeIconUrl = assetUrl(closeIconRaw)
-const starWhiteIconUrl = assetUrl(starWhiteIconRaw)
-
 interface TouchMark {
   id: string
   order: number
@@ -497,7 +494,6 @@ export function TouchEditModal({ open, imageUrl, onOpenChange }: Props) {
               />
             </div>
             <button type="button" className="touch-edit__submit-btn">
-              <img src={starWhiteIconUrl} alt="" />
               <span>开始生成</span>
             </button>
           </aside>

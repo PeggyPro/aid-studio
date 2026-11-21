@@ -1,0 +1,116 @@
+.pv-conversation-dock {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  width: 100%;
+  min-height: 0;
+  color: var(--pv-text);
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  overflow: hidden;
+}
+.pv-conversation-dock [hidden] { display: none !important; }
+.pv-conversation-dock__status { display: flex; align-items: center; gap: 8px; padding: 8px 16px; font-size: 12px; flex-shrink: 0; overflow-wrap: anywhere; }
+.pv-conversation-dock .pv-conversation-dock__history { flex: 1; min-height: 0; padding: 8px 16px; scrollbar-width: thin; scrollbar-gutter: stable; }
+.pv-conversation-dock__history .agent-conversation-viewport__content { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.pv-conversation-empty { margin: 12px 0 20px; color: var(--pv-muted); font-size: 13px; line-height: 1.8; }
+.pv-conversation-dock__history .assistant-thread { overflow: visible; flex: none; }
+.pv-conversation-dock__history .assistant-thread-feedback { display: flex; flex-direction: column; gap: 8px; font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
+.pv-conversation-dock__history .assistant-thread-feedback:empty { display: none; }
+.pv-conversation-dock__history .assistant-thread-feedback p { margin: 0; }
+.pv-conversation-dock__composer { min-height: 0; flex-shrink: 0; padding: 0 12px 12px; }
+.pv-guidance-session:has(.pv-conversation-dock) { display: flex; flex-direction: column; }
+.pv-conversation-dock__composer .canvas-assistant-composer-surface { margin: 0; }
+.pv-conversation-dock.canvas-assistant-panel .assistant-composer { --pv-composer-chip: color-mix(in srgb, var(--pv-text) 10%, var(--pv-field)); border: 1px solid var(--pv-border); background: var(--pv-field); box-shadow: none; border-radius: 16px; padding: 10px; gap: 8px; }
+.pv-conversation-dock.canvas-assistant-panel .assistant-composer textarea { font-size: 13px; line-height: 1.7; min-height: 80px; max-height: 160px; resize: none; border: 0; border-radius: 0; padding: 2px 4px; background: transparent; }
+.pv-conversation-dock.canvas-assistant-panel .assistant-message-user { border: 0; border-radius: 14px; background: var(--pv-field); padding: 10px 12px; margin: 10px 0 10px 24px; }
+.pv-conversation-dock.canvas-assistant-panel .assistant-message { font-size: 13px; line-height: 1.75; }
+
+/* One outlined composer owns text and footer; left tools use compact, distinct surfaces. */
+.pv-conversation-dock.canvas-assistant-panel .assistant-composer:focus-within { border-color: color-mix(in srgb, var(--pv-accent) 58%, var(--pv-border)); }
+.pv-conversation-dock.canvas-assistant-panel .assistant-composer textarea:focus-visible { outline: none; box-shadow: none; }
+.pv-conversation-dock .assistant-composer-tools { display: grid; grid-template-columns: 30px minmax(0, 1fr) 32px; gap: 6px; align-items: center; padding: 0; background: transparent; }
+.pv-composer-references { grid-column: 1 / -1; display: flex; align-items: center; flex-wrap: wrap; gap: 6px; min-width: 0; font-size: 12px; color: var(--pv-muted); }
+.pv-composer-references > button { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; border: 0; border-radius: 8px; background: var(--pv-field); padding: 5px 8px; font-size: 12px; min-height: 30px; }
+.pv-composer-references > button > span:not(.anticon) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pv-composer-references [role=alert] { flex-basis: 100%; overflow-wrap: anywhere; margin: 0; color: var(--pv-error); }
+.pv-composer-attachment-trigger { grid-column: 1; display: flex; align-items: center; }
+.pv-conversation-dock .pv-composer-add { display: grid; place-items: center; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 8px; background: var(--pv-composer-chip); color: var(--pv-text); font-size: 16px; }
+.pv-conversation-dock .pv-composer-add:hover:not(:disabled) { background: var(--pv-hover); }
+.pv-conversation-dock__sessions { display: flex; align-items: center; flex-wrap: nowrap; gap: 6px; min-width: 0; }
+.pv-conversation-dock .assistant-composer-tools > .pv-conversation-dock__sessions { grid-column: 2; }
+.pv-conversation-dock__sessions > .studio-canvas-dropdown-popover__trigger { flex: 0 1 auto; min-width: 0; max-width: calc(100% - 36px); }
+.pv-conversation-dock .pv-conversation-dock__sessions .pv-choice { display: flex; align-items: center; justify-content: flex-start; gap: 6px; width: auto; max-width: 100%; min-height: 30px; border-radius: 8px; border: 0; background: var(--pv-composer-chip); padding: 5px 8px; }
+.pv-conversation-dock__sessions .pv-choice > span:first-child { min-width: 0; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pv-conversation-dock .pv-composer-pricing { display: grid; place-items: center; flex-shrink: 0; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 8px; color: var(--pv-muted); background: var(--pv-composer-chip); font-size: 15px; }
+.pv-conversation-dock .pv-composer-pricing:hover:not(:disabled) { color: var(--pv-text); background: var(--pv-hover); }
+.pv-conversation-dock.canvas-assistant-panel .assistant-composer-primary-actions { grid-column: 3; grid-row: auto; justify-self: end; margin: 0; flex-shrink: 0; }
+.pv-conversation-dock.canvas-assistant-panel .assistant-composer-primary-actions .ant-btn { display: grid; place-items: center; width: 32px; height: 32px; min-width: 32px; min-height: 32px; padding: 0; border: 0; border-radius: 9px; background: transparent; box-shadow: none; }
+.pv-conversation-dock .assistant-composer-primary-actions .ant-btn:focus-visible { outline: 2px solid var(--pv-accent); outline-offset: 2px; }
+.pv-conversation-dock.canvas-assistant-panel .assistant-composer-primary-actions .ant-btn-loading {
+  background: var(--pv-accent);
+  color: var(--pv-on-accent);
+}
+.pv-conversation-dock .assistant-composer-primary-actions .ant-btn-loading .pv-agent-action { display: none; }
+
+.pv-modeling-hint {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 9px;
+  padding: 5px 9px 5px 6px;
+  margin-bottom: 8px;
+  border: 1px solid color-mix(in srgb, var(--pv-accent) 16%, var(--pv-border));
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--pv-accent) 5%, var(--pv-field));
+}
+.pv-modeling-hint__copy { display: grid; flex: 1 1 110px; min-width: 0; gap: 2px; font-size: 12px; line-height: 1.4; }
+.pv-modeling-hint__copy strong { font-weight: 650; }
+.pv-modeling-hint__copy small { font-size: 11px; color: var(--pv-muted); }
+.pv-modeling-hint > button {
+  flex: 0 0 auto;
+  margin-inline-start: auto;
+  min-height: 30px;
+  padding: 4px 8px;
+  border: 1px solid var(--pv-border);
+  border-radius: 7px;
+  color: var(--pv-accent);
+  background: var(--pv-field);
+  font-size: 11px;
+  cursor: pointer;
+}
+.pv-modeling-hint > button:hover { background: var(--pv-hover); }
+.pv-modeling-hint > button:focus-visible { outline: 2px solid var(--pv-accent); outline-offset: 2px; }
+.pv-conversation-recovery { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 8px 0; }
+.pv-conversation-recovery > button { border-radius: 8px; padding: 5px 8px; font-size: 12px; background: var(--pv-field); }
+.pv-reference-images { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
+.pv-reference-images:empty { display: none; }
+.pv-reference-images button { min-height: 30px; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pv-reference-images [role=alert] { flex-basis: 100%; overflow-wrap: anywhere; }
+@media (max-height: 540px) { .pv-conversation-dock.canvas-assistant-panel .assistant-composer textarea { min-height: 60px; } }
+
+
+.pv-save-feedback { margin: 0 12px 8px; flex: 0 0 auto; }
+.pv-save-feedback p { margin: 5px 0 0; overflow-wrap: anywhere; }
+
+.pv-conversation-dock .canvas-assistant-latest-anchor.is-compact {
+  display: grid;
+  flex: 0 0 28px;
+  height: 28px;
+  place-items: center;
+}
+.pv-conversation-dock .canvas-assistant-latest-anchor.is-compact > button {
+  position: static;
+  width: 44px;
+  height: 28px;
+  transform: none;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  box-shadow: none;
+  font-size: 14px;
+}
+.pv-conversation-dock .canvas-assistant-latest-anchor.is-compact > button:hover {
+  background: var(--studio-ui-hover);
+}

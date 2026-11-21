@@ -57,6 +57,11 @@ public class ConfigurableAsyncVideoProviderClient implements VideoProviderClient
     }
 
     @Override
+    public void validateRequest(AiModelConfigVo modelConfig, MediaVideoGenerateRequest request) {
+        requireConfig(modelConfig);
+    }
+
+    @Override
     public ProviderSubmitResult submit(AiModelConfigVo modelConfig, MediaVideoGenerateRequest request) {
         requireConfig(modelConfig);
         validateFullRequest(modelConfig, request);
@@ -100,11 +105,12 @@ public class ConfigurableAsyncVideoProviderClient implements VideoProviderClient
 
         HttpResult response = executePost(buildSubmitUrl(modelConfig), modelConfig,
                 JSONUtil.toJsonStr(com.aid.model.definition.ModelConfiguredRequestBody.apply(modelConfig, body, request)));
-        if (!isSuccess(response.statusCode()) || !JSONUtil.isTypeJSON(response.body())) {
+        if (!isSuccess(response.statusCode())) {
             log.error("可配置异步视频提交失败, modelCode={}, upstreamModel={}, detail={}",
                     modelConfig.getModelCode(), upstreamModel,
                     ProviderErrorSanitizer.fromHttp(response.statusCode(), response.body()));
-            throw new ServiceException("上游提交失败");
+            return com.aid.media.provider.ProviderSubmissionFailures.httpResponse(
+                    response.statusCode(), response.body(), modelConfig.getModelCode());
         }
         JsonNode root = ProviderResponseHelper.readTree(response.body());
         String taskId = ProviderResponseHelper.readText(root, "task_id", "id", "data.task_id", "data.id");
@@ -133,7 +139,7 @@ public class ConfigurableAsyncVideoProviderClient implements VideoProviderClient
                     providerTaskId, ex.getClass().getSimpleName());
             return queryAnomaly(null, null, "上游查询暂不可用");
         }
-        if (!isSuccess(response.statusCode()) || !JSONUtil.isTypeJSON(response.body())) {
+        if (!isSuccess(response.statusCode())) {
             log.warn("可配置异步视频查询异常, taskId={}, httpStatus={}, responseLength={}",
                     providerTaskId, response.statusCode(), StrUtil.length(response.body()));
             return queryAnomaly(response.body(), null, "上游查询暂不可用");
@@ -530,7 +536,7 @@ public class ConfigurableAsyncVideoProviderClient implements VideoProviderClient
                 || StrUtil.isBlank(modelConfig.getApiKey())) {
             log.error("可配置异步视频配置不完整, modelCode={}",
                     modelConfig == null ? null : modelConfig.getModelCode());
-            throw new ServiceException("模型配置不完整");
+            throw com.aid.media.provider.ProviderSubmissionFailures.notSent("模型地址或密钥未配置");
         }
     }
 

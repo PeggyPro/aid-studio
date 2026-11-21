@@ -41,5 +41,27 @@ public interface AidMediaTaskMapper extends BaseMapper<AidMediaTask> {
     List<AidMediaTask> selectUnledgeredProviderCosts(@Param("providerId") Long providerId,
                                                      @Param("initialTime") Date initialTime,
                                                      @Param("limit") Integer limit);
+
+    /** No actor filter: a conflicting identity also blocks negative entry recovery. */
+    @Select("SELECT id FROM aid_media_task WHERE biz_task_id = #{stepId} "
+            + "AND biz_task_type = #{bizTaskType} LIMIT 2 FOR UPDATE")
+    List<Long> selectAssistantEntryStepForUpdate(@Param("bizTaskType") String bizTaskType,
+                                                @Param("stepId") Long stepId);
+
+    @Select("SELECT id FROM aid_media_task WHERE idempotency_key = #{logicalCallKey} LIMIT 2 FOR UPDATE")
+    List<Long> selectAssistantEntryCallForUpdate(@Param("logicalCallKey") String logicalCallKey);
+
+    /** Diagnostic veto only, after Runtime locks and adapter intent absence fence first entry.
+     * A trace has no index on older installations: never take full-table write locks here. */
+    @Select("SELECT id FROM aid_media_task WHERE billing_trace_id = #{billingTraceId} LIMIT 2")
+    List<Long> selectAssistantEntryTrace(@Param("billingTraceId") String billingTraceId);
+
+    @Select("SELECT * FROM aid_media_task WHERE user_id = #{userId} "
+            + "AND biz_task_type = #{bizTaskType} AND biz_task_id = #{bizTaskId} "
+            + "AND idempotency_key = #{logicalCallKey} LIMIT 1 FOR UPDATE")
+    AidMediaTask selectByAssistantOperationForUpdate(@Param("userId") Long userId,
+                                                     @Param("bizTaskType") String bizTaskType,
+                                                     @Param("bizTaskId") Long bizTaskId,
+                                                     @Param("logicalCallKey") String logicalCallKey);
 }
 

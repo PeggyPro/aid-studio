@@ -1,7 +1,7 @@
 'use client'
 
 import { message } from 'antd'
-import { useCallback,useRef } from 'react'
+import { useCallback,useContext,useRef } from 'react'
 import { waitForCreationStoreHydrated } from '~/composables/useCreationStoreHydration'
 import { useRouteLikeNavigator } from '~/composables/useRouteLike'
 import { useCreationStore } from '~/stores/creation'
@@ -15,6 +15,7 @@ import {
 hydrateCreationStoreFromProjectDetail,
 resolveRouteProjectId
 } from '~/utils/hydrateCreationStoreFromProjectDetail'
+import { createFlowShellContext } from '~/utils/createFlowInjection'
 
 /**
  * 项目配置页 / 流程壳层：从 /api/user/project/detail 回显左侧基本信息与风格
@@ -22,6 +23,7 @@ resolveRouteProjectId
  */
 export function useGlobalSettingProjectHydrate() {
   const navigator = useRouteLikeNavigator()
+  const createFlowShell = useContext(createFlowShellContext)
   const hydratingRef = useRef(false)
   const hydrateGenRef = useRef(0)
 
@@ -44,6 +46,7 @@ export function useGlobalSettingProjectHydrate() {
           projectId,
           {
             ...options,
+            explicitSeriesEpisodeId: createFlowShell?.embeddedEpisodeId,
             shouldApply: () => gen === hydrateGenRef.current
           }
         )
@@ -66,7 +69,7 @@ export function useGlobalSettingProjectHydrate() {
         }
       }
     },
-    [navigator]
+    [createFlowShell?.embeddedEpisodeId, navigator]
   )
 
   return {

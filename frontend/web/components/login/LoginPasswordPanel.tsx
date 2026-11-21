@@ -23,6 +23,7 @@ interface LoginPasswordPanelProps {
   onRegister: () => void
   onForgotPassword: () => void
   onUnlockAutofill: (e: React.SyntheticEvent) => void
+  mobileOnly?: boolean
 }
 
 export function LoginPasswordPanel({
@@ -37,7 +38,8 @@ export function LoginPasswordPanel({
   onSubmit,
   onRegister,
   onForgotPassword,
-  onUnlockAutofill
+  onUnlockAutofill,
+  mobileOnly = false
 }: LoginPasswordPanelProps) {
   return (
     <form
@@ -64,7 +66,7 @@ export function LoginPasswordPanel({
           onUnlockAutofill={onUnlockAutofill}
         />
       </div>
-      <div className={LOGIN_MODAL_AUX_ROW_CLASS}>
+      {!mobileOnly && <div className={LOGIN_MODAL_AUX_ROW_CLASS}>
         {showRegister && (
           <>
             <button type="button" className="cursor-pointer hover:opacity-80" onClick={onRegister}>
@@ -76,7 +78,7 @@ export function LoginPasswordPanel({
         <button type="button" className="cursor-pointer hover:opacity-80" onClick={onForgotPassword}>
           忘记密码？
         </button>
-      </div>
+      </div>}
       <button
         type="submit"
         disabled={loading}

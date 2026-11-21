@@ -14,8 +14,11 @@ public interface MediaTextStreamSink {
     // 业务含义：上游返回的正文增量，原样转发给前端展示。
     void onDelta(String content);
 
-    /** 上游公开的思考内容增量；调用方只可实时转发，不得持久化。 */
-    default void onReasoningDelta(String content) {}
+    /** 上游协议明确公开的推理摘要；调用方只可实时转发，不得持久化。 */
+    default void onPublicReasoningSummaryDelta(String content) {}
+
+    /** Provider-returned thinking; opt-in consumer, separate from public summaries and final text. */
+    default void onProviderReasoningDelta(String content) {}
 
     /** 是否能够处理工具消息；普通正文消费方默认关闭。 */
     default boolean supportsToolMessages() { return false; }

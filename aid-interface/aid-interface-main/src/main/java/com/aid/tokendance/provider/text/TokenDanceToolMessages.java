@@ -6,11 +6,16 @@ import com.aid.media.dto.MediaTextGenerateRequest;
 import com.aid.media.dto.MediaTextGenerateRequest.TextMessageItem;
 import com.aid.media.dto.MediaTextGenerateRequest.TextThinkingBlock;
 import com.aid.media.dto.MediaTextGenerateRequest.TextToolCall;
+import com.aid.media.provider.TextNativeToolProtocol;
+import com.aid.media.provider.TextResponseValidationException;
+import static com.aid.media.provider.TextResponseValidationException.Reason.*;
 import com.aid.tokendance.provider.common.TokenDanceProtocols;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
+import java.util.TreeMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -37,7 +42,7 @@ public final class TokenDanceToolMessages {
 
     public static boolean isToolTurn(AiModelConfigVo config, MediaTextGenerateRequest request) {
         return config != null && config.getProtocol() != null
-                && (config.getProtocol().startsWith("tokendance:") || "deepseek:chat-completions".equals(config.getProtocol()))
+                && TextNativeToolProtocol.resolve(config.getProtocol()) != null
                 && requested(request);
     }
 
@@ -51,43 +56,41 @@ public final class TokenDanceToolMessages {
 
     private static void validate(AiModelConfigVo config, MediaTextGenerateRequest request, int reasoningLimit) {
         if (!requested(request)) return;
-        if ("deepseek:chat-completions".equals(config.getProtocol())) {
-            AiModelConfigVo compatible = new AiModelConfigVo();
-            compatible.setCapabilityJson(config.getCapabilityJson());
-            compatible.setProtocol(TokenDanceProtocols.OPENAI_CHAT_COMPLETIONS);
-            validate(compatible, request, DEEPSEEK_TURN_CHARS);
-            return;
-        }
+        String sourceProtocol = config.getProtocol();
+        String protocol = TextNativeToolProtocol.canonicalProtocol(sourceProtocol);
+        if ("deepseek:chat-completions".equals(sourceProtocol)) reasoningLimit = DEEPSEEK_TURN_CHARS;
         if (!tree(config.getCapabilityJson()).path("supportsToolCalling").asBoolean(false))
             throw new ServiceException("模型不支持工具调用");
         if (!Set.of(TokenDanceProtocols.OPENAI_CHAT_COMPLETIONS, TokenDanceProtocols.OPENAI_RESPONSES,
-                TokenDanceProtocols.ANTHROPIC_MESSAGES).contains(config.getProtocol()))
+                TokenDanceProtocols.ANTHROPIC_MESSAGES).contains(protocol))
             throw new ServiceException("工具协议尚未适配");
         Object rawTools = request.getOptions() == null ? null : request.getOptions().get("tools");
+        Set<String> toolNames = new HashSet<>();
         if (rawTools != null) {
             if (!(rawTools instanceof java.util.Collection<?> definitions) || definitions.size() > 128)
                 throw new ServiceException("工具定义无效");
-            Set<String> names = new HashSet<>();
             for (Object definition : definitions) {
                 JsonNode value = JSON.valueToTree(definition);
-                boolean anthropic = TokenDanceProtocols.ANTHROPIC_MESSAGES.equals(config.getProtocol());
+                boolean anthropic = TokenDanceProtocols.ANTHROPIC_MESSAGES.equals(protocol);
                 if (!anthropic && !"function".equals(value.path("type").asText())
                         || anthropic && value.hasNonNull("type") && !"custom".equals(value.path("type").asText()))
                     throw new ServiceException("工具类型不支持");
-                JsonNode function = TokenDanceProtocols.OPENAI_CHAT_COMPLETIONS.equals(config.getProtocol()) ? value.path("function") : value;
+                JsonNode function = TokenDanceProtocols.OPENAI_CHAT_COMPLETIONS.equals(protocol) ? value.path("function") : value;
                 String name = function.path("name").asText();
                 JsonNode schema = function.get(anthropic ? "input_schema" : "parameters");
-                if (!name.matches(anthropic || reasoningLimit == DEEPSEEK_TURN_CHARS ? "[A-Za-z0-9_-]{1,128}" : "[A-Za-z0-9_-]{1,64}") || !names.add(name)
+                if (!name.matches(anthropic || reasoningLimit == DEEPSEEK_TURN_CHARS ? "[A-Za-z0-9_-]{1,128}" : "[A-Za-z0-9_-]{1,64}") || !toolNames.add(name)
                         || (schema == null ? anthropic : !schema.isObject())) throw new ServiceException("工具定义无效");
             }
         }
         Object choice = request.getOptions() == null ? null : request.getOptions().get("tool_choice");
-        if (choice != null && !"none".equals(choice) && !"auto".equals(choice)
+        if (TokenDanceProtocols.OPENAI_CHAT_COMPLETIONS.equals(protocol)) {
+            validateOpenAiChatToolChoice(choice, toolNames);
+        } else if (choice != null && !"none".equals(choice) && !"auto".equals(choice)
                 && (!(rawTools instanceof java.util.Collection<?> definitions) || definitions.isEmpty()))
             throw new ServiceException("缺少工具定义");
         Set<String> pending = new HashSet<>();
         Set<String> seen = new HashSet<>();
-        boolean previous = TokenDanceProtocols.OPENAI_RESPONSES.equals(config.getProtocol())
+        boolean previous = TokenDanceProtocols.OPENAI_RESPONSES.equals(protocol)
                 && request.getOptions() != null && request.getOptions().get("previous_response_id") instanceof String id && !id.isBlank();
         if (request.getMessages() == null) return;
         for (TextMessageItem item : request.getMessages()) {
@@ -108,10 +111,10 @@ public final class TokenDanceToolMessages {
             if (item.getToolCallId() != null) throw new ServiceException("工具结果角色无效");
             if (item.getToolError() != null) throw new ServiceException("工具结果角色无效");
             if (item.getResponseItems() != null) {
-                if (!"assistant".equals(role) || !TokenDanceProtocols.OPENAI_RESPONSES.equals(config.getProtocol()))
+                if (!"assistant".equals(role) || !TokenDanceProtocols.OPENAI_RESPONSES.equals(protocol))
                     throw new ServiceException("响应消息协议不符");
                 validateResponseItems(item.getResponseItems());
-                TextMessageItem restored = sync(JSON.createObjectNode().set("output", JSON.valueToTree(item.getResponseItems())), config.getProtocol());
+                TextMessageItem restored = sync(JSON.createObjectNode().set("output", JSON.valueToTree(item.getResponseItems())), protocol);
                 if (restored == null || !JSON.valueToTree(restored.getToolCalls()).equals(JSON.valueToTree(item.getToolCalls())))
                     throw new ServiceException("工具上下文不一致");
             }
@@ -124,10 +127,10 @@ public final class TokenDanceToolMessages {
                 }
             }
             if (item.getReasoningContent() != null && (!"assistant".equals(role)
-                    || !TokenDanceProtocols.OPENAI_CHAT_COMPLETIONS.equals(config.getProtocol())))
+                    || !TokenDanceProtocols.OPENAI_CHAT_COMPLETIONS.equals(protocol)))
                 throw new ServiceException("思考消息协议不符");
             if (item.getThinkingBlocks() != null) {
-                if (!"assistant".equals(role) || !TokenDanceProtocols.ANTHROPIC_MESSAGES.equals(config.getProtocol()))
+                if (!"assistant".equals(role) || !TokenDanceProtocols.ANTHROPIC_MESSAGES.equals(protocol))
                     throw new ServiceException("思考消息协议不符");
                 for (TextThinkingBlock block : item.getThinkingBlocks()) thinking(block);
             }
@@ -136,8 +139,35 @@ public final class TokenDanceToolMessages {
         if (!pending.isEmpty()) throw new ServiceException("工具结果尚未补齐");
     }
 
+    private static void validateOpenAiChatToolChoice(Object choice, Set<String> toolNames) {
+        if (choice == null) return;
+        if (choice instanceof String value) {
+            if (!Set.of("auto", "none", "required").contains(value)) {
+                throw new ServiceException("工具选择无效");
+            }
+            if ("required".equals(value) && toolNames.isEmpty()) {
+                throw new ServiceException("缺少工具定义");
+            }
+            return;
+        }
+        if (!(choice instanceof Map<?, ?> value) || value.size() != 2
+                || !"function".equals(value.get("type"))
+                || !(value.get("function") instanceof Map<?, ?> function) || function.size() != 1
+                || !(function.get("name") instanceof String name) || !toolNames.contains(name)) {
+            throw new ServiceException("工具选择无效");
+        }
+    }
+
     public static void checkCalls(TextMessageItem item) {
+        checkCalls(item, true);
+    }
+
+    private static void checkCalls(TextMessageItem item, boolean validateArguments) {
         if (!hasCalls(item)) return;
+        if (!validateArguments) {
+            checkReceivedCalls(item);
+            return;
+        }
         Set<String> ids = new HashSet<>();
         if (item.getToolCalls().size() > 128) throw new ServiceException("工具调用数量超限");
         for (TextToolCall call : item.getToolCalls()) {
@@ -145,7 +175,25 @@ public final class TokenDanceToolMessages {
             requireId(call.getId());
             if (!ids.add(call.getId()) || call.getName() == null || !call.getName().matches("[A-Za-z0-9_-]{1,128}")
                     || call.getArguments() == null || call.getArguments().length() > MAX_TURN_CHARS
-                    || !tree(call.getArguments()).isObject()) throw new ServiceException("工具调用结果无效");
+                    || validateArguments && !tree(call.getArguments()).isObject()) throw new ServiceException("工具调用结果无效");
+        }
+    }
+
+    private static void checkReceivedCalls(TextMessageItem item) {
+        if (item.getToolCalls().size() > 128)
+            throw new TextResponseValidationException(TOOL_COUNT_LIMIT, -1, -1);
+        Set<String> ids = new HashSet<>();
+        for (int index = 0; index < item.getToolCalls().size(); index++) {
+            TextToolCall call = item.getToolCalls().get(index);
+            if (call == null) throw new TextResponseValidationException(TOOL_CALL_MISSING, index, -1);
+            int chars = call.getArguments() == null ? -1 : call.getArguments().length();
+            try { requireId(call.getId()); }
+            catch (ServiceException invalid) { throw new TextResponseValidationException(TOOL_ID_INVALID, index, chars); }
+            if (!ids.add(call.getId())) throw new TextResponseValidationException(TOOL_ID_DUPLICATE, index, chars);
+            if (call.getName() == null || !call.getName().matches("[A-Za-z0-9_-]{1,128}"))
+                throw new TextResponseValidationException(TOOL_NAME_INVALID, index, chars);
+            if (call.getArguments() == null) throw new TextResponseValidationException(TOOL_ARGUMENTS_MISSING, index, chars);
+            if (chars > MAX_TURN_CHARS) throw new TextResponseValidationException(TOOL_ARGUMENTS_LIMIT, index, chars);
         }
     }
 
@@ -173,6 +221,10 @@ public final class TokenDanceToolMessages {
     }
 
     public static TextMessageItem sync(JsonNode root, String protocol) {
+        return sync(root, protocol, Map.of());
+    }
+
+    private static TextMessageItem sync(JsonNode root, String protocol, Map<Integer, String> rawArguments) {
         TextMessageItem message = new TextMessageItem();
         message.setRole("assistant");
         List<TextToolCall> calls = new ArrayList<>();
@@ -183,12 +235,12 @@ public final class TokenDanceToolMessages {
             for (JsonNode call : nativeMessage.path("tool_calls")) {
                 if (!"function".equals(call.path("type").asText())) throw new ServiceException("工具类型不支持");
                 calls.add(call(call.path("id").asText(), call.path("function").path("name").asText(),
-                        call.path("function").path("arguments").asText()));
+                        call.path("function").path("arguments").textValue()));
             }
         } else if (TokenDanceProtocols.OPENAI_RESPONSES.equals(protocol)) {
             message.setResponseId(root.path("id").asText(null));
             for (JsonNode item : root.path("output")) if ("function_call".equals(item.path("type").asText()))
-                calls.add(call(item.path("call_id").asText(), item.path("name").asText(), item.path("arguments").asText()));
+                calls.add(call(item.path("call_id").asText(), item.path("name").asText(), item.path("arguments").textValue()));
             if (!calls.isEmpty()) {
                 List<Map<String, Object>> output = JSON.convertValue(root.path("output"),
                         new com.fasterxml.jackson.core.type.TypeReference<List<Map<String, Object>>>() { });
@@ -197,20 +249,25 @@ public final class TokenDanceToolMessages {
             }
         } else {
             List<TextThinkingBlock> thoughts = new ArrayList<>();
+            int index = 0;
             for (JsonNode item : root.path("content")) {
                 String type = item.path("type").asText();
-                if ("tool_use".equals(type)) calls.add(call(item.path("id").asText(), item.path("name").asText(), item.path("input").toString()));
+                if ("tool_use".equals(type)) calls.add(call(item.path("id").asText(), item.path("name").asText(),
+                        rawArguments.containsKey(index) ? rawArguments.get(index) : item.path("input").toString()));
                 else if (Set.of("thinking", "redacted_thinking").contains(type)) {
                     TextThinkingBlock block = new TextThinkingBlock();
                     block.setType(type); block.setThinking(item.path("thinking").asText(null));
                     block.setSignature(item.path("signature").asText(null)); block.setData(item.path("data").asText(null));
                     thoughts.add(block);
                 }
+                index++;
             }
             message.setThinkingBlocks(thoughts.isEmpty() ? null : thoughts);
         }
         message.setToolCalls(calls);
-        checkCalls(message);
+        // 接收完整响应时保留参数原文；业务参数错误不能抹掉已完成的模型回执。
+        // 执行方仍须验证参数，历史消息再次发给供应商时 checkCalls 保持严格校验。
+        checkCalls(message, false);
         if (!calls.isEmpty() && message.getThinkingBlocks() != null)
             for (TextThinkingBlock block : message.getThinkingBlocks()) thinking(block);
         return calls.isEmpty() ? null : message;
@@ -220,7 +277,8 @@ public final class TokenDanceToolMessages {
     public static final class Accumulator {
         private final String protocol;
         private final int characterLimit;
-        private final Map<Integer, com.fasterxml.jackson.databind.node.ObjectNode> blocks = new LinkedHashMap<>();
+        private final Map<Integer, com.fasterxml.jackson.databind.node.ObjectNode> blocks = new TreeMap<>();
+        private final Map<com.fasterxml.jackson.databind.node.ObjectNode, Map<String, StringBuilder>> fragments = new IdentityHashMap<>();
         private final StringBuilder reasoning = new StringBuilder();
         private final StringBuilder content = new StringBuilder();
         private JsonNode completed;
@@ -236,14 +294,20 @@ public final class TokenDanceToolMessages {
                 if (characterLimit == DEEPSEEK_TURN_CHARS) append(content, delta.path("content").asText(""));
                 append(reasoning, delta.path("reasoning_content").asText(""));
                 for (JsonNode call : delta.path("tool_calls")) {
-                    int index = call.path("index").asInt(-1);
+                    JsonNode indexValue = call.path("index");
+                    if (!indexValue.isIntegralNumber() || !indexValue.canConvertToInt())
+                        throw new TextResponseValidationException(TOOL_RECEIPT_INVALID, -1, -1);
+                    int index = indexValue.intValue();
                     requireIndex(index);
                     var target = blocks.computeIfAbsent(index, key -> JSON.createObjectNode().put("type", "function"));
                     if (call.hasNonNull("type") && !"function".equals(call.path("type").asText())) throw new ServiceException("工具类型不支持");
                     copy(target, call, "id");
                     var function = target.withObject("/function");
                     copy(function, call.path("function"), "name");
-                    add(function, "arguments", call.path("function").path("arguments").asText(""));
+                    JsonNode arguments = call.path("function").get("arguments");
+                    if (arguments != null && !arguments.isNull() && !arguments.isTextual())
+                        throw new TextResponseValidationException(TOOL_ARGUMENTS_MISSING, index, -1);
+                    add(function, "arguments", arguments == null || arguments.isNull() ? "" : arguments.textValue());
                 }
             } else if (TokenDanceProtocols.OPENAI_RESPONSES.equals(protocol)) {
                 if ("response.completed".equals(event.path("type").asText())) completed = event.path("response");
@@ -270,19 +334,23 @@ public final class TokenDanceToolMessages {
             }
         }
         public TextMessageItem finish() {
+            fragments.forEach((target, fields) -> fields.forEach((key, text) -> target.put(key, text.toString())));
             JsonNode root = completed;
+            Map<Integer, String> rawArguments = new LinkedHashMap<>();
             if (TokenDanceProtocols.OPENAI_CHAT_COMPLETIONS.equals(protocol)) {
                 var message = JSON.createObjectNode();
                 message.set("tool_calls", JSON.valueToTree(blocks.values()));
                 if (!reasoning.isEmpty()) message.put("reasoning_content", reasoning.toString());
                 root = JSON.createObjectNode().set("choices", JSON.createArrayNode().add(JSON.createObjectNode().set("message", message)));
             } else if (TokenDanceProtocols.ANTHROPIC_MESSAGES.equals(protocol)) {
-                for (var block : blocks.values()) if (block.has("partial_json")) {
-                    block.set("input", tree(block.path("partial_json").asText())); block.remove("partial_json");
+                int index = 0;
+                for (var block : blocks.values()) {
+                    if (block.has("partial_json")) rawArguments.put(index, block.path("partial_json").textValue());
+                    index++;
                 }
                 root = JSON.createObjectNode().set("content", JSON.valueToTree(blocks.values()));
             }
-            return root == null ? null : sync(root, protocol);
+            return root == null ? null : sync(root, protocol, rawArguments);
         }
 
         /** 思考工具协议在没有函数调用的轮次也需要回传完整助手上下文。 */
@@ -291,8 +359,10 @@ public final class TokenDanceToolMessages {
             if (message == null) {
                 message = new TextMessageItem();
                 message.setRole("assistant");
-                message.setReasoningContent(reasoning.toString());
             }
+            // A completed stream with zero reasoning characters is a known empty value,
+            // not missing context. Preserve it for tool-call turns as well as plain answers.
+            message.setReasoningContent(reasoning.toString());
             message.setContent(content.toString());
             return message;
         }
@@ -304,7 +374,9 @@ public final class TokenDanceToolMessages {
             }
         }
         private void add(com.fasterxml.jackson.databind.node.ObjectNode target, String key, String value) {
-            count(value.length()); target.put(key, target.path(key).asText("") + value);
+            count(value.length());
+            fragments.computeIfAbsent(target, ignored -> new LinkedHashMap<>())
+                    .computeIfAbsent(key, ignored -> new StringBuilder(target.path(key).asText(""))).append(value);
         }
         private void append(StringBuilder target, String value) { count(value.length()); target.append(value); }
         private void count(int value) { chars += value; if (chars > characterLimit) throw new ServiceException("工具上下文过长"); }

@@ -8,14 +8,15 @@ import {
   LockOutlined,
   WechatOutlined
 } from '@ant-design/icons'
-import { Button,Drawer,Spin } from 'antd'
+import { Button,ConfigProvider,Drawer,Spin } from 'antd'
+import { V10_ANTD_THEME,V10_LIGHT_ANTD_THEME } from '@/config/v10Theme'
+import { useV10Theme } from '@/utils/v10ThemePreference'
 import { usePathname,useRouter } from 'next/navigation'
 import { useCallback,useEffect,useState } from 'react'
 import { closeAccountSettings,useAccountSettingsStore,type AccountSettingsSection } from '~/stores/accountSettings'
 import { useUserStore } from '~/stores/user'
 import type { AccountSecurityData } from '~/types/business-api'
 import { accountApiErrorMessage } from '~/utils/accountSecurity'
-import { logoutToPublicHome } from '~/utils/authLoginNavigation'
 import { accountSecurity } from '~/utils/businessApi'
 import {
   AccountCancelSection,
@@ -43,6 +44,7 @@ const NAV_ITEMS: Array<{
 ]
 
 export function AccountSettingsHost() {
+  const theme = useV10Theme()
   const open = useAccountSettingsStore((state) => state.open)
   const section = useAccountSettingsStore((state) => state.section)
   const setSection = useAccountSettingsStore((state) => state.setSection)
@@ -84,7 +86,8 @@ export function AccountSettingsHost() {
 
   const handleAuthInvalidated = useCallback(() => {
     closeAccountSettings()
-    logoutToPublicHome((href) => router.replace(href))
+    useUserStore.getState().logout()
+    router.replace('/')
   }, [router])
 
   const sectionProps = security
@@ -92,12 +95,13 @@ export function AccountSettingsHost() {
     : null
 
   return (
+    <ConfigProvider theme={theme === 'paper' ? V10_LIGHT_ANTD_THEME : V10_ANTD_THEME}>
     <Drawer
       open={open}
       onClose={closeAccountSettings}
       title="账号设置"
       size="min(920px, calc(100vw - 24px))"
-      rootClassName="account-settings-drawer"
+      rootClassName={`account-settings-drawer account-settings-drawer--${theme}`}
       destroyOnHidden
       mask={{ closable: true }}
       styles={{ mask: { pointerEvents: open ? 'auto' : 'none' } }}
@@ -140,5 +144,6 @@ export function AccountSettingsHost() {
         </main>
       </div>
     </Drawer>
+    </ConfigProvider>
   )
 }

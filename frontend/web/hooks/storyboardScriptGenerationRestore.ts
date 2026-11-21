@@ -5,6 +5,7 @@ matchesCreationLiveGenScope
 import { getRouteLikeSnapshot } from '~/composables/useRouteLike'
 import {
 fetchUserTaskDetailOnce,
+isTerminalTaskStatus,
 normalizeTaskStatus
 } from '~/composables/useTaskSseFollow'
 import { useCreationStore } from '~/stores/creation'
@@ -39,11 +40,7 @@ export interface StoryboardScriptRestoreRuntime {
   setRestoreSessionInFlight: (pending: Promise<void> | null) => void
   nextResumeFollowGeneration: () => number
   getResumeFollowGeneration: () => number
-  getFollowInFlight: () => Promise<{
-    ok: boolean
-    panels: StoryboardPanel[]
-    message?: string
-  }> | null
+  hasCurrentFollow: () => boolean
   activeTaskId: { value: number | null }
   isTaskFollowPaused: (taskId: number) => boolean
   followExistingTask: (
@@ -69,10 +66,12 @@ export async function restoreOngoingGenerationIfNeeded(
 
   const pending = (async () => {
     const routeSnap = getRouteLikeSnapshot()
+    const routeCtx = captureCreationLiveGenScope()
     const ctx = await resolveStoryScriptSaveContext(runtime.getStore(), routeSnap)
-    if (!ctx) return
+    if (!ctx || !matchesCreationLiveGenScope(routeCtx) || runtime.hasCurrentFollow()) return
 
     const gen = runtime.nextResumeFollowGeneration()
+    const isCurrent = () => gen === runtime.getResumeFollowGeneration() && matchesCreationLiveGenScope(routeCtx)
     beginFlowTaskListQuietWindow(ctx.projectId)
     try {
       let tasks: UserTaskRow[] = []
@@ -87,22 +86,11 @@ export async function restoreOngoingGenerationIfNeeded(
         tasks = []
         taskListOk = false
       }
-      if (gen !== runtime.getResumeFollowGeneration()) return
-
-      if (runtime.getFollowInFlight()) {
-        try {
-          await runtime.getFollowInFlight()
-        } catch {
-          /* 上一轮 follow 被 cancelResumeFollow 中断 */
-        }
-        if (gen !== runtime.getResumeFollowGeneration()) return
-      }
+      if (!isCurrent() || runtime.hasCurrentFollow()) return
 
       const preferredId = runtime.getStore().storyboardScriptActiveTaskId
       const ongoingTask = pickOngoingStoryboardScriptTask(tasks, preferredId)
       const ongoingId = parseTaskId(ongoingTask?.id)
-
-      const routeCtx = captureCreationLiveGenScope()
 
       const prefId = parseTaskId(preferredId)
       if (prefId && !runtime.isTaskFollowPaused(prefId) && runtime.activeTaskId.value !== prefId) {
@@ -110,7 +98,7 @@ export async function restoreOngoingGenerationIfNeeded(
         if (prefTask && isUserTaskStatusPartialFailed(prefTask.status)) {
           let panels = currentPanels
           try {
-            panels = await refreshPanelsFromApi()
+            panels = await refreshPanelsFromApi(isCurrent)
           } catch {
             /* ignore */
           }
@@ -169,10 +157,6 @@ export async function restoreOngoingGenerationIfNeeded(
         return
       }
 
-      // 列表查询失败（刷新瞬时的网络 / 鉴权竞态）：不能据此判定任务已结束，
-      // 保留 generating 与持久化 taskId，等下次恢复（watch / onMounted 再次触发）重试，避免误停导致 SSE 不再重连。
-      if (!taskListOk) return
-
       // 列表里没有「进行中」的脚本任务，但本地仍持久化了 taskId：
       // 用 task/detail 兜底确认真实终态（SSE 建连即终态补发，detail 比 list 更可靠），
       // 避免因列表瞬时缺失 / 主从延迟而误判任务已结束、错误清空 loading 与 taskId。
@@ -182,7 +166,7 @@ export async function restoreOngoingGenerationIfNeeded(
         if (!matchesCreationLiveGenScope(routeCtx)) return
         const detailStatus = normalizeTaskStatus(detail?.status)
 
-        if (detail && isOngoingStoryboardScriptTaskStatus(detailStatus)) {
+        if (detail && (isOngoingStoryboardScriptTaskStatus(detailStatus) || isTerminalTaskStatus(detailStatus))) {
           if (!runtime.getStore().isGeneratingStoryboard) {
             runtime.getStore().setStoryboardGenerating(true)
             runtime.getStore().setStoryboardError(null)
@@ -211,34 +195,11 @@ export async function restoreOngoingGenerationIfNeeded(
           return
         }
 
-        if (detail && detailStatus === 'PARTIAL_FAILED') {
-          let panels = currentPanels
-          try {
-            panels = await refreshPanelsFromApi()
-          } catch {
-            /* ignore */
-          }
-          if (gen !== runtime.getResumeFollowGeneration()) return
-          if (!matchesCreationLiveGenScope(routeCtx)) return
-          onPanelsUpdate(panels)
-          runtime.syncActiveTaskIdToStore(prefId)
-          const parsed = parseTaskPartialFailedData(
-            detail.resultData ? safeParseResultData(detail.resultData) : null
-          )
-          applyStoryboardScriptPartialFailedOutcome(
-            prefId,
-            formatPartialFailedMessage(
-              parsed,
-              detail.errorMessage || '部分场次生成失败，可点击续生重试失败项'
-            ),
-            parsed,
-            panels
-          )
-          return
-        }
-
         // detail 拿不到（任务已被清理）则视为终态缺失：继续走下方停止清理逻辑。
       }
+
+      // 列表读取失败时仍可通过已知的 taskId 恢复。两处均无法确认时保留原状态。
+      if (!taskListOk) return
 
       if (runtime.getStore().isGeneratingStoryboard || preferredId) {
         if (matchesCreationLiveGenScope(routeCtx)) {

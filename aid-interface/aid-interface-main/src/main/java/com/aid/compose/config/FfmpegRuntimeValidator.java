@@ -42,7 +42,7 @@ public class FfmpegRuntimeValidator
     {
         Path ffmpeg = requireExecutable(ffmpegPath, "FFmpeg");
         Path ffprobe = requireExecutable(ffprobePath, "FFprobe");
-        Path workDir = Files.createTempDirectory("aid-ffmpeg-check-");
+        Path workDir = Files.createTempDirectory(com.aid.common.config.AidAppConfig.getTemporaryDirectory(), "aid-ffmpeg-check-");
         try
         {
             CommandResult versionResult = execute(workDir, ffmpeg.toString(), "-version");
@@ -86,7 +86,7 @@ public class FfmpegRuntimeValidator
         {
             Path ffmpeg = requireExecutable(ffmpegPath, "FFmpeg");
             Path ffprobe = requireExecutable(ffprobePath, "FFprobe");
-            workDir = Files.createTempDirectory("aid-font-check-");
+            workDir = Files.createTempDirectory(com.aid.common.config.AidAppConfig.getTemporaryDirectory(), "aid-font-check-");
             CommandResult languageResult = execute(workDir,
                     "fc-query", "--format=%{lang}\\n", font.toString());
             CommandResult charsetResult = execute(workDir,

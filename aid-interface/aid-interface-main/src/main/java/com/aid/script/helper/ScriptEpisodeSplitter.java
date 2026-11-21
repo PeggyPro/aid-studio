@@ -29,6 +29,31 @@ public final class ScriptEpisodeSplitter {
     /** 标题前的常见分隔符（冒号/破折号/顿号/点号/空白） */
     private static final String TITLE_SEPARATOR = "[\\s:：\\-—~·、.。]*";
 
+    /** 明确像分集标题却与所选样例不一致的独立行。正文中对某集的普通引用不匹配。 */
+    private static final Pattern POSSIBLE_EPISODE_HEADING = Pattern.compile(
+            "^\\s*(?:#{1,6}\\s+)?第[\\p{Zs}\\t]*[\\p{Nd}零一二三四五六七八九十百千两〇]+"
+            + "[\\p{Zs}\\t]*[集话](?:\\s*$|[\\s:：—–\\-、.。].*$)");
+
+    /**
+     * 在用户选择的数字分集标题规则下，返回第一个疑似写错的标题行号。
+     * 自定义文字分隔符保持原样；该模式下正文允许出现「第 N 集」。
+     */
+    public static int firstMalformedHeadingLine(String text, String episodeKeyword) {
+        String keyword = StrUtil.blankToDefault(episodeKeyword, "第一集").trim();
+        if (!SAMPLE_ORDINAL.matcher(keyword).find()) {
+            return 0;
+        }
+        Pattern expected = buildLinePattern(keyword);
+        int line = 0;
+        for (String value : (Iterable<String>) text.lines()::iterator) {
+            line++;
+            if (POSSIBLE_EPISODE_HEADING.matcher(value).matches() && !expected.matcher(value).matches()) {
+                return line;
+            }
+        }
+        return 0;
+    }
+
     private ScriptEpisodeSplitter() {
     }
 
@@ -39,10 +64,16 @@ public final class ScriptEpisodeSplitter {
         private int sequenceNo;
         /** 分集行解析出的原始序数（如「十三」「3」；纯分隔词模式为 null） */
         private String rawOrdinal;
+        private int headingLine;
+        private boolean bodyPresent;
         /** 单集标题（分集行剩余文本；为空时由调用方回退「第N集」） */
         private String title;
         /** 该集正文（不含分集行） */
         private String content;
+        /** UTF-16 start of the source envelope assigned to this segment, inclusive. */
+        private int sourceCharStart;
+        /** UTF-16 end of the source envelope assigned to this segment, exclusive. */
+        private int sourceCharEnd;
     }
 
     /**
@@ -61,37 +92,53 @@ public final class ScriptEpisodeSplitter {
         EpisodeSegment current = null;
         StringBuilder currentContent = null;
 
-        for (String line : scriptText.split("\r?\n", -1)) {
+        Matcher lineBreak = Pattern.compile("\\r?\\n").matcher(scriptText);
+        int lineStart = 0;
+        int lineNumber = 1;
+        while (true) {
+            boolean hasLineBreak = lineBreak.find(lineStart);
+            int lineEnd = hasLineBreak ? lineBreak.start() : scriptText.length();
+            String line = scriptText.substring(lineStart, lineEnd);
             Matcher matcher = linePattern.matcher(line);
             if (matcher.matches()) {
                 // 命中分集行：收尾上一集，开启新集
                 if (Objects.nonNull(current)) {
+                    current.setBodyPresent(!currentContent.toString().isBlank());
                     current.setContent(currentContent.toString().strip());
+                    current.setSourceCharEnd(lineStart);
                     segments.add(current);
                 }
                 current = new EpisodeSegment();
                 current.setSequenceNo(segments.size() + 1);
+                current.setHeadingLine(lineNumber);
+                current.setSourceCharStart(lineStart);
                 // 组1=序数（纯分隔词模式无该组），末组=标题余文
                 current.setRawOrdinal(matcher.groupCount() >= 2 ? StrUtil.trimToNull(matcher.group(1)) : null);
                 current.setTitle(StrUtil.trimToNull(matcher.group(matcher.groupCount())));
                 currentContent = new StringBuilder();
-                continue;
-            }
-            if (Objects.isNull(current)) {
+            } else if (Objects.isNull(current)) {
                 // 首个分集行之前的引言：暂存，稍后并入第一集
                 preface.append(line).append('\n');
             } else {
                 currentContent.append(line).append('\n');
             }
+            if (!hasLineBreak) {
+                break;
+            }
+            lineStart = lineBreak.end();
+            lineNumber++;
         }
         if (Objects.nonNull(current)) {
+            current.setBodyPresent(!currentContent.toString().isBlank());
             current.setContent(currentContent.toString().strip());
+            current.setSourceCharEnd(scriptText.length());
             segments.add(current);
         }
         // 引言并入第一集正文开头（不丢内容）
         String prefaceText = preface.toString().strip();
         if (!segments.isEmpty() && StrUtil.isNotBlank(prefaceText)) {
             EpisodeSegment first = segments.get(0);
+            first.setSourceCharStart(0);
             first.setContent(StrUtil.isBlank(first.getContent())
                     ? prefaceText : prefaceText + "\n\n" + first.getContent());
         }
@@ -130,7 +177,7 @@ public final class ScriptEpisodeSplitter {
             String suffix = keyword.substring(ordinal.end());
             return Pattern.compile("^\\s*" + quoteIfNotEmpty(prefix)
                     + "([" + ORDINAL_CHARS + "]+)" + quoteIfNotEmpty(suffix)
-                    + TITLE_SEPARATOR + "(.*?)\\s*$");
+                    + "(?:[\\s:：\\-—~·、.。]+(.*?))?\\s*$");
         }
         // 纯分隔词：行首字面量匹配（无序数组）
         return Pattern.compile("^\\s*" + Pattern.quote(keyword) + TITLE_SEPARATOR + "(.*?)\\s*$");

@@ -8,7 +8,8 @@
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
-  border: 1px solid transparent;
+  border: 0;
+  background: transparent;
   transition:
     opacity 0.15s ease,
     background 0.15s ease,
@@ -16,33 +17,10 @@
     color 0.15s ease;
 }
 
-/* 渐变描边与圆角：用双层 background + clip，避免 border-image 不吃 border-radius */
-.series-ep-list__btn--ghost {
-  border: 1px solid transparent;
-  background-image:
-    linear-gradient(#151a26, #151a26),
-    linear-gradient(270deg, rgba(14, 89, 250, 0.5) 0%, rgba(0, 171, 216, 0.5) 100%);
-  background-origin: border-box;
-  background-clip: padding-box, border-box;
-  color: rgba(230, 237, 243, 0.92);
-}
-
-.series-ep-list__btn--ghost:hover:not(:disabled) {
-  background-image:
-    linear-gradient(#151a26, #151a26),
-    linear-gradient(270deg, rgba(14, 89, 250, 0.72) 0%, rgba(0, 171, 216, 0.72) 100%);
-  color: #fff;
-}
-
-.series-ep-list__btn--primary {
-  background: linear-gradient(270deg, rgba(14, 89, 250, 0.5) 0%, rgba(0, 171, 216, 0.5) 100%);
-  color: #fff;
-  border: none;
-}
-
-.series-ep-list__btn--primary:hover:not(:disabled) {
-  opacity: 0.92;
-}
+.series-ep-list__btn--generate { color: var(--ui-brand, #4ae7fd); }
+.series-ep-list__btn--delete { color: var(--ui-danger, #ff7875); }
+.series-ep-list__btn:hover:not(:disabled) { background: var(--ui-soft-hover, rgba(255,255,255,.06)); }
+.series-ep-list__btn:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
 
 .series-ep-list__btn:disabled {
   cursor: wait;
@@ -89,7 +67,7 @@
   height: auto;
   aspect-ratio: 3 / 4;
   max-height: none;
-  background: #0a0f14;
+  background: var(--ui-bg, #0a0f14);
 }
 
 .series-ep-list__asset-grid-wrap.assets-library-figma .works-lib-card__cover-img,
@@ -108,7 +86,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #8e97a5;
+  color: var(--ui-muted, #8e97a5);
   font-size: 14px;
 }
 

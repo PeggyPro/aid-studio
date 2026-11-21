@@ -37,6 +37,8 @@ public class ErrorRuleCache {
     private static final String LOCAL_CACHE_DIR = ".aid/cache";
     private static final String LOCAL_CACHE_FILE = "error-rules.json";
 
+    @org.springframework.beans.factory.annotation.Value("${aid.error-rule-cache.directory:${user.home}/.aid/cache}")
+    private String cacheDirectory;
     private final AidProviderErrorRuleMapper errorRuleMapper;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -211,7 +213,6 @@ public class ErrorRuleCache {
     }
 
     private File localCacheFile() {
-        String home = System.getProperty("user.home");
-        return new File(home + File.separator + LOCAL_CACHE_DIR + File.separator + LOCAL_CACHE_FILE);
+        return new File(cacheDirectory, LOCAL_CACHE_FILE);
     }
 }

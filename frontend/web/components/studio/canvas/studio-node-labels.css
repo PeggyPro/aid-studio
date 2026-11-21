@@ -1,0 +1,25 @@
+.studio-label-palette { display:flex; align-items:center; gap:10px; padding:4px; }
+.studio-label-palette button { width:22px; height:22px; border:0; border-radius:50%; color:#171717; display:grid; place-items:center; cursor:pointer; padding:0; }
+.studio-label-palette button:focus-visible { outline:2px solid var(--studio-ui-border-strong, white); outline-offset:3px; }
+.studio-label-palette .studio-label-clear { background:var(--studio-ui-surface, #444); color:var(--studio-ui-text, white); }
+.studio-label-icon { position:relative; display:inline-flex; }
+.studio-label-icon i { position:absolute; width:7px; height:7px; border-radius:50%; right:-3px; top:-3px; border:1px solid var(--studio-ui-border, #222); }
+.studio-node-label-dot { position:absolute; right:10px; top:-23px; width:12px; height:12px; border:1px solid var(--studio-ui-border, #ddd); border-radius:50%; pointer-events:none; z-index:5; }
+.studio-node-label-outline { position:absolute; inset:-2px; border:2px solid; border-radius:inherit; pointer-events:none; z-index:4; }
+.studio-node-shell:has(> .studio-node-label-outline) { border-radius:16px; }
+.studio-canvas-labels { position:absolute; bottom:22px; left:50%; transform:translateX(-50%); z-index:20; display:flex; align-items:center; gap:10px; max-width:calc(100% - 32px); padding:8px; border-radius:12px; background:var(--studio-ui-surface, #202123); box-shadow:0 4px 16px var(--studio-ui-shadow, #0005); }
+.studio-canvas-labels:empty { display:none; }
+.studio-canvas-labels__color { width:22px; height:22px; border-radius:5px; border:2px solid transparent; cursor:pointer; flex-shrink:0; }
+.studio-canvas-labels__color[aria-pressed=true] { outline:2px solid var(--studio-ui-border, #eee); outline-offset:2px; }
+.studio-canvas-labels__close { border:0; background:transparent; color:var(--studio-ui-text, #ddd); cursor:pointer; }
+.studio-label-group { width:230px; color:var(--studio-ui-text, #ddd); }
+.studio-label-group header { display:flex; align-items:center; gap:8px; padding:8px; border-bottom:1px solid var(--studio-ui-border, #ffffff15); }
+.studio-label-group header i { width:10px; height:10px; border-radius:3px; }
+.studio-label-group header span { margin-left:auto; color:var(--studio-ui-muted, #999); font-size:12px; }
+.studio-label-group__list { max-height:min(300px, 45vh); overflow-y:auto; overscroll-behavior:contain; padding:4px 0; }
+.studio-label-group button { display:flex; align-items:center; gap:9px; width:100%; padding:9px; border:0; border-radius:6px; background:transparent; color:inherit; text-align:left; cursor:pointer; }
+.studio-label-group button:hover, .studio-label-group button:focus-visible { background:var(--studio-ui-hover, #ffffff12); }
+.studio-label-group button span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.studio-label-group button.is-danger { color:#f56573; }
+.studio-label-group button:disabled { opacity:.5; cursor:wait; }
+@media(max-width:800px) { .studio-canvas-labels { bottom:76px; } }

@@ -1,0 +1,27 @@
+/* Porcelain material treatments from v10-light/light.css; geometry and motion stay shared. */
+html[data-v10-theme='paper'] body { background:var(--v10-bg); color:var(--v10-text); }
+html[data-v10-theme='paper'] :is(.home-new-page,.home-new-main,.home-new-main-wrap,.home-legacy-main-wrap,.global-page-loading,.route-overlay) { background:var(--v10-bg); color:var(--v10-text); }
+html[data-v10-theme='paper'] :is(.home-new-logo,.login-theme-logo,.aid-hover-logo) { filter:var(--v10-logo-filter); }
+html[data-v10-theme='paper'] :is(.ant-btn-primary,.toolbar-btn-primary,.generate-btn,.dubbing-start-btn) img { filter:var(--v10-primary-icon-filter); }
+html[data-v10-theme='paper'] :is(.user-menu-card,.user-menu-dropdown,.account-settings__menu,.model-select-dropdown-portal,.setting-select-panel-fixed) { background:var(--v10-menu); }
+html[data-v10-theme='paper'] .scene-card-auto:hover { background-color:var(--v10-s1); }
+html[data-v10-theme='paper'] :is(.works-lib-add-card,.scene-card-manual) { background:radial-gradient(#cbd4dc .8px,transparent 1px) 0 0 / 14px 14px,var(--v10-s1); }
+html[data-v10-theme='paper'] :is(.ant-select-item-option-selected,.model-option.selected,.setting-select-option.is-selected) { background:var(--v10-selection) !important; }
+html[data-v10-theme='paper'] :is(.home-case__tag,.works-lib-card__status) { background:rgba(255,255,255,.94); color:var(--v10-muted); }
+html[data-v10-theme='paper'] ::selection { background:#c6e7ed; color:var(--v10-text); }
+html[data-v10-theme='paper'] * { scrollbar-color:#c9d1d7 transparent; }
+
+/* About keeps the existing composition in graphite; porcelain replaces decorative backgrounds. */
+html[data-v10-theme='paper'] .about-page { --about-bg:var(--v10-bg); --about-accent:var(--v10-brand); --about-muted:var(--v10-muted); color:var(--v10-text); }
+html[data-v10-theme='paper'] :is(.about-page__hero-bg,.about-page__section-bg,.about-page__flow-card-bg) { opacity:.06; }
+html[data-v10-theme='paper'] :is(.about-page__intro,.about-page__mission-label,.about-page__section-title,.about-page__flow-title,.about-page__contact-title,.about-page__contact-label) { color:var(--v10-text); }
+html[data-v10-theme='paper'] :is(.about-page__flow-desc,.about-page__section-desc,.about-page__contact-desc,.about-page__contact-value) { color:var(--v10-muted); }
+html[data-v10-theme='paper'] .about-page__mission-quote { background:none; color:var(--v10-brand); filter:none; }
+html[data-v10-theme='paper'] :is(.about-page__capabilities,.about-page__contact-inner) { background:var(--v10-s1) !important; }
+html[data-v10-theme='paper'] .about-page__flow-card { background:var(--v10-s1); border-radius:14px; box-shadow:var(--v10-lit); }
+html[data-v10-theme='paper'] :is(.about-page__cap-tag,.about-page__contact-row dd) { color:var(--v10-text); }
+html[data-v10-theme='paper'] .about-page__cap-tag { background:var(--v10-s3); }
+html[data-v10-theme='paper'] .about-page__cap-tag-icon { filter:var(--v10-icon-filter); }
+
+/* Added preference controls must stay reachable on short and narrow viewports. */
+html[data-v10-theme] .user-menu-dropdown { max-width:calc(100vw - 24px); max-height:calc(100dvh - 24px); overflow-y:auto; overscroll-behavior:contain; }

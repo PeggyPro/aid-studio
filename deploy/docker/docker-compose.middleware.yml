@@ -1,17 +1,4 @@
-# ============================================================================
-# AID 本地开发环境（仅中间件，不含应用）
-#
-# 面向开发者：克隆代码后一条命令起齐后端启动所需环境，
-# 默认参数与 application.yml / application-druid.yml 的开发默认值完全对齐，
-# 起完环境直接用 IDE 启动后端即可连上，无需改任何配置。
-#
-#   启动（MySQL + Redis）:          docker compose -f docker-compose.middleware.yml up -d
-#   启动（含 RocketMQ）:            docker compose -f docker-compose.middleware.yml --profile mq up -d
-#   停止:                           docker compose -f docker-compose.middleware.yml down
-#
-# 注意：本文件仅供本地开发，端口直接暴露、密码为开发默认值，禁止用于生产。
-# 生产部署请使用 docker-compose.yml。
-# ============================================================================
+# AID 本地开发中间件。使用 bash middleware.sh up -d 生成并复用本机凭证。
 
 services:
   mysql-dev:
@@ -19,8 +6,7 @@ services:
     container_name: aid-dev-mysql
     restart: unless-stopped
     environment:
-      # 与 application-druid.yml 开发默认值对齐（root/123456, 库 aid_test）
-      MYSQL_ROOT_PASSWORD: "123456"
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?run bash middleware.sh up}
       MYSQL_DATABASE: aid_test
       TZ: Asia/Shanghai
     command:
@@ -28,13 +14,13 @@ services:
       - --collation-server=utf8mb4_general_ci
       - --default-time-zone=+08:00
     ports:
-      - "3306:3306"
+      - "127.0.0.1:${MYSQL_DEV_PORT:-3306}:3306"
     volumes:
       - aid-dev-mysql-data:/var/lib/mysql
       # 首次启动自动导入基线与增量脚本
       - ../../sql:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-p123456"]
+      test: ["CMD-SHELL", "MYSQL_PWD=\"$$MYSQL_ROOT_PASSWORD\" mysql --protocol=TCP -h 127.0.0.1 -uroot -e 'SELECT 1' >/dev/null"]
       interval: 10s
       timeout: 5s
       retries: 10

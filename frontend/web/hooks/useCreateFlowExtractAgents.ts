@@ -7,6 +7,7 @@ import type { ExtractModelCodes } from '~/utils/extractAgentBiz'
 import type { AssetExtractType } from '~/types/business-api'
 import type { RouteLikeLocation } from '~/types/routeLike'
 import { useCreationStore } from '~/stores/creation'
+import { useOnboardingStore } from '~/stores/onboarding'
 import { useRouteLike } from '~/composables/useRouteLike'
 import { resolveStoryScriptSaveContext } from '~/utils/storyScriptSaveContext'
 import { userAssetRpsList } from '~/utils/businessApi'
@@ -15,6 +16,12 @@ import {
   isCreateFlowEmbeddedLibraryPanel,
   routePathToCreationStep
 } from '~/utils/createFlowRoutes'
+import { isPublicProjectPreviewQuery } from '~/utils/publicProjectPreviewNavigation'
+import {
+  isCreateSceneCharacterOnboardingPending,
+  useOnboardingEngine
+} from '~/composables/useOnboardingEngine'
+import { useOnboardingPrepareFlags } from '~/utils/onboardingPrepareAnchor'
 import {
   getExtractAutoOpenContextKey,
   isStoryScriptContentFilledForExtract,
@@ -44,6 +51,10 @@ export function useCreateFlowExtractAgents() {
   const route = useRouteLike()
   const routeRef = useRef<RouteLikeLocation>(route)
   routeRef.current = route
+
+  const { activeSession } = useOnboardingEngine()
+  const activeSessionRef = useRef(activeSession)
+  activeSessionRef.current = activeSession
 
   const [extractModalScope, setExtractModalScopeState] = useState<ExtractModalScope>('all')
   const extractModalScopeRef = useRef<ExtractModalScope>('all')
@@ -144,12 +155,20 @@ export function useCreateFlowExtractAgents() {
   const shouldAllowAutoExtractModalOpen = useCallback(
     (ctxKey: string): boolean => {
       const r = routeRef.current
+      if (isPublicProjectPreviewQuery(r.query)) return false
       if (isCreateFlowEmbeddedLibraryPanel(r.query)) return false
       if (hasPendingStepInitAdvance()) return false
       if (autoExtractModalSuppressedKeyRef.current === ctxKey) return false
       /** 提取 UI 仍挂着（切步骤断 SSE 未 finish）或壳层仍在跟提取任务时，禁止再自动弹提取弹窗 */
       if (store().isExtractingAssets) return false
       if (store().getAssetExtractShellLiveTaskId()) return false
+      if (
+        isCreateSceneCharacterOnboardingPending(r.path, {
+          activeTourId: activeSessionRef.current?.tour.id ?? null
+        })
+      ) {
+        return false
+      }
       // 最终必须以素材准备路由为准（防止异步完成时已回退到剧本制作）
       if (routePathToCreationStep(r.path) !== 'scene-character') return false
       return true
@@ -239,6 +258,24 @@ export function useCreateFlowExtractAgents() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ctxKey])
+
+  // ---- 原 watch：引导期间禁止提取弹窗 ----
+  const activeTourId = activeSession?.tour.id ?? null
+  const sceneCharacterTourRow = useOnboardingStore((s) => s.tours['create-scene-character'])
+  const allowExtractInOnboarding = useOnboardingPrepareFlags(
+    (s) => s.scpOnboardingAllowExtractModal
+  )
+  useEffect(() => {
+    const r = routeRef.current
+    if (routePathToCreationStep(r.path) !== 'scene-character') return
+    if (
+      isCreateSceneCharacterOnboardingPending(r.path, { activeTourId }) &&
+      !useOnboardingPrepareFlags.getState().scpOnboardingAllowExtractModal
+    ) {
+      useCreationStore.setState({ showExtractAgentModal: false })
+    }
+     
+  }, [route.path, activeTourId, sceneCharacterTourRow, allowExtractInOnboarding])
 
   // ---- 原 watch(showExtractAgentModal)：手动关闭后抑制本上下文的自动弹窗 ----
   const showExtractAgentModal = useCreationStore((s) => s.showExtractAgentModal)

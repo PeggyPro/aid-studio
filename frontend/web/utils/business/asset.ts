@@ -47,6 +47,9 @@ const userAssetMergedPageBurst: ListBurstSlot<{ total: number; list: MergedAsset
   current: null
 }
 
+/** 节点 Composer 弹层反复挂载时复用同一份只读目录；写操作会显式失效合并列表。 */
+const ASSET_CATALOG_BURST_MS = 30_000
+
 /** 写操作成功后清空合并资产列表缓存，避免紧接着刷新仍命中旧数据。 */
 export function invalidateUserAssetMergedPageCache(): void {
   userAssetMergedPageInflight.clear()
@@ -99,7 +102,8 @@ export async function userAssetStyleCategoryList(): Promise<UserAssetStyleCatego
       )
       const data = unwrap(res)
       return Array.isArray(data) ? data : []
-    }
+    },
+    ASSET_CATALOG_BURST_MS
   )
 }
 
@@ -166,7 +170,7 @@ export async function userAssetMergedPage(
     const list = Array.isArray(data.list) ? data.list : []
     const total = typeof data.total === 'number' ? data.total : list.length
     return { total, list }
-  })
+  }, ASSET_CATALOG_BURST_MS)
 }
 
 /** 从分类树接口响应中取出树数组（兼容 data / rows / data.tree 等结构） */
@@ -416,7 +420,8 @@ export async function userAssetOfficialList(body?: UserAssetListRequest): Promis
 /** OSS 单文件上传（multipart）/api/user/oss/upload */
 export async function ossRemoteUploadSingle(
   file: File,
-  customDir?: string
+  customDir?: string,
+  onProgress?: (percent: number) => void
 ): Promise<OssRemoteUploadResult> {
   const fd = new FormData()
   fd.append('files', file)
@@ -426,7 +431,12 @@ export async function ossRemoteUploadSingle(
     fd,
     {
       timeout: OSS_UPLOAD_TIMEOUT_MS,
-      headers: { 'Content-Type': false } as unknown as Record<string, string>
+      headers: { 'Content-Type': false } as unknown as Record<string, string>,
+      onUploadProgress: (event) => {
+        const total = Number(event.total)
+        if (!Number.isFinite(total) || total <= 0) return
+        onProgress?.(Math.min(100, Math.round((event.loaded / total) * 100)))
+      }
     }
   )
   const data = unwrap(res)

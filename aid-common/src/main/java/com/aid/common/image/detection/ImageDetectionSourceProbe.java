@@ -1,5 +1,7 @@
 package com.aid.common.image.detection;
 
+import com.aid.common.aid.image.ManagedImageIO;
+
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
@@ -133,7 +135,7 @@ public class ImageDetectionSourceProbe {
             }
             bytes = output.toByteArray();
         }
-        try (ImageInputStream image = ImageIO.createImageInputStream(new ByteArrayInputStream(bytes))) {
+        try (ImageInputStream image = ManagedImageIO.createImageInputStream(new ByteArrayInputStream(bytes))) {
             var readers = ImageIO.getImageReaders(image);
             if (!readers.hasNext()) throw invalid();
             ImageReader reader = readers.next();

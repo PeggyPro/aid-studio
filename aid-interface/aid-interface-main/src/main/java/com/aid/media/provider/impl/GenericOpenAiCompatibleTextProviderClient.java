@@ -38,6 +38,31 @@ public class GenericOpenAiCompatibleTextProviderClient implements TextProviderCl
     }
 
     @Override
+    public void validateRequest(AiModelConfigVo modelConfig, MediaTextGenerateRequest request) {
+        if (request == null) throw new IllegalArgumentException("文本请求不能为空");
+        if (modelConfig == null) throw new IllegalArgumentException("模型未配置");
+        TextOutputLimitResolver.normalize(request, modelConfig);
+        // Pure preparation: detect message/mapping/body conflicts before task creation and billing freeze.
+        prepareBody(modelConfig, request, com.aid.media.provider.TextGenerationControl.isStreaming(request));
+    }
+
+    protected final String prepareBody(AiModelConfigVo modelConfig, MediaTextGenerateRequest request, boolean stream) {
+        if (supportsToolMessages()) {
+            com.aid.tokendance.provider.text.TokenDanceToolMessages.validate(modelConfig, request);
+        }
+        String model = resolveEffectiveModel(modelConfig, request);
+        List<Map<String, Object>> messages = TextChatOpenAiPayloadBuilder.buildMessageMaps(modelConfig, request, supportsToolMessages());
+        Map<String, Object> options = OpenAiCompatiblePayloadResolver.mergeExtraBody(
+                modelConfig.getExtraBodyJson(), modelConfig.getModelExtraBodyJson(), request.getOptions());
+        options = TextReasoningOptionsResolver.resolveOpenAiCompatible(modelConfig, request, options);
+        options = normalizeProviderOptions(modelConfig, request, options);
+        options = com.aid.media.provider.StructuredOutputSupport.applyJsonModeIfSupported(modelConfig, messages, options, stream);
+        return com.aid.model.definition.ModelConfiguredRequestBody.applyJsonAfterRuntimeNormalization(modelConfig,
+                buildBody(model, messages, stream, options, request), request,
+                TextReasoningOptionsResolver.RuntimeNormalization.OPENAI_CHAT);
+    }
+
+    @Override
     public void validateProviderConfiguration(AiModelConfigVo modelConfig, MediaTextGenerateRequest request) {
         if (modelConfig == null) {
             throw com.aid.media.provider.TextFailureBillingPolicy.notSent("模型未配置");
@@ -77,29 +102,23 @@ public class GenericOpenAiCompatibleTextProviderClient implements TextProviderCl
             log.error("OpenAI 兼容流式: apiKey 为空, providerCode={}, modelCode={}",
                     modelConfig == null ? null : modelConfig.getProviderCode(),
                     modelConfig == null ? null : modelConfig.getModelCode());
-            callbacks.onError(OpenAiCompatibleConstants.ERROR_API_KEY_EMPTY,
-                    com.aid.media.provider.TextFailureBillingPolicy.notSent(
-                            OpenAiCompatibleConstants.ERROR_API_KEY_EMPTY));
+            callbacks.onFailure(com.aid.media.provider.TextFailureBillingPolicy.notSentEvidence(
+                    OpenAiCompatibleConstants.ERROR_API_KEY_EMPTY));
             return;
         }
         String model = resolveEffectiveModel(modelConfig, request);
-        List<Map<String, Object>> messages = TextChatOpenAiPayloadBuilder.buildMessageMaps(modelConfig, request, supportsToolMessages());
-        Map<String, Object> mergedOptions = OpenAiCompatiblePayloadResolver.mergeExtraBody(
-                modelConfig.getExtraBodyJson(), modelConfig.getModelExtraBodyJson(), request.getOptions());
-        mergedOptions = TextReasoningOptionsResolver.resolveOpenAiCompatible(modelConfig, request, mergedOptions);
-        mergedOptions = normalizeProviderOptions(modelConfig, request, mergedOptions);
-        // 结构化输出必须由业务显式开启，不能仅因对话中出现 JSON 字样而改变回复协议。
-        mergedOptions = com.aid.media.provider.StructuredOutputSupport
-                .applyJsonModeIfSupported(modelConfig, messages, mergedOptions);
-        String body = com.aid.model.definition.ModelConfiguredRequestBody.applyJson(modelConfig, buildBody(model, messages, true, mergedOptions, request), request);
+        String body = prepareBody(modelConfig, request, true);
         Map<String, String> extraHeaders = OpenAiCompatiblePayloadResolver.parseExtraHeaders(
                 modelConfig.getExtraHeadersJson());
-        log.info("OpenAI 兼容流式提交, providerCode={}, model={}, messagesSize={}, extraOptionsKeys={}",
-                modelConfig.getProviderCode(), model, messages.size(),
-                mergedOptions == null ? 0 : mergedOptions.size());
+        log.info("OpenAI 兼容流式提交, providerCode={}, model={}", modelConfig.getProviderCode(), model);
         OpenAiStyleChatStream.postSseStream(url, apiKey,
                 modelConfig.getAuthHeader(), modelConfig.getAuthPrefix(), extraHeaders,
                 body, callbacks, supportsToolMessages() && com.aid.tokendance.provider.text.TokenDanceToolMessages.requested(request), supportsTextCompletions());
+    }
+
+    @Override
+    public boolean supportsNativeNonStream(MediaTextGenerateRequest request) {
+        return true;
     }
 
     @Override
@@ -113,41 +132,32 @@ public class GenericOpenAiCompatibleTextProviderClient implements TextProviderCl
             log.error("OpenAI 兼容非流式: base_url 或 api_suffix 缺失, providerCode={}, modelCode={}",
                     modelConfig == null ? null : modelConfig.getProviderCode(),
                     modelConfig == null ? null : modelConfig.getModelCode());
-            return ProviderSubmitResult.builder()
-                    .rawResponse(OpenAiCompatibleConstants.ERROR_BASE_URL_EMPTY)
-                    .errorDetailJson(com.aid.media.provider.TextFailureBillingPolicy.notSentSnapshot(
-                            OpenAiCompatibleConstants.ERROR_BASE_URL_EMPTY))
-                    .build();
+            return com.aid.media.provider.TextFailureBillingPolicy.notSentEvidence(
+                    OpenAiCompatibleConstants.ERROR_BASE_URL_EMPTY).toSubmitResult();
         }
         String apiKey = modelConfig.getApiKey();
         if (StringUtils.isBlank(apiKey)) {
-            return ProviderSubmitResult.builder()
-                    .rawResponse(OpenAiCompatibleConstants.ERROR_API_KEY_EMPTY)
-                    .errorDetailJson(com.aid.media.provider.TextFailureBillingPolicy.notSentSnapshot(
-                            OpenAiCompatibleConstants.ERROR_API_KEY_EMPTY))
-                    .build();
+            return com.aid.media.provider.TextFailureBillingPolicy.notSentEvidence(
+                    OpenAiCompatibleConstants.ERROR_API_KEY_EMPTY).toSubmitResult();
         }
         String model = resolveEffectiveModel(modelConfig, request);
-        List<Map<String, Object>> messages = TextChatOpenAiPayloadBuilder.buildMessageMaps(modelConfig, request, supportsToolMessages());
-        Map<String, Object> mergedOptions = OpenAiCompatiblePayloadResolver.mergeExtraBody(
-                modelConfig.getExtraBodyJson(), modelConfig.getModelExtraBodyJson(), request.getOptions());
-        mergedOptions = TextReasoningOptionsResolver.resolveOpenAiCompatible(modelConfig, request, mergedOptions);
-        mergedOptions = normalizeProviderOptions(modelConfig, request, mergedOptions);
-        // 结构化输出必须由业务显式开启，不能仅因对话中出现 JSON 字样而改变回复协议。
-        mergedOptions = com.aid.media.provider.StructuredOutputSupport
-                .applyJsonModeIfSupported(modelConfig, messages, mergedOptions);
-        String body = com.aid.model.definition.ModelConfiguredRequestBody.applyJson(modelConfig, buildBody(model, messages, false, mergedOptions, request), request);
+        String body = prepareBody(modelConfig, request, false);
         Map<String, String> extraHeaders = OpenAiCompatiblePayloadResolver.parseExtraHeaders(
                 modelConfig.getExtraHeadersJson());
-        log.info("OpenAI 兼容非流式(NON_STREAM), providerCode={}, model={}, messagesSize={}",
-                modelConfig.getProviderCode(), model, messages.size());
+        log.info("OpenAI 兼容非流式(NON_STREAM), providerCode={}, model={}", modelConfig.getProviderCode(), model);
         return OpenAiStyleChatStream.postJsonSync(url, apiKey,
                 modelConfig.getAuthHeader(), modelConfig.getAuthPrefix(), extraHeaders, body,
                 supportsToolMessages() && com.aid.tokendance.provider.text.TokenDanceToolMessages.requested(request), supportsTextCompletions());
     }
 
     protected boolean supportsToolMessages() {
-        return false;
+        // The generic adapter speaks OpenAI Chat Completions. Keep subclasses such as FIM opt-in.
+        return OpenAiCompatibleConstants.PROTOCOL_TEXT.equalsIgnoreCase(protocol());
+    }
+
+    @Override
+    public boolean supportsNativeToolCalling() {
+        return supportsToolMessages();
     }
 
     protected boolean supportsTextCompletions() {
@@ -204,17 +214,15 @@ public class GenericOpenAiCompatibleTextProviderClient implements TextProviderCl
         if (StringUtils.isBlank(baseUrl)) {
             log.error("OpenAI 兼容{}: base_url 为空, providerCode={}",
                     isStream ? "流式" : "非流式", modelConfig == null ? null : modelConfig.getProviderCode());
-            callbacks.onError(OpenAiCompatibleConstants.ERROR_BASE_URL_EMPTY,
-                    com.aid.media.provider.TextFailureBillingPolicy.notSent(
-                            OpenAiCompatibleConstants.ERROR_BASE_URL_EMPTY));
+            callbacks.onFailure(com.aid.media.provider.TextFailureBillingPolicy.notSentEvidence(
+                    OpenAiCompatibleConstants.ERROR_BASE_URL_EMPTY));
             return null;
         }
         if (StringUtils.isBlank(apiSuffix)) {
             log.error("OpenAI 兼容{}: api_suffix 为空, modelCode={}",
                     isStream ? "流式" : "非流式", modelConfig == null ? null : modelConfig.getModelCode());
-            callbacks.onError(OpenAiCompatibleConstants.ERROR_API_SUFFIX_EMPTY,
-                    com.aid.media.provider.TextFailureBillingPolicy.notSent(
-                            OpenAiCompatibleConstants.ERROR_API_SUFFIX_EMPTY));
+            callbacks.onFailure(com.aid.media.provider.TextFailureBillingPolicy.notSentEvidence(
+                    OpenAiCompatibleConstants.ERROR_API_SUFFIX_EMPTY));
             return null;
         }
         return OpenAiCompatiblePayloadResolver.buildApiUrl(baseUrl, apiSuffix,

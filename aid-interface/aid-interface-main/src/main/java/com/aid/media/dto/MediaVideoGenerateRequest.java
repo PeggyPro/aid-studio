@@ -1,6 +1,9 @@
 package com.aid.media.dto;
 
+import com.aid.billing.dto.BillingBudgetContext;
+import com.alibaba.fastjson2.annotation.JSONField;
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;
 
 import java.util.List;
@@ -22,6 +25,11 @@ public class MediaVideoGenerateRequest {
     /** 归一化后的调用配置标识，参与请求幂等。 */
     @com.fasterxml.jackson.annotation.JsonIgnore
     private String invocationIdentity;
+
+    /** 服务端编排注入的Run预算上下文，不接受外部JSON。 */
+    @JsonIgnore
+    @JSONField(serialize = false, deserialize = false)
+    private transient BillingBudgetContext billingBudgetContext;
 
     /** 上游提交幂等键仅在任务派发内存中设置，不接受客户端传入或写入请求快照。 */
     @JsonIgnore
@@ -47,6 +55,11 @@ public class MediaVideoGenerateRequest {
 
     // 首帧/参考图 URL（可选）：用于 image-to-video 场景。
     private String imageUrl;
+
+    /** Canvas 报价使用服务端已授权资源的可信尺寸，外部请求和任务快照不携带。 */
+    @JsonIgnore
+    @JSONField(serialize = false, deserialize = false)
+    private transient Map<String, AuthorizedImageAssetSnapshot> quoteReferenceImages;
 
     // 目标时长（可选，秒）。
     private Integer durationSeconds;
@@ -91,6 +104,24 @@ public class MediaVideoGenerateRequest {
      */
     private List<Long> referenceVideoRecordIds;
 
+
+    /** Trusted Canvas workspace used to resolve registered resources; server owned. */
+    @JsonIgnore
+    private Long workspaceId;
+
+    /** Trusted Canvas resource ids; resolve through CanvasResourceService, never as client URLs. */
+    @JsonIgnore
+    private List<Long> referenceVideoResourceIds;
+
+    /** Trusted Canvas background image resource id; server owned. */
+    @JsonIgnore
+    private Long backgroundImageResourceId;
+
+    public List<Long> sourceVideoIds() {
+        return referenceVideoResourceIds != null && !referenceVideoResourceIds.isEmpty()
+                ? referenceVideoResourceIds : referenceVideoRecordIds;
+    }
+
     /**
      * 服务端解析后的可信参考视频。外部请求不能直接写入，进入媒体主链路时会按记录 ID 重新解析。
      */
@@ -125,4 +156,12 @@ public class MediaVideoGenerateRequest {
      * 确定 userId 后必须显式透传，否则媒体任务 userId 为空会导致预冻结/结算/退款全部跳过。为空时服务层回退到登录上下文。
      */
     private Long userId;
+
+    /** 内部逻辑调用幂等键；外部请求不能指定。 */
+    @JsonProperty(access = JsonProperty.Access.READ_ONLY)
+    private String callId;
+
+    /** 内部可读步骤身份，仅用于审计。 */
+    @JsonProperty(access = JsonProperty.Access.READ_ONLY)
+    private String callIdentity;
 }

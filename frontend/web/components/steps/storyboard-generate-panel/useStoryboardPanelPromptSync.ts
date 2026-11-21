@@ -207,8 +207,7 @@ export function useStoryboardPanelPromptSync(options: PromptSyncOptions) {
     syncStripImagesFromPromptRefDiff,
     syncStripAudiosFromPromptRefDiff,
     syncStripVideosFromPromptRefDiff,
-    storyboardVideoReferenceList,
-    syncStoryboardVideoPromptWithoutImageRefs
+    storyboardVideoReferenceList
   } = promptAssetSync
   function syncStoryboardPromptParamRefsInEditor() {
     if (!enablePromptParamRefsOf(propsRef.current!) || paramSettingsOpenRef.current) return
@@ -381,19 +380,15 @@ export function useStoryboardPanelPromptSync(options: PromptSyncOptions) {
     let cancelRetry: (() => void) | undefined
     const cancel = schedulePromptSync(() => {
       const p = propsRef.current!
-      if (p.mode === 'storyboardVideo') {
-        if (paramSettingsOpenRef.current || p.suppressPromptReactiveSync) return
-        syncStoryboardVideoPromptWithoutImageRefs()
-      } else {
-        // paramSettingsOpen / suppress 时函数内只推进快照，不写描述框
-        syncStoryboardPromptAssetRefsInEditor()
-        if (
-          !paramSettingsOpenRef.current &&
-          !p.suppressPromptReactiveSync &&
-          !getActivePromptEditor()
-        ) {
-          cancelRetry = schedulePromptSync(() => syncStoryboardPromptAssetRefsInEditor())
-        }
+      // 图生与宫格提示词保留资产引用；最终参考媒体由服务端按能力组装。
+      // paramSettingsOpen / suppress 时函数内只推进快照，不写描述框。
+      syncStoryboardPromptAssetRefsInEditor()
+      if (
+        !paramSettingsOpenRef.current &&
+        !p.suppressPromptReactiveSync &&
+        !getActivePromptEditor()
+      ) {
+        cancelRetry = schedulePromptSync(() => syncStoryboardPromptAssetRefsInEditor())
       }
       if (!paramSettingsOpenRef.current && !p.suppressPromptReactiveSync) {
         getActivePromptEditor()?.hydratePromptRefEmbeds()

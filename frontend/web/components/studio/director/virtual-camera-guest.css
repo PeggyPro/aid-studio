@@ -1,0 +1,308 @@
+.virtual-camera-shell {
+  position: fixed;
+  z-index: 2000;
+  inset: 0;
+  overflow: hidden;
+  overscroll-behavior: contain;
+  color: var(--studio-text);
+  background: var(--studio-theme-canvas, var(--studio-bg));
+  font-family: var(--font-sans, Arial, sans-serif);
+}
+
+.virtual-camera-console {
+  --camera-safe-top: env(safe-area-inset-top, 0px);
+  --camera-safe-right: env(safe-area-inset-right, 0px);
+  --camera-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --camera-safe-left: env(safe-area-inset-left, 0px);
+  --camera-panel: color-mix(in srgb, var(--studio-surface) 92%, transparent);
+  --camera-key: color-mix(in srgb, var(--studio-surface) 82%, var(--studio-surface-2));
+  --camera-rec: #ed5c66;
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 8px;
+  box-sizing: border-box;
+  padding: max(8px, var(--camera-safe-top)) max(10px, var(--camera-safe-right))
+    max(8px, var(--camera-safe-bottom)) max(10px, var(--camera-safe-left));
+  container-type: size;
+  background: radial-gradient(ellipse at 50% 0, var(--studio-surface-2), transparent 58%), var(--studio-bg);
+}
+
+/* Keep the workbench horizontal even when the browser keeps the viewport upright. */
+.virtual-camera-console.is-rotated {
+  --camera-safe-top: env(safe-area-inset-right, 0px);
+  --camera-safe-right: env(safe-area-inset-bottom, 0px);
+  --camera-safe-bottom: env(safe-area-inset-left, 0px);
+  --camera-safe-left: env(safe-area-inset-top, 0px);
+  inset: 50% auto auto 50%;
+  width: 100vh;
+  width: 100dvh;
+  height: 100vw;
+  height: 100dvw;
+  transform: translate(-50%, -50%) rotate(90deg);
+}
+
+.virtual-camera-topbar, .virtual-camera-brand, .virtual-camera-actions { display: flex; align-items: center; gap: 8px; }
+.virtual-camera-topbar { min-width: 0; justify-content: space-between; }
+.virtual-camera-brand { min-width: 0; white-space: nowrap; }
+.virtual-camera-brand > div { display: grid; gap: 2px; }
+.virtual-camera-brand strong { font-size: 14px; line-height: 1.2; letter-spacing: .04em; }
+.virtual-camera-brand__icon {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border: 1px solid var(--studio-border);
+  border-radius: 11px;
+  color: var(--studio-accent);
+  background: var(--camera-key);
+  font-size: 17px;
+}
+.virtual-camera-live { display: flex; align-items: center; gap: 5px; color: var(--studio-muted); font-size: 10px; letter-spacing: .06em; }
+.virtual-camera-live::before { width: 6px; height: 6px; border-radius: 50%; background: var(--studio-accent); content: ''; }
+
+.virtual-camera-tool, .virtual-camera-record, .virtual-camera-lift {
+  display: inline-flex;
+  min-width: 44px;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding-inline: 9px;
+  border: 1px solid var(--studio-border);
+  border-radius: 12px;
+  color: var(--studio-text);
+  background: var(--camera-key);
+  font-size: 13px;
+  white-space: nowrap;
+  touch-action: manipulation;
+}
+.virtual-camera-tool .anticon, .virtual-camera-lift .anticon { font-size: 17px; }
+.virtual-camera-tool[aria-pressed='true'], .virtual-camera-tool[aria-expanded='true'] {
+  border-color: var(--studio-border-strong);
+  color: var(--studio-accent);
+}
+.virtual-camera-record { min-width: 76px; padding-inline: 12px; background: var(--studio-surface); font-weight: 650; }
+.virtual-camera-record > i { width: 10px; height: 10px; border-radius: 50%; background: var(--camera-rec); }
+.virtual-camera-record > i.is-recording { border-radius: 2px; }
+.virtual-camera-console button:disabled { opacity: .48; }
+
+.virtual-camera-stage {
+  position: relative;
+  isolation: isolate;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--studio-border-strong);
+  border-radius: 16px;
+  background: #0a0d13;
+}
+.virtual-camera-viewport { position: absolute; inset: 0; }
+.virtual-camera-viewport video { display: block; width: 100%; height: 100%; object-fit: contain; }
+.virtual-camera-frame { position: absolute; inset: 11px; color: #b6c3d6; pointer-events: none; opacity: .52; }
+.virtual-camera-frame i { position: absolute; width: 15px; height: 15px; border-style: solid; border-color: currentColor; }
+.virtual-camera-frame i:nth-child(1) { top: 0; left: 0; border-width: 1px 0 0 1px; }
+.virtual-camera-frame i:nth-child(2) { top: 0; right: 0; border-width: 1px 1px 0 0; }
+.virtual-camera-frame i:nth-child(3) { right: 0; bottom: 0; border-width: 0 1px 1px 0; }
+.virtual-camera-frame i:nth-child(4) { bottom: 0; left: 0; border-width: 0 0 1px 1px; }
+
+.virtual-camera-lift-bank {
+  position: absolute;
+  z-index: 2;
+  inset: 17px 17px auto;
+  display: flex;
+  justify-content: space-between;
+  pointer-events: none;
+}
+.virtual-camera-lift { background: var(--camera-panel); pointer-events: auto; touch-action: none; }
+.virtual-camera-controls {
+  --camera-stick-size: clamp(62px, 25cqh, 116px);
+  position: absolute;
+  z-index: 2;
+  inset: auto 16px 14px;
+  display: grid;
+  grid-template-columns: var(--camera-stick-size) minmax(0, 1fr) var(--camera-stick-size);
+  align-items: end;
+  justify-items: center;
+  gap: 8px;
+  pointer-events: none;
+}
+.virtual-camera-controls::before {
+  position: absolute;
+  z-index: -1;
+  inset: -15px -16px -14px;
+  background: linear-gradient(transparent, rgba(5, 8, 14, .8));
+  content: '';
+}
+.virtual-camera-stick-group, .virtual-camera-lens { display: grid; min-width: 0; justify-items: center; gap: 5px; }
+.virtual-camera-stick, .virtual-camera-gyro-active {
+  position: relative;
+  display: grid;
+  width: var(--camera-stick-size);
+  aspect-ratio: 1;
+  place-items: center;
+  border: 1px solid var(--studio-border-strong);
+  border-radius: 50%;
+  background: radial-gradient(circle, transparent 51%, var(--studio-border) 52% 54%, transparent 55%), var(--camera-panel);
+  box-shadow: inset 0 0 0 4px var(--studio-border), 0 5px 15px rgba(0, 0, 0, .22);
+}
+.virtual-camera-stick { cursor: grab; touch-action: none; pointer-events: auto; }
+.virtual-camera-stick:active { cursor: grabbing; }
+.virtual-camera-stick::before, .virtual-camera-stick::after { position: absolute; background: var(--studio-border-strong); content: ''; pointer-events: none; }
+.virtual-camera-stick::before { inset: 50% 11% auto; height: 1px; }
+.virtual-camera-stick::after { inset: 11% auto 11% 50%; width: 1px; }
+.virtual-camera-stick__thumb {
+  position: absolute;
+  z-index: 1;
+  width: 34%;
+  aspect-ratio: 1;
+  border: 1px solid var(--studio-border-strong);
+  border-radius: 50%;
+  background: radial-gradient(circle at 36% 29%, var(--studio-surface), var(--studio-accent-soft));
+  box-shadow: 0 3px 11px rgba(0, 0, 0, .3);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+.virtual-camera-control-caption {
+  color: #d9e4f3;
+  font-size: 11px;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+.virtual-camera-control-caption b { margin-inline-start: 3px; font-variant-numeric: tabular-nums; }
+.virtual-camera-gyro-active { align-content: center; gap: 4px; color: var(--studio-text); font-size: 11px; }
+.virtual-camera-gyro-active .anticon { color: var(--studio-accent); font-size: 24px; }
+
+.virtual-camera-lens { position: relative; max-width: 100%; }
+.virtual-camera-focals {
+  display: flex;
+  max-width: 100%;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--studio-border);
+  border-radius: 12px;
+  background: var(--camera-panel);
+  pointer-events: auto;
+}
+.virtual-camera-focals > button {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 2px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  color: var(--studio-text);
+  background: transparent;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  touch-action: manipulation;
+}
+.virtual-camera-focals > button[aria-pressed='true'], .virtual-camera-focals > button[aria-expanded='true'] {
+  border-color: var(--studio-border-strong);
+  color: var(--studio-accent);
+  background: var(--studio-surface);
+  font-weight: 700;
+}
+.virtual-camera-settings, .virtual-camera-lens-adjust {
+  position: absolute;
+  z-index: 4;
+  display: grid;
+  width: min(260px, calc(100cqw - 42px));
+  gap: 8px;
+  box-sizing: border-box;
+  padding: 12px;
+  border: 1px solid var(--studio-border-strong);
+  border-radius: 13px;
+  color: var(--studio-text);
+  background: var(--studio-surface);
+  box-shadow: var(--studio-shadow);
+}
+.virtual-camera-settings { top: 10px; right: 10px; max-height: calc(100% - 20px); overflow: auto; }
+.virtual-camera-lens-adjust { bottom: calc(100% + 8px); pointer-events: auto; }
+.virtual-camera-settings label, .virtual-camera-lens-adjust label { display: block; min-width: 0; color: var(--studio-muted); font-size: 12px; }
+.virtual-camera-settings label b, .virtual-camera-lens-adjust label strong { float: right; color: var(--studio-text); font-variant-numeric: tabular-nums; }
+.virtual-camera-settings input, .virtual-camera-lens-adjust input {
+  display: block;
+  width: 100%;
+  min-height: 30px;
+  accent-color: var(--studio-accent);
+}
+.virtual-camera-settings p { margin: 0; color: var(--studio-muted); font-size: 12px; }
+.virtual-camera-lock-hint {
+  position: absolute;
+  bottom: 14px;
+  left: 50%;
+  width: max-content;
+  max-width: calc(100% - 20px);
+  padding: 8px 13px;
+  border-radius: 10px;
+  background: var(--camera-panel);
+  transform: translateX(-50%);
+}
+
+.virtual-camera-status {
+  position: absolute;
+  z-index: 8;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: var(--studio-theme-canvas, var(--studio-bg));
+}
+.virtual-camera-status__card {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  width: min(100%, 350px);
+  box-sizing: border-box;
+  padding: 17px;
+  border: 1px solid var(--studio-border);
+  border-radius: 16px;
+  background: var(--studio-surface);
+  box-shadow: var(--studio-shadow);
+  text-align: center;
+}
+.virtual-camera-status__icon {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border-radius: 11px;
+  background: var(--studio-surface-2);
+  color: var(--studio-accent);
+  font-size: 18px;
+}
+.virtual-camera-status strong { font-size: 16px; }
+.virtual-camera-status p, .virtual-camera-status small { margin: 4px 0 0; color: var(--studio-muted); font-size: 13px; line-height: 1.5; }
+.virtual-camera-status small { display: block; }
+.virtual-camera-status__actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+.virtual-camera-status .ant-btn { min-height: 44px; }
+.virtual-camera-status.is-preview { inset: auto 0 10px; background: transparent; pointer-events: none; }
+.virtual-camera-status.is-preview .virtual-camera-status__card { pointer-events: auto; }
+.virtual-camera-console:not(.is-ready) .virtual-camera-topbar { visibility: hidden; }
+.virtual-camera-shell :is(button, input, .virtual-camera-stick):focus-visible { outline: 2px solid var(--studio-accent); outline-offset: 2px; }
+.virtual-camera-shell button:active:not(:disabled) { filter: brightness(1.15); }
+
+.virtual-camera-console.is-portrait .virtual-camera-controls {
+  --camera-stick-size: clamp(75px, 25cqw, 107px);
+  grid-template-columns: repeat(2, 1fr);
+  justify-items: start;
+}
+.virtual-camera-console.is-portrait .virtual-camera-controls > :last-child { justify-self: end; }
+.virtual-camera-console.is-portrait .virtual-camera-lens { grid-area: 1 / 1 / 2 / -1; justify-self: center; }
+.virtual-camera-console.is-portrait .virtual-camera-viewport { bottom: clamp(90px, 24cqh, 150px); }
+
+@container (max-width: 540px) {
+  .virtual-camera-lift span:not(.anticon), .virtual-camera-tool__label { display: none; }
+  .virtual-camera-actions { gap: 4px; }
+  .virtual-camera-brand__icon { display: none; }
+  .virtual-camera-record { min-width: 64px; }
+  .virtual-camera-focals > button { min-width: clamp(32px, 8.8cqw, 44px); }
+  .virtual-camera-console.is-landscape .virtual-camera-controls { inset-inline: 8px; gap: 3px; }
+}
+
+@container (max-height: 300px) {
+  .virtual-camera-console.is-landscape .virtual-camera-controls { inset-block-end: 8px; }
+  .virtual-camera-lift-bank { inset: 8px 8px auto; }
+  .virtual-camera-control-caption { line-height: 1; }
+}

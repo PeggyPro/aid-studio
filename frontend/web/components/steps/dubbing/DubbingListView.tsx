@@ -1,5 +1,7 @@
 'use client'
 
+import { flowRowMotionStyle } from '~/utils/v10Motion'
+
 import { ReactSortable } from 'react-sortablejs'
 import type { SortableEvent } from 'sortablejs'
 import { Button, Input } from 'antd'
@@ -7,6 +9,7 @@ import { HolderOutlined, LoadingOutlined } from '@ant-design/icons'
 import { ShimmerVideo } from '~/components/common/ShimmerVideo'
 import type { DubbingPanel } from '~/types'
 import type { DubbingViewSharedProps } from './dubbingViewShared'
+import { DubbingVideoRequiredOverlay } from './DubbingVideoRequiredOverlay'
 
 export interface DubbingListViewProps extends DubbingViewSharedProps {
   listInteractive: boolean
@@ -87,7 +90,7 @@ export function DubbingListView({
           {panels.map((panel, index) => (
             <div
               key={panel.id}
-              className="storyboard-list-item"
+              className="storyboard-list-item" style={flowRowMotionStyle(index)}
               onMouseEnter={() => onHoverIndexChange(index)}
               onMouseLeave={() => onHoverIndexChange(null)}
             >
@@ -142,7 +145,7 @@ export function DubbingListView({
               <div className="dubbing-list-body-shell">
                 <div className="storyboard-list-body dubbing-list-body dubbing-list-body--compact">
                   <div className="storyboard-block dubbing-video-block">
-                    <div className="storyboard-block-title">
+                    <div className="storyboard-block-title" data-onboarding="dubbing-lipsync">
                       音画同步：
                     </div>
                     <div
@@ -152,7 +155,7 @@ export function DubbingListView({
                     >
                       {isDubbingBatchGenerating(index) ? (
                         <div className="dubbing-video-generating">
-                          <LoadingOutlined spin className="dubbing-video-generating-icon" />
+                          <LoadingOutlined spin className="dubbing-video-generating-icon flow-generation-spinner" />
                           <span>生成中...</span>
                         </div>
                       ) : hasVideoForIndex(index) ? (
@@ -220,22 +223,11 @@ export function DubbingListView({
                   </div>
                 </div>
                 {/* 无分镜视频时：鼠标移入铺满主体区的遮罩 */}
-                <div
-                  className={`dubbing-body-mask${
-                    !hasVideoForIndex(index) && hoverIndex === index
-                      ? ' dubbing-body-mask--visible'
-                      : ''
-                  }`}
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    goToStoryboardVideo()
-                  }}
-                >
-                  <Button type="primary" className="dubbing-mask-btn dubbing-mask-btn--list">
-                    前往视频生成
-                  </Button>
-                  <p className="dubbing-mask-tip">暂无分镜数据，添加视频后即可进行音画同步</p>
-                </div>
+                <DubbingVideoRequiredOverlay
+                  variant="list"
+                  visible={!hasVideoForIndex(index) && hoverIndex === index}
+                  onNavigate={goToStoryboardVideo}
+                />
               </div>
             </div>
           ))}

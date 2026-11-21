@@ -10,6 +10,7 @@ import {
 import type { ModelSkuCoverageReport, ModelSkuCoverageStatus } from '@/api/aid/aimanage';
 import { isSkuMainPriceConfigured, skuPriceLabel } from './billingSummary';
 
+
 interface Props {
   data: SkuEditData;
   isTokenBilling: boolean;
@@ -69,6 +70,8 @@ const SCENE_VALUES = [...GENERATE_MODE_VALUES, ...OPERATION_VALUES];
 /** 公共计费提取器会产出的常用字段；扩展字段仍无损保留，但不要求运营手写键名。 */
 const MATCH_DEFINITIONS: MatchDefinition[] = [
   { key: 'resolution', label: '分辨率/清晰度', kind: 'enum' },
+  { key: 'inputResolution', label: '源视频分辨率', kind: 'enum', options: ['360p', '720p', '1080p', '4K'] },
+  { key: 'capabilityCode', label: '调用能力', kind: 'enum', options: ['text_to_video', 'image_to_video', 'start_end_to_video', 'reference_to_video', 'video_edit', 'video_extend', 'video_enhance'] },
   { key: 'generateMode', label: '生成模式', kind: 'enum', options: GENERATE_MODE_VALUES },
   { key: 'audioMode', label: '音频模式', kind: 'enum' },
   { key: 'scene', label: '可信业务场景', kind: 'enum', options: SCENE_VALUES },
@@ -670,6 +673,31 @@ export default function SkuEditor({
                     value={sku.inputPricing?.video?.unitPrice ?? null}
                     onChange={(v) => updateSkuInputPricing(idx, { video: { ...(sku.inputPricing?.video || {}), unitPrice: v } })} />
                 </Field>
+                <div style={{ flexBasis: '100%' }}>
+                  <label>复合视频 Token 计费 <Switch size="small" aria-label={`${sku.skuCode} 复合视频 Token 计费`}
+                    checked={sku.compositeVideoTokens != null} onChange={(enabled) => updateSku(idx, {
+                      compositeVideoTokens: enabled ? { inputPricePerMillion: 0, textOutputPricePerMillion: 0,
+                        reasoningPricePerMillion: 0, videoOutputPricePerMillion: 0, videoTokensPerSecond: null,
+                        estimatedTextOutputTokens: 0, estimatedReasoningTokens: 0 } : null
+                    })} /></label>
+                  {sku.compositeVideoTokens && <>
+                    <p>仅命中当前 SKU：视频按秒预冻结，输入、正文和思考按实际 Token 分别结算。实际总输入替换参考素材估算费；用量缺失时保留估算标记。</p>
+                    <Space wrap align="end">{([
+                      ['inputPricePerMillion', '输入原价（元/百万Token）'],
+                      ['textOutputPricePerMillion', '正文输出原价（元/百万Token）'],
+                      ['reasoningPricePerMillion', '思考原价（元/百万Token）'],
+                      ['videoOutputPricePerMillion', '视频输出原价（元/百万Token）'],
+                      ['videoTokensPerSecond', '每秒视频 Token 系数（必填）'],
+                      ['estimatedTextOutputTokens', '预冻结正文 Token'],
+                      ['estimatedReasoningTokens', '预冻结思考 Token']
+                    ] as const).map(([key, label]) => <Field key={key} label={label} width={220}>
+                      <InputNumber aria-label={`${sku.skuCode} ${label}`} min={0}
+                        precision={key.startsWith('estimated') ? 0 : 8} style={{ width: '100%' }}
+                        value={sku.compositeVideoTokens?.[key] as number | null}
+                        onChange={(value) => updateSku(idx, { compositeVideoTokens: { ...sku.compositeVideoTokens!, [key]: value } })} />
+                    </Field>)}</Space>
+                  </>}
+                </div>
               </Space>
             ) : effectiveMeterType(sku) === 'PER_CHAR' ? (
               <Space wrap align="end">
@@ -806,7 +834,8 @@ function TrialCalc({ isTokenBilling, loading, result, onCalc }: { isTokenBilling
                 </div>
               )}
               <div style={{ color: '#334155', fontWeight: 500 }}>
-                计费公式：{formatAmount(snapshot.baseAmount)} 元 × {formatAmount(snapshot.globalBillingMultiplier)} 积分/元
+                计费公式：{formatAmount(snapshot.baseAmount)} 元
+                {' × '}{formatAmount(snapshot.globalBillingMultiplier)} 积分/元
                 {' × '}{formatAmount(snapshot.modelBillingMultiplier)} = {formatAmount(result.amount)} 积分
               </div>
               <div style={{ color: '#94a3b8', fontSize: 12 }}>

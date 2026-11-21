@@ -194,7 +194,8 @@ export default function FaqPanel() {
               onChange={(e) => setKeyword(e.target.value)}
               type="search"
               className="help-center-page__search-input"
-              placeholder="搜索资产…"
+              placeholder="搜索使用问题…"
+              aria-label="搜索常见问题"
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   e.preventDefault()

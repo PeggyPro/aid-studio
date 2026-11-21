@@ -171,6 +171,7 @@ export default function BillingPanel() {
                 type="search"
                 className="billing-page__search-input"
                 placeholder="搜索模型名称..."
+                aria-label="搜索计费模型"
               />
             </div>
           </div>

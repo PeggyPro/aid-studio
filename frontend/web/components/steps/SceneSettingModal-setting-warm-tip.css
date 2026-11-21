@@ -5,9 +5,9 @@
   margin: 10px 0 0;
   padding: 10px 12px;
   border-radius: 8px;
-  border: 1px solid rgba(74, 231, 253, 0.45);
-  background: rgba(74, 231, 253, 0.1);
-  color: #4ae7fd;
+  border: 1px solid var(--ui-hair, rgba(74, 231, 253, 0.45));
+  background: var(--ui-soft, rgba(74, 231, 253, 0.1));
+  color: var(--ui-brand, #4ae7fd);
   font-size: 13px;
   line-height: 1.55;
   font-weight: 500;
@@ -64,13 +64,13 @@
 }
 
 .scene-setting-history-drawer .history-item:hover {
-  border-color: var(--accent-400, #4ae7fd);
-  background: rgba(74, 231, 253, 0.08);
+  border-color: var(--accent-400, var(--ui-ring, #4ae7fd));
+  background: var(--ui-soft-hover, rgba(74, 231, 253, 0.08));
 }
 
 .scene-setting-history-drawer .history-item.active {
-  border-color: var(--accent-500, #4ae7fd);
-  background: rgba(74, 231, 253, 0.14);
+  border-color: var(--accent-500, var(--ui-ring, #4ae7fd));
+  background: var(--ui-soft, rgba(74, 231, 253, 0.14));
 }
 
 .history-header {
@@ -82,17 +82,17 @@
 
 .history-title {
   font-weight: 600;
-  color: var(--home-text, #e6edf3);
+  color: var(--home-text, var(--ui-text, #e6edf3));
 }
 
 .history-time {
   font-size: 0.875rem;
-  color: var(--home-muted, #8e97a5);
+  color: var(--home-muted, var(--ui-muted, #8e97a5));
 }
 
 .history-preview {
   font-size: 0.875rem;
-  color: var(--home-muted, #8e97a5);
+  color: var(--home-muted, var(--ui-muted, #8e97a5));
   margin-bottom: 0.75rem;
   line-height: 1.5;
 }

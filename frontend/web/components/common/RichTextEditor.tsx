@@ -175,7 +175,6 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
     const hostRef = useRef<HTMLElement | null>(null)
     const quillRef = useRef<QuillInstance | null>(null)
     const isReadyRef = useRef(false)
-    const [isInputting, setIsInputting] = useState(false)
     const [isComposing, setIsComposingState] = useState(false)
     const isComposingRef = useRef(false)
     const syncingFromPropRef = useRef(false)
@@ -405,8 +404,6 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
           isComposingRef.current = value
           setIsComposingState(value)
         },
-        setIsInputting,
-        isQuillTextEmpty,
         getPlainLen,
         getEmittedHtml,
         warnMaxLengthReached,
@@ -991,7 +988,6 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
     const rootClass = [
       'rich-text-editor',
       props.className,
-      isInputting ? 'is-inputting' : '',
       props.lockCharacterSettingKeys ? 'rich-text-editor--lock-char-keys' : ''
     ]
       .filter(Boolean)

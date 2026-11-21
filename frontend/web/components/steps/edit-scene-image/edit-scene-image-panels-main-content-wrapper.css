@@ -46,7 +46,7 @@
   gap: calc(4px * var(--create-editor-scale, 1));
   padding: 0 calc(8px * var(--create-editor-scale, 1));
   cursor: pointer;
-  background: rgba(17, 22, 33, 1);
+  background: var(--ui-surface, rgba(17, 22, 33, 1));
   width: fit-content;
   max-width: 100%;
   align-self: flex-start;
@@ -101,7 +101,7 @@
   right: calc(0.5rem * var(--create-editor-scale, 1));
   width: calc(24px * var(--create-editor-scale, 1));
   height: calc(24px * var(--create-editor-scale, 1));
-  background: rgba(0, 0, 0, 0.6);
+  background: var(--ui-bg, rgba(0, 0, 0, 0.6));
   color: white;
   border-radius: 50%;
   display: flex;

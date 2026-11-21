@@ -8,6 +8,12 @@ export function isAuthRequiredPath(path: string): boolean {
   )
 }
 
+/** 自由画布允许留在原地址展示登出状态，登录后恢复同一项目。 */
+export function isFreeCanvasLocation(path: string, search: string): boolean {
+  const normalized = (path.split('?')[0].split('#')[0] || '/').replace(/\/$/, '')
+  return normalized === '/create/studio' && new URLSearchParams(search).get('studioMode') === 'free'
+}
+
 export function isForgotPasswordPath(path: string): boolean {
   const normalized = (path.split('?')[0].split('#')[0] || '/').replace(/\/$/, '') || '/'
   return normalized === '/forgot-password' || normalized.startsWith('/forgot-password/')

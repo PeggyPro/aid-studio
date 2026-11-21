@@ -6,7 +6,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { LoginModal } from './LoginModal'
 import { closeLoginModal, useLoginModalStore } from '@/stores/loginModal'
 import { useUserStore } from '@/stores/user'
-import { isAuthRequiredPath, isForgotPasswordPath } from '~/utils/authRequiredPath'
+import { isAuthRequiredPath, isForgotPasswordPath, isFreeCanvasLocation } from '~/utils/authRequiredPath'
 import { getAidPortalRoot } from '~/utils/portalRoot'
 
 const EXIT_MS = 220
@@ -71,7 +71,7 @@ export function LoginModalHost() {
   useEffect(() => {
     if (open) return
     if (useUserStore.getState().token) return
-    if (pathname && isAuthRequiredPath(pathname)) {
+    if (pathname && isAuthRequiredPath(pathname) && !isFreeCanvasLocation(pathname, window.location.search)) {
       router.replace('/')
     }
   }, [open, pathname, router])

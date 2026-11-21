@@ -1,5 +1,5 @@
 /*
- * CreateFirstStepModal 伴随样式：由原 components/steps/CreateFirstStepModal.vue <style scoped> 平移。
+ * CreateFirstStepModal 伴随样式：由原 components/steps/CreateFirstStepModal.vue \3c style scoped> 平移。
  * scoped 等价处理：原 :global() 规则原样保留；组件内规则加 .create-first-step-wrap（弹窗 wrap）前缀，
  * :deep() 展开为普通后代选择器。
  */
@@ -23,9 +23,9 @@
   width: 1100px;
   height: 698px;
   max-height: calc(100dvh - 80px);
-  background: #191a1d;
+  background: var(--ui-surface, #191a1d);
   border-radius: 8px;
-  color: #fff;
+  color: var(--ui-text, #fff);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -37,7 +37,7 @@
   right: 24px;
   border: none;
   background: transparent;
-  color: #fff;
+  color: var(--ui-text, #fff);
   cursor: pointer;
   z-index: 2;
   font-size: 18px;
@@ -82,8 +82,8 @@
 .create-first-step-wrap .modal-body .left-panel,
 .create-first-step-wrap .modal-body .right-panel {
   height: 100%;
-  border-color: rgba(74, 231, 253, 0.3);
-  background: #111621;
+  border-color: var(--ui-hair, rgba(74, 231, 253, 0.3));
+  background: var(--ui-surface, #111621);
   border-radius: 8px;
 }
 
@@ -93,22 +93,22 @@
   gap: 12px;
   padding: 16px 24px;
   flex-shrink: 0;
-  background: #191a1d;
+  background: var(--ui-surface, #191a1d);
 }
 
 .create-first-step-wrap .btn {
   height: 40px;
   border-radius: 10px;
   padding: 0 24px;
-  border: 1px solid rgba(74, 231, 253, 0.3);
+  border: 1px solid var(--ui-hair, rgba(74, 231, 253, 0.3));
   cursor: pointer;
   font-size: 16px;
   line-height: 22px;
 }
 
 .create-first-step-wrap .btn-secondary {
-  background: #121212;
-  color: #fff;
+  background: var(--ui-bg, #121212);
+  color: var(--ui-text, #fff);
 }
 
 .create-first-step-wrap .btn-secondary.is-disabled {
@@ -122,8 +122,8 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
-  background: linear-gradient(270deg, #0e59fa 0%, #00abd8 100%);
-  color: #fff;
+  background: var(--ui-primary, linear-gradient(270deg, #0e59fa 0%, #00abd8 100%));
+  color: var(--ui-on-primary, #fff);
   border: none;
 }
 

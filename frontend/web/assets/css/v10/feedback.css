@@ -1,0 +1,71 @@
+/* V10 ui.css .gen / .spin: one feedback contract for task, bootstrap and lazy editor states. */
+html[data-aid-ui='v10'] :is(.flow-generation-spinner, .anticon-loading) {
+  --flow-spinner-ink: var(--flow-spinner-color, var(--v10-load-icon));
+  display: inline-block;
+  width: var(--flow-spinner-size, 22px);
+  height: var(--flow-spinner-size, 22px);
+  max-width: none;
+  box-sizing: border-box;
+  flex: none;
+  border: 2px solid color-mix(in srgb, var(--flow-spinner-ink) 24%, transparent);
+  border-block-start-color: var(--flow-spinner-ink);
+  border-inline-end-color: var(--flow-spinner-ink);
+  border-radius: 50%;
+  font-size: 0;
+  line-height: 0;
+  animation: v10-feedback-spin .9s linear infinite;
+}
+html[data-aid-ui='v10'] :is(.flow-generation-spinner, .anticon-loading) > svg { display: none; }
+html[data-aid-ui='v10'] :is(.flow-step-pill__loading, .scp-tab-loading, .storyboard-progress-loading, .dubbing-edit-btn-loading),
+html[data-aid-ui='v10'] button :is(.anticon-loading, .flow-generation-spinner) { --flow-spinner-size: 14px; }
+html[data-aid-ui='v10'] button :is(.anticon-loading, .flow-generation-spinner) { --flow-spinner-ink: var(--flow-spinner-color, currentColor); }
+html[data-aid-ui='v10'] .ant-spin-dot { color: var(--v10-load-icon); }
+html[data-aid-ui='v10'] .flow-step-pill--active .flow-generation-spinner { --flow-spinner-color:var(--v10-active-step-icon-text); }
+html[data-aid-ui='v10'] :is(.asset-visual-generating-block,.dubbing-video-generating) { position:relative; overflow:hidden; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; font-size:12.5px; border:0; border-radius:12px; background:var(--v10-load-surface); color:var(--v10-muted); }
+html[data-aid-ui='v10'] .video-card-generating-mask { overflow:hidden; background:var(--v10-load-surface); color:var(--v10-muted); backdrop-filter:none; }
+html[data-aid-ui='v10'] .create-step-scp .asset-visual-generating-block { min-height:220px; padding:24px 16px; }
+html[data-aid-ui='v10'] :is(.asset-visual-generating-block, .dubbing-video-generating, .video-card-generating-mask, .history-generating-mask, .history-item__task-mask, .scene-tab-generating-mask, .canvas-upscale-mask) { --flow-spinner-color: var(--v10-load-icon); }
+html[data-aid-ui='v10'] .asset-visual-generating-block__shimmer,html[data-aid-ui='v10'] .dubbing-video-generating::before,html[data-aid-ui='v10'] .video-card-generating-mask::before { content:''; position:absolute; inset:0; pointer-events:none; background:linear-gradient(100deg,transparent 30%,var(--v10-shimmer) 50%,transparent 70%); background-size:auto; transform:translateX(-100%); animation:v10-feedback-shimmer 2s var(--v10-ease) infinite; }
+html[data-aid-ui='v10'] :is(.asset-visual-generating-block__text,.video-card-generating-mask__text,.dubbing-video-generating) { position:relative; color:var(--v10-muted); }
+html[data-aid-ui='v10'] :is(.extracting-placeholder-image,.storyboard-generating-center-icon) { position:relative; z-index:1; width:200px; max-width:42vw; height:auto; }
+html[data-aid-ui='v10'] :is(.scp-asset-bootstrap-mask,.storyboard-list-bootstrap-mask) { background:var(--v10-bg); backdrop-filter:none; }
+html[data-aid-ui='v10'] .extracting-view { background:transparent; }
+html[data-aid-ui='v10'] .extracting-placeholder { display:grid; place-items:center; width:100%; min-height:100px; }
+@keyframes v10-feedback-spin { to { transform:rotate(360deg); } }
+@keyframes v10-feedback-shimmer { to { transform:translateX(100%); } }
+
+
+/* Actual custom menus are body portals; they share demo .menu / .mpop surfaces and motion. */
+html[data-aid-ui='v10'] :is(.model-select-dropdown-portal,.setting-select-panel-fixed,.agent-dropdown .options-list) { padding:6px; border:0; border-radius:12px; background:var(--v10-menu); box-shadow:0 0 0 1px var(--v10-hair),var(--v10-shadow); }
+html[data-aid-ui='v10'] :is(.model-select-dropdown .selected-model,.agent-dropdown .selected-agent,button.setting-select) { border:0; border-radius:10px; background:var(--v10-s2); color:var(--v10-text); transition:background .2s,box-shadow .2s; }
+html[data-aid-ui='v10'] :is(.model-select-dropdown .selected-model,.agent-dropdown .selected-agent,button.setting-select):hover { background:var(--v10-s3); }
+html[data-aid-ui='v10'] :is(.model-select-dropdown .selected-model.expanded,.agent-dropdown .selected-agent.expanded,button.setting-select.active) { background:var(--v10-s3); border-radius:10px; box-shadow:inset 0 0 0 1px var(--v10-ring); }
+html[data-aid-ui='v10'] :is(.model-select-dropdown-portal,.agent-dropdown .options-list):is(.dropdown-enter-active,.dropdown-leave-active),html[data-aid-ui='v10'] .setting-select-panel-fixed:is(.setting-select-fade-enter-active,.setting-select-fade-leave-active) { transition:opacity .2s,transform .3s var(--v10-spring); }
+html[data-aid-ui='v10'] :is(.model-select-dropdown-portal,.agent-dropdown .options-list):is(.dropdown-enter-from,.dropdown-leave-to),html[data-aid-ui='v10'] .setting-select-panel-fixed:is(.setting-select-fade-enter-from,.setting-select-fade-leave-to) { opacity:0; transform:translateY(-4px); }
+html[data-aid-ui='v10'] .setting-select-panel-fixed > .setting-select-panel { background:transparent; border:0; box-shadow:none; }
+html[data-aid-ui='v10'] .setting-select-grid { grid-template-columns:repeat(auto-fit,minmax(92px,1fr)); }
+html[data-aid-ui='v10'] .setting-select-option { border-color:transparent; background:var(--v10-s3); }
+html[data-aid-ui='v10'] .setting-select-option.is-selected { box-shadow:inset 0 0 0 1px var(--v10-brand); }
+@media(prefers-reduced-motion:reduce) {
+ html[data-aid-ui='v10'] .asset-visual-generating-block__shimmer,html[data-aid-ui='v10'] .dubbing-video-generating::before,html[data-aid-ui='v10'] .video-card-generating-mask::before { animation:none; opacity:0; }
+ html[data-aid-ui='v10'] :is(.model-select-dropdown-portal,.agent-dropdown .options-list,.setting-select-panel-fixed,.character-add-form .anticon,.storyboard-insert-label .anticon) { transition:none; }
+}
+
+/* Ant portals use the same demo popover movement instead of the legacy scale-Y entrance. */
+html[data-aid-ui='v10'] :is(.ant-select-dropdown,.ant-dropdown):is([class*='slide-up-enter-active'],[class*='slide-up-appear-active'],[class*='slide-down-enter-active'],[class*='slide-down-appear-active']) { animation-name:v10-menu-enter !important; animation-duration:.3s !important; animation-timing-function:var(--v10-spring) !important; animation-fill-mode:both; }
+html[data-aid-ui='v10'] :is(.ant-select-dropdown,.ant-dropdown):is([class*='slide-up-leave-active'],[class*='slide-down-leave-active']) { animation-name:v10-menu-leave !important; animation-duration:.3s !important; animation-timing-function:var(--v10-spring) !important; animation-fill-mode:both; pointer-events:none; }
+@keyframes v10-menu-enter { from { opacity:0; transform:translateY(-4px); } 66.667% { opacity:1; } to { opacity:1; transform:none; } }
+@keyframes v10-menu-leave { from { opacity:1; transform:none; } 66.667% { opacity:0; } to { opacity:0; transform:translateY(-4px); } }
+@media(prefers-reduced-motion:reduce) {
+ html[data-aid-ui='v10'] :is(.ant-select-dropdown,.ant-dropdown):is([class*='slide-up-'],[class*='slide-down-']) { animation-duration:.001s !important; }
+}
+
+html[data-aid-ui='v10'] :is(.setting-select-panel-title,.setting-select-option-label) { color:var(--v10-text); }
+html[data-aid-ui='v10'] .setting-select-option-thumb { color:var(--v10-muted); }
+html[data-aid-ui='v10'] .setting-select-option:hover { background:var(--v10-s4); }
+html[data-aid-ui='v10'] .spsm-upload-btn { border:0; background:var(--v10-s2); color:var(--v10-muted); }
+html[data-aid-ui='v10'] .spsm-upload-btn div { color:var(--v10-muted) !important; }
+html[data-aid-ui='v10'] .spsm-upload-btn:hover { background:var(--v10-s3); }
+
+html[data-aid-ui='v10'] .select-asset-image-modal .saim-footer .saim-btn-ok.ant-btn { background:var(--v10-primary) !important; color:var(--v10-on-primary) !important; opacity:1; }
+html[data-aid-ui='v10'] .select-asset-image-modal .saim-footer .saim-btn-ok.ant-btn:disabled { background:var(--v10-s3) !important; color:var(--v10-subtle) !important; }

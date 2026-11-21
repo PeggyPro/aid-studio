@@ -29,6 +29,7 @@ import com.aid.script.dto.UserScriptUploadRequest;
 import com.aid.script.helper.ScriptFileExtractor;
 import com.aid.script.helper.UserScriptContentHash;
 import com.aid.script.service.IUserScriptBusinessService;
+import com.aid.script.service.ScriptLimitsService;
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.StrUtil;
 import java.util.regex.Pattern;
@@ -64,15 +65,6 @@ public class UserScriptBusinessServiceImpl implements IUserScriptBusinessService
     private static final Set<String> ALLOWED_UPLOAD_EXTENSIONS =
             Set.of(ScriptFileExtractor.EXT_TXT);
 
-    /** 电影剧本字数上限：1 万字 */
-    private static final int MAX_WORD_MOVIE = 10000;
-
-    /** 剧集-单集（指定集数上传）字数上限：1 万字 */
-    private static final int MAX_WORD_EPISODE_SINGLE = 10000;
-
-    /** 剧集-整篇（未指定集数、待分集导入）字数上限：10 万字 */
-    private static final int MAX_WORD_SERIES = 100000;
-
     /** 上传剧本文件大小上限（字节）：10 万字 UTF-8 约 300KB，10MB 富余；超限先拒绝再解析，防超大文件整包进堆 */
     private static final long MAX_UPLOAD_FILE_BYTES = 10L * 1024L * 1024L;
     @Autowired
@@ -86,6 +78,9 @@ public class UserScriptBusinessServiceImpl implements IUserScriptBusinessService
 
     @Autowired
     private IProjectContentGuardService projectContentGuardService;
+
+    @Autowired
+    private ScriptLimitsService scriptLimitsService;
 
     /**
      * 校验项目归属并返回项目
@@ -157,12 +152,9 @@ public class UserScriptBusinessServiceImpl implements IUserScriptBusinessService
         // （上传/分集导入允许 <br> 入库，保存必须兼容，否则导入内容一经编辑即无法保存）
         assertOnlyLineBreakHtml(originalText);
         // 字数上限与上传口径一致：保存目标恒为单集/电影整篇，超限拒绝（防绕过上传限制写入超大文本）
-        int wordCount = countWord(originalText);
-        if (wordCount > MAX_WORD_EPISODE_SINGLE) {
-            log.info("剧本保存超字数, projectId={}, episodeId={}, wordCount={}, max={}",
-                    projectId, episodeId, wordCount, MAX_WORD_EPISODE_SINGLE);
-            throw new ServiceException("剧本超1万字");
-        }
+        ScriptLimitsService.Limits limits = scriptLimitsService.current();
+        ScriptLimitsService.validate(originalText, isMovie ? limits.movieMaxChars() : limits.episodeMaxChars(),
+                isMovie ? "电影剧本" : "单集剧本");
         return project;
     }
 
@@ -457,14 +449,11 @@ public class UserScriptBusinessServiceImpl implements IUserScriptBusinessService
         assertOnlyLineBreakHtml(originalText);
 
         boolean isMovie = ProjectTypeEnum.MOVIE.getValue().equals(project.getProjectType());
-        int wordCount = countWord(originalText);
+        ScriptLimitsService.Limits limits = scriptLimitsService.current();
 
         if (isMovie) {
             // 电影：整篇限制 1 万字，集数ID固定为 0
-            if (wordCount > MAX_WORD_MOVIE) {
-                log.error("剧本上传失败：电影超字数, wordCount={}, max={}", wordCount, MAX_WORD_MOVIE);
-                throw new ServiceException("剧本超1万字");
-            }
+            ScriptLimitsService.validate(originalText, limits.movieMaxChars(), "电影剧本");
             getAndCheckProject(projectId, userId, true);
             return doSaveAsNewVersion(projectId, 0L, userId, originalText, null, null);
         }
@@ -472,20 +461,13 @@ public class UserScriptBusinessServiceImpl implements IUserScriptBusinessService
         if (singleEpisode) {
             // 指定了剧集ID：按"单集上传"处理，单集限制 1 万字，直接落到该集
             checkEpisodeBelongsToProject(episodeId, projectId);
-            if (wordCount > MAX_WORD_EPISODE_SINGLE) {
-                log.error("剧本上传失败：剧集单集超字数, episodeId={}, wordCount={}, max={}",
-                        episodeId, wordCount, MAX_WORD_EPISODE_SINGLE);
-                throw new ServiceException("单集超1万字");
-            }
+            ScriptLimitsService.validate(originalText, limits.episodeMaxChars(), "单集剧本");
             getAndCheckProject(projectId, userId, true);
             return doSaveAsNewVersion(projectId, episodeId, userId, originalText, null, null);
         }
 
         // 未指定剧集ID：按"整篇导入"处理，整篇限制 10 万字
-        if (wordCount > MAX_WORD_SERIES) {
-            log.error("剧本上传失败：剧集整篇超字数, wordCount={}, max={}", wordCount, MAX_WORD_SERIES);
-            throw new ServiceException("剧本超10万");
-        }
+        ScriptLimitsService.validate(originalText, limits.seriesMaxChars(), "整篇剧本");
         // 剧集整篇导入统一走「剧本分集」链路：前端读取文件文本后调
         // /api/user/script/split/preview 预览分集，确认后调 /split/confirm 自动建集入库
         log.info("剧本上传：剧集整篇请走分集导入接口, projectId={}, userId={}", projectId, userId);
@@ -510,24 +492,6 @@ public class UserScriptBusinessServiceImpl implements IUserScriptBusinessService
             log.error("剧本上传失败：含非法 HTML 标签, contentLen={}", text.length());
             throw new ServiceException("标签格式有误");
         }
-    }
-
-    /**
-     * 统计剧本字数（中文按字计）。
-     * 剔除换行标签 {@code <br>} 与所有空白字符后按字符数计，作为字数上限的判定依据。
-     *
-     * @param text 剧本原文
-     * @return 字数
-     */
-    private int countWord(String text)
-    {
-        if (StrUtil.isBlank(text)) {
-            return 0;
-        }
-        // 去掉换行标签与全部空白（换行/空格/制表符），仅统计有效文字
-        String pure = BR_TAG_PATTERN.matcher(text).replaceAll("");
-        pure = pure.replaceAll("\\s+", "");
-        return pure.length();
     }
 
     @Override

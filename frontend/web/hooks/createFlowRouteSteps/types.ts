@@ -67,7 +67,6 @@ export interface RouteStepsCtx {
   storyboardListInFlightKey: Box<string | null>
   storyboardListLoadGeneration: Box<number>
 
-  saveDraftSubmitting: Box<boolean>
   /** 原 Nuxt useState('create-flow-step-swap-placeholder')：切步遮罩（模板占位已注释，仅保时序） */
   createStepSwapPlaceholder: Box<boolean>
 }

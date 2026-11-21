@@ -27,7 +27,7 @@ public class ComposeTrackItem {
     /** 字幕文本（SUBTITLE 类型使用） */
     private String subtitleText;
 
-    /** 背景音音量（0~1），整片 BGM 压低音量用，可空 */
+    /** 音量增益，可空；视频项表示原声音量，0 静音；配音/BGM 使用各自音量。 */
     private Double volume;
 
     /** 是否施加淡入淡出（整片 BGM 使用） */

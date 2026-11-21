@@ -49,16 +49,31 @@ public class MediaEtaService {
     private final Map<Long, CachedChildren> childCache = new ConcurrentHashMap<>();
 
     public TaskEtaVO estimateMediaTask(AidMediaTask task, Integer queuePosition) {
+        return estimateMediaTask(task, queuePosition, false);
+    }
+
+    /** Conversation projections reuse model-level statistics without loading request bodies. */
+    public TaskEtaVO estimateMediaTaskSummary(AidMediaTask task, Integer queuePosition) {
+        return estimateMediaTask(task, queuePosition, true);
+    }
+
+    private TaskEtaVO estimateMediaTask(AidMediaTask task, Integer queuePosition, boolean summary) {
         MediaEtaSettings.Snapshot cfg = settings.current();
-        if (!cfg.enabled() || task == null || !ELIGIBLE_MEDIA.contains(upper(task.getMediaType()))) {
+        if (task == null || !ELIGIBLE_MEDIA.contains(upper(task.getMediaType()))) {
             return null;
         }
         long now = System.currentTimeMillis();
         if (isTerminal(task.getStatus())) {
-            return terminal(now, 1, 1);
+            return cfg.enabled() ? terminal(now, 1, 1) : null;
         }
 
-        MediaEtaProfileResolver.Profile profile = profileResolver.resolve(task);
+        String waitReason = concurrencyLimiter.getQueueWaitReason(task);
+        if (waitReason != null) return indeterminate(now, waitReason, 1, 0, 0,
+                MediaTaskStatus.QUEUED.name().equals(task.getStatus()) ? 1 : 0);
+        // An authoritative wait state is still visible when statistical time estimates are disabled.
+        if (!cfg.enabled()) return null;
+
+        MediaEtaProfileResolver.Profile profile = summary ? profileResolver.resolveSummary(task) : profileResolver.resolve(task);
         ResolvedStats processing = resolveStats(profile, MediaEtaRecorder.PHASE_PROCESSING, cfg);
         ResolvedStats queue = resolveStats(profile, MediaEtaRecorder.PHASE_QUEUE, cfg);
         int concurrency = concurrencyLimiter.getEffectiveConcurrencyLimit(task.getUserId(), task.getModelName());
@@ -162,6 +177,16 @@ public class MediaEtaService {
             strongestSampleCount = Math.max(strongestSampleCount, fallback.sampleCount);
         }
 
+        Map<QueueGroupKey, List<AidMediaTask>> waitingGroups = children.stream()
+                .filter(child -> "QUEUED".equals(child.getStatus()) || "PENDING".equals(child.getStatus()))
+                .collect(java.util.stream.Collectors.groupingBy(
+                        child -> new QueueGroupKey(child.getUserId(), child.getModelName())));
+        for (List<AidMediaTask> waitingGroup : waitingGroups.values()) {
+            String waitReason = concurrencyLimiter.getQueueWaitReason(waitingGroup);
+            if (waitReason != null) return indeterminate(now, "CHILD_RECONCILIATION_PENDING",
+                    expectedTotal, Math.min(completed, expectedTotal), running, queued);
+        }
+
         long remainingP50 = 0L;
         long remainingP90 = 0L;
         boolean delayed = false;
@@ -209,6 +234,16 @@ public class MediaEtaService {
             displayProgress, source, Math.max(1L, remainingP50), Math.max(1L, remainingP90),
             now + startDelay * 1000L, now, confidence(strongestSampleCount, 0, cfg), strongestSampleCount,
             expectedTotal, Math.min(completed, expectedTotal), running, queued, delayed);
+    }
+
+    private record QueueGroupKey(Long userId, String modelCode) { }
+
+    private TaskEtaVO indeterminate(long now, String reason, int total, int completed,
+                                    int running, int queued) {
+        return TaskEtaVO.builder().phase("RECONCILING").progressSource("UNAVAILABLE")
+                .confidence("LOW").sampleCount(0L).calculatedAt(now)
+                .totalCount(total).completedCount(completed).runningCount(running).queuedCount(queued)
+                .delayed(true).predictionVersion("reconciliation-wait-v1").waitReasonCode(reason).build();
     }
 
     private List<AidMediaTask> loadChildren(Long parentTaskId) {

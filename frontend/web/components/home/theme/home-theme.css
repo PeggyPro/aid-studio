@@ -1,0 +1,126 @@
+/*
+ * 首页主题令牌。组件样式只消费这些变量。
+ * 两套主题消费同一组变量，首屏读取全局偏好后立即生效。
+ */
+[data-home-theme] {
+  --home-mono: "JetBrainsMono-Regular", ui-monospace, Consolas, monospace;
+  --home-ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --home-spring: cubic-bezier(0.3, 1.35, 0.5, 1);
+}
+
+[data-home-theme="graphite"],
+html.layout-home-new:has([data-home-canvas-composer]) {
+  color-scheme: dark;
+  --home-bg: #0e0f11;
+  --home-rail: #111215;
+  --home-s1: #141518;
+  --home-s2: #1a1b1f;
+  --home-s3: #222328;
+  --home-focus: #16171b;
+  --home-line: rgba(255, 255, 255, 0.065);
+  --home-line-strong: rgba(255, 255, 255, 0.11);
+  --home-text: #ecedef;
+  --home-text-2: #9a9da5;
+  --home-text-3: #62656d;
+  --home-brand: #4ae7fd;
+  --home-brand-dim: rgba(74, 231, 253, 0.14);
+  --home-inverse: #ecedef;
+  --home-on-inverse: #0e0f11;
+  --home-dot: #ffffff;
+  --home-dot-hot: #bff3fb;
+  --home-dot-grid: rgba(255, 255, 255, 0.07);
+  --home-dot-grid-soft: rgba(255, 255, 255, 0.06);
+  --home-wire: rgba(255, 255, 255, 0.2);
+  --home-wire-hot: rgba(74, 231, 253, 0.55);
+  --home-node-stroke: rgba(255, 255, 255, 0.16);
+  --home-spot-core: rgba(255, 255, 255, 0.32);
+  --home-spot-mid: rgba(74, 231, 253, 0.12);
+  --home-orbit-dim: rgba(255, 255, 255, 0.08);
+  --home-orbit-mid: rgba(255, 255, 255, 0.55);
+  --home-orbit-hot: rgba(74, 231, 253, 0.9);
+  --home-orbit-opacity: 0.75;
+  --home-shadow: rgba(0, 0, 0, 0.9);
+  --home-scrollbar: #2a2b30;
+  --home-card-line-hover: rgba(255, 255, 255, 0.18);
+  --home-hairline: rgba(255, 255, 255, 0.05);
+  --home-muted: var(--home-text-2);
+  --home-bg-solid: var(--home-bg);
+  --home-bg-gradient: none;
+}
+
+/* The root selector also covers server-rendered graphite markup before hydration. */
+[data-home-theme="paper"],
+html[data-v10-theme='paper'] :where([data-home-theme]),
+html.layout-home-new[data-v10-theme='paper']:has([data-home-canvas-composer]) {
+  color-scheme: light;
+  --home-bg: #f2f3f5;
+  --home-rail: #fafbfc;
+  --home-s1: #ffffff;
+  --home-s2: #f1f4f6;
+  --home-s3: #e8edf0;
+  --home-focus: #ffffff;
+  --home-line: rgba(37,52,65,.07);
+  --home-line-strong: rgba(37,52,65,.11);
+  --home-text: #252b31;
+  --home-text-2: #515e6a;
+  --home-text-3: #596874;
+  --home-brand: #007589;
+  --home-brand-dim: #e3f2f5;
+  --home-inverse: #252b31;
+  --home-on-inverse: #ffffff;
+  --home-dot: #aebdc8;
+  --home-dot-hot: #007589;
+  --home-dot-grid: #cbd4dc;
+  --home-dot-grid-soft: #dce3e8;
+  --home-wire: #9eafb9;
+  --home-wire-hot: #007589;
+  --home-node-stroke: #aebdc8;
+  --home-spot-core: rgba(0,126,148,.23);
+  --home-spot-mid: rgba(0,126,148,.06);
+  /* 白底上透明霓虹会发灰，流动描边直接用品牌色的实色层次 */
+  --home-orbit-dim: color-mix(in srgb, var(--home-brand) 42%, transparent);
+  --home-orbit-mid: color-mix(in srgb, var(--home-brand) 78%, transparent);
+  --home-orbit-hot: var(--home-brand);
+  --home-orbit-opacity: 1;
+  --home-shadow: rgba(30,50,68,.15);
+  --home-scrollbar: #c9d1d7;
+  --home-card-line-hover: rgba(37,52,65,.11);
+  --home-hairline: rgba(37,52,65,.08);
+  --home-muted: var(--home-text-2);
+  --home-bg-solid: var(--home-bg);
+  --home-bg-gradient: none;
+}
+
+/* Shared canvas controls also render into portals on the page or document body. */
+:where([data-home-theme], html.layout-home-new:has([data-home-canvas-composer])) {
+  --studio-ui-text: var(--home-text);
+  --studio-ui-muted: var(--home-text-2);
+  --studio-ui-faint: var(--home-text-2);
+  --studio-ui-accent: var(--home-brand);
+  --studio-ui-surface: var(--home-s1);
+  --studio-ui-panel: var(--home-s1);
+  --studio-ui-popover: var(--home-s1);
+  --studio-ui-modal: var(--home-s1);
+  --studio-ui-border: var(--home-line);
+  --studio-ui-border-strong: var(--home-line-strong);
+  --studio-ui-control: var(--home-s2);
+  --studio-ui-field: var(--home-s2);
+  --studio-ui-hover: var(--home-s3);
+  --studio-ui-selected: var(--home-s3);
+  --studio-ui-selected-ink: var(--home-text);
+  --studio-ui-row-hover: var(--home-s2);
+  --studio-ui-row-selected: var(--home-s3);
+  --studio-ui-shadow: color-mix(in srgb, var(--home-shadow) 65%, transparent);
+  --studio-ui-shine: var(--home-line-strong);
+  --studio-ui-scrollbar: var(--home-scrollbar);
+  --studio-ui-scrollbar-hover: var(--home-text-3);
+  --studio-ui-blur: 0px;
+  --studio-ui-saturation: 100%;
+}
+
+:where([data-home-theme], html.layout-home-new:has([data-home-canvas-composer]))
+  .studio-canvas-tooltip.ant-tooltip :is(.ant-tooltip-container, .ant-tooltip-inner) {
+  color: var(--studio-ui-text);
+  background: var(--studio-ui-popover);
+  box-shadow: 0 4px 16px var(--studio-ui-shadow);
+}

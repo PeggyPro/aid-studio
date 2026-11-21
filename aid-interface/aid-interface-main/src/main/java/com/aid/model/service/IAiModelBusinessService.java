@@ -29,6 +29,9 @@ public interface IAiModelBusinessService
      */
     List<AiModelVO> listAvailableModels(AiModelListRequest request);
 
+    /** Query only the fixed candidate codes; an empty scope returns no models. */
+    List<AiModelVO> listAvailableModelsByCodes(AiModelListRequest request, List<String> modelCodes);
+
     /**
      * 按功能编码查询可用模型列表。
      *

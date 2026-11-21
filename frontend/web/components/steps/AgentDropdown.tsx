@@ -1,5 +1,7 @@
 'use client'
 
+import { flowPopoverDuration } from '~/utils/v10Motion'
+
 import {
 CheckCircleFilled,
 DownOutlined,
@@ -55,7 +57,7 @@ export function AgentDropdown({ value, options, expanded, onToggle, onSelect, on
         timerRef.current = setTimeout(() => {
           timerRef.current = null
           setTransitionClass('')
-        }, DROPDOWN_DURATION_MS)
+        }, flowPopoverDuration(DROPDOWN_DURATION_MS))
       })
       return
     }
@@ -67,7 +69,7 @@ export function AgentDropdown({ value, options, expanded, onToggle, onSelect, on
       renderedRef.current = false
       setRendered(false)
       setTransitionClass('')
-    }, DROPDOWN_DURATION_MS)
+    }, flowPopoverDuration(DROPDOWN_DURATION_MS))
   }, [expanded])
 
   useEffect(() => {

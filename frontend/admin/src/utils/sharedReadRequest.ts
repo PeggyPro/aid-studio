@@ -1,7 +1,13 @@
 import { request } from './request';
 import { getToken } from './auth';
 
-const pending = new Map<string, Promise<any>>();
+interface PendingRead {
+  generation: number;
+  promise: Promise<any>;
+}
+
+const pending = new Map<string, PendingRead>();
+const queuedRefreshes = new Map<string, Promise<any>>();
 const recent = new Map<string, { expires: number; value: any }>();
 let sessionToken = getToken();
 let sessionGeneration = 0;
@@ -19,16 +25,39 @@ export function sharedReadRequest(url: string, params?: Record<string, unknown>,
   const session = sessionGeneration;
   const key = `${url}:${session}:${JSON.stringify(ordered(params || {}))}`;
   const running = pending.get(key);
-  if (running) return running;
+  if (running) {
+    // 同一代次始终共用当前请求，force 也不能绕过进行中的业务请求。
+    if (running.generation === generation) return running.promise;
+
+    // 写操作已使旧读取失效：先等待旧读取结束，再合并为唯一一次权威刷新。
+    const refreshKey = `${key}:${generation}`;
+    const queued = queuedRefreshes.get(refreshKey);
+    if (queued) return queued;
+    const refresh = running.promise
+      .catch(() => undefined)
+      .then(() => {
+        if (token !== getToken()) throw new Error('登录状态已变更，请重新加载');
+        return sharedReadRequest(url, params, true);
+      })
+      .finally(() => {
+        if (queuedRefreshes.get(refreshKey) === refresh) queuedRefreshes.delete(refreshKey);
+      });
+    queuedRefreshes.set(refreshKey, refresh);
+    return refresh;
+  }
   const cached = recent.get(key);
   if (!force && cached && cached.expires > Date.now()) return Promise.resolve(cached.value);
   for (const [oldKey, old] of recent) if (old.expires <= Date.now()) recent.delete(oldKey);
+  const entry: PendingRead = { generation, promise: Promise.resolve(undefined) };
   const promise = request({ url, method: 'get', params }).then((value) => {
     if (generation === invalidationGeneration && session === sessionGeneration && token === getToken())
       recent.set(key, { expires: Date.now() + 1000, value });
     return value;
-  }).finally(() => { pending.delete(key); });
-  pending.set(key, promise);
+  }).finally(() => {
+    if (pending.get(key) === entry) pending.delete(key);
+  });
+  entry.promise = promise;
+  pending.set(key, entry);
   return promise;
 }
 

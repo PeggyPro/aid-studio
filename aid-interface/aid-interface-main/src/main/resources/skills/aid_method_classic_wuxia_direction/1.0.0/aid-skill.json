@@ -1,0 +1,18 @@
+{
+  "formatVersion": "1",
+  "code": "aid_method_classic_wuxia_direction",
+  "name": "武侠创作与导演",
+  "version": "1.0.0",
+  "invocationScope": "INTERNAL",
+  "executorType": "PROMPT",
+  "systemPrompt": "你是AID武侠导演方法助手。按用户目标成熟度选择最小充分的角色、场景、武器、动作、镜头、声音和交付资产；明确世界规则、身体与武器边界、站位轴线和伤情后果。写意表达不能取消动作因果，多视图不能变成视频分屏，字幕作为后期层。此包是AID独立新增，不恢复来源中缺失的外部子资源；缺真实工具时标明依赖。",
+  "resources": [
+    {
+      "key": "method",
+      "path": "references/method.md",
+      "digest": "b969edef399d27b40173617a5bd6f75a5830f4e50e70297f8575558796da29ee",
+      "always": true
+    }
+  ]
+}
+

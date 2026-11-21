@@ -1,4 +1,4 @@
-/* 新版首页 / 创作流程页 共用左侧栏（大屏 80px；小分辨率见 home-new-compact-viewport.css 固定物理 px） */
+/* 首页、作品、资产库与流程共用侧栏，尺寸使用物理 px。 */
 :root {
   --home-new-sidebar-w: 80px;
 }
@@ -7,14 +7,16 @@
   width: var(--home-new-sidebar-w);
   align-self: stretch;
   min-height: 0;
-  height: auto;
+  height: 100%;
+  max-height: 100%;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
   padding: 0 0 20px;
   box-sizing: border-box;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .home-new-brand {
@@ -31,7 +33,7 @@
 .home-new-logo {
   display: block;
   width: 38px;
-  height: 38px;
+  height: auto;
 }
 
 .home-new-nav {
@@ -46,8 +48,8 @@
   flex-shrink: 0;
   width: 56px;
   height: 1px;
-  margin: 12px 0 8px;
-  background: rgba(255, 255, 255, 0.3);
+  margin: 24px 0 24px;
+  background: var(--ui-raised, rgba(255, 255, 255, 0.3));
 }
 
 .home-new-nav--secondary {
@@ -67,7 +69,7 @@
   border-radius: 10px;
   background: transparent;
   /* 文字默认灰；仅悬停 / 选中变白。图标保持白色见下方规则 */
-  color: var(--home-muted, #8e97a5);
+  color: var(--home-muted, var(--ui-muted, #8e97a5));
   font-size: 12px;
   line-height: 1.2;
   text-decoration: none;
@@ -79,19 +81,23 @@
 }
 
 .home-new-nav-item:hover {
-  color: #fff;
-  background: rgba(255, 255, 255, 0.04);
+  color: var(--ui-text, #fff);
+  background: var(--ui-soft-hover, rgba(255, 255, 255, 0.04));
 }
 
 .home-new-nav-item.is-active {
-  color: #fff;
-  background: rgba(74, 231, 253, 0.1);
+  color: var(--ui-text, #fff);
+  background: var(--ui-soft, rgba(74, 231, 253, 0.1));
 }
 
 /* 导航图标保持白色（覆盖父级灰字 currentColor） */
 .home-new-nav-item .home-new-nav-ico,
 .home-new-nav-item .sidebar-nav-hover-icon {
-  color: #fff !important;
+  color: var(--ui-text, #fff) !important;
+}
+
+.home-new-nav-item:hover .sidebar-nav-hover-icon__stroke {
+  stroke-width: 2;
 }
 
 /* 导航图标 hover 动画：描边绘制 + 局部翻起 */
@@ -137,7 +143,7 @@
   }
 }
 
-.home-new-nav-ico {
+.home-new-sidebar .home-new-nav-ico {
   display: block;
   width: 24px;
   height: 24px;
@@ -147,8 +153,6 @@
 .home-new-nav-ico-img {
   object-fit: contain;
   opacity: 1;
-  /* 教程 / 开源等位图图标统一为白色 */
-  filter: brightness(0) invert(1);
 }
 
 .home-new-sidebar-spacer {
@@ -157,48 +161,100 @@
   width: 100%;
 }
 
-/* 积分 + 头像：固定在侧栏底部 */
+/* 邀请有礼 + 积分卡 + 头像：固定在侧栏底部 */
 .home-new-sidebar-bottom {
   margin-top: auto;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
+  gap: 16px;
   width: 100%;
 }
+
+.home-new-invite-gift {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  min-height: 50px;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  cursor: pointer;
+}
+.home-new-invite-gift img { display: block; width: 60px; height: 46px; object-fit: contain; }
+.home-new-invite-gift:hover,
+.home-new-invite-gift.is-active { background: var(--v10-s2); }
 
 .home-new-user {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
+  gap: 16px;
   width: 100%;
 }
 
-.home-new-points {
+.home-new-credit-card {
   display: flex;
-  flex-direction: row;
+  flex-direction: column;
+  width: 64px;
+  min-height: 54px;
+  box-sizing: border-box;
+  overflow: hidden;
+  border: 1px solid var(--v10-ring);
+  border-radius: 9px;
+  background: var(--v10-s2);
+  color: var(--v10-text);
+}
+.home-new-credit-card__balance {
+  display: flex;
+  box-sizing: border-box;
+  flex: 1;
   align-items: center;
   justify-content: center;
   gap: 4px;
-  width: 64px;
-  min-height: 20px;
+  min-width: 0;
+  min-height: 29px;
+  padding: 3px 4px;
 }
+.home-new-credit-card__recharge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 24px;
+  padding: 3px 0;
+  border: 0;
+  border-top: 1px solid var(--v10-hair);
+  background: color-mix(in srgb, var(--v10-brand) 10%, var(--v10-s1));
+  color: var(--v10-brand);
+  font: inherit;
+  font-size: 10px;
+  font-weight: 650;
+  line-height: 1.4;
+  cursor: pointer;
+}
+.home-new-credit-card__recharge:hover {
+  background: color-mix(in srgb, var(--v10-brand) 20%, var(--v10-s1));
+}
+.home-new-credit-card__recharge:focus-visible { outline: 2px solid var(--v10-brand); outline-offset: -3px; }
+.home-new-invite-gift:focus-visible { outline: 2px solid var(--v10-brand); outline-offset: 1px; }
 
 .home-new-points-ico {
-  display: block;
-  width: 12px;
-  height: 12px;
-  flex-shrink: 0;
-  object-fit: contain;
+  flex: 0 0 10px;
+  width: 10px;
+  height: 10px;
 }
 
 .home-new-points-num {
-  font-size: 12px;
-  line-height: 1;
-  letter-spacing: 0.02em;
-  color: #4ae7fd;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 10px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  line-height: 16px;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -209,41 +265,117 @@
   cursor: pointer;
 }
 
-.home-new-avatar-frame {
+.home-new-sidebar .home-new-avatar-frame {
   display: flex;
   align-items: center;
   justify-content: center;
   width: 40px;
   height: 40px;
-  box-sizing: border-box;
-  border-radius: 10px;
-  transition: border-color 0.2s ease;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
 }
 
 .home-new-user-btn:hover .home-new-avatar-frame {
-  border-color: rgba(74, 231, 253, 0.55);
+  filter: brightness(1.08);
 }
 
-.home-new-avatar-img {
+.home-new-sidebar .home-new-avatar-img {
   display: block;
-  width: 30px;
-  height: 30px;
-  object-fit: contain;
+  width: 40px;
+  height: 40px;
+  object-fit: cover;
   border-radius: 50%;
+  background: var(--ui-bg, #121212);
 }
 
 .home-new-login {
   width: 56px;
   padding: 6px 4px;
   border-radius: 8px;
-  border: 1px solid rgba(74, 231, 253, 0.35);
+  border: 1px solid var(--ui-hair, rgba(74, 231, 253, 0.35));
   background: transparent;
-  color: #4ae7fd;
+  color: var(--ui-brand, #4ae7fd);
   font-size: 12px;
   cursor: pointer;
 }
 
 .home-new-login:hover {
-  color: #fff;
-  border-color: #4ae7fd;
+  color: var(--ui-text, #fff);
+  border-color: var(--ui-ring, #4ae7fd);
+}
+
+@media (max-width: 1600px) and (max-height: 900px) {
+  :root {
+    --home-new-sidebar-w: 68px;
+  }
+
+  .home-new-sidebar {
+    padding: 0 0 14px;
+  }
+
+  .home-new-brand {
+    margin-bottom: 10px;
+  }
+
+  .home-new-logo {
+    width: 32px;
+  }
+
+  .home-new-nav {
+    gap: 6px;
+  }
+
+  .home-new-nav-item {
+    width: 56px;
+    min-height: 46px;
+    padding: 6px 2px;
+    gap: 4px;
+    font-size: 12px;
+    border-radius: 6px;
+  }
+
+  .home-new-sidebar .home-new-nav-ico {
+    width: 20px;
+    height: 20px;
+  }
+
+  .home-new-nav-divider {
+    width: 48px;
+    margin: 10px 0 6px;
+  }
+
+  .home-new-sidebar-spacer {
+    min-height: 16px;
+  }
+
+  .home-new-sidebar-bottom {
+    gap: 12px;
+  }
+
+  .home-new-user {
+    gap: 16px;
+  }
+
+  .home-new-sidebar .home-new-avatar-frame {
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    border: none;
+    background: transparent;
+  }
+
+  .home-new-sidebar .home-new-avatar-img {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+  }
+
+  .home-new-login {
+    width: 50px;
+    padding: 4px 2px;
+    font-size: 12px;
+    border-radius: 6px;
+  }
 }

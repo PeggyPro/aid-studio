@@ -43,6 +43,12 @@ public final class TokenDancePublicMediaDownloader {
      * @return 完整且未超过上限的音频字节
      */
     public static byte[] download(String originUrl, int connectionTimeoutMs, int readTimeoutMs) {
+        return download(originUrl, connectionTimeoutMs, readTimeoutMs, MAX_AUDIO_BYTES);
+    }
+
+    /** 同一公网地址核验和固定DNS规则下，为官方大文件协议显式设置有界上限。 */
+    public static byte[] download(String originUrl, int connectionTimeoutMs, int readTimeoutMs, int maxBytes) {
+        if (maxBytes <= 0 || maxBytes > 384 * 1024 * 1024) throw new ServiceException("文件体积上限无效");
         ValidatedTarget current = requirePublicHttpTarget(originUrl);
         Set<String> visited = new HashSet<>();
         int redirectCount = 0;
@@ -58,6 +64,7 @@ public final class TokenDancePublicMediaDownloader {
                     .setRedirectsEnabled(false)
                     .build();
             HttpGet request = new HttpGet(current.uri());
+            com.aid.media.provider.TextExecutionTransportScope.attach(request::abort);
             request.setConfig(requestConfig);
             request.setHeader("Accept-Encoding", "identity");
             DnsResolver pinnedResolver = pinnedResolver(current);
@@ -89,9 +96,9 @@ public final class TokenDancePublicMediaDownloader {
                 if (entity == null) {
                     throw new ServiceException("产物下载为空");
                 }
-                rejectOversizedContentLength(entity.getContentLength());
+                if (entity.getContentLength() > maxBytes) throw new ServiceException("音频产物过大");
                 try (InputStream stream = entity.getContent()) {
-                    return readBounded(stream, MAX_AUDIO_BYTES);
+                    return readBounded(stream, maxBytes);
                 } catch (IOException ex) {
                     throw new ServiceException("产物下载失败");
                 }

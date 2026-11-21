@@ -1,4 +1,4 @@
-/* WorksLibraryPublishedAction 伴随样式：由原 components/home/WorksLibraryPublishedAction.vue <style scoped> 平移，选择器原样保留 */
+/* WorksLibraryPublishedAction 伴随样式：由原 components/home/WorksLibraryPublishedAction.vue \3c style scoped> 平移，选择器原样保留 */
 .works-lib-published-action {
   position: relative;
   display: inline-flex;
@@ -10,7 +10,7 @@
   border: 0;
   border-radius: 8px;
   background: transparent;
-  color: #4ae7fd;
+  color: var(--ui-brand, #4ae7fd);
   font-size: 13px;
   line-height: 1;
   white-space: nowrap;
@@ -23,7 +23,7 @@
 
 .works-lib-published-action:hover:not(:disabled) {
   background: transparent;
-  color: #ff4d4f;
+  color: var(--ui-danger, #ff4d4f);
 }
 
 .works-lib-published-action:disabled {
@@ -49,7 +49,7 @@
 }
 
 .works-lib-published-action__state--cancel {
-  color: #ff4d4f;
+  color: var(--ui-danger, #ff4d4f);
   opacity: 0;
   transform: translateY(3px);
 }

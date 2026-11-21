@@ -1,0 +1,90 @@
+/* Material adapters for shared portal primitives. Geometry and presence motion
+ * stay with their owning components; the palette is the only color source.
+ * The site UI attribute anchors specificity above the shared V10 portal rules. */
+:is(html[data-studio-free-theme='soft-mist'][data-aid-ui], html[data-studio-free-theme='soft-mist'], [data-studio-free-theme-scope='soft-mist'], .studio-free-theme-scope--soft-mist) :is(.studio-params-panel__group button, .studio-bench-panel button):hover:not(:disabled):not(.is-active) {
+  color: var(--studio-ui-text) !important;
+  background: var(--studio-ui-hover) !important;
+}
+:is(html[data-studio-free-theme='soft-mist'][data-aid-ui], html[data-studio-free-theme='soft-mist'], [data-studio-free-theme-scope='soft-mist'], .studio-free-theme-scope--soft-mist) .studio-model-menu__list > button.is-active strong {
+  color: var(--studio-ui-selected-ink);
+}
+:is(html[data-studio-free-theme='soft-mist'][data-aid-ui], html[data-studio-free-theme='soft-mist'], [data-studio-free-theme-scope='soft-mist'], .studio-free-theme-scope--soft-mist) :is(.studio-publication__label, .director-recording-field > span, .ant-form-item-label > label) {
+  color: var(--studio-ui-text-secondary);
+}
+:is(html[data-studio-free-theme='soft-mist'][data-aid-ui], html[data-studio-free-theme='soft-mist'], [data-studio-free-theme-scope='soft-mist'], .studio-free-theme-scope--soft-mist) :is(.director-recording-summary > span, .studio-publication__description .ant-input-data-count) {
+  color: var(--studio-ui-faint);
+}
+:is(html[data-studio-free-theme='soft-mist'][data-aid-ui], html[data-studio-free-theme='soft-mist'], [data-studio-free-theme-scope='soft-mist'], .studio-free-theme-scope--soft-mist) :is(.ant-popover, .ant-dropdown, .ant-tooltip) {
+  --studio-ui-surface: var(--studio-matte-popover);
+  --studio-ui-panel: var(--studio-matte-popover);
+  --studio-ui-control: var(--studio-matte-ctl);
+  --studio-ui-hover: var(--studio-matte-hover);
+  --studio-ui-selected: var(--studio-matte-sel);
+  --studio-ui-selected-ink: var(--studio-matte-sel-ink);
+  --studio-ui-selected-shadow: var(--studio-matte-sel-shadow);
+}
+:is(html[data-studio-free-theme='soft-mist'][data-aid-ui], html[data-studio-free-theme='soft-mist'], [data-studio-free-theme-scope='soft-mist'], .studio-free-theme-scope--soft-mist) :is(.ant-popover-container, .ant-popover-inner, .ant-dropdown-menu, .ant-tooltip-container, .ant-tooltip-inner):not(.studio-canvas-popover--content-surface *) {
+  color: var(--studio-ui-text);
+  background: var(--studio-ui-popover) !important;
+  box-shadow: var(--studio-ui-popover-shadow) !important;
+  backdrop-filter: var(--studio-ui-popover-blur);
+  -webkit-backdrop-filter: var(--studio-ui-popover-blur);
+}
+:is(html[data-studio-free-theme='soft-mist'][data-aid-ui], html[data-studio-free-theme='soft-mist'], [data-studio-free-theme-scope='soft-mist'], .studio-free-theme-scope--soft-mist) .ant-modal :is(.ant-modal-container, .ant-modal-content) {
+  color: var(--studio-ui-text) !important;
+  background: var(--studio-ui-modal) !important;
+  border-color: transparent !important;
+  box-shadow: var(--studio-ui-popover-shadow) !important;
+}
+:is(html[data-studio-free-theme='soft-mist'][data-aid-ui], html[data-studio-free-theme='soft-mist'], [data-studio-free-theme-scope='soft-mist'], .studio-free-theme-scope--soft-mist) :is(.ant-modal-header, .ant-modal-body, .ant-modal-footer) {
+  background: transparent !important;
+}
+:is(html[data-studio-free-theme='soft-mist'][data-aid-ui], html[data-studio-free-theme='soft-mist'], [data-studio-free-theme-scope='soft-mist'], .studio-free-theme-scope--soft-mist) :is(.ant-modal-root, .ant-popover) :is(.ant-input, .ant-input-affix-wrapper, .ant-input-number, .ant-select-selector) {
+  color: var(--studio-ui-text) !important;
+  background: var(--studio-ui-field) !important;
+  border-color: transparent !important;
+  box-shadow: var(--studio-ui-input-shadow) !important;
+}
+:is(html[data-studio-free-theme='soft-mist'][data-aid-ui], html[data-studio-free-theme='soft-mist'], [data-studio-free-theme-scope='soft-mist'], .studio-free-theme-scope--soft-mist) :is(.ant-modal-root, .ant-popover) .ant-input-affix-wrapper > .ant-input {
+  background: transparent !important;
+  box-shadow: none;
+}
+:is(html[data-studio-free-theme='soft-mist'][data-aid-ui], html[data-studio-free-theme='soft-mist'], [data-studio-free-theme-scope='soft-mist'], .studio-free-theme-scope--soft-mist) :is(.ant-modal-root, .ant-popover) :is(input, textarea)::placeholder {
+  color: var(--studio-ui-faint);
+}
+:is(html[data-studio-free-theme='soft-mist'][data-aid-ui], html[data-studio-free-theme='soft-mist'], [data-studio-free-theme-scope='soft-mist'], .studio-free-theme-scope--soft-mist) :is(.ant-modal-footer, .studio-publication__footer) .ant-btn-default:not(.ant-btn-dangerous) {
+  color: var(--studio-ui-text-secondary) !important;
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: inset 0 0 0 1px var(--studio-ui-ghost-border) !important;
+}
+:is(html[data-studio-free-theme='soft-mist'][data-aid-ui], html[data-studio-free-theme='soft-mist'], [data-studio-free-theme-scope='soft-mist'], .studio-free-theme-scope--soft-mist) :is(.ant-modal-footer, .studio-publication__footer) .ant-btn-default:not(.ant-btn-dangerous):hover:enabled {
+  color: var(--studio-ui-text) !important;
+  background: var(--studio-ui-hover) !important;
+}
+:is(html[data-studio-free-theme='soft-mist'][data-aid-ui], html[data-studio-free-theme='soft-mist'], [data-studio-free-theme-scope='soft-mist'], .studio-free-theme-scope--soft-mist) .ant-btn-primary:not(.ant-btn-dangerous):not(:disabled):not(.ant-btn-disabled) {
+  color: var(--studio-ui-primary-ink) !important;
+  background: var(--studio-ui-primary) !important;
+  border-color: transparent !important;
+  box-shadow: var(--studio-ui-primary-shadow) !important;
+}
+:is(html[data-studio-free-theme='soft-mist'][data-aid-ui], html[data-studio-free-theme='soft-mist'], [data-studio-free-theme-scope='soft-mist'], .studio-free-theme-scope--soft-mist) .ant-btn-primary:not(.ant-btn-dangerous):hover:enabled {
+  filter: var(--studio-theme-primary-hover-filter) !important;
+}
+:is(html[data-studio-free-theme='soft-mist'][data-aid-ui], html[data-studio-free-theme='soft-mist'], [data-studio-free-theme-scope='soft-mist'], .studio-free-theme-scope--soft-mist) .ant-checkbox:not(.ant-checkbox-disabled) {
+  background: var(--studio-ui-field);
+  border-color: transparent;
+  box-shadow: inset 0 0 0 1px var(--studio-ui-ghost-border);
+}
+:is(html[data-studio-free-theme='soft-mist'][data-aid-ui], html[data-studio-free-theme='soft-mist'], [data-studio-free-theme-scope='soft-mist'], .studio-free-theme-scope--soft-mist) .ant-checkbox-checked:not(.ant-checkbox-disabled) {
+  background: var(--studio-ui-primary) !important;
+  border-color: transparent;
+  box-shadow: none;
+}
+:is(html[data-studio-free-theme='soft-mist'][data-aid-ui], html[data-studio-free-theme='soft-mist'], [data-studio-free-theme-scope='soft-mist'], .studio-free-theme-scope--soft-mist) .ant-checkbox-checked:not(.ant-checkbox-disabled)::after {
+  border-color: var(--studio-ui-primary-ink);
+}
+
+:is(html[data-studio-free-theme='soft-mist'][data-aid-ui], html[data-studio-free-theme='soft-mist'], [data-studio-free-theme-scope='soft-mist'], .studio-free-theme-scope--soft-mist) .ant-checkbox-label {
+  color: var(--studio-ui-text-secondary);
+}

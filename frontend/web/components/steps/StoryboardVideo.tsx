@@ -1,5 +1,8 @@
 'use client'
 
+import { HomeSegmented } from '~/components/home/theme/HomeSegmented'
+import { FlowActionIcon } from '~/components/common/FlowActionIcon'
+
 /**
  * 分镜视频步骤主面板（原 components/steps/StoryboardVideo.vue，2798 行）。
  *
@@ -28,12 +31,12 @@ import {
   VideoCameraOutlined
 } from '@ant-design/icons'
 import { assetUrl } from '~/utils/assetUrl'
+import { GENERATING_CENTER_ICON_URL as generatingCenterIcon } from '~/utils/generatingCenterIcon'
 import listNorRaw from '~/assets/img/icon/list-nor.svg'
 import listSelRaw from '~/assets/img/icon/list-sel.svg'
 import cardNorRaw from '~/assets/img/icon/card-nor.svg'
 import cardSelRaw from '~/assets/img/icon/card-sel.svg'
 import emptyFjRaw from '~/assets/img/icon/empty-fj.svg'
-import { GENERATING_CENTER_ICON_URL as generatingCenterIcon } from '~/utils/generatingCenterIcon'
 import type { StoryboardVideoPanel, StoryboardPanel } from '~/types'
 import { useCreationStore } from '~/stores/creation'
 import { useRouteLike, getRouteLikeSnapshot } from '~/composables/useRouteLike'
@@ -63,6 +66,8 @@ import {
 } from '~/utils/storyboardListBootstrap'
 import { createDefaultVideoPanel } from '~/composables/useCreateFlowStoryboardSync'
 import { resolveStoryboardListDisplayTitle } from '~/utils/storyboardPanelTitle'
+import { ONBOARDING_PREPARE_ANCHOR_EVENT } from '~/utils/onboardingDom'
+import { useOnboardingPrepareFlags } from '~/utils/onboardingPrepareAnchor'
 import { formatTaskEtaText } from '~/utils/taskSseProgressText'
 import {
   resolveStoryboardDesignProgressCounts,
@@ -143,6 +148,7 @@ export function StoryboardVideo({
   const currentProjectId = useCreationStore((s) => s.currentProjectId)
   const currentEpisodeId = useCreationStore((s) => s.currentEpisodeId)
   const creationMode = useCreationStore((s) => s.formData.globalSetting?.creationMode)
+  const sbvOnboardingShowToolbar = useOnboardingPrepareFlags((s) => s.sbvOnboardingShowToolbar)
 
   const [viewMode, setViewMode] = useState<'list' | 'card'>('list')
   const [batchGenerateVideoModalOpen, setBatchGenerateVideoModalOpen] = useState(false)
@@ -432,6 +438,7 @@ export function StoryboardVideo({
       key: 'batch-video',
       label: batchVideoGenerateLabel,
       icon: VideoCameraOutlined,
+      onboardingAnchor: 'sbv-batch-video',
       disabled: !canAutoGenerateVideo || panels.length === 0 || isGeneratingVideo,
       disabledTooltip: batchVideoDisabledTooltip || undefined
     },
@@ -561,9 +568,28 @@ export function StoryboardVideo({
     if (inserted) clearInsertSlotImmediate()
   }
 
-  // 卸载时清理插入槽计时器
+  function handleOnboardingPrepareAnchor(e: Event) {
+    const anchor = (e as CustomEvent<{ anchor?: string }>).detail?.anchor
+    if (anchor === 'sbv-batch-video') {
+      setToolbarOpsOpen(true)
+      return
+    }
+    if (anchor === 'sbv-close-dropdown') {
+      setToolbarOpsOpen(false)
+    }
+  }
+
+  // 原 onMounted / onUnmounted：引导锚点事件 + 插入槽计时器清理
   useEffect(() => {
+    window.addEventListener(
+      ONBOARDING_PREPARE_ANCHOR_EVENT,
+      handleOnboardingPrepareAnchor as EventListener
+    )
     return () => {
+      window.removeEventListener(
+        ONBOARDING_PREPARE_ANCHOR_EVENT,
+        handleOnboardingPrepareAnchor as EventListener
+      )
       if (insertLeaveTimerRef.current) {
         clearTimeout(insertLeaveTimerRef.current)
         insertLeaveTimerRef.current = null
@@ -608,39 +634,14 @@ export function StoryboardVideo({
     <div
       ref={rootRef}
       className="storyboard-video create-step-storyboard-video storyboard-step"
+      data-onboarding="video-panel-list"
     >
       <div className="storyboard-toolbar">
         <div className="storyboard-toolbar-left">
-          <div className="storyboard-view-toggle">
-            <Button
-              size="small"
-              type={viewMode === 'list' ? 'primary' : 'default'}
-              onClick={() => setViewMode('list')}
-              icon={
-                <img
-                  src={viewMode === 'list' ? listSelIcon : listNorIcon}
-                  alt=""
-                  className="storyboard-view-icon"
-                />
-              }
-            >
-              列表
-            </Button>
-            <Button
-              size="small"
-              type={viewMode === 'card' ? 'primary' : 'default'}
-              onClick={() => setViewMode('card')}
-              icon={
-                <img
-                  src={viewMode === 'card' ? cardSelIcon : cardNorIcon}
-                  alt=""
-                  className="storyboard-view-icon"
-                />
-              }
-            >
-              卡片
-            </Button>
-          </div>
+          <HomeSegmented value={viewMode} onChange={setViewMode} ariaLabel="展示方式" className="flow-segmented flow-segmented--dim storyboard-view-toggle" options={[
+  {value:'list',label:<><FlowActionIcon src={viewMode === 'list' ? listSelIcon : listNorIcon} /><span>列表</span></>},
+  {value:'card',label:<><FlowActionIcon src={viewMode === 'card' ? cardSelIcon : cardNorIcon} /><span>卡片</span></>}
+]} />
           <div className="storyboard-progress">
             <span>视频完成进度：{progressText}</span>
             {isGeneratingVideo || isSyncGeneratingStoryboard ? (
@@ -660,10 +661,11 @@ export function StoryboardVideo({
           </Button>
           <Tooltip title={batchVideoDisabledTooltip}>
             <span className="storyboard-tooltip-wrap">
-              {!isGeneratingVideo ? (
+              {!isGeneratingVideo || sbvOnboardingShowToolbar ? (
                 <StoryboardToolbarOpsDropdown
                   open={toolbarOpsOpen}
                   onOpenChange={setToolbarOpsOpen}
+                  data-onboarding="btn-batch-generate"
                   items={videoToolbarOpsItems}
                   loading={batchVideoSubmitting || panelOps.batchDeleteSubmitting}
                   disabled={!canAutoGenerateVideo && panels.length === 0}
@@ -697,13 +699,13 @@ export function StoryboardVideo({
             aria-live="polite"
             aria-busy="true"
           >
-            <LoadingOutlined spin className="storyboard-list-bootstrap-mask__icon" />
+            <LoadingOutlined spin className="storyboard-list-bootstrap-mask__icon flow-generation-spinner" />
             <p className="storyboard-list-bootstrap-mask__text">正在同步分镜视频列表…</p>
           </div>
         ) : null}
         {showScriptSyncGeneratingView ? (
           <div className="storyboard-generating-view">
-            <div className="storyboard-generating-center">
+            <div className="storyboard-generating-center" role="status">
               <img src={generatingCenterIcon} alt="" className="storyboard-generating-center-icon" />
               <div className="storyboard-generating-center-title">
                 正在把剧本进行一格一格分镜拆解...

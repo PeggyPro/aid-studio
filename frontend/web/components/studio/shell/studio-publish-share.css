@@ -1,0 +1,89 @@
+.studio-topbar__icon-trigger {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  flex: 0 0 34px;
+  place-items: center;
+  padding: 0;
+  color: var(--studio-text);
+  border: 1px solid var(--studio-theme-control-border);
+  border-radius: 50%;
+  outline: none;
+  background: var(--studio-theme-control);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--studio-theme-shine) 24%, transparent);
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.studio-topbar__icon-trigger:hover,
+.studio-topbar__icon-trigger:focus-visible,
+.studio-topbar__icon-trigger[aria-expanded='true'] {
+  border-color: var(--studio-border-strong);
+  background: var(--studio-theme-control-hover);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--studio-accent) 12%, transparent);
+}
+
+.studio-publish-share {
+  width: min(344px, calc(100vw - 24px));
+  box-sizing: border-box;
+  padding: var(--studio-ui-panel-inset, 12px);
+  color: var(--studio-text);
+}
+
+.studio-publish-share h2 {
+  margin: 0 8px 4px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.studio-publish-share__action {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  padding: 7px 8px;
+  color: inherit;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.studio-publish-share__action:hover,
+.studio-publish-share__action:focus-visible {
+  background: var(--studio-ui-hover, rgba(255, 255, 255, 0.05));
+}
+
+.studio-publish-share__action:disabled {
+  cursor: progress;
+  opacity: 0.7;
+}
+
+.studio-publish-share__icon {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  flex: 0 0 32px;
+  place-items: center;
+  border-radius: var(--studio-ui-control-radius, 8px);
+  background: var(--studio-theme-control);
+  font-size: 15px;
+}
+
+.studio-publish-share__action strong,
+.studio-publish-share__action small {
+  display: block;
+}
+
+.studio-publish-share__action strong {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.studio-publish-share__action small {
+  margin-top: 1px;
+  color: var(--studio-muted);
+  font-size: 11px;
+  line-height: 1.4;
+}

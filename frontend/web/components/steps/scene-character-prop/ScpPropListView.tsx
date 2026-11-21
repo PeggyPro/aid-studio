@@ -1,5 +1,9 @@
 'use client'
 
+import { flowRowMotionStyle } from '~/utils/v10Motion'
+
+import { FlowActionIcon } from '~/components/common/FlowActionIcon'
+
 import { Button, Input, Tooltip } from 'antd'
 import { BlockOutlined, LoadingOutlined, PlusOutlined } from '@ant-design/icons'
 import { ShimmerImage } from '~/components/common/ShimmerImage'
@@ -32,12 +36,14 @@ export function ScpPropListView({ ctx }: { ctx: ScpCtx }) {
       <div className="prop-cards-container">
         {ctx.visibleManualPropsList().length > 0 ? (
           <div className="prop-cards-manual">
-            {ctx.visibleManualPropsList().map((prop) => (
+            {ctx.visibleManualPropsList().map((prop, rowIndex) => (
               <div
                 key={`manual-prop-${prop.index}`}
                 className="prop-card-wrapper"
+                style={flowRowMotionStyle(rowIndex)}
                 data-scp-asset-tab="prop"
                 data-scp-asset-index={prop.index}
+                data-scp-asset-id={ctx.propAssetIds.value[prop.index] ?? undefined}
               >
                 {/* 头部横条：和卡片同级，占满一行 */}
                 <div className="prop-card-header-bar">
@@ -149,7 +155,7 @@ export function ScpPropListView({ ctx }: { ctx: ScpCtx }) {
                                 className="asset-visual-generating-block__shimmer"
                                 aria-hidden="true"
                               />
-                              <LoadingOutlined spin className="asset-visual-generating-block__icon" />
+                              <LoadingOutlined spin className="asset-visual-generating-block__icon flow-generation-spinner" />
                               <p className="asset-visual-generating-block__text">
                                 正在生成道具形态图…
                               </p>
@@ -268,7 +274,7 @@ export function ScpPropListView({ ctx }: { ctx: ScpCtx }) {
                                     <div className="scene-card-image-footer asset-action-footer">
                                       <Button
                                         icon={
-                                          <img src={iconPreview} alt="" className="footer-action-icon" />
+                                          <FlowActionIcon src={iconPreview} className="footer-action-icon" />
                                         }
                                         onClick={() =>
                                           ctx.handlePreviewPropFormImageByIndex(
@@ -304,9 +310,8 @@ export function ScpPropListView({ ctx }: { ctx: ScpCtx }) {
                                         >
                                           <Button
                                             icon={
-                                              <img
+                                              <FlowActionIcon
                                                 src={iconAutGenerate}
-                                                alt=""
                                                 className="footer-action-icon"
                                               />
                                             }
@@ -317,9 +322,8 @@ export function ScpPropListView({ ctx }: { ctx: ScpCtx }) {
                                       ) : (
                                         <Button
                                           icon={
-                                            <img
+                                            <FlowActionIcon
                                               src={iconReplace}
-                                              alt=""
                                               className="footer-action-icon"
                                             />
                                           }
@@ -336,7 +340,7 @@ export function ScpPropListView({ ctx }: { ctx: ScpCtx }) {
                                       )}
                                       <Button
                                         icon={
-                                          <img src={iconDownload} alt="" className="footer-action-icon" />
+                                          <FlowActionIcon src={iconDownload} className="footer-action-icon" />
                                         }
                                         onClick={() =>
                                           ctx.handleDownloadPropFormImageByIndex(
@@ -377,17 +381,15 @@ export function ScpPropListView({ ctx }: { ctx: ScpCtx }) {
                                   }
                                 >
                                   <Button
-                                    type="primary"
-                                    className="asset-generate-card__action asset-generate-card__action--primary"
+                                    className="asset-generate-card__action"
                                     disabled={
                                       !ctx.canAutoGeneratePropFormImage(prop.index, formIndex) ||
                                       propFormGenerationStatus[`${prop.index}-${formIndex}`] ===
                                         'generating'
                                     }
                                   >
-                                    <img
+                                    <FlowActionIcon
                                       src={iconAutGenerate}
-                                      alt=""
                                       className="asset-generate-card__action-icon"
                                       aria-hidden="true"
                                     />
@@ -399,9 +401,8 @@ export function ScpPropListView({ ctx }: { ctx: ScpCtx }) {
                                   className="asset-generate-card__action"
                                   onClick={() => ctx.handleImportPropFormImage(prop.index, formIndex)}
                                 >
-                                  <img
+                                  <FlowActionIcon
                                     src={iconManual}
-                                    alt=""
                                     className="asset-generate-card__action-icon"
                                     aria-hidden="true"
                                   />
@@ -419,11 +420,11 @@ export function ScpPropListView({ ctx }: { ctx: ScpCtx }) {
                 {/* 新增形态按钮 */}
                 <div className="character-add-form">
                   <Button
-                    type="primary"
+                    type="default"
                     icon={<PlusOutlined />}
                     onClick={() => ctx.handleAddPropForm(prop.index)}
                   >
-                    <div className="text-gradient">新增形态</div>
+                    新增形态
                   </Button>
                 </div>
               </div>

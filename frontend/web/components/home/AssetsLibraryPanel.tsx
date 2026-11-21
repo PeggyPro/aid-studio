@@ -18,8 +18,7 @@ import {
   userAssetCustomTypeList,
   userAssetCustomUpdate
 } from '~/utils/businessApi'
-import deleteWhiteSvg from '~/assets/img/home/delete-white.svg'
-import editWhiteSvg from '~/assets/img/home/edit-white.svg'
+import { WorksCardDeleteIcon, WorksCardEditIcon } from '~/components/home/WorksCardActionIcons'
 import sceneNorSvg from '~/assets/img/icon/scene-nor.svg'
 import sceneSelSvg from '~/assets/img/icon/scene-sel.svg'
 import characterNorSvg from '~/assets/img/icon/character-nor.svg'
@@ -61,12 +60,11 @@ import { InfiniteScrollLoadFooter } from '~/components/common/InfiniteScrollLoad
 import { assetUrl } from '~/utils/assetUrl'
 import { waitInfiniteScrollAppendDelay } from '~/utils/infiniteScrollDelay'
 import { uploadImageToOssWithToast } from '~/utils/ossUpload'
+import { buildStyleLibraryCardId } from '~/hooks/usePromptDictionary'
 import { isMergedAssetUserOwned } from '~/utils/mergedAssetSource'
 import { openImagePreviewModal } from '~/utils/openImagePreviewModal'
 import './AssetsLibraryPanel.css'
 
-const deleteWhite = assetUrl(deleteWhiteSvg)
-const editWhite = assetUrl(editWhiteSvg)
 const sceneNor = assetUrl(sceneNorSvg)
 const sceneSel = assetUrl(sceneSelSvg)
 const characterNor = assetUrl(characterNorSvg)
@@ -170,6 +168,23 @@ function isUserOwnedAsset(asset: AssetItem): boolean {
   return isMergedAssetUserOwned(asset.sourceFlag)
 }
 
+/** 个人与官方、不同素材类型的数字 id 会重复，列表身份必须带上来源和类型。 */
+function assetListKey(asset: Pick<AssetItem, 'id' | 'sourceFlag' | 'type'>): string {
+  return `${buildStyleLibraryCardId(asset.sourceFlag, asset.id)}:${asset.type || ''}`
+}
+
+function uniqueAssets(items: AssetItem[]): AssetItem[] {
+  const seen = new Set<string>()
+  const unique: AssetItem[] = []
+  for (const item of items) {
+    const key = assetListKey(item)
+    if (seen.has(key)) continue
+    seen.add(key)
+    unique.push(item)
+  }
+  return unique
+}
+
 const formatDate = (dateString: string) => {
   if (!dateString) return '--'
   const date = new Date(dateString)
@@ -263,7 +278,7 @@ export function AssetsLibraryPanel() {
       if (fetchToken !== latestFetchTokenRef.current) return
       const typeNameMap = new Map<string, string>()
       for (const t of assetTypesRef.current) typeNameMap.set(t.code, t.name || t.code)
-      const mapped = list.map((row) => mapRowToAssetItem(row, typeNameMap))
+      const mapped = uniqueAssets(list.map((row) => mapRowToAssetItem(row, typeNameMap)))
       myAssetsRef.current = mapped
       setMyAssets(mapped)
       assetListPageRef.current = 1
@@ -316,10 +331,9 @@ export function AssetsLibraryPanel() {
 
       const typeNameMap = new Map<string, string>()
       for (const t of assetTypesRef.current) typeNameMap.set(t.code, t.name || t.code)
-      const existingIds = new Set(myAssetsRef.current.map((asset) => asset.id))
-      const appended = list
-        .map((row) => mapRowToAssetItem(row, typeNameMap))
-        .filter((asset) => !existingIds.has(asset.id))
+      const existingKeys = new Set(myAssetsRef.current.map((asset) => assetListKey(asset)))
+      const appended = uniqueAssets(list.map((row) => mapRowToAssetItem(row, typeNameMap)))
+        .filter((asset) => !existingKeys.has(assetListKey(asset)))
       const nextAssets = [...myAssetsRef.current, ...appended]
       myAssetsRef.current = nextAssets
       setMyAssets(nextAssets)
@@ -631,6 +645,7 @@ export function AssetsLibraryPanel() {
               type="search"
               className="works-lib-search__input"
               placeholder="搜索资产..."
+              aria-label="搜索资产"
               autoComplete="off"
             />
           </div>
@@ -650,7 +665,7 @@ export function AssetsLibraryPanel() {
           ) : null}
           {myAssets.map((asset, index) => (
             <article
-              key={asset.id}
+              key={assetListKey(asset)}
               className={`works-lib-card${
                 appendedFromIndex !== null && index >= appendedFromIndex
                   ? ' assets-lib-card--appended'
@@ -701,7 +716,7 @@ export function AssetsLibraryPanel() {
                         removeAsset(asset)
                       }}
                     >
-                      <img src={deleteWhite} alt="" />
+                      <WorksCardDeleteIcon />
                     </button>
                   ) : null}
                   {isUserOwnedAsset(asset) ? (
@@ -714,7 +729,7 @@ export function AssetsLibraryPanel() {
                         void openEditModal(asset)
                       }}
                     >
-                      <img src={editWhite} alt="" />
+                      <WorksCardEditIcon />
                     </button>
                   ) : null}
                 </div>

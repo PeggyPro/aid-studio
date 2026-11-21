@@ -93,7 +93,7 @@ public class SkillRuntimeController {
 
     @PostMapping("/run/events")
     @Operation(summary = "分页恢复 Runtime 事件",
-            description = "afterSeq 为排他游标；阶段、正文增量和模型公开的创作思路增量均按 seq 持久化并可重放")
+            description = "afterSeq 为排他游标；阶段和正文增量按 seq 恢复，模型公开的创作思路只实时传输")
     public AjaxResult events(@Valid @RequestBody SkillInvocationRequests.EventPageRequest request) {
         Long userId = SecurityUtils.getUserId();
         return AjaxResult.success(Map.of(
@@ -104,7 +104,7 @@ public class SkillRuntimeController {
     @PostMapping(value = "/run/events/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     @CryptoIgnore
     @Operation(summary = "订阅 Runtime SSE",
-            description = "先重放 afterSeq 后的持久事件，再实时推送带 seq 的 reasoning_delta、output_delta、阶段和终态")
+            description = "先重放 afterSeq 后的持久事件，再实时推送正文、阶段和终态；创作思路增量不持久化")
     public ResponseEntity<SseEmitter> stream(
             @Valid @RequestBody SkillInvocationRequests.EventPageRequest request) {
         Long userId = SecurityUtils.getUserId();

@@ -2,7 +2,12 @@ package com.aid.billing.service.impl;
 
 import java.math.BigDecimal;
 import java.util.Collections;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.Executors;
@@ -105,6 +110,9 @@ public class AccountUpdateServiceImpl implements IAccountUpdateService
      * 因此采用多线程池，单次 Redis 抖动或日志阻塞不会拖慢其他用户的续约。
      */
     private static final int LOCK_RENEW_POOL_SIZE = 4;
+    private static final int MAX_LEDGER_BATCH_TRACES = 200;
+    private static final int MAX_LEDGER_TYPES_PER_TRACE = 5;
+    private static final int MAX_LEDGER_BATCH_ROWS = MAX_LEDGER_BATCH_TRACES * MAX_LEDGER_TYPES_PER_TRACE;
 
     /**
      * 共享的 watchdog 调度池：多线程并行跑所有用户锁的续约任务。
@@ -194,6 +202,186 @@ public class AccountUpdateServiceImpl implements IAccountUpdateService
     }
 
     @Override
+    public boolean hasRefundRecord(String traceId)
+    {
+        return StrUtil.isNotBlank(traceId) && balanceLogExists(traceId, "unfreeze");
+    }
+
+    @Override
+    public boolean hasConsumeRecord(String traceId)
+    {
+        return StrUtil.isNotBlank(traceId) && balanceLogExists(traceId, "consume");
+    }
+
+    @Override
+    public WalletLedgerEvidence inspectLedger(String traceId)
+    {
+        if (StrUtil.isBlank(traceId))
+        {
+            return invalidLedgerEvidence(traceId);
+        }
+        List<AidBalanceLog> logs = aidBalanceLogService.list(
+                Wrappers.<AidBalanceLog>lambdaQuery()
+                        .eq(AidBalanceLog::getRelatedId, traceId)
+                        .select(AidBalanceLog::getUserId, AidBalanceLog::getChangeType,
+                                AidBalanceLog::getAmount, AidBalanceLog::getRelatedId,
+                                AidBalanceLog::getDelFlag)
+        );
+        return inspectLedgerRows(traceId, logs);
+    }
+
+    @Override
+    public Map<String, WalletLedgerEvidence> inspectLedgerBatch(Collection<String> traceIds)
+    {
+        if (traceIds == null || traceIds.size() > MAX_LEDGER_BATCH_TRACES
+                || traceIds.stream().anyMatch(StrUtil::isBlank))
+            throw new IllegalArgumentException("批量账本范围无效");
+        if (traceIds.isEmpty()) return Map.of();
+        LinkedHashSet<String> unique = new LinkedHashSet<>(traceIds);
+        List<AidBalanceLog> logs = aidBalanceLogService.list(
+                Wrappers.<AidBalanceLog>lambdaQuery()
+                        .in(AidBalanceLog::getRelatedId, unique)
+                        .select(AidBalanceLog::getUserId, AidBalanceLog::getChangeType,
+                                AidBalanceLog::getAmount, AidBalanceLog::getRelatedId,
+                                AidBalanceLog::getDelFlag)
+                        .last("LIMIT " + (MAX_LEDGER_BATCH_ROWS + 1)));
+        // A truncated or unscoped read must not turn omitted rows into EMPTY evidence.
+        if (logs == null || logs.size() > MAX_LEDGER_BATCH_ROWS)
+            throw new IllegalStateException("批量账本读取不完整");
+        Map<String, List<AidBalanceLog>> grouped = new LinkedHashMap<>();
+        for (String traceId : unique) grouped.put(traceId, new ArrayList<>());
+        for (AidBalanceLog row : logs)
+        {
+            if (row == null || !unique.contains(row.getRelatedId()))
+                throw new IllegalStateException("批量账本范围不一致");
+            grouped.get(row.getRelatedId()).add(row);
+        }
+        Map<String, WalletLedgerEvidence> result = new LinkedHashMap<>();
+        for (Map.Entry<String, List<AidBalanceLog>> entry : grouped.entrySet())
+            result.put(entry.getKey(), inspectLedgerRows(entry.getKey(), entry.getValue()));
+        return Collections.unmodifiableMap(result);
+    }
+
+    private WalletLedgerEvidence inspectLedgerRows(String traceId, List<AidBalanceLog> logs)
+    {
+        if (CollectionUtil.isEmpty(logs))
+        {
+            return emptyLedgerEvidence(traceId);
+        }
+
+        Long userId = null;
+        BigDecimal frozen = BigDecimal.ZERO;
+        BigDecimal consumed = BigDecimal.ZERO;
+        BigDecimal settleRefunded = BigDecimal.ZERO;
+        BigDecimal unfrozen = BigDecimal.ZERO;
+        BigDecimal settleUnfrozen = BigDecimal.ZERO;
+        java.util.Map<String, Integer> counts = new java.util.HashMap<>();
+        for (AidBalanceLog entry : logs)
+        {
+            if (entry == null || entry.getUserId() == null || entry.getAmount() == null
+                    || entry.getAmount().signum() == 0 || !Objects.equals(traceId, entry.getRelatedId())
+                    || !"0".equals(entry.getDelFlag()))
+            {
+                return invalidLedgerEvidence(traceId);
+            }
+            if (userId == null)
+            {
+                userId = entry.getUserId();
+            }
+            else if (!Objects.equals(userId, entry.getUserId()))
+            {
+                return invalidLedgerEvidence(traceId);
+            }
+            String type = entry.getChangeType();
+            if (StrUtil.isBlank(type))
+            {
+                return invalidLedgerEvidence(traceId);
+            }
+            int count = counts.merge(type, 1, Integer::sum);
+            if (count != 1)
+            {
+                return invalidLedgerEvidence(traceId);
+            }
+            BigDecimal amount = BillingConstants.normalizeAccountAmount(entry.getAmount());
+            switch (type)
+            {
+                case "freeze" -> {
+                    if (amount.signum() >= 0) return invalidLedgerEvidence(traceId);
+                    frozen = amount.abs();
+                }
+                case "consume" -> {
+                    if (amount.signum() >= 0) return invalidLedgerEvidence(traceId);
+                    consumed = amount.abs();
+                }
+                case "settle_refund" -> {
+                    if (amount.signum() <= 0) return invalidLedgerEvidence(traceId);
+                    settleRefunded = amount;
+                }
+                case "unfreeze" -> {
+                    if (amount.signum() <= 0) return invalidLedgerEvidence(traceId);
+                    unfrozen = amount;
+                }
+                case "settle_unfreeze" -> {
+                    if (amount.signum() <= 0) return invalidLedgerEvidence(traceId);
+                    settleUnfrozen = amount;
+                }
+                default -> {
+                    return invalidLedgerEvidence(traceId);
+                }
+            }
+        }
+        if (!Integer.valueOf(1).equals(counts.get("freeze")))
+        {
+            return invalidLedgerEvidence(traceId);
+        }
+        BigDecimal netConsumed = consumed.subtract(settleRefunded);
+        if (netConsumed.signum() < 0)
+        {
+            return invalidLedgerEvidence(traceId);
+        }
+        return new WalletLedgerEvidence(traceId, WalletLedgerEvidenceState.VALID, userId,
+                BillingConstants.normalizeAccountAmount(frozen),
+                BillingConstants.normalizeAccountAmount(consumed),
+                BillingConstants.normalizeAccountAmount(settleRefunded),
+                BillingConstants.normalizeAccountAmount(unfrozen),
+                BillingConstants.normalizeAccountAmount(settleUnfrozen),
+                BillingConstants.normalizeAccountAmount(netConsumed));
+    }
+
+    private WalletLedgerEvidence invalidLedgerEvidence(String traceId)
+    {
+        BigDecimal zero = BillingConstants.normalizeAccountAmount(BigDecimal.ZERO);
+        return new WalletLedgerEvidence(traceId, WalletLedgerEvidenceState.INVALID,
+                null, zero, zero, zero, zero, zero, zero);
+    }
+
+    private WalletLedgerEvidence emptyLedgerEvidence(String traceId)
+    {
+        BigDecimal zero = BillingConstants.normalizeAccountAmount(BigDecimal.ZERO);
+        return new WalletLedgerEvidence(traceId, WalletLedgerEvidenceState.EMPTY,
+                null, zero, zero, zero, zero, zero, zero);
+    }
+
+    @Override
+    public BigDecimal resolveFrozenAmount(String traceId, BigDecimal fallbackAmount)
+    {
+        List<AidBalanceLog> logs = aidBalanceLogService.list(
+                Wrappers.<AidBalanceLog>lambdaQuery()
+                        .eq(AidBalanceLog::getRelatedId, traceId)
+                        .eq(AidBalanceLog::getChangeType, "freeze")
+                        .select(AidBalanceLog::getAmount)
+        );
+        if (CollectionUtil.isEmpty(logs))
+        {
+            return BillingConstants.normalizeAccountAmount(fallbackAmount);
+        }
+        BigDecimal frozenAmount = logs.stream()
+                .map(log -> Objects.isNull(log.getAmount()) ? BigDecimal.ZERO : log.getAmount().abs())
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        return BillingConstants.normalizeAccountAmount(frozenAmount);
+    }
+
+    @Override
     public void settle(Long userId, BigDecimal amount, String traceId, String bizType, String bizName)
     {
         BigDecimal normalizedAmount = BillingConstants.normalizeAccountAmount(amount);
@@ -252,8 +440,23 @@ public class AccountUpdateServiceImpl implements IAccountUpdateService
                 // 幂等：同一 traceId + changeType 已执行则跳过
                 if (balanceLogExists(traceId, "unfreeze"))
                 {
+                    WalletLedgerEvidence prior = inspectLedger(traceId);
+                    if (prior == null || !prior.valid() || !java.util.Objects.equals(userId, prior.userId())
+                            || prior.unfrozenAmount().compareTo(normalizedAmount) != 0) {
+                        throw new ServiceException("原退回流水金额或归属不一致");
+                    }
                     log.info("退回已执行，跳过, traceId={}", traceId);
                     return;
+                }
+
+                // A stale task flag must not release another task's frozen funds after this trace settled.
+                WalletLedgerEvidence ledger = inspectLedger(traceId);
+                if (normalizedAmount.signum() > 0 && (ledger == null || !ledger.valid()
+                        || !java.util.Objects.equals(userId, ledger.userId())
+                        || ledger.frozenAmount().subtract(ledger.grossConsumedAmount())
+                        .subtract(ledger.unfrozenAmount()).subtract(ledger.settleUnfrozenAmount())
+                        .compareTo(normalizedAmount) < 0)) {
+                    throw new ServiceException("原冻结流水已结算或不一致，不能重复解冻");
                 }
 
                 AidUserProfile profile = getProfileInternal(userId);

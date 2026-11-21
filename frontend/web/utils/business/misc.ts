@@ -1,12 +1,19 @@
-/** 杂项域：官方参数词库、枚举字典、常见问题。 */
+/** 杂项域：官方参数词库、枚举字典、新手引导进度、首页 Banner、常见问题。 */
 import type {
 ApiEnvelope,
 EnumDictGroup,
 EnumDictListRequest,
+HomeBannerListRequest,
+HomeBannerVO,
 OfficialPromptCategoryItem,
 OfficialPromptItem,
 OfficialPromptItemDetailRequest,
 OfficialPromptItemListRequest,
+OnboardingProgressData,
+OnboardingProgressDismissBody,
+OnboardingProgressReportBody,
+OnboardingProgressReportResult,
+OnboardingProgressSyncBody,
 PaginatedListResult,
 UserFaqDetail,
 UserFaqDetailRequest,
@@ -22,6 +29,10 @@ stableRequestKey,
 unwrap,
 type ListBurstSlot
 } from '~/utils/business/shared'
+import { formatOnboardingClientDateTime } from '~/utils/onboardingDateTime'
+
+const userHomeBannerListInflight = new Map<string, Promise<PaginatedListResult<HomeBannerVO>>>()
+const userHomeBannerListBurst: ListBurstSlot<PaginatedListResult<HomeBannerVO>> = { current: null }
 
 /** 官方只读参数词库：分类列表 POST /api/user/prompt/official/category/list */
 export async function userPromptOfficialCategoryList(): Promise<OfficialPromptCategoryItem[]> {
@@ -113,6 +124,83 @@ export async function userDictEnumList(body: EnumDictListRequest): Promise<EnumD
     const res = await request.post<ApiEnvelope<EnumDictGroup[]>>('/api/user/dict/enum/list', body)
     const data = unwrap(res)
     return Array.isArray(data) ? data : []
+  })
+}
+
+/** 获取用户引导进度 POST /api/user/onboarding/progress/get */
+export async function userOnboardingProgressGet(): Promise<OnboardingProgressData> {
+  const res = await request.post<ApiEnvelope<OnboardingProgressData>>(
+    '/api/user/onboarding/progress/get',
+    {}
+  )
+  return (
+    res.data ?? {
+      schemaVersion: 1,
+      globalDismissed: false,
+      updatedAt: formatOnboardingClientDateTime(),
+      tours: []
+    }
+  )
+}
+
+/** 上报单条 Tour 进度 POST /api/user/onboarding/progress/report */
+export async function userOnboardingProgressReport(
+  body: OnboardingProgressReportBody
+): Promise<OnboardingProgressReportResult> {
+  const res = await request.post<ApiEnvelope<OnboardingProgressReportResult>>(
+    '/api/user/onboarding/progress/report',
+    body
+  )
+  return res.data ?? { success: true, applied: true }
+}
+
+/** 批量同步引导进度 POST /api/user/onboarding/progress/sync */
+export async function userOnboardingProgressSync(
+  body: OnboardingProgressSyncBody
+): Promise<OnboardingProgressData> {
+  const res = await request.post<ApiEnvelope<OnboardingProgressData>>(
+    '/api/user/onboarding/progress/sync',
+    body
+  )
+  return (
+    res.data ?? {
+      schemaVersion: 1,
+      globalDismissed: false,
+      updatedAt: formatOnboardingClientDateTime(),
+      tours: []
+    }
+  )
+}
+
+/** 全局关闭/恢复引导 POST /api/user/onboarding/progress/dismiss */
+export async function userOnboardingProgressDismiss(
+  body: OnboardingProgressDismissBody
+): Promise<OnboardingProgressData> {
+  const res = await request.post<ApiEnvelope<OnboardingProgressData>>(
+    '/api/user/onboarding/progress/dismiss',
+    body
+  )
+  return (
+    res.data ?? {
+      schemaVersion: 1,
+      globalDismissed: body.dismissed,
+      updatedAt: formatOnboardingClientDateTime(),
+      tours: []
+    }
+  )
+}
+
+/** 首页 Banner 列表：POST /api/user/home/banner/list */
+export async function userHomeBannerList(
+  body: HomeBannerListRequest = {}
+): Promise<PaginatedListResult<HomeBannerVO>> {
+  const pageNum = body.pageNum ?? 1
+  const pageSize = body.pageSize ?? 10
+  const reqBody = { ...body, pageNum, pageSize }
+  const key = stableRequestKey(reqBody)
+  return runListDedupe(key, userHomeBannerListInflight, userHomeBannerListBurst, async () => {
+    const res = await request.post('/api/user/home/banner/list', reqBody)
+    return extractPaginatedResponse<HomeBannerVO>(res, pageNum, pageSize)
   })
 }
 

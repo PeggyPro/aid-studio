@@ -2500,6 +2500,8 @@ assemble_package() {
     deploy/aid-updater.config.example.json \
     deploy/aid-updater.service \
     deploy/install-updater.sh \
+    tools/maintenance/normalize_skill_identities.py \
+    tools/maintenance/skill_identities.json \
     sql/aid-init.sql; do
     copy_installer_file "$file"
   done

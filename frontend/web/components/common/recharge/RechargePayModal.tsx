@@ -6,6 +6,7 @@ import { assetUrl } from '~/utils/assetUrl'
 /** 扫码弹窗：微信（资源文件名为 wx-icon.svg，与稿 we-icon 对应） */
 import iconWxPay from '~/assets/img/icon/wx-icon.svg'
 import iconZfg from '~/assets/img/icon/zfg-icon.svg'
+import { RechargeAmount, RechargeTitle, rechargeModalClasses } from './RechargePresentation'
 
 /** 第二步扫码支付弹窗蒙层毛玻璃（第一步充值中心不加） */
 const rechargePayModalMaskStyle: CSSProperties = {
@@ -25,8 +26,6 @@ export interface RechargePayModalProps {
   amountText: string
   /** 商品内容 Credits 文案 */
   creditsDisplay: string
-  /** 商品单价文案 */
-  unitPrice: string
   qrImageSrc: string
   showRefreshQrButton: boolean
   creatingOrder: boolean
@@ -34,7 +33,7 @@ export interface RechargePayModalProps {
   onClose: () => void
 }
 
-/** 第二步：扫码支付（无标题栏，金额摘要 + 支付方式图标 + 二维码） */
+/** 第二步：查看订单金额并扫码支付。 */
 export function RechargePayModal({
   open,
   payType,
@@ -44,7 +43,6 @@ export function RechargePayModal({
   anyPaymentEnabled,
   amountText,
   creditsDisplay,
-  unitPrice,
   qrImageSrc,
   showRefreshQrButton,
   creatingOrder,
@@ -54,12 +52,12 @@ export function RechargePayModal({
   return (
     <Modal
       open={open}
-      width={520}
+      width={464}
       footer={null}
-      title={null}
-      closable={false}
+      title={<RechargeTitle payment />}
       centered
-      className="recharge-modal recharge-modal-branded recharge-pay-modal"
+      className="recharge-modal recharge-pay-modal"
+      classNames={rechargeModalClasses}
       wrapClassName="recharge-modal-wrap recharge-pay-modal-wrap"
       styles={{ mask: rechargePayModalMaskStyle }}
       zIndex={1100}
@@ -67,36 +65,21 @@ export function RechargePayModal({
       onCancel={onClose}
     >
       <div className="recharge-pay-modal__body">
-        <button
-          type="button"
-          className="recharge-pay-modal__close"
-          aria-label="关闭"
-          onClick={onClose}
-        >
-          <span aria-hidden="true">×</span>
-        </button>
-
         <div className="recharge-pay-modal__summary">
-          <div className="recharge-pay-modal__summary-amount">
-            <span className="recharge-pay-modal__summary-label">支付金额：¥</span>
-            <span className="recharge-pay-modal__summary-num">{amountText}</span>
-            <span className="recharge-pay-modal__summary-yuan">元</span>
-          </div>
-          <ul className="recharge-pay-modal__summary-list">
-            <li>· 商品内容：{creditsDisplay} Credits</li>
-            <li>· 商品数量：1个</li>
-            <li>· 商品单价：¥{unitPrice}</li>
-          </ul>
+          <span className="recharge-pay-modal__summary-label">应付金额</span>
+          <RechargeAmount value={amountText} />
+          <span className="recharge-pay-modal__credits">充值 <strong>{creditsDisplay}</strong> 积分</span>
         </div>
 
         <div className="recharge-pay-modal__pay-row">
           <span className="recharge-pay-modal__pay-label">支付方式</span>
           {anyPaymentEnabled ? (
-            <div className="recharge-pay-modal__methods">
+            <div className="recharge-pay-modal__methods" role="group" aria-label="支付方式">
               {alipayEnabled && (
                 <button
                   type="button"
-                  className={`recharge-pay-method${payType === 'alipay' ? ' recharge-pay-method--active' : ''}`}
+                  className="recharge-pay-method"
+                  aria-pressed={payType === 'alipay'}
                   onClick={() => onPayTypeChange('alipay')}
                 >
                   <img
@@ -112,7 +95,8 @@ export function RechargePayModal({
               {wxpayEnabled && (
                 <button
                   type="button"
-                  className={`recharge-pay-method${payType === 'wxpay' ? ' recharge-pay-method--active' : ''}`}
+                  className="recharge-pay-method"
+                  aria-pressed={payType === 'wxpay'}
                   onClick={() => onPayTypeChange('wxpay')}
                 >
                   <img
@@ -140,7 +124,7 @@ export function RechargePayModal({
         <div
           className={`recharge-modal__qr-wrap recharge-modal__qr-wrap--pay${showRefreshQrButton ? ' recharge-modal__qr-wrap--expired' : ''}`}
         >
-          {qrImageSrc ? (
+          {qrImageSrc && !creatingOrder ? (
             <>
               <img src={qrImageSrc} alt="支付二维码" className="recharge-modal__qr" />
               <div className="recharge-modal__scan-line" aria-hidden="true" />

@@ -1,0 +1,46 @@
+.assistant-admin {
+  .ant-tabs-nav {
+    margin-bottom: 14px;
+  }
+
+  &__panel,
+  &__drawer-body {
+    display: flex;
+    width: 100%;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .ant-form-inline {
+    row-gap: 12px;
+  }
+
+  .ant-form-inline .ant-form-item {
+    margin-inline-end: 12px;
+  }
+
+  .ant-table-cell .ant-typography {
+    overflow-wrap: anywhere;
+  }
+
+  &__prompt-view {
+    max-height: 480px;
+    overflow: auto;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    padding: 14px;
+    border: 1px solid var(--ant-color-border-secondary);
+    border-radius: 8px;
+    background: var(--ant-color-fill-quaternary);
+  }
+
+  @media (max-width: 768px) {
+    .ant-form-inline .ant-form-item,
+    .ant-form-inline .ant-form-item-control,
+    .ant-form-inline .ant-form-item-control-input,
+    .ant-form-inline .ant-form-item-control-input-content {
+      width: 100%;
+      margin-inline-end: 0;
+    }
+  }
+}

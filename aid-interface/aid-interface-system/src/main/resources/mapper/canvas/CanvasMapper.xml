@@ -1,0 +1,681 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.aid.canvas.mapper.CanvasMapper">
+
+    <!-- DATETIME 的驱动默认映射为 LocalDateTime；租约校验统一使用 JDBC 时间戳转 Date。 -->
+    <resultMap id="assistantRuntimeScope" type="java.util.LinkedHashMap" autoMapping="true">
+        <result property="leaseUntil" column="leaseUntil" javaType="java.util.Date" jdbcType="TIMESTAMP" />
+        <result property="stopRequested" column="stopRequested" javaType="java.lang.Boolean" jdbcType="TINYINT" />
+    </resultMap>
+
+    <insert id="reserveProjectRequest">
+        INSERT IGNORE INTO aid_canvas_project_request(user_id, operation_id, request_hash, project_id, create_time)
+        VALUES(#{userId}, #{operationId}, #{requestHash}, 0, NOW())
+    </insert>
+    <update id="completeProjectRequest">
+        UPDATE aid_canvas_project_request SET project_id=#{projectId}
+        WHERE user_id=#{userId} AND operation_id=#{operationId} AND project_id=0
+    </update>
+    <select id="selectProjectRequest" resultType="java.lang.Long">
+        SELECT project_id FROM aid_canvas_project_request WHERE user_id=#{userId} AND operation_id=#{operationId}
+    </select>
+    <select id="selectProjectRequestHash" resultType="java.lang.String">
+        SELECT request_hash FROM aid_canvas_project_request WHERE user_id=#{userId} AND operation_id=#{operationId}
+    </select>
+    <insert id="lockCanvasOwnerQuota">
+        INSERT INTO aid_canvas_owner_quota(user_id, create_time, update_time) VALUES(#{userId},NOW(),NOW())
+        ON DUPLICATE KEY UPDATE update_time=update_time
+    </insert>
+    <select id="countOwnedCanvasProjects" resultType="int">
+        SELECT COUNT(*) FROM aid_comic_project
+        WHERE user_id=#{userId} AND project_type='canvas' AND del_flag='0'
+    </select>
+    <select id="selectCanvasProject" resultType="com.aid.aid.domain.AidComicProject">
+        SELECT * FROM aid_comic_project WHERE id=#{projectId} AND project_type='canvas' AND del_flag='0'
+    </select>
+    <select id="selectAccessibleCanvasProject" resultType="com.aid.aid.domain.AidComicProject">
+        SELECT p.* FROM aid_comic_project p
+        LEFT JOIN aid_project_member m ON m.project_id=p.id AND m.user_id=#{userId} AND m.status='ACTIVE'
+        WHERE p.id=#{projectId} AND p.project_type='canvas' AND p.del_flag='0'
+          AND (p.user_id=#{userId} OR m.id IS NOT NULL) LIMIT 1
+    </select>
+    <select id="selectUserProjects" resultType="java.util.LinkedHashMap">
+        SELECT p.id AS projectId,p.project_name AS projectName,p.project_desc AS projectDesc,p.cover_url AS coverUrl,
+               p.user_id AS ownerUserId,CASE WHEN p.user_id=#{userId} THEN 'OWNER' ELSE m.role_code END AS roleCode,
+               p.status,w.id AS workspaceId,w.revision,w.event_seq AS eventSeq,w.node_count AS nodeCount,
+               w.edge_count AS edgeCount,w.group_count AS groupCount,p.update_time AS updateTime
+        FROM aid_comic_project p
+        LEFT JOIN aid_project_member m ON m.project_id=p.id AND m.user_id=#{userId} AND m.status='ACTIVE'
+        LEFT JOIN aid_canvas_workspace w ON w.project_id=p.id AND w.del_flag='0'
+        WHERE p.project_type='canvas' AND p.del_flag='0' AND (p.user_id=#{userId} OR m.id IS NOT NULL)
+        <if test="projectName != null and projectName != ''">AND p.project_name LIKE CONCAT('%',#{projectName},'%')</if>
+        ORDER BY
+        <choose>
+            <when test="sortBy == 'CREATED_AT'">p.create_time</when>
+            <when test="sortBy == 'NAME'">p.project_name</when>
+            <otherwise>p.update_time</otherwise>
+        </choose>
+        <choose><when test="sortDirection == 'ASC'">ASC</when><otherwise>DESC</otherwise></choose>,p.id DESC
+        LIMIT #{offset},#{limit}
+    </select>
+    <select id="countUserProjects" resultType="long">
+        SELECT COUNT(DISTINCT p.id) FROM aid_comic_project p
+        LEFT JOIN aid_project_member m ON m.project_id=p.id AND m.user_id=#{userId} AND m.status='ACTIVE'
+        WHERE p.project_type='canvas' AND p.del_flag='0' AND (p.user_id=#{userId} OR m.id IS NOT NULL)
+        <if test="projectName != null and projectName != ''">AND p.project_name LIKE CONCAT('%',#{projectName},'%')</if>
+    </select>
+    <update id="updateCanvasProject">
+        UPDATE aid_comic_project
+        <set>
+            <if test="projectName != null">project_name=#{projectName},</if>
+            <if test="projectDesc != null">project_desc=#{projectDesc},</if>
+            <if test="coverUrl != null">cover_url=#{coverUrl},</if>
+            update_time=NOW()
+        </set>
+        WHERE id=#{projectId} AND user_id=#{userId} AND project_type='canvas' AND del_flag='0'
+    </update>
+    <update id="softDeleteCanvasProject">
+        UPDATE aid_comic_project SET del_flag='1',update_time=NOW()
+        WHERE id=#{projectId} AND user_id=#{userId} AND project_type='canvas' AND del_flag='0'
+    </update>
+    <select id="countRunningCanvasTasks" resultType="int">
+        SELECT COUNT(*) FROM aid_canvas_task_binding WHERE project_id=#{projectId} AND status IN ('SUBMITTING','QUEUED','PENDING','PROCESSING')
+    </select>
+    <update id="deactivateProjectWorkspaces">UPDATE aid_canvas_workspace SET del_flag='1',update_time=NOW() WHERE project_id=#{projectId} AND del_flag='0'</update>
+    <update id="deactivateProjectMembers">UPDATE aid_project_member SET status='REMOVED',update_time=NOW() WHERE project_id=#{projectId} AND role_code&lt;&gt;'OWNER' AND status='ACTIVE'</update>
+    <update id="revokeProjectInvites">UPDATE aid_project_invite SET status='REVOKED',update_time=NOW() WHERE project_id=#{projectId} AND status='ACTIVE'</update>
+    <update id="revokeProjectShares">UPDATE aid_project_share SET status='REVOKED',update_time=NOW() WHERE project_id=#{projectId} AND status='ACTIVE'</update>
+
+    <insert id="insertWorkspace" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO aid_canvas_workspace(project_id,workspace_type,schema_version,revision,event_seq,node_count,edge_count,
+            group_count,storage_bytes,del_flag,create_time,update_time)
+        VALUES(#{projectId},#{workspaceType},#{schemaVersion},#{revision},#{eventSeq},#{nodeCount},#{edgeCount},
+            #{groupCount},#{storageBytes},#{delFlag},NOW(),NOW())
+    </insert>
+    <select id="selectWorkspaceByProject" resultType="com.aid.canvas.domain.CanvasEntities$Workspace">
+        SELECT * FROM aid_canvas_workspace WHERE project_id=#{projectId} AND del_flag='0' LIMIT 1
+    </select>
+    <select id="selectWorkspace" resultType="com.aid.canvas.domain.CanvasEntities$Workspace">
+        SELECT * FROM aid_canvas_workspace WHERE id=#{workspaceId} AND del_flag='0'
+    </select>
+    <select id="selectWorkspaceForUpdate" resultType="com.aid.canvas.domain.CanvasEntities$Workspace">
+        SELECT * FROM aid_canvas_workspace WHERE id=#{workspaceId} AND del_flag='0' FOR UPDATE
+    </select>
+    <update id="applyWorkspaceDelta">
+        UPDATE aid_canvas_workspace SET
+          revision=revision+1,
+          event_seq=event_seq+1,
+          node_count=node_count+#{nodeDelta},
+          edge_count=edge_count+#{edgeDelta},
+          group_count=group_count+#{groupDelta},
+          storage_bytes=storage_bytes+#{storageByteDelta},
+          update_time=NOW()
+        WHERE id=#{workspaceId} AND del_flag='0'
+          AND node_count+#{nodeDelta}&gt;=0 AND edge_count+#{edgeDelta}&gt;=0
+          AND group_count+#{groupDelta}&gt;=0 AND storage_bytes+#{storageByteDelta}&gt;=0
+    </update>
+    <select id="selectWorkspaceObjects" resultType="com.aid.canvas.domain.CanvasEntities$CanvasObject">
+        SELECT * FROM aid_canvas_object WHERE workspace_id=#{workspaceId}
+        <if test="!includeDeleted">AND deleted=0</if>
+        ORDER BY id
+    </select>
+    <select id="selectAssistantWorkspaceNodeSummaries" resultType="java.util.HashMap">
+        SELECT object_id AS objectId, object_version AS objectVersion,
+               LEFT(JSON_UNQUOTE(JSON_EXTRACT(content_json,'$.nodeType')), 32) AS nodeType,
+               LEFT(JSON_UNQUOTE(JSON_EXTRACT(content_json,'$.title')), 100) AS title
+        FROM aid_canvas_object
+        WHERE workspace_id=#{workspaceId} AND project_id=#{projectId} AND object_type='NODE' AND deleted=0
+        ORDER BY id LIMIT 11
+    </select>
+    <select id="selectNodePlacementBounds" resultType="java.util.HashMap">
+        SELECT object_id AS objectId, CAST(JSON_EXTRACT(content_json,'$.position') AS CHAR) AS positionJson,
+               CAST(JSON_EXTRACT(content_json,'$.size') AS CHAR) AS sizeJson
+        FROM aid_canvas_object
+        WHERE workspace_id=#{workspaceId} AND object_type IN ('NODE','GROUP') AND deleted=0
+    </select>
+    <select id="selectIncomingReferenceEdges" resultType="com.aid.canvas.domain.CanvasEntities$CanvasObject">
+        SELECT * FROM aid_canvas_object
+        WHERE workspace_id=#{workspaceId} AND object_type='EDGE' AND deleted=0
+          AND JSON_UNQUOTE(JSON_EXTRACT(content_json,'$.targetObjectId'))=#{targetObjectId}
+          AND JSON_UNQUOTE(JSON_EXTRACT(content_json,'$.metadata.studioData.kind'))='reference'
+        ORDER BY id
+    </select>
+    <select id="selectCanvasObject" resultType="com.aid.canvas.domain.CanvasEntities$CanvasObject">
+        SELECT * FROM aid_canvas_object WHERE workspace_id=#{workspaceId} AND object_id=#{objectId}
+    </select>
+    <select id="selectCanvasObjectForUpdate" resultType="com.aid.canvas.domain.CanvasEntities$CanvasObject">
+        SELECT * FROM aid_canvas_object WHERE workspace_id=#{workspaceId} AND object_id=#{objectId} FOR UPDATE
+    </select>
+    <select id="selectCanvasObjectVersionState" resultType="com.aid.canvas.domain.CanvasEntities$CanvasObject">
+        SELECT object_version,deleted FROM aid_canvas_object
+        WHERE workspace_id=#{workspaceId} AND object_id=#{objectId}
+    </select>
+    <insert id="upsertObjectFence">
+        INSERT INTO aid_canvas_object_fence(workspace_id,object_id,lock_fence,update_time)
+        VALUES(#{workspaceId},#{objectId},#{lockFence},NOW())
+        ON DUPLICATE KEY UPDATE lock_fence=GREATEST(lock_fence,VALUES(lock_fence)),update_time=NOW()
+    </insert>
+    <select id="selectObjectFence" resultType="java.lang.Long">
+        SELECT lock_fence FROM aid_canvas_object_fence WHERE workspace_id=#{workspaceId} AND object_id=#{objectId}
+    </select>
+    <select id="selectObjectFenceForUpdate" resultType="java.lang.Long">
+        SELECT lock_fence FROM aid_canvas_object_fence WHERE workspace_id=#{workspaceId} AND object_id=#{objectId} FOR UPDATE
+    </select>
+    <insert id="insertCanvasObject" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO aid_canvas_object(project_id,workspace_id,object_id,object_type,object_version,lock_fence,content_json,content_hash,
+            deleted,last_actor_user_id,create_time,update_time)
+        SELECT #{projectId},#{workspaceId},#{objectId},#{objectType},#{objectVersion},#{lockFence},#{contentJson},#{contentHash},
+            #{deleted},#{lastActorUserId},NOW(),NOW()
+        FROM aid_canvas_object_fence f
+        WHERE f.workspace_id=#{workspaceId} AND f.object_id=#{objectId} AND f.lock_fence=#{lockFence}
+    </insert>
+    <update id="updateCanvasObject">
+        UPDATE aid_canvas_object SET object_version=object_version+1,content_json=#{contentJson},content_hash=#{contentHash},
+            deleted=#{deleted},last_actor_user_id=#{actorUserId},lock_fence=#{lockFence},update_time=NOW()
+        WHERE workspace_id=#{workspaceId} AND object_id=#{objectId} AND object_version=#{expectedVersion}
+          AND lock_fence&lt;=#{lockFence}
+    </update>
+    <insert id="insertOperation" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO aid_canvas_operation(project_id,workspace_id,operation_id,actor_user_id,workspace_revision,event_seq,
+            operation_type,payload_json,payload_hash,create_time)
+        VALUES(#{projectId},#{workspaceId},#{operationId},#{actorUserId},#{workspaceRevision},#{eventSeq},
+            #{operationType},#{payloadJson},#{payloadHash},NOW())
+    </insert>
+    <select id="selectOperation" resultType="com.aid.canvas.domain.CanvasEntities$Operation">
+        SELECT * FROM aid_canvas_operation WHERE workspace_id=#{workspaceId} AND operation_id=#{operationId}
+    </select>
+    <select id="selectOperationsAfter" resultType="com.aid.canvas.domain.CanvasEntities$Operation">
+        SELECT * FROM aid_canvas_operation WHERE workspace_id=#{workspaceId} AND event_seq &gt; #{afterSeq}
+        ORDER BY event_seq LIMIT #{limit}
+    </select>
+    <select id="selectOperationsAfterRevision" resultType="com.aid.canvas.domain.CanvasEntities$Operation">
+        SELECT * FROM aid_canvas_operation WHERE workspace_id=#{workspaceId} AND workspace_revision &gt; #{afterRevision}
+        ORDER BY workspace_revision,id LIMIT #{limit}
+    </select>
+    <insert id="insertOperationObjects">
+        INSERT INTO aid_canvas_operation_object(operation_row_id,project_id,workspace_id,operation_id,object_id,object_type,
+          before_version,after_version,before_deleted,after_deleted,before_content_json,create_time)
+        VALUES
+        <foreach collection="items" item="item" separator=",">
+          (#{item.operationRowId},#{item.projectId},#{item.workspaceId},#{item.operationId},#{item.objectId},#{item.objectType},
+           #{item.beforeVersion},#{item.afterVersion},#{item.beforeDeleted},#{item.afterDeleted},#{item.beforeContentJson},NOW())
+        </foreach>
+    </insert>
+    <select id="selectOperationObjects" resultType="com.aid.canvas.domain.CanvasEntities$OperationObject">
+        SELECT * FROM aid_canvas_operation_object WHERE operation_row_id=#{operationRowId} ORDER BY id
+    </select>
+
+    <select id="selectProjectSetting" resultType="com.aid.canvas.domain.CanvasEntities$ProjectSetting">
+        SELECT * FROM aid_project_setting WHERE project_id=#{projectId} AND setting_key=#{settingKey}
+    </select>
+    <insert id="insertProjectSetting" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO aid_project_setting(project_id,setting_key,setting_value,setting_version,last_actor_user_id,create_time,update_time)
+        VALUES(#{projectId},#{settingKey},#{settingValue},#{settingVersion},#{lastActorUserId},NOW(),NOW())
+    </insert>
+    <update id="updateProjectSetting">
+        UPDATE aid_project_setting SET setting_value=#{settingValue},setting_version=setting_version+1,
+          last_actor_user_id=#{actorUserId},update_time=NOW()
+        WHERE project_id=#{projectId} AND setting_key=#{settingKey} AND setting_version=#{expectedVersion}
+    </update>
+
+    <select id="selectMember" resultType="com.aid.canvas.domain.CanvasEntities$ProjectMember">
+        SELECT * FROM aid_project_member WHERE project_id=#{projectId} AND user_id=#{userId} LIMIT 1
+    </select>
+    <select id="selectMembers" resultType="java.util.LinkedHashMap">
+        SELECT m.id,m.project_id AS projectId,m.user_id AS userId,u.user_name AS userName,u.nick_name AS nickName,
+               u.avatar AS avatarUrl,
+               m.role_code AS roleCode,m.status,m.joined_time AS joinedTime
+        FROM aid_project_member m LEFT JOIN sys_user u ON u.user_id=m.user_id
+        WHERE m.project_id=#{projectId} AND m.status='ACTIVE' ORDER BY FIELD(m.role_code,'OWNER','EDITOR','VIEWER'),m.id LIMIT 500
+    </select>
+    <select id="countActiveMembers" resultType="int">
+        SELECT COUNT(*) FROM aid_project_member WHERE project_id=#{projectId} AND status='ACTIVE'
+    </select>
+    <update id="lockProjectMemberQuota">
+        UPDATE aid_comic_project SET update_time=update_time
+        WHERE id=#{projectId} AND project_type='canvas' AND del_flag='0'
+    </update>
+    <insert id="insertMember" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO aid_project_member(project_id,user_id,role_code,status,invited_by,joined_time,create_time,update_time)
+        VALUES(#{projectId},#{userId},#{roleCode},#{status},#{invitedBy},#{joinedTime},NOW(),NOW())
+    </insert>
+    <update id="reactivateMember">
+        UPDATE aid_project_member SET role_code=#{roleCode},status='ACTIVE',invited_by=#{invitedBy},joined_time=NOW(),update_time=NOW()
+        WHERE project_id=#{projectId} AND user_id=#{userId} AND status&lt;&gt;'ACTIVE'
+    </update>
+    <update id="updateMemberRole">
+        UPDATE aid_project_member SET role_code=#{roleCode},update_time=NOW()
+        WHERE project_id=#{projectId} AND user_id=#{userId} AND role_code&lt;&gt;'OWNER' AND status='ACTIVE'
+    </update>
+    <update id="deactivateMember">
+        UPDATE aid_project_member SET status='REMOVED',update_time=NOW()
+        WHERE project_id=#{projectId} AND user_id=#{userId} AND role_code&lt;&gt;'OWNER' AND status='ACTIVE'
+    </update>
+
+    <insert id="insertInvite" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO aid_project_invite(project_id,token_hash,default_role,max_uses,used_count,expire_time,status,creator_user_id,create_time,update_time)
+        VALUES(#{projectId},#{tokenHash},#{defaultRole},#{maxUses},#{usedCount},#{expireTime},#{status},#{creatorUserId},NOW(),NOW())
+    </insert>
+    <select id="selectInviteByTokenHash" resultType="com.aid.canvas.domain.CanvasEntities$ProjectInvite">
+        SELECT * FROM aid_project_invite WHERE token_hash=#{tokenHash} LIMIT 1
+    </select>
+    <select id="selectInviteForUpdate" resultType="com.aid.canvas.domain.CanvasEntities$ProjectInvite">
+        SELECT * FROM aid_project_invite WHERE id=#{inviteId} FOR UPDATE
+    </select>
+    <select id="selectInvites" resultType="com.aid.canvas.domain.CanvasEntities$ProjectInvite">
+        SELECT * FROM aid_project_invite WHERE project_id=#{projectId} ORDER BY id DESC LIMIT 200
+    </select>
+    <update id="incrementInviteUse">
+        UPDATE aid_project_invite SET used_count=used_count+1,update_time=NOW()
+        WHERE id=#{inviteId} AND status='ACTIVE' AND used_count=#{expectedUsed} AND used_count&lt;max_uses AND expire_time&gt;NOW()
+    </update>
+    <update id="revokeInvite">
+        UPDATE aid_project_invite SET status='REVOKED',update_time=NOW() WHERE id=#{inviteId} AND project_id=#{projectId} AND status='ACTIVE'
+    </update>
+    <insert id="insertApplication" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO aid_project_join_application(project_id,invite_id,applicant_user_id,requested_role,status,apply_message,create_time,update_time)
+        VALUES(#{projectId},#{inviteId},#{applicantUserId},#{requestedRole},#{status},#{applyMessage},NOW(),NOW())
+    </insert>
+    <select id="selectApplication" resultType="com.aid.canvas.domain.CanvasEntities$JoinApplication">
+        SELECT * FROM aid_project_join_application WHERE id=#{id}
+    </select>
+    <select id="selectApplicationForUpdate" resultType="com.aid.canvas.domain.CanvasEntities$JoinApplication">
+        SELECT * FROM aid_project_join_application WHERE id=#{id} FOR UPDATE
+    </select>
+    <select id="selectApplicationByApplicant" resultType="com.aid.canvas.domain.CanvasEntities$JoinApplication">
+        SELECT * FROM aid_project_join_application WHERE invite_id=#{inviteId} AND applicant_user_id=#{userId} LIMIT 1
+    </select>
+    <update id="resetApplication">
+        UPDATE aid_project_join_application SET status='PENDING',apply_message=#{message},reviewer_user_id=NULL,
+            review_remark=NULL,review_time=NULL,update_time=NOW() WHERE id=#{id} AND status IN ('REJECTED','CANCELLED')
+    </update>
+    <select id="selectApplications" resultType="java.util.LinkedHashMap">
+        SELECT a.id,a.project_id AS projectId,a.invite_id AS inviteId,a.applicant_user_id AS applicantUserId,
+               u.user_name AS userName,u.nick_name AS nickName,a.requested_role AS requestedRole,a.status,
+               a.apply_message AS applyMessage,a.review_remark AS reviewRemark,a.create_time AS createTime,a.review_time AS reviewTime
+        FROM aid_project_join_application a LEFT JOIN sys_user u ON u.user_id=a.applicant_user_id
+        WHERE a.project_id=#{projectId} ORDER BY a.id DESC LIMIT 200
+    </select>
+    <update id="reviewApplication">
+        UPDATE aid_project_join_application SET status=#{status},reviewer_user_id=#{reviewerUserId},review_remark=#{remark},review_time=NOW(),update_time=NOW()
+        WHERE id=#{id} AND status='PENDING'
+    </update>
+
+    <insert id="insertShare" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO aid_project_share(project_id,workspace_id,token_hash,snapshot_revision,snapshot_json,expire_time,status,creator_user_id,create_time,update_time)
+        VALUES(#{projectId},#{workspaceId},#{tokenHash},#{snapshotRevision},#{snapshotJson},#{expireTime},#{status},#{creatorUserId},NOW(),NOW())
+    </insert>
+    <select id="selectShareByTokenHash" resultType="com.aid.canvas.domain.CanvasEntities$ProjectShare">
+        SELECT * FROM aid_project_share WHERE token_hash=#{tokenHash} LIMIT 1
+    </select>
+    <select id="selectActiveShare" resultType="com.aid.canvas.domain.CanvasEntities$ProjectShare">
+        SELECT * FROM aid_project_share WHERE id=#{shareId} AND project_id=#{projectId} AND status='ACTIVE'
+    </select>
+    <select id="selectShares" resultType="com.aid.canvas.domain.CanvasEntities$ProjectShare">
+        SELECT * FROM aid_project_share WHERE project_id=#{projectId} ORDER BY id DESC LIMIT 200
+    </select>
+    <update id="updateShareSnapshot">
+        UPDATE aid_project_share SET snapshot_revision=#{revision},snapshot_json=#{snapshotJson},update_time=NOW()
+        WHERE id=#{shareId} AND project_id=#{projectId} AND status='ACTIVE' AND expire_time&gt;NOW()
+    </update>
+    <update id="revokeShare">
+        UPDATE aid_project_share SET status='REVOKED',update_time=NOW() WHERE id=#{shareId} AND project_id=#{projectId} AND status='ACTIVE'
+    </update>
+
+    <insert id="insertTaskBinding" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO aid_canvas_task_binding(project_id,workspace_id,object_id,input_object_version,task_id,actor_user_id,media_type,result_format,operation_id,request_hash,status,call_id,create_time,update_time)
+        VALUES(#{projectId},#{workspaceId},#{objectId},#{inputObjectVersion},#{taskId},#{actorUserId},#{mediaType},#{resultFormat},#{operationId},#{requestHash},#{status},#{callId},NOW(),NOW())
+    </insert>
+    <update id="bindMediaTask">
+        UPDATE aid_canvas_task_binding SET task_id=#{taskId},status=#{status},update_time=NOW()
+        WHERE id=#{id} AND task_id IS NULL AND status='SUBMITTING'
+    </update>
+    <update id="failTaskIntent">
+        UPDATE aid_canvas_task_binding SET status='FAILED',update_time=NOW()
+        WHERE id=#{id} AND task_id IS NULL AND status='SUBMITTING'
+    </update>
+    <update id="failStaleTaskIntent">
+        UPDATE aid_canvas_task_binding SET status='FAILED',update_time=NOW()
+        WHERE id=#{id} AND task_id IS NULL AND status='SUBMITTING' AND create_time&lt;=#{cutoff}
+    </update>
+    <update id="touchTaskBinding">
+        UPDATE aid_canvas_task_binding SET update_time=NOW()
+        WHERE id=#{id} AND status IN ('QUEUED','PENDING','PROCESSING')
+    </update>
+    <select id="selectTaskBinding" resultType="com.aid.canvas.domain.CanvasEntities$TaskBinding">
+        SELECT * FROM aid_canvas_task_binding WHERE task_id=#{taskId}
+    </select>
+    <select id="selectTaskBindingByOperation" resultType="com.aid.canvas.domain.CanvasEntities$TaskBinding">
+        SELECT * FROM aid_canvas_task_binding WHERE workspace_id=#{workspaceId} AND operation_id=#{operationId}
+    </select>
+    <select id="selectTaskBindingByOperationForUpdate" resultType="com.aid.canvas.domain.CanvasEntities$TaskBinding">
+        SELECT * FROM aid_canvas_task_binding WHERE workspace_id=#{workspaceId} AND operation_id=#{operationId} FOR UPDATE
+    </select>
+    <select id="selectAssistantMediaEntryNamespace" resultType="java.lang.Long">
+        SELECT id FROM aid_canvas_task_binding WHERE operation_id=#{operationId} OR call_id=#{callId} LIMIT 2
+    </select>
+    <update id="completeTaskBinding">
+        UPDATE aid_canvas_task_binding SET status=#{status},result_url=#{resultUrl},update_time=NOW()
+        WHERE task_id=#{taskId} AND status NOT IN ('SUCCEEDED','FAILED','CANCELLED')
+    </update>
+    <select id="selectCanvasTaskReconcileCandidates" resultType="com.aid.canvas.domain.CanvasEntities$TaskBinding">
+        SELECT b.* FROM aid_canvas_task_binding b
+        WHERE b.status IN ('SUBMITTING','QUEUED','PENDING','PROCESSING')
+        ORDER BY b.update_time,b.id LIMIT #{limit}
+    </select>
+    <select id="selectActiveTaskBindingByObject" resultType="com.aid.canvas.domain.CanvasEntities$TaskBinding">
+        SELECT * FROM aid_canvas_task_binding
+        WHERE workspace_id=#{workspaceId} AND object_id=#{objectId}
+          AND status IN ('SUBMITTING','QUEUED','PENDING','PROCESSING')
+        ORDER BY id DESC LIMIT 1 FOR UPDATE
+    </select>
+    <select id="selectWorkspaceActiveTaskBindings" resultType="com.aid.canvas.domain.CanvasEntities$TaskBinding">
+        SELECT * FROM aid_canvas_task_binding
+        WHERE workspace_id=#{workspaceId}
+          AND status IN ('SUBMITTING','QUEUED','PENDING','PROCESSING')
+        ORDER BY object_id,id DESC
+    </select>
+    <select id="selectWorkspaceTaskBindings" resultType="com.aid.canvas.domain.CanvasEntities$TaskBinding">
+        SELECT * FROM aid_canvas_task_binding WHERE workspace_id=#{workspaceId}
+        ORDER BY id DESC LIMIT #{limit}
+    </select>
+    <select id="selectWorkspaceLatestTaskBindings" resultType="com.aid.canvas.domain.CanvasEntities$TaskBinding">
+        SELECT b.* FROM aid_canvas_task_binding b
+        INNER JOIN (
+          SELECT object_id,MAX(id) AS latest_id FROM aid_canvas_task_binding
+          WHERE workspace_id=#{workspaceId} GROUP BY object_id
+        ) latest ON latest.latest_id=b.id
+        ORDER BY b.id DESC
+    </select>
+    <select id="selectObjectTaskBindings" resultType="com.aid.canvas.domain.CanvasEntities$TaskBinding">
+        SELECT * FROM aid_canvas_task_binding
+        WHERE workspace_id=#{workspaceId} AND object_id=#{objectId}
+        ORDER BY id DESC LIMIT #{offset},#{limit}
+    </select>
+    <select id="countObjectTaskBindings" resultType="long">
+        SELECT COUNT(*) FROM aid_canvas_task_binding WHERE workspace_id=#{workspaceId} AND object_id=#{objectId}
+    </select>
+    <select id="selectMediaResultsByTaskIds" resultType="java.util.LinkedHashMap">
+        SELECT r.id AS resultId,r.task_id AS taskId,r.result_index AS resultIndex,r.media_type AS mediaType,
+          r.origin_url AS originUrl,r.oss_url AS ossUrl,r.mime_type AS mimeType,r.file_size AS fileSize,
+          r.duration_seconds AS durationSeconds,r.metadata_json AS metadataJson,
+          c.id AS resourceId,r.create_time AS createTime,r.update_time AS updateTime,
+          t.status AS taskStatus,t.oss_url AS taskOssUrl,t.request_json AS taskRequestJson
+        FROM aid_media_result r JOIN aid_media_task t ON t.id=r.task_id
+        LEFT JOIN aid_canvas_task_binding b ON b.task_id=r.task_id
+        LEFT JOIN aid_canvas_resource c ON c.workspace_id=b.workspace_id
+          AND c.source_type='MEDIA_RESULT' AND c.source_id=r.id AND c.status='ACTIVE'
+        WHERE r.task_id IN
+        <foreach collection="taskIds" item="taskId" open="(" close=")" separator=",">#{taskId}</foreach>
+        ORDER BY r.task_id,r.result_index,r.id
+    </select>
+    <select id="selectAssistantMediaCandidates" resultType="java.util.LinkedHashMap">
+        SELECT r.id AS resultId,r.task_id AS taskId,r.media_type AS mediaType,r.mime_type AS mimeType,
+          c.id AS resourceId,b.input_object_version AS inputObjectVersion
+        FROM (
+          SELECT task_id,input_object_version FROM aid_canvas_task_binding
+          WHERE workspace_id=#{workspaceId} AND object_id=#{objectId}
+            AND input_object_version &gt; 0 AND input_object_version &lt;= #{objectVersion}
+            AND status='SUCCEEDED' AND task_id IS NOT NULL
+          ORDER BY id DESC LIMIT #{limit}
+        ) b
+        INNER JOIN aid_media_task t ON t.id=b.task_id AND t.status='SUCCEEDED'
+        INNER JOIN aid_media_result r ON r.task_id=b.task_id
+        LEFT JOIN aid_canvas_resource c ON c.workspace_id=#{workspaceId}
+          AND c.source_type='MEDIA_RESULT' AND c.source_id=r.id AND c.status='ACTIVE'
+        ORDER BY r.task_id,r.result_index,r.id
+    </select>
+    <select id="selectMediaResultForNode" resultType="java.util.LinkedHashMap">
+        SELECT r.id AS resultId,r.task_id AS taskId,r.media_type AS mediaType,r.origin_url AS originUrl,r.oss_url AS ossUrl,
+          r.mime_type AS mimeType,r.file_size AS fileSize,r.duration_seconds AS durationSeconds,
+          r.metadata_json AS metadataJson,
+          b.input_object_version AS inputObjectVersion
+        FROM aid_media_result r
+        INNER JOIN aid_canvas_task_binding b ON b.task_id=r.task_id
+        WHERE b.workspace_id=#{workspaceId} AND b.object_id=#{objectId} AND r.id=#{resultId}
+          AND b.status='SUCCEEDED' LIMIT 1
+    </select>
+    <select id="selectAssistantMediaResultIdentity" resultType="java.util.LinkedHashMap">
+        SELECT r.id AS resultId,r.task_id AS taskId,b.input_object_version AS inputObjectVersion
+        FROM aid_media_result r
+        INNER JOIN aid_media_task t ON t.id=r.task_id AND t.status='SUCCEEDED'
+        INNER JOIN aid_canvas_task_binding b ON b.task_id=r.task_id
+        WHERE b.workspace_id=#{workspaceId} AND b.object_id=#{objectId} AND r.id=#{resultId}
+          AND b.status='SUCCEEDED' LIMIT 1
+    </select>
+    <select id="selectNodeResultSelection" resultType="com.aid.canvas.domain.CanvasEntities$NodeResultSelection">
+        SELECT * FROM aid_canvas_node_result_selection WHERE workspace_id=#{workspaceId} AND object_id=#{objectId}
+    </select>
+    <select id="selectNodeCurrentResourceId" resultType="java.lang.Long">
+        SELECT cr.id
+        FROM aid_canvas_node_result_selection s
+        INNER JOIN aid_media_result r ON r.id=s.result_id
+        INNER JOIN aid_canvas_resource cr ON cr.workspace_id=s.workspace_id AND cr.source_type='MEDIA_RESULT'
+          AND cr.source_id=s.result_id AND cr.status='ACTIVE'
+        WHERE s.workspace_id=#{workspaceId} AND s.object_id=#{objectId}
+        UNION ALL
+        SELECT cr.id
+        FROM aid_canvas_publication_import_result i
+        INNER JOIN aid_canvas_resource cr ON cr.workspace_id=i.workspace_id AND cr.id=i.resource_id AND cr.status='ACTIVE'
+        WHERE i.workspace_id=#{workspaceId} AND i.object_id=#{objectId}
+          AND NOT EXISTS (SELECT 1 FROM aid_canvas_node_result_selection s
+            WHERE s.workspace_id=i.workspace_id AND s.object_id=i.object_id)
+        LIMIT 1
+    </select>
+    <!-- 仅统一合并结果的文本列，兼容历史媒体表与画布表使用不同排序规则。 -->
+    <select id="selectWorkspaceCurrentResults" resultType="java.util.LinkedHashMap">
+        SELECT CONVERT(s.object_id USING utf8mb4) COLLATE utf8mb4_bin AS objectId,
+          s.task_id AS taskId,s.result_id AS resultId,cr.id AS resourceId,
+          s.input_object_version AS inputObjectVersion,s.selection_version AS selectionVersion,
+          CONVERT(r.media_type USING utf8mb4) COLLATE utf8mb4_bin AS mediaType,r.origin_url AS originUrl,
+          CONVERT(r.oss_url USING utf8mb4) COLLATE utf8mb4_bin AS ossUrl,
+          CONVERT(r.mime_type USING utf8mb4) COLLATE utf8mb4_bin AS mimeType,
+          r.file_size AS fileSize,r.duration_seconds AS durationSeconds,s.update_time AS updateTime
+        FROM aid_canvas_node_result_selection s
+        INNER JOIN aid_media_result r ON r.id=s.result_id
+        INNER JOIN aid_canvas_object o ON o.workspace_id=s.workspace_id AND o.object_id=s.object_id
+          AND o.deleted=0
+        LEFT JOIN aid_canvas_resource cr ON cr.workspace_id=s.workspace_id AND cr.source_type='MEDIA_RESULT'
+          AND cr.source_id=s.result_id AND cr.status='ACTIVE'
+        WHERE s.workspace_id=#{workspaceId}
+        UNION ALL
+        SELECT CONVERT(i.object_id USING utf8mb4) COLLATE utf8mb4_bin AS objectId,
+          NULL AS taskId,NULL AS resultId,cr.id AS resourceId,
+          o.object_version AS inputObjectVersion,0 AS selectionVersion,
+          CONVERT(i.media_type USING utf8mb4) COLLATE utf8mb4_bin AS mediaType,NULL AS originUrl,
+          CONVERT(cr.storage_url USING utf8mb4) COLLATE utf8mb4_bin AS ossUrl,
+          CONVERT(cr.mime_type USING utf8mb4) COLLATE utf8mb4_bin AS mimeType,
+          cr.file_size AS fileSize,JSON_EXTRACT(cr.metadata_json,'$.durationSeconds') AS durationSeconds,cr.update_time AS updateTime
+        FROM aid_canvas_publication_import_result i
+        INNER JOIN aid_canvas_object o ON o.workspace_id=i.workspace_id AND o.object_id=i.object_id AND o.deleted=0
+        INNER JOIN aid_canvas_resource cr ON cr.workspace_id=i.workspace_id AND cr.id=i.resource_id AND cr.status='ACTIVE'
+        WHERE i.workspace_id=#{workspaceId}
+          AND NOT EXISTS (SELECT 1 FROM aid_canvas_node_result_selection s
+            WHERE s.workspace_id=i.workspace_id AND s.object_id=i.object_id)
+        ORDER BY objectId
+    </select>
+    <insert id="insertNodeResultSelection" useGeneratedKeys="true" keyProperty="id">
+        INSERT IGNORE INTO aid_canvas_node_result_selection(project_id,workspace_id,object_id,task_id,result_id,
+          input_object_version,selection_version,last_actor_user_id,create_time,update_time)
+        VALUES(#{projectId},#{workspaceId},#{objectId},#{taskId},#{resultId},#{inputObjectVersion},
+          #{selectionVersion},#{lastActorUserId},NOW(),NOW())
+    </insert>
+    <update id="updateNodeResultSelection">
+        UPDATE aid_canvas_node_result_selection SET task_id=#{taskId},result_id=#{resultId},
+          input_object_version=#{inputObjectVersion},selection_version=selection_version+1,
+          last_actor_user_id=#{actorUserId},update_time=NOW()
+        WHERE workspace_id=#{workspaceId} AND object_id=#{objectId}
+    </update>
+    <select id="selectAssistantRuntimeScope" resultMap="assistantRuntimeScope">
+        SELECT r.id AS runId,r.user_id AS userId,r.project_id AS projectId,
+          r.workspace_id AS workspaceId,r.node_object_id AS objectId,r.node_version AS objectVersion,
+          r.executor_strategy AS executorStrategy,r.status,r.next_action AS nextAction,
+          r.stop_requested AS stopRequested,r.lease_owner AS leaseOwner,r.lease_until AS leaseUntil,
+          r.fencing_token AS runtimeFencingToken,r.del_flag AS delFlag,
+          r.request_json AS requestJson,r.context_digest AS contextDigest,
+          s.user_id AS sessionUserId,s.session_type AS sessionType,s.project_id AS sessionProjectId,
+          s.workspace_id AS sessionWorkspaceId,s.active_runtime_run_id AS activeRuntimeRunId,
+          s.del_flag AS sessionDelFlag
+        FROM aid_runtime_run r
+        INNER JOIN aid_chat_session s ON s.id=r.session_id
+        WHERE r.id=#{runId} LIMIT 1
+    </select>
+    <insert id="insertCanvasResource" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO aid_canvas_resource(project_id,workspace_id,owner_user_id,source_type,source_id,media_type,storage_url,file_size,mime_type,metadata_json,status,create_time,update_time)
+        VALUES(#{projectId},#{workspaceId},#{ownerUserId},#{sourceType},#{sourceId},#{mediaType},#{storageUrl},#{fileSize},#{mimeType},#{metadataJson},#{status},NOW(),NOW())
+        ON DUPLICATE KEY UPDATE id=LAST_INSERT_ID(id)
+    </insert>
+    <select id="selectCanvasResource" resultType="com.aid.canvas.domain.CanvasEntities$CanvasResource">
+        SELECT * FROM aid_canvas_resource WHERE id=#{id} AND status='ACTIVE'
+    </select>
+    <update id="updateCanvasResourceMetadata">
+        UPDATE aid_canvas_resource SET metadata_json=#{resource.metadataJson},file_size=#{resource.fileSize},
+          mime_type=#{resource.mimeType},update_time=NOW()
+        WHERE id=#{resource.id} AND workspace_id=#{resource.workspaceId} AND owner_user_id=#{resource.ownerUserId}
+          AND status='ACTIVE' AND media_type=#{resource.mediaType} AND storage_url=#{resource.storageUrl}
+          AND metadata_json &lt;=&gt; #{expectedMetadataJson}
+    </update>
+    <select id="selectCanvasResourceBySource" resultType="com.aid.canvas.domain.CanvasEntities$CanvasResource">
+        SELECT * FROM aid_canvas_resource WHERE workspace_id=#{workspaceId} AND source_type=#{sourceType}
+          AND source_id=#{sourceId} AND status='ACTIVE' LIMIT 1
+    </select>
+    <select id="selectCanvasResources" resultType="com.aid.canvas.domain.CanvasEntities$CanvasResource">
+        SELECT * FROM aid_canvas_resource WHERE workspace_id=#{workspaceId} AND status='ACTIVE' AND id IN
+        <foreach collection="ids" item="id" open="(" close=")" separator=",">#{id}</foreach>
+    </select>
+    <select id="selectUserView" resultType="com.aid.canvas.domain.CanvasEntities$UserView">
+        SELECT * FROM aid_canvas_user_view WHERE workspace_id=#{workspaceId} AND user_id=#{userId}
+    </select>
+    <insert id="insertUserView" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO aid_canvas_user_view(workspace_id,user_id,view_version,view_json,create_time,update_time)
+        VALUES(#{workspaceId},#{userId},#{viewVersion},#{viewJson},NOW(),NOW())
+    </insert>
+    <update id="updateUserView">
+        UPDATE aid_canvas_user_view SET view_version=view_version+1,view_json=#{viewJson},update_time=NOW()
+        WHERE workspace_id=#{workspaceId} AND user_id=#{userId} AND view_version=#{expectedVersion}
+    </update>
+    <select id="selectNodeDraft" resultType="com.aid.canvas.domain.CanvasEntities$NodeDraft">
+        SELECT * FROM aid_canvas_node_draft WHERE workspace_id=#{workspaceId} AND object_id=#{objectId} AND user_id=#{userId}
+    </select>
+    <select id="selectNodeDrafts" resultType="com.aid.canvas.domain.CanvasEntities$NodeDraft">
+        SELECT * FROM aid_canvas_node_draft WHERE workspace_id=#{workspaceId} AND user_id=#{userId} ORDER BY update_time DESC,id DESC
+    </select>
+    <insert id="insertNodeDraft" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO aid_canvas_node_draft(project_id,workspace_id,object_id,user_id,draft_version,base_object_version,
+          draft_json,draft_hash,create_time,update_time)
+        VALUES(#{projectId},#{workspaceId},#{objectId},#{userId},#{draftVersion},#{baseObjectVersion},
+          #{draftJson},#{draftHash},NOW(),NOW())
+    </insert>
+    <update id="updateNodeDraft">
+        UPDATE aid_canvas_node_draft SET draft_version=draft_version+1,base_object_version=#{baseObjectVersion},
+          draft_json=#{draftJson},draft_hash=#{draftHash},update_time=NOW()
+        WHERE workspace_id=#{workspaceId} AND object_id=#{objectId} AND user_id=#{userId}
+          AND draft_version=#{expectedVersion}
+    </update>
+    <delete id="deleteNodeDraft">
+        DELETE FROM aid_canvas_node_draft WHERE workspace_id=#{workspaceId} AND object_id=#{objectId}
+          AND user_id=#{userId} AND draft_version=#{expectedVersion}
+    </delete>
+
+    <select id="selectCanvasConfig" resultType="java.util.LinkedHashMap">
+        SELECT collaboration_enabled AS collaborationEnabled,max_projects_per_owner AS maxProjectsPerOwner,
+               max_nodes_per_workspace AS maxNodesPerWorkspace,max_members_per_project AS maxMembersPerProject,
+               max_online_editors AS maxOnlineEditors,max_connections_per_user AS maxConnectionsPerUser,
+               operation_batch_max AS operationBatchMax,operation_payload_max_bytes AS operationPayloadMaxBytes,
+               lock_lease_seconds AS lockLeaseSeconds,lock_renew_seconds AS lockRenewSeconds,
+               text_merge_millis AS textMergeMillis,invite_default_days AS inviteDefaultDays,
+               invite_default_uses AS inviteDefaultUses FROM aid_canvas_config WHERE id=1
+    </select>
+    <update id="updateCanvasConfig" parameterType="map">
+        UPDATE aid_canvas_config SET collaboration_enabled=#{collaborationEnabled},max_projects_per_owner=#{maxProjectsPerOwner},
+          max_nodes_per_workspace=#{maxNodesPerWorkspace},max_members_per_project=#{maxMembersPerProject},
+          max_online_editors=#{maxOnlineEditors},max_connections_per_user=#{maxConnectionsPerUser},
+          operation_batch_max=#{operationBatchMax},operation_payload_max_bytes=#{operationPayloadMaxBytes},
+          lock_lease_seconds=#{lockLeaseSeconds},lock_renew_seconds=#{lockRenewSeconds},text_merge_millis=#{textMergeMillis},
+          invite_default_days=#{inviteDefaultDays},invite_default_uses=#{inviteDefaultUses},update_time=NOW() WHERE id=1
+    </update>
+    <select id="selectDefaultEntitlements" resultType="java.util.LinkedHashMap">
+        SELECT entitlement_code AS entitlementCode,entitlement_name AS name,value_type AS valueType,entitlement_value AS value,
+               enabled,description,subject_strategy AS subjectStrategy,period_type AS periodType,consumable
+        FROM aid_entitlement_definition WHERE scope_code='canvas' ORDER BY sort_order,id
+    </select>
+    <insert id="upsertDefaultEntitlement">
+        INSERT INTO aid_entitlement_definition(scope_code,entitlement_code,entitlement_name,value_type,entitlement_value,enabled,sort_order,create_time,update_time)
+        VALUES('canvas',#{code},#{code},#{valueType},#{value},#{enabled},999,NOW(),NOW())
+        ON DUPLICATE KEY UPDATE value_type=VALUES(value_type),entitlement_value=VALUES(entitlement_value),enabled=VALUES(enabled),update_time=NOW()
+    </insert>
+    <select id="selectActiveOverrides" resultType="com.aid.canvas.domain.CanvasEntities$EntitlementOverride">
+        SELECT id,scope_code,subject_type,subject_id,subject_id AS user_id,entitlement_code,mode,entitlement_value,
+          start_time,end_time,status,reason,create_by,create_time,revoke_by,revoke_time,revoke_reason
+        FROM aid_entitlement_user_override WHERE scope_code='canvas' AND subject_type='USER' AND subject_id=#{userId} AND status='ACTIVE'
+          AND (start_time IS NULL OR start_time&lt;=#{now}) AND (end_time IS NULL OR end_time&gt;#{now}) ORDER BY id
+    </select>
+    <insert id="insertEntitlementOverride" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO aid_entitlement_user_override(scope_code,subject_type,subject_id,entitlement_code,mode,entitlement_value,start_time,end_time,status,reason,create_by,create_time)
+        VALUES(#{scopeCode},#{subjectType},#{subjectId},#{entitlementCode},#{mode},#{entitlementValue},#{startTime},#{endTime},#{status},#{reason},#{createBy},NOW())
+    </insert>
+    <select id="selectEntitlementOverride" resultType="com.aid.canvas.domain.CanvasEntities$EntitlementOverride">
+        SELECT id,scope_code,subject_type,subject_id,subject_id AS user_id,entitlement_code,mode,entitlement_value,
+          start_time,end_time,status,reason,create_by,create_time,revoke_by,revoke_time,revoke_reason
+        FROM aid_entitlement_user_override WHERE id=#{id} AND scope_code='canvas'
+    </select>
+    <update id="revokeEntitlementOverride">
+        UPDATE aid_entitlement_user_override SET status='REVOKED',revoke_by=#{revokeBy},revoke_time=NOW(),revoke_reason=#{revokeReason}
+        WHERE id=#{id} AND scope_code='canvas' AND status='ACTIVE'
+    </update>
+
+    <select id="selectAdminProjects" resultType="java.util.LinkedHashMap">
+        SELECT p.id AS projectId,p.project_name AS projectName,p.user_id AS ownerUserId,u.user_name AS ownerName,p.status,
+          w.id AS workspaceId,w.revision,w.node_count AS nodeCount,
+          (SELECT COUNT(*) FROM aid_project_member m WHERE m.project_id=p.id AND m.status='ACTIVE') AS memberCount,
+          p.update_time AS updateTime
+        FROM aid_comic_project p LEFT JOIN sys_user u ON u.user_id=p.user_id
+        LEFT JOIN aid_canvas_workspace w ON w.project_id=p.id AND w.del_flag='0'
+        WHERE p.project_type='canvas' AND p.del_flag='0'
+        <if test="projectName != null and projectName != ''">AND p.project_name LIKE CONCAT('%',#{projectName},'%')</if>
+        <if test="ownerUserId != null">AND p.user_id=#{ownerUserId}</if>
+        <if test="status != null">AND p.status=#{status}</if>
+        ORDER BY p.update_time DESC,p.id DESC
+    </select>
+    <select id="selectAdminProjectDetail" resultType="java.util.LinkedHashMap">
+        SELECT p.id AS projectId,p.project_name AS projectName,p.project_desc AS projectDesc,p.cover_url AS coverUrl,
+          p.user_id AS ownerUserId,u.user_name AS ownerName,p.status,w.id AS workspaceId,w.workspace_type AS workspaceType,
+          w.schema_version AS schemaVersion,w.revision,w.event_seq AS eventSeq,w.node_count AS nodeCount,w.edge_count AS edgeCount,
+          w.group_count AS groupCount,w.storage_bytes AS storageBytes,p.create_time AS createTime,p.update_time AS updateTime
+        FROM aid_comic_project p LEFT JOIN sys_user u ON u.user_id=p.user_id
+        LEFT JOIN aid_canvas_workspace w ON w.project_id=p.id AND w.del_flag='0'
+        WHERE p.id=#{projectId} AND p.project_type='canvas' AND p.del_flag='0'
+    </select>
+    <select id="selectAdminOverrides" resultType="java.util.LinkedHashMap">
+        SELECT o.id,o.subject_id AS userId,u.user_name AS userName,o.entitlement_code AS entitlementCode,o.mode,
+          o.entitlement_value AS value,o.start_time AS startTime,o.end_time AS endTime,
+          CASE WHEN o.status&lt;&gt;'ACTIVE' THEN o.status
+               WHEN o.start_time IS NOT NULL AND o.start_time&gt;NOW() THEN 'PENDING'
+               WHEN o.end_time IS NOT NULL AND o.end_time&lt;=NOW() THEN 'EXPIRED'
+               ELSE 'ACTIVE' END AS status,
+          o.reason,o.create_by AS createBy,
+          o.create_time AS createTime,o.revoke_by AS revokeBy,o.revoke_time AS revokeTime,o.revoke_reason AS revokeReason
+        FROM aid_entitlement_user_override o LEFT JOIN sys_user u ON u.user_id=o.subject_id
+        WHERE o.scope_code='canvas' AND o.subject_type='USER'
+        <if test="userId != null">AND o.subject_id=#{userId}</if>
+        <if test="entitlementCode != null and entitlementCode != ''">AND o.entitlement_code=#{entitlementCode}</if>
+        <if test="status == 'REVOKED'">AND o.status='REVOKED'</if>
+        <if test="status == 'PENDING'">AND o.status='ACTIVE' AND o.start_time&gt;NOW()</if>
+        <if test="status == 'EXPIRED'">AND o.status='ACTIVE' AND o.end_time IS NOT NULL AND o.end_time&lt;=NOW()</if>
+        <if test="status == 'ACTIVE'">AND o.status='ACTIVE' AND (o.start_time IS NULL OR o.start_time&lt;=NOW()) AND (o.end_time IS NULL OR o.end_time&gt;NOW())</if>
+        ORDER BY o.id DESC
+    </select>
+    <insert id="insertAudit">
+        INSERT INTO aid_canvas_audit_log(operator,operator_name,target_type,target_id,target_user_id,action,detail_json,create_time)
+        VALUES(#{operator},#{operatorName},#{targetType},#{targetId},#{targetUserId},#{action},#{detailJson},NOW())
+    </insert>
+    <select id="selectAudits" resultType="java.util.LinkedHashMap">
+        SELECT id,operator,operator_name AS operatorName,target_type AS targetType,target_id AS targetId,
+          target_user_id AS targetUserId,action,detail_json AS detail,create_time AS createTime
+        FROM aid_canvas_audit_log WHERE 1=1
+        <if test="operator != null and operator != ''">AND operator=#{operator}</if>
+        <if test="targetUserId != null">AND target_user_id=#{targetUserId}</if>
+        <if test="action != null and action != ''">AND action=#{action}</if>
+        ORDER BY id DESC
+    </select>
+</mapper>

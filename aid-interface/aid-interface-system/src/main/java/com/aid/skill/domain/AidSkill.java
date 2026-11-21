@@ -8,6 +8,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 
 import java.io.Serializable;
+import java.util.Date;
 
 /** Skill稳定身份。 */
 @Data
@@ -25,6 +26,17 @@ public class AidSkill extends BaseEntity implements Serializable {
     private String ownerType;
     private Long ownerUserId;
     private String visibility;
+    /** 仅 PLATFORM 或 USER/PUBLIC Skill 可启用的磁盘包镜像开关。 */
+    private Boolean cacheToDisk;
+    /** 最近一次由 Skill 封面专用上传入口验证并绑定的对象摘要。 */
+    private String coverDigest;
+    private String coverMimeType;
+    private Long coverUploadedBy;
+    private Date coverVerifiedAt;
+    /** 最近一次管理员撤回公开状态的原因。 */
+    private String moderationReason;
+    private Long moderatedBy;
+    private Date moderatedAt;
     /** ENTRYPOINT 可由外部入口调用，INTERNAL 只能由已授权父 Skill 调用。 */
     private String invocationScope;
     /** 当前不可变可执行版本。 */

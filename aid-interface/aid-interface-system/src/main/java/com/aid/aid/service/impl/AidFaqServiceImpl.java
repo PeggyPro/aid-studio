@@ -9,6 +9,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.aid.aid.domain.AidFaq;
+import com.aid.aid.util.RichTextSanitizer;
 import com.aid.aid.mapper.AidFaqMapper;
 import com.aid.aid.service.IAidFaqService;
 import com.aid.common.utils.DateUtils;
@@ -78,6 +79,7 @@ public class AidFaqServiceImpl extends ServiceImpl<AidFaqMapper, AidFaq> impleme
     @Override
     public int insertAidFaq(AidFaq aidFaq)
     {
+        aidFaq.setContent(RichTextSanitizer.sanitize(aidFaq.getContent()));
         // 填充创建时间与创建者
         aidFaq.setCreateTime(DateUtils.getNowDate());
         aidFaq.setCreateBy(SecurityUtils.getUsername());
@@ -93,6 +95,7 @@ public class AidFaqServiceImpl extends ServiceImpl<AidFaqMapper, AidFaq> impleme
     @Override
     public int updateAidFaq(AidFaq aidFaq)
     {
+        aidFaq.setContent(RichTextSanitizer.sanitize(aidFaq.getContent()));
         // 填充更新时间与更新者
         aidFaq.setUpdateTime(DateUtils.getNowDate());
         aidFaq.setUpdateBy(SecurityUtils.getUsername());

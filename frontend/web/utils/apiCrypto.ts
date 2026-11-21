@@ -226,6 +226,31 @@ export async function prepareEncryptedRequest(options: {
   return { headers, body, aesKey }
 }
 
+/** 独立网关使用自己的公开配置，避免覆盖主站的加密公钥和时钟。 */
+export async function prepareEncryptedRequestForPublicConfig(options: {
+  body: unknown
+  publicKey: string
+  serverTimeOffsetMs: number
+}): Promise<PreparedEncryptedRequest> {
+  const aesKey = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt'])
+  const rawAes = await crypto.subtle.exportKey('raw', aesKey)
+  const rsaKey = await crypto.subtle.importKey('spki', b64ToBuf(options.publicKey), { name: 'RSA-OAEP', hash: 'SHA-256' }, false, ['encrypt'])
+  const encryptedKey = await crypto.subtle.encrypt({ name: 'RSA-OAEP' }, rsaKey, rawAes)
+  const iv = crypto.getRandomValues(new Uint8Array(AES_GCM_IV_BYTES))
+  const plain = new TextEncoder().encode(JSON.stringify(options.body ?? {}))
+  const cipher = await crypto.subtle.encrypt({ name: 'AES-GCM', iv, tagLength: AES_GCM_TAG_BITS }, aesKey, plain)
+  return {
+    headers: {
+      'X-Encrypt-Key': bufToB64(encryptedKey),
+      'X-Encrypt-Ts': String(Date.now() + options.serverTimeOffsetMs),
+      'X-Encrypt-Iv': bufToB64(iv),
+      'Content-Type': 'application/json'
+    },
+    body: bufToB64(cipher),
+    aesKey
+  }
+}
+
 /** 将加密结果写入 axios 配置；必须绕过默认 transformRequest，否则 body 会被再包一层 JSON 引号 */
 export function applyEncryptedPayloadToAxiosConfig(
   config: InternalAxiosRequestConfig,
@@ -253,7 +278,8 @@ export function takeAxiosRequestAesKey(config: InternalAxiosRequestConfig): Cryp
 /** 解密服务端 `{ encrypted, iv, gzip, data }` 信封，得到原始业务 JSON */
 export async function decryptEncryptedResponse<T = unknown>(
   resp: ApiEncryptedResponse,
-  aesKey: CryptoKey
+  aesKey: CryptoKey,
+  parse: (source: string) => T = JSON.parse
 ): Promise<T> {
   const iv = b64ToBuf(resp.iv)
   const plainBuf = await crypto.subtle.decrypt(
@@ -264,16 +290,17 @@ export async function decryptEncryptedResponse<T = unknown>(
   let bytes: Uint8Array = new Uint8Array(plainBuf)
   if (resp.gzip) bytes = ungzip(bytes) as Uint8Array<ArrayBuffer>
   const text = new TextDecoder().decode(bytes)
-  return JSON.parse(text) as T
+  return parse(text)
 }
 
 /** 若响应为加密信封则解密，否则原样返回 */
 export async function maybeDecryptApiPayload<T = unknown>(
   data: unknown,
-  aesKey?: CryptoKey | null
+  aesKey?: CryptoKey | null,
+  parse: (source: string) => T = JSON.parse
 ): Promise<T> {
   if (!aesKey || !isEncryptedEnvelope(data)) return data as T
-  return decryptEncryptedResponse<T>(data, aesKey)
+  return decryptEncryptedResponse<T>(data, aesKey, parse)
 }
 
 /** 从 sessionStorage 恢复加密配置（与 useAuthPublicConfig 缓存键一致） */

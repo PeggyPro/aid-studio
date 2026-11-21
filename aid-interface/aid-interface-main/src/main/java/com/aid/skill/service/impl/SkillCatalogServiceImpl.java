@@ -1,6 +1,7 @@
 package com.aid.skill.service.impl;
 
 import com.aid.skill.domain.AidSkill;
+import com.aid.skill.domain.AidSkillVersion;
 import com.aid.skill.mapper.AidSkillMapper;
 import com.aid.skill.service.ISkillCatalogService;
 import com.aid.skill.service.SkillRuntimeCapabilities;
@@ -10,6 +11,7 @@ import com.aid.skill.vo.SkillCatalogVO;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import com.alibaba.fastjson2.JSON;
 
 import java.util.List;
 import java.util.Map;
@@ -27,6 +29,9 @@ public class SkillCatalogServiceImpl implements ISkillCatalogService {
 
     @Override
     public List<SkillCatalogVO.Item> listEntrypoints() {
+        if (SkillRuntimeCapabilities.CALLABLE_ENTRYPOINTS.isEmpty()) {
+            return List.of();
+        }
         List<AidSkill> candidates = skillMapper.selectList(Wrappers.<AidSkill>lambdaQuery()
                         .select(AidSkill::getId, AidSkill::getSkillCode, AidSkill::getName,
                                 AidSkill::getDescription, AidSkill::getCapabilityDescription,
@@ -34,7 +39,6 @@ public class SkillCatalogServiceImpl implements ISkillCatalogService {
                                 AidSkill::getOwnerType, AidSkill::getVisibility,
                                 AidSkill::getInvocationScope, AidSkill::getCurrentVersionId,
                                 AidSkill::getStatus, AidSkill::getDelFlag)
-                        .eq(AidSkill::getOwnerType, SkillRuntimeCapabilities.OWNER_PLATFORM)
                         .eq(AidSkill::getVisibility, SkillRuntimeCapabilities.VISIBILITY_PUBLIC)
                         .eq(AidSkill::getInvocationScope, SkillRuntimeCapabilities.SCOPE_ENTRYPOINT)
                         .in(AidSkill::getSkillCode, SkillRuntimeCapabilities.CALLABLE_ENTRYPOINTS)
@@ -47,15 +51,20 @@ public class SkillCatalogServiceImpl implements ISkillCatalogService {
         }
         Map<Long, SkillRuntimeEntrypointReadinessService.ReadyEntrypoint> ready =
                 readinessService.findReady(candidates);
+        if (ready.isEmpty()) {
+            return List.of();
+        }
         Map<Long, SkillModelService.CatalogProjection> modelProjections =
                 skillModelService.catalogProjections(ready.entrySet().stream().collect(Collectors.toMap(
                         Map.Entry::getKey, entry -> entry.getValue().rootVersion(),
                         (left, right) -> left)));
         return candidates.stream().filter(skill -> ready.containsKey(skill.getId()))
-                .map(skill -> toItem(skill, modelProjections.get(skill.getId()))).toList();
+                .map(skill -> toItem(skill, ready.get(skill.getId()).rootVersion(),
+                        modelProjections.get(skill.getId()))).toList();
     }
 
-    private SkillCatalogVO.Item toItem(AidSkill skill, SkillModelService.CatalogProjection models) {
+    private SkillCatalogVO.Item toItem(AidSkill skill, AidSkillVersion version,
+                                       SkillModelService.CatalogProjection models) {
         SkillRuntimeCapabilities.Descriptor descriptor =
                 SkillRuntimeCapabilities.descriptor(skill.getSkillCode());
         SkillCatalogVO.Item item = new SkillCatalogVO.Item();
@@ -65,12 +74,21 @@ public class SkillCatalogServiceImpl implements ISkillCatalogService {
         item.setDescription(skill.getDescription());
         item.setCapabilityDescription(skill.getCapabilityDescription());
         item.setIconUrl(skill.getIconUrl());
-        item.setCapability(descriptor.capability());
-        item.setOutputKind(descriptor.outputKind());
+        item.setCapability(descriptor == null ? capability(version) : descriptor.capability());
+        item.setOutputKind(descriptor == null ? SkillModelService.outputKind(version) : descriptor.outputKind());
         if (models != null) {
             item.setDefaultModelCode(models.defaultModelCode());
             item.setModels(models.models());
         }
         return item;
+    }
+
+    private String capability(AidSkillVersion version) {
+        try {
+            var definition = JSON.parseObject(version.getDefinitionJson());
+            return definition == null ? null : definition.getString("capabilityCode");
+        } catch (RuntimeException invalid) {
+            return null;
+        }
     }
 }

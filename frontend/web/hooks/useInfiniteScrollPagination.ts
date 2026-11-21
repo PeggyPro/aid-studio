@@ -15,12 +15,19 @@ interface InfiniteScrollPaginationOptions {
   onError?: (error: unknown, context: { pageNum: number; reset: boolean }) => void
 }
 
+interface InfiniteScrollPage<T> {
+  rows: T[]
+  hasMore: boolean
+  /** 服务端返回的列表总数；未返回时保持现值。 */
+  total?: number
+}
+
 /**
  * 列表触底分页加载：默认 20 条/页，带加载态与平滑追加动画 tick。
  */
 export function useInfiniteScrollPagination<T>(
   scrollRootRef: RefObject<HTMLElement | null>,
-  fetchPage: (pageNum: number, pageSize: number) => Promise<{ rows: T[]; hasMore: boolean }>,
+  fetchPage: (pageNum: number, pageSize: number) => Promise<InfiniteScrollPage<T>>,
   options: InfiniteScrollPaginationOptions = {}
 ) {
   const pageSize = options.pageSize ?? 20
@@ -30,6 +37,7 @@ export function useInfiniteScrollPagination<T>(
   onErrorRef.current = options.onError
 
   const [items, setItems] = useState<T[]>([])
+  const [total, setTotal] = useState(0)
   const [hasMore, setHasMore] = useState(true)
   const [loading, setLoading] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
@@ -68,6 +76,7 @@ export function useInfiniteScrollPagination<T>(
         setLoading(true)
         setHasMore(true)
         setItems([])
+        setTotal(0)
         setLoadError(false)
       } else {
         gate.loadingMore = true
@@ -77,7 +86,10 @@ export function useInfiniteScrollPagination<T>(
       const generation = gate.generation
       const nextPage = reset ? 1 : gate.pageNum + 1
       try {
-        const { rows, hasMore: more } = await fetchPageRef.current(nextPage, pageSize)
+        const { rows, hasMore: more, total: nextTotal } = await fetchPageRef.current(
+          nextPage,
+          pageSize
+        )
         if (generation !== gate.generation) return
         if (!reset) {
           await waitInfiniteScrollAppendDelay(startedAt, appendDelayMs)
@@ -92,6 +104,7 @@ export function useInfiniteScrollPagination<T>(
         gate.pageNum = nextPage
         gate.hasMore = more
         setHasMore(more)
+        if (typeof nextTotal === 'number') setTotal(nextTotal)
         setLoadError(false)
       } catch (error) {
         if (generation !== gate.generation) return
@@ -169,6 +182,7 @@ export function useInfiniteScrollPagination<T>(
     items,
     /** 对应原 Vue 直改 pagination.items.value（如置顶重排）；不影响分页闸门 */
     setItems,
+    total,
     hasMore,
     loading,
     loadingMore,

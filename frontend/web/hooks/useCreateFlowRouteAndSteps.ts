@@ -36,7 +36,6 @@ import {
   isStoryScriptContentFilled,
   loadStoryScriptFromApi,
   loadStoryboardListFromApi,
-  saveStoryScriptToServer,
 } from './createFlowRouteSteps/stepData'
 import {
   ensureRouteWithinUnlockedSteps,
@@ -206,7 +205,6 @@ export function useCreateFlowRouteAndSteps(
       storyboardListSyncReady: box(false),
       storyboardListInFlightKey: box<string | null>(null),
       storyboardListLoadGeneration: box(0),
-      saveDraftSubmitting: box(false),
       createStepSwapPlaceholder: box(false)
     }
     ctxRef.current = ctx
@@ -458,19 +456,6 @@ export function useCreateFlowRouteAndSteps(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pushCreateStepRoute, steps])
 
-  const saveDraft = useCallback(async () => {
-    if (ctx.saveDraftSubmitting.value) return
-    if (routePathToCreationStep(routeRef.current.path) !== 'story-script') return
-    setBox(ctx, ctx.saveDraftSubmitting, true)
-    try {
-      const ok = await saveStoryScriptToServer(ctx)
-      if (ok) message.success('草稿已保存')
-    } finally {
-      setBox(ctx, ctx.saveDraftSubmitting, false)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
   const addCharacter = useCallback(() => {
     const store = useCreationStore.getState()
     store.updateSceneCharacterData({
@@ -520,8 +505,6 @@ export function useCreateFlowRouteAndSteps(
     handleNextStep,
     prevStep,
     handleSubmit,
-    saveDraft,
-    saveDraftSubmitting: ctx.saveDraftSubmitting.value,
     addCharacter,
     ensureRouteWithinUnlockedSteps: () => ensureRouteWithinUnlockedSteps(ctx)
   }

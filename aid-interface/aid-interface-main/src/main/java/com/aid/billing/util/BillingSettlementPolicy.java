@@ -17,7 +17,7 @@ public final class BillingSettlementPolicy
 
     public static boolean isEstimated(String meterType, String billingMode, String billingRuleJson)
     {
-        if ("TOKEN".equalsIgnoreCase(meterType))
+        if ("TOKEN".equalsIgnoreCase(meterType) || "PER_MINUTE".equalsIgnoreCase(meterType))
         {
             return true;
         }

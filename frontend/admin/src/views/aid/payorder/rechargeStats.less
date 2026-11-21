@@ -1,0 +1,259 @@
+@import '@/assets/styles/variables.less';
+
+.payorder-tabs > .ant-tabs-nav {
+  margin-bottom: 18px;
+}
+
+.payorder-scope {
+  margin-bottom: 14px;
+}
+
+.recharge-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+
+  .ant-card {
+    min-width: 0;
+    box-shadow: @shadow-light;
+  }
+}
+
+.recharge-filters {
+  &__row, &__group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  &__row {
+    justify-content: space-between;
+  }
+
+  &__label {
+    color: @text-color-primary;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  &__channel {
+    width: 130px;
+  }
+
+  &__error {
+    margin-top: 8px;
+    color: #b91c1c;
+  }
+}
+
+.recharge-kpis, .recharge-panels {
+  display: grid;
+  gap: 16px;
+}
+
+.recharge-kpis {
+  grid-template-columns: 1.4fr repeat(3, minmax(0, 1fr));
+}
+
+.recharge-kpi {
+  &.ant-card .ant-card-body {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 18px 20px;
+  }
+
+  &__label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+  }
+
+  &__label .anticon {
+    color: @primary-color;
+    background: @primary-color-soft;
+    border-radius: 8px;
+    padding: 8px;
+  }
+
+  strong {
+    font-size: clamp(20px, 2.4vw, 32px);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+    line-height: 1.15;
+  }
+
+  &__hint {
+    color: @text-color-secondary;
+    font-size: 13px;
+  }
+
+  &--primary.ant-card {
+    border-color: transparent;
+    color: #fff;
+    background: radial-gradient(ellipse at 100% 0%, #526cec 0, transparent 70%),
+      linear-gradient(135deg, #1d4ed8, #3546ad);
+
+    .recharge-kpi__label .anticon {
+      color: #fff;
+      background: rgba(255, 255, 255, .16);
+    }
+
+    .recharge-kpi__hint {
+      color: #edf2ff;
+    }
+  }
+}
+
+.recharge-panels {
+  grid-template-columns: minmax(0, 2fr) minmax(255px, 1fr);
+}
+
+.recharge-trend {
+  &__controls, &__reading, &__detail {
+    display: flex;
+    align-items: center;
+    gap: 8px 12px;
+    flex-wrap: wrap;
+  }
+
+  &__controls, &__detail {
+    justify-content: space-between;
+  }
+
+  &__reading, &__detail {
+    color: @text-color-secondary;
+    font-variant-numeric: tabular-nums;
+  }
+
+  &__reading strong {
+    color: @text-color-primary;
+    font-size: 20px;
+  }
+
+  &__chart {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    gap: 12px;
+    padding: 14px 0 8px;
+  }
+
+  &__axis, &__dates {
+    display: flex;
+    justify-content: space-between;
+    color: @text-color-secondary;
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+  }
+
+  &__axis {
+    height: 180px;
+    flex-direction: column;
+    text-align: right;
+  }
+
+  &__plot svg {
+    display: block;
+    width: 100%;
+    height: 180px;
+    color: @primary-color;
+    cursor: crosshair;
+    overflow: visible;
+    touch-action: pan-y;
+  }
+
+  &__gridline {
+    stroke: @border-color;
+    vector-effect: non-scaling-stroke;
+  }
+
+  &__dates {
+    padding-top: 10px;
+  }
+
+  &__detail .ant-btn {
+    padding-inline: 0;
+  }
+}
+
+.recharge-channels__hint {
+  color: @text-color-secondary;
+  font-size: 13px;
+}
+
+.recharge-channel {
+  --channel-color: #2563eb;
+  padding-top: 13px;
+
+  &[data-channel='wxpay'] {
+    --channel-color: #0f8a55;
+  }
+
+  &[data-channel='other'] {
+    --channel-color: #6962c4;
+  }
+
+  &__row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 2px 10px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  &__row .ant-btn {
+    padding-inline: 0;
+  }
+
+  &__bar {
+    height: 8px;
+    border-radius: 6px;
+    background: @bg-layout;
+    overflow: hidden;
+    margin: 5px 0 7px;
+
+    span {
+      display: block;
+      height: 100%;
+      border-radius: inherit;
+      background: var(--channel-color);
+    }
+  }
+}
+
+.recharge-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  color: @text-color-secondary;
+  font-size: 13px;
+}
+
+@media (max-width: 1150px) {
+  .recharge-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 920px) {
+  .recharge-panels {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 480px) {
+  .recharge-kpis {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .recharge-stats .ant-card .ant-card-body {
+    padding: 14px;
+  }
+}

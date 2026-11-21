@@ -1,5 +1,5 @@
-import { CreateFlowStepLoading } from '~/components/create/create-flow-shell/CreateFlowStepLoading'
+import { PageLoadingOverlay } from '~/components/common/PageLoadingOverlay'
 
 export default function CreateFlowLoading() {
-  return <CreateFlowStepLoading />
+  return <PageLoadingOverlay label="正在准备流程页面…" />
 }

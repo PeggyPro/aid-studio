@@ -58,48 +58,6 @@
     margin-bottom: 12px;
   }
 
-  :is(html.layout-home-new, html.app-shell-create) .works-lib-card--series .works-lib-card__body {
-    height: auto;
-    min-height: 44px;
-    padding: 0 10px 8px;
-  }
-
-  :is(html.layout-home-new, html.app-shell-create)
-    .works-library-figma.works-library-figma--series-tab,
-  :is(html.layout-home-new, html.app-shell-create)
-    .works-library-figma:has(.works-lib-card--series) {
-    --works-lib-body-h: 44px;
-  }
-
-  :is(html.layout-home-new, html.app-shell-create)
-    .works-library-figma.works-library-figma--series-tab
-    .works-lib-grid {
-    align-items: stretch;
-  }
-
-  :is(html.layout-home-new, html.app-shell-create)
-    .works-library-figma.works-library-figma--series-tab
-    .works-lib-card,
-  :is(html.layout-home-new, html.app-shell-create)
-    .works-library-figma.works-library-figma--series-tab
-    .works-lib-add-card {
-    align-self: stretch;
-    height: auto;
-  }
-
-  :is(html.layout-home-new, html.app-shell-create)
-    .works-library-figma.works-library-figma--series-tab
-    .works-lib-add-card__body {
-    height: auto;
-    min-height: var(--works-lib-body-h, 44px);
-    flex: 1 0 auto;
-  }
-
-  :is(html.layout-home-new, html.app-shell-create) .works-lib-card__episodes--series {
-    min-height: 0;
-    padding-top: 6px;
-  }
-
   :is(html.layout-home-new, html.app-shell-create) .works-lib-add-card {
     min-height: 0;
     height: auto;
@@ -114,6 +72,14 @@
     --carousel-viewport-h: 120px;
     --carousel-card-w: 150px;
     --carousel-card-h: 120px;
+  }
+
+  :is(html.layout-home-new, html.app-shell-create) .home-composer-hero {
+    --home-composer-hero-h: 420px;
+  }
+
+  :is(html.layout-home-new, html.app-shell-create) .home-composer-slogan {
+    margin: 36px 0 24px;
   }
 
   /* —— 邀请有礼：小分辨率压缩间距与字号，保持左右并排结构 —— */

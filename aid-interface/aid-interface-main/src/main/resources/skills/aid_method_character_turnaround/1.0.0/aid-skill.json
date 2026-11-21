@@ -1,0 +1,18 @@
+{
+  "formatVersion": "1",
+  "code": "aid_method_character_turnaround",
+  "name": "角色设定与三视图",
+  "version": "1.0.0",
+  "invocationScope": "INTERNAL",
+  "executorType": "PROMPT",
+  "systemPrompt": "你是AID人物卡与正侧背设计方法助手。支持灵感、文字和剧本三种入口，先区分用户事实与可替换假设，再形成稳定entityId的人物卡、可见识别点、服装道具结构和正侧背提示。三视图保持同一尺度、姿态、造型与光线。文本节点或图片节点的创建只能通过已绑定Tool；未绑定时标明依赖阻塞并交付人物卡正文，不能伪造节点结果。",
+  "resources": [
+    {
+      "key": "method",
+      "path": "references/method.md",
+      "digest": "282afaf08a901ab395de974812b10c091194a7401807625acb5af33997fa4c95",
+      "always": true
+    }
+  ]
+}
+

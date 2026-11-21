@@ -1,8 +1,6 @@
 package com.aid.media.provider.impl;
 
 
-import cn.hutool.http.HttpRequest;
-import cn.hutool.http.HttpResponse;
 import com.aid.common.constant.HttpConstants;
 import com.aid.common.utils.ProviderEndpointUtils;
 import com.aid.domain.vo.AiModelConfigVo;
@@ -41,6 +39,12 @@ import java.util.Set;
 @Slf4j
 @Component
 public class VolcengineImageProviderClient implements ImageProviderClient {
+    private static final java.net.http.HttpClient HTTP_CLIENT = java.net.http.HttpClient.newBuilder()
+            .version(java.net.http.HttpClient.Version.HTTP_1_1)
+            .connectTimeout(java.time.Duration.ofSeconds(30)).build();
+
+    @Override
+    public boolean usesSynchronousExecution(AiModelConfigVo modelConfig) { return true; }
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
@@ -53,6 +57,11 @@ public class VolcengineImageProviderClient implements ImageProviderClient {
     /** Seedream 5.0 Pro 官方 1K/2K 推荐尺寸，用于把平台“档位 + 比例”转换为单一 size 字段。 */
     private static final Map<String, String> SEEDREAM_1K_SIZES = createSeedream1KSizes();
     private static final Map<String, String> SEEDREAM_2K_SIZES = createSeedream2KSizes();
+
+    @Override public InputDelivery inputDelivery(AiModelConfigVo config, MediaImageGenerateRequest request) {
+        return com.aid.media.provider.ReferenceImageBase64Support.isBase64Enabled(config)
+                ? InputDelivery.INLINE : InputDelivery.URL;
+    }
 
     @Override
     public String protocol() {
@@ -74,7 +83,7 @@ public class VolcengineImageProviderClient implements ImageProviderClient {
     @Override
     public void validateRequest(AiModelConfigVo modelConfig, MediaImageGenerateRequest request) {
         if (!isLayerRequest(request)) return;
-        if (!LAYER_MODEL.equals(resolveEffectiveModel(modelConfig, request))) {
+        if (modelConfig == null || !LAYER_MODEL.equals(modelConfig.getModelCode())) {
             throw new ServiceException("所选模型暂不支持图层分离");
         }
         if (request.getMaskImageUrl() != null || request.getNegativePrompt() != null) {
@@ -110,7 +119,8 @@ public class VolcengineImageProviderClient implements ImageProviderClient {
         // 单次调用超时按模型 capability_json.submitTimeoutSeconds 取值（秒），缺省回退 HTTP 默认。
         int timeoutSeconds = SubmitTimeoutResolver.resolveMs(modelConfig,
                 VolcengineConstants.HTTP_TIMEOUT_SECONDS * 1000) / 1000;
-        String effectiveModel = resolveEffectiveModel(modelConfig, request);
+        // 图层能力绑定可信目录型号，实际请求沿用服务端配置的上游编码。
+        String effectiveModel = resolveEffectiveModel(modelConfig, isLayerRequest(request) ? null : request);
         validateRequest(modelConfig, request);
         GenerateImagesRequest generateRequest = buildRequest(effectiveModel, request, modelConfig);
 
@@ -124,10 +134,15 @@ public class VolcengineImageProviderClient implements ImageProviderClient {
                     modelConfig, OBJECT_MAPPER.writeValueAsString(generateRequest), request);
             if (isLayerRequest(request)) {
                 ObjectNode layerBody = (ObjectNode) OBJECT_MAPPER.readTree(body);
+                // Pro 图层模式使用同步接口，不发送普通图片生成的流式、组图等字段。
+                layerBody.retain("model", "prompt", "image", "response_format", "watermark");
+                JsonNode image = layerBody.path("image");
+                if (image.isArray() && image.size() == 1) {
+                    layerBody.set("image", image.get(0));
+                }
                 layerBody.put("layer_decomposition", true);
                 layerBody.put("size", StringUtils.defaultIfBlank(request.getSize(), "1.5K"));
                 layerBody.put("output_format", "png");
-                layerBody.put("stream", false);
                 if (StringUtils.isBlank(request.getPrompt())) layerBody.remove("prompt");
                 body = OBJECT_MAPPER.writeValueAsString(layerBody);
             }
@@ -136,14 +151,13 @@ public class VolcengineImageProviderClient implements ImageProviderClient {
             if (httpResponse.statusCode() < 200 || httpResponse.statusCode() >= 300) {
                 log.error("Volcengine 图片生成调用失败, model={}, httpStatus={}, responseLength={}",
                         effectiveModel, httpResponse.statusCode(), StringUtils.length(raw));
-                return ProviderSubmitResult.builder().rawResponse(raw).build();
+                return com.aid.media.provider.ProviderSubmissionFailures.httpResponse(
+                        httpResponse.statusCode(), raw, effectiveModel);
             }
             response = OBJECT_MAPPER.readValue(raw, ImagesResponse.class);
         } catch (Exception e) {
             log.error("Volcengine 图片生成调用失败, model={}", effectiveModel, e);
-            return ProviderSubmitResult.builder()
-                    .rawResponse(e.getMessage())
-                    .build();
+            return com.aid.media.provider.ProviderSubmissionFailures.unknownResponse(e.getMessage());
         }
         // Seedream 返回 response.getData() 为 URL 列表，按实际张数全部采集，供图片计费按量结算。
         List<String> resultUrls = new ArrayList<>();
@@ -175,6 +189,7 @@ public class VolcengineImageProviderClient implements ImageProviderClient {
 
         if (StringUtils.isBlank(directUrl) && response.getError() != null) {
             log.error("Volcengine 图片生成返回错误, error={}", response.getError());
+            return com.aid.media.provider.ProviderSubmissionFailures.reportedFailure(raw, effectiveModel);
         }
 
         return ProviderSubmitResult.builder()
@@ -447,19 +462,20 @@ public class VolcengineImageProviderClient implements ImageProviderClient {
                 modelConfig.getBaseUrl(), modelConfig.getApiSuffix());
     }
 
-    private HttpResult doPost(String url, String apiKey, String body, int timeoutSeconds) {
+    private HttpResult doPost(String url, String apiKey, String body, int timeoutSeconds)
+            throws java.io.IOException, InterruptedException {
         if (StringUtils.isBlank(apiKey)) {
-            throw new IllegalArgumentException("方舟密钥未配置");
+            throw com.aid.media.provider.ProviderSubmissionFailures.notSent("方舟密钥未配置");
         }
         int timeoutMs = Math.max(timeoutSeconds, 1) * 1000;
-        try (HttpResponse response = HttpRequest.post(url)
+        var request = java.net.http.HttpRequest.newBuilder(java.net.URI.create(url))
                 .header(HttpConstants.HEADER_AUTHORIZATION, HttpConstants.AUTH_BEARER_PREFIX + apiKey.trim())
                 .header(HttpConstants.HEADER_CONTENT_TYPE, HttpConstants.CONTENT_TYPE_JSON)
-                .body(body)
-                .timeout(timeoutMs)
-                .execute()) {
-            return new HttpResult(response.getStatus(), response.body());
-        }
+                .POST(java.net.http.HttpRequest.BodyPublishers.ofString(body, java.nio.charset.StandardCharsets.UTF_8))
+                .timeout(java.time.Duration.ofMillis(timeoutMs)).build();
+        var response = com.aid.media.provider.TextExecutionTransportScope.send(HTTP_CLIENT, request,
+                java.net.http.HttpResponse.BodyHandlers.ofString(java.nio.charset.StandardCharsets.UTF_8));
+        return new HttpResult(response.statusCode(), response.body());
     }
 
     private String resolveEffectiveModel(AiModelConfigVo modelConfig, MediaImageGenerateRequest request) {

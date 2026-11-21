@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 
 /** 校验文本模型的思考和多模态输入能力。 */
 @Slf4j
@@ -33,16 +34,28 @@ public final class TextModelCapabilityValidator {
     }
 
     public static void normalizeAndValidate(AiModelConfigVo model, MediaTextGenerateRequest request, boolean verifyMetadata) {
+        normalizeAndValidate(model, request, verifyMetadata, url -> false);
+    }
+
+    public static void normalizeAndValidate(AiModelConfigVo model, MediaTextGenerateRequest request,
+                                           boolean verifyMetadata, Predicate<String> configuredStorage) {
         JsonNode capability = parse(model == null ? null : model.getCapabilityJson());
         validateProtocolFeatures(capability, request);
         normalizeReasoning(capability, request);
-        validateParts(capability, request, verifyMetadata);
+        validateParts(capability, request, verifyMetadata, configuredStorage);
     }
 
     public static void validateStructure(AiModelConfigVo model, MediaTextGenerateRequest request) {
         JsonNode capability = parse(model == null ? null : model.getCapabilityJson());
         validateProtocolFeatures(capability, request);
-        validateParts(capability, request, false);
+        validateParts(capability, request, false, url -> false);
+    }
+
+    public static void validateStructure(AiModelConfigVo model, MediaTextGenerateRequest request,
+                                         Predicate<String> configuredStorage) {
+        JsonNode capability = parse(model == null ? null : model.getCapabilityJson());
+        validateProtocolFeatures(capability, request);
+        validateParts(capability, request, false, configuredStorage);
     }
 
     private static void validateProtocolFeatures(JsonNode capability, MediaTextGenerateRequest request) {
@@ -105,16 +118,18 @@ public final class TextModelCapabilityValidator {
         }
         if (Boolean.TRUE.equals(request.getIncludeReasoning())
                 && !bool(capability, "supportsReasoningContent")
-                && !bool(capability, "returnsReasoningContent")) {
+                && !bool(capability, "returnsReasoningContent")
+                && !bool(capability, "supportsReasoningSummary")) {
             request.setIncludeReasoning(Boolean.FALSE);
         }
     }
 
     private static void validateParts(JsonNode capability, MediaTextGenerateRequest request) {
-        validateParts(capability, request, true);
+        validateParts(capability, request, true, url -> false);
     }
 
-    private static void validateParts(JsonNode capability, MediaTextGenerateRequest request, boolean metadata) {
+    private static void validateParts(JsonNode capability, MediaTextGenerateRequest request, boolean metadata,
+                                      Predicate<String> configuredStorage) {
         if (request.getMessages() == null) {
             return;
         }
@@ -145,7 +160,7 @@ public final class TextModelCapabilityValidator {
                     }
                     continue;
                 }
-                validateUrl(part.getUrl());
+                validateUrl(part.getUrl(), configuredStorage);
                 if (!supports(capability, type)) {
                     throw reject(TaskErrorCode.USER_INPUT_INVALID, "输入类型不支持");
                 }
@@ -193,17 +208,25 @@ public final class TextModelCapabilityValidator {
         }
     }
 
-    private static void validateUrl(String value) {
+    private static void validateUrl(String value, Predicate<String> configuredStorage) {
+        if (com.aid.media.service.ManagedTextImageService.isReference(value)) return;
         if (StrUtil.isBlank(value) || value.regionMatches(true, 0, "data:", 0, 5)) {
             throw reject(TaskErrorCode.USER_INPUT_INVALID, "媒体地址无效");
         }
         try {
             URI uri = URI.create(value.trim());
             String scheme = lower(uri.getScheme());
-            if (!Set.of("http", "https", "gs").contains(scheme)) {
+            if (scheme == null || !Set.of("http", "https", "gs").contains(scheme)) {
                 throw reject(TaskErrorCode.USER_INPUT_INVALID, "媒体地址无效");
             }
-            if (("http".equals(scheme) || "https".equals(scheme))
+            if (uri.getHost() == null || uri.getUserInfo() != null || uri.getFragment() != null) {
+                throw reject(TaskErrorCode.USER_INPUT_INVALID, "媒体地址无效");
+            }
+            // Storage authority comes only from server configuration, never a request flag.
+            // Same-region object storage may legitimately resolve to a private address.
+            boolean ownedStorage = ("http".equals(scheme) || "https".equals(scheme))
+                    && configuredStorage != null && configuredStorage.test(value);
+            if (("http".equals(scheme) || "https".equals(scheme)) && !ownedStorage
                     && !ImageUrlValidator.validateImageUrlFormat(value).isValid()) {
                 throw reject(TaskErrorCode.USER_INPUT_INVALID, "媒体地址无效");
             }

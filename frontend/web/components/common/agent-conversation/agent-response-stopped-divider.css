@@ -4,7 +4,7 @@
   gap: 12px;
   width: 100%;
   margin: 10px 0 2px;
-  color: #727c8a;
+  color: var(--studio-ui-muted, var(--ui-muted, #727c8a));
   font-size: 11px;
   line-height: 1.4;
 }
@@ -14,12 +14,12 @@
   content: '';
   flex: 1 1 auto;
   height: 1px;
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--studio-ui-border, var(--ui-soft, rgba(255, 255, 255, 0.08)));
 }
 
 .agent-response-stopped-divider__label {
   flex: 0 0 auto;
-  color: #6f7886;
+  color: var(--studio-ui-muted, var(--ui-muted, #6f7886));
   white-space: nowrap;
 }
 

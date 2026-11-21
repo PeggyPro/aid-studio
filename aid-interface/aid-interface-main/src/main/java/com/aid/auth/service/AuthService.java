@@ -104,6 +104,9 @@ public class AuthService {
     private RedisCache redisCache;
 
     @Resource
+    private VerificationCodeService verificationCodeService;
+
+    @Resource
     private TokenService tokenService;
 
     @Resource
@@ -164,6 +167,9 @@ public class AuthService {
     /** 配音试听限制服务：向前端下发当前秒数配置及预估最大字数 */
     @Resource
     private VoicePreviewLimitService voicePreviewLimitService;
+
+    @Resource
+    private com.aid.script.service.ScriptLimitsService scriptLimitsService;
 
     /** 支付宝配置管理器：读取支付宝开关，聚合到 publicConfig 告知 C 端支付宝是否可用 */
     @Resource
@@ -446,7 +452,7 @@ public class AuthService {
     public PublicConfigVO getPublicConfig() {
         try {
             PublicConfigVO cached = redisCache.getCacheObject(PUBLIC_CONFIG_CACHE_KEY);
-            if (cached != null) {
+            if (cached != null && cached.getScriptLimits() != null) {
                 return cached;
             }
         } catch (Exception e) {
@@ -518,6 +524,7 @@ public class AuthService {
                 .payment(payment)
                 .upload(upload)
                 .voicePreview(voicePreview)
+                .scriptLimits(scriptLimitsService.current())
                 .promotion(promotion)
                 .serverTime(System.currentTimeMillis())
                 .build();
@@ -822,8 +829,9 @@ public class AuthService {
         validateCode(AuthConstants.SCENE_RESET, target, resetType, code);
 
         SysUser user = findUserByTarget(target, resetType);
-        if (Objects.isNull(user)) {
-            throw new ServiceException("账号不存在");
+        if (Objects.isNull(user) || SecurityUtils.isBackendAccount(user)) {
+            log.info("账号不适用自助密码重置");
+            throw new ServiceException("无法重置密码");
         }
 
         // 直接重置密码字段，不触发角色/岗位清空逻辑
@@ -946,8 +954,8 @@ public class AuthService {
 
         String oldKey = AuthConstants.getCodeCacheKey(AuthConstants.SCENE_REBIND_OLD, bindType, oldTarget);
         String newKey = AuthConstants.getCodeCacheKey(AuthConstants.SCENE_REBIND_NEW, bindType, newTarget);
-        validateCodeWithoutConsume(oldKey, request.getOldCode(), AuthConstants.SCENE_REBIND_OLD, bindType, oldTarget);
-        validateCodeWithoutConsume(newKey, request.getNewCode(), AuthConstants.SCENE_REBIND_NEW, bindType, newTarget);
+        validateCodeWithoutConsume(oldKey, request.getOldCode());
+        validateCodeWithoutConsume(newKey, request.getNewCode());
         consumeValidatedCode(oldKey, request.getOldCode());
         consumeValidatedCode(newKey, request.getNewCode());
 
@@ -1621,25 +1629,7 @@ public class AuthService {
      * @param code     用户输入的验证码
      */
     private void validateCode(String scene, String target, String codeType, String code) {
-        if (StrUtil.isBlank(code)) {
-            throw new ServiceException("验证码不能为空");
-        }
-        String cacheKey = AuthConstants.getCodeCacheKey(scene, codeType, target);
-        String cachedCode = redisCache.getCacheObject(cacheKey);
-
-        if (Objects.isNull(cachedCode)) {
-            log.info("验证码已过期: scene={}, codeType={}, target={}", scene, codeType, target);
-            throw new ServiceException("验证码已过期");
-        }
-        if (!Objects.equals(cachedCode, code)) {
-            log.info("验证码错误: scene={}, codeType={}, target={}", scene, codeType, target);
-            throw new ServiceException("验证码错误");
-        }
-
-        // 比对成功后按值原子删除，防止并发请求重复消费同一验证码。
-        if (!redisCache.deleteObjectIfValueEquals(cacheKey, cachedCode)) {
-            throw new ServiceException("验证码已使用或已过期");
-        }
+        verificationCodeService.verify(AuthConstants.getCodeCacheKey(scene, codeType, target), code, true);
     }
 
     /**
@@ -1946,20 +1936,8 @@ public class AuthService {
     }
 
     /** 换绑时先校验两个验证码，再按值原子消费，防止并发请求复用。 */
-    private void validateCodeWithoutConsume(String cacheKey, String code, String scene,
-                                            String codeType, String target) {
-        if (StrUtil.isBlank(code)) {
-            throw new ServiceException("验证码不能为空");
-        }
-        String cachedCode = redisCache.getCacheObject(cacheKey);
-        if (Objects.isNull(cachedCode)) {
-            log.info("验证码已过期: scene={}, codeType={}, target={}", scene, codeType, target);
-            throw new ServiceException("验证码已过期");
-        }
-        if (!Objects.equals(cachedCode, code)) {
-            log.info("验证码错误: scene={}, codeType={}, target={}", scene, codeType, target);
-            throw new ServiceException("验证码错误");
-        }
+    private void validateCodeWithoutConsume(String cacheKey, String code) {
+        verificationCodeService.verify(cacheKey, code, false);
     }
 
     private void consumeValidatedCode(String cacheKey, String code) {

@@ -124,6 +124,12 @@ public abstract class AbstractVideoReferenceStrategy implements VideoReferenceSt
                 compactByOriginal.put(picked.get(i).getOriginalN(), indexOffset + i + 1);
             }
         }
+        return remapPromptForIndexes(prompt, compactByOriginal);
+    }
+
+    /** 使用实际派发数组的位置映射，支持垫图前置及同 URL 去重。 */
+    protected String remapPromptForIndexes(String prompt, Map<Integer, Integer> compactByOriginal)
+    {
         Matcher matcher = AT_REF_PATTERN.matcher(StrUtil.nullToEmpty(prompt));
         StringBuffer rewritten = new StringBuffer();
         while (matcher.find())

@@ -26,4 +26,7 @@ public interface ConfigService {
      * @return
      */
     Map<String, String> getConfigValues(String category);
+
+    /** 仅在管理员明确同步文件存储配置后记录生效快照；不用于普通配置保存。 */
+    void recordStorageSynchronization(String fingerprint);
 }

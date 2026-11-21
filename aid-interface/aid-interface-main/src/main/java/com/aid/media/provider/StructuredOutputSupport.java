@@ -24,7 +24,7 @@ import lombok.extern.slf4j.Slf4j;
  * <ol>
  *   <li>业务显式关闭时移除模型级 response_format；未配置开关且请求已显式传入时尊重原配置；</li>
  *   <li>capability 未打标的模型完全不受影响（方舟 Seed 2.x Pro 等官方无此能力的模型不得打标）；</li>
- *   <li>消息不含 "JSON" 关键词时不注入——官方会直接报错
+ *   <li>已要求JSON输出但消息不含 "JSON" 关键词时前置拒绝——官方会直接报错
  *       {@code 'messages' must contain the word 'json' in some form}；</li>
  *   <li>JSON Mode 仍保留统一输出上限；达到上限时由业务按 finish_reason=length 处理。</li>
  * </ol>
@@ -37,7 +37,9 @@ public final class StructuredOutputSupport {
 
     /** capability_json 中的 JSON Mode 支持标记键 */
     public static final String CAPABILITY_SUPPORTS_JSON_OBJECT = "supportsJsonObject";
+    public static final String CAPABILITY_SUPPORTS_JSON_SCHEMA = "supportsJsonSchema";
     public static final String ENABLED_KEY = "_aid_structured_output_enabled";
+    public static final String NATIVE_SCHEMA_KEY = "_aid_structured_output_schema";
 
     /** OpenAI 兼容请求体字段：返回内容格式 */
     private static final String KEY_RESPONSE_FORMAT = "response_format";
@@ -64,6 +66,12 @@ public final class StructuredOutputSupport {
     public static Map<String, Object> applyJsonModeIfSupported(AiModelConfigVo modelConfig,
                                                                List<Map<String, Object>> messages,
                                                                Map<String, Object> mergedOptions) {
+        return applyJsonModeIfSupported(modelConfig, messages, mergedOptions, false);
+    }
+
+    public static Map<String, Object> applyJsonModeIfSupported(AiModelConfigVo modelConfig,
+            List<Map<String, Object>> messages, Map<String, Object> mergedOptions, boolean streaming) {
+        Object nativeSchema = mergedOptions == null ? null : mergedOptions.remove(NATIVE_SCHEMA_KEY);
         boolean configured = mergedOptions != null && mergedOptions.containsKey(ENABLED_KEY);
         boolean enabled = configured
                 && Boolean.parseBoolean(String.valueOf(mergedOptions.remove(ENABLED_KEY)));
@@ -71,8 +79,30 @@ public final class StructuredOutputSupport {
             // Skill/对话显式关闭时，必须压过供应商或模型 extra_body 中遗留的 JSON Mode。
             mergedOptions.remove(KEY_RESPONSE_FORMAT);
         }
+        // A declared schema is a stronger contract than JSON syntax alone. Never claim
+        // strict output by sending json_object, or forward unsupported format options.
+        if (mergedOptions != null && mergedOptions.get(KEY_RESPONSE_FORMAT) instanceof Map<?, ?> format
+                && "json_schema".equals(format.get("type"))
+                && !supportsCapability(modelConfig, CAPABILITY_SUPPORTS_JSON_SCHEMA)) {
+            throw new IllegalArgumentException("当前模型未核验严格JSON Schema能力");
+        }
+        if (enabled && nativeSchema instanceof Map<?, ?> schema
+                && supportsCapability(modelConfig, CAPABILITY_SUPPORTS_JSON_SCHEMA)
+                && !mergedOptions.containsKey(KEY_RESPONSE_FORMAT)) {
+            Map<String, Object> declaration = new LinkedHashMap<>();
+            declaration.put("name", "aid_structured_output");
+            declaration.put("strict", true);
+            declaration.put("schema", schema);
+            mergedOptions.put(KEY_RESPONSE_FORMAT, Map.of("type", "json_schema", "json_schema", declaration));
+        }
+        if (streaming && mergedOptions != null && mergedOptions.get(KEY_RESPONSE_FORMAT) instanceof Map<?, ?> format
+                && "json_schema".equals(format.get("type"))
+                && !supportsCapability(modelConfig, "supportsJsonSchemaStreaming"))
+            throw new IllegalArgumentException("当前模型未核验严格JSON Schema与流式组合能力");
         // 业务显式配置 response_format：尊重业务，不覆盖
         if (mergedOptions != null && mergedOptions.containsKey(KEY_RESPONSE_FORMAT)) {
+            if (mergedOptions.get(KEY_RESPONSE_FORMAT) instanceof Map<?, ?> format
+                    && TYPE_JSON_OBJECT.equals(format.get("type"))) requireJsonInstruction(messages);
             return mergedOptions;
         }
         if (!enabled) {
@@ -81,10 +111,7 @@ public final class StructuredOutputSupport {
         if (!supportsJsonObject(modelConfig)) {
             return mergedOptions;
         }
-        if (!messagesContainJsonKeyword(messages)) {
-            // 官方硬性前置：消息必须含 JSON 关键词，否则上游 400；创作类纯文本调用天然跳过
-            return mergedOptions;
-        }
+        requireJsonInstruction(messages);
         Map<String, Object> out = mergedOptions == null ? new LinkedHashMap<>() : mergedOptions;
         Map<String, Object> responseFormat = new LinkedHashMap<>();
         responseFormat.put("type", TYPE_JSON_OBJECT);
@@ -113,6 +140,18 @@ public final class StructuredOutputSupport {
         }
     }
 
+    private static void requireJsonInstruction(List<Map<String, Object>> messages) {
+        if (messagesContainJsonKeyword(messages)) return;
+        log.info("JSON输出约束拒绝: 请求缺少JSON格式指令");
+        throw new IllegalArgumentException("缺少JSON格式指令");
+    }
+
+    private static boolean supportsCapability(AiModelConfigVo config, String key) {
+        if (config == null || StrUtil.isBlank(config.getCapabilityJson())) return false;
+        try { return Boolean.TRUE.equals(JSONUtil.parseObj(config.getCapabilityJson()).getBool(key, false)); }
+        catch (RuntimeException invalid) { return false; }
+    }
+
     /**
      * 检测 system / user 消息内容是否包含 "JSON" 关键词（不区分大小写）。
      */
@@ -133,6 +172,11 @@ public final class StructuredOutputSupport {
             if (content instanceof String text
                     && text.toLowerCase(Locale.ROOT).contains(KEYWORD_JSON)) {
                 return true;
+            }
+            if (content instanceof List<?> parts) for (Object part : parts) {
+                if (part instanceof Map<?, ?> value && "text".equals(value.get("type"))
+                        && value.get("text") instanceof String text
+                        && text.toLowerCase(Locale.ROOT).contains(KEYWORD_JSON)) return true;
             }
         }
         return false;

@@ -39,6 +39,49 @@ const MAX_STORYBOARD_VIDEO_COUNT = 4
 
 const CJK_SCRIPT_RE = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u
 
+type AvailableCapability = NonNullable<UserModelListItem['availableCapabilities']>[number]
+
+/**
+ * 模型列表的顶层能力仅表示默认能力；业务入口必须同时检查 availableCapabilities。
+ * listByFunc 与按 generateMode 查询都可能返回顶层 capabilityCode 为空的多能力模型。
+ */
+export function findModelCapability(
+  item: UserModelListItem | null | undefined,
+  capabilityCode: string
+): AvailableCapability | undefined {
+  return item?.availableCapabilities?.find((capability) =>
+    capability.code === capabilityCode || capability.generateMode === capabilityCode
+  )
+}
+
+export function modelSupportsCapability(
+  item: UserModelListItem | null | undefined,
+  capabilityCode: string
+): item is UserModelListItem {
+  return Boolean(item && (
+    item.capabilityCode === capabilityCode
+    || item.generateMode === capabilityCode
+    || findModelCapability(item, capabilityCode)
+  ))
+}
+
+/** 把当前业务能力的参数定义投影到顶层，供公共参数解析器按实际入口收窄选项。 */
+export function modelForCapability(
+  item: UserModelListItem | null | undefined,
+  capabilityCode: string
+): UserModelListItem | null {
+  if (!item) return null
+  const capability = findModelCapability(item, capabilityCode)
+  return {
+    ...item,
+    capabilityCode,
+    generateMode: capability?.generateMode ?? item.generateMode,
+    parameterSchema: capability?.parameterSchema ?? item.parameterSchema,
+    parameterRules: capability?.parameterRules ?? item.parameterRules,
+    billing: capability?.billing ?? item.billing
+  }
+}
+
 const DEFAULT_AUDIO_OPTIONS: SelectOption<string>[] = [
   { value: 'silent', label: '无声视频' },
   { value: 'with_audio', label: '带音频' }

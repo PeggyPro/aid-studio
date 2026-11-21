@@ -36,6 +36,18 @@ interface Props {
 export default function ValueField({ name, value, onChange, models, category }: Props) {
   const [showSecret, setShowSecret] = useState(false);
 
+  if (category === 'realtime' && name === 'allowed_origins') {
+    return <div style={{ width: '100%' }}>
+      <Input.TextArea aria-label="允许连接的网站地址" value={value || ''}
+        onChange={(event) => onChange(event.target.value)} autoSize={{ minRows: 3, maxRows: 8 }}
+        placeholder="每行填写一个网站来源，包含协议、域名和端口，不要填写页面路径" />
+      <div style={{ marginTop: 8, color: 'var(--ant-color-text-secondary, #64748b)' }}>
+        保存后最多5秒内对新连接生效，无需重启。仅允许填写明确的网站来源，不支持通配符。
+        留空仅允许同源连接；已有连接仍需通过登录、票据和业务权限校验。
+      </div>
+    </div>;
+  }
+
   // 0. 分类内专属控件（优先级最高）
   if (category === 'account_security' && name === 'cancel_re_registration_enabled') {
     const checked = value === 'true';
@@ -215,12 +227,13 @@ export default function ValueField({ name, value, onChange, models, category }: 
     return (
       <div style={{ width: '100%' }}>
         <Input
+          aria-label="资源访问地址"
           value={value}
           onChange={(e) => onChange(e.target.value.trim())}
           placeholder="https://cdn.example.com"
         />
         <div style={{ marginTop: 6, color: '#64748b', fontSize: 12, lineHeight: '20px' }}>
-          必填。填写浏览器和服务端都能访问的完整地址；使用非默认端口时须写明端口（如 https://media.example.com:8443）。不要填写 /profile、对象路径或查询参数。保存前会验证上传文件能否通过此地址读取。
+          必须手动填写，保存后还需点击“同步配置”。填写浏览器和服务端都能访问的协议和域名；使用非默认端口时须写明端口（如 https://media.example.com:8443）。不要填写 /profile、对象路径或查询参数。数据库继续保存相对路径；保存前会验证本地上传文件能否通过此地址读取。
         </div>
       </div>
     );

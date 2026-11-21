@@ -27,6 +27,7 @@ export interface CreateFirstStepModalProps {
   contentConfigLocked?: boolean
   contentConfigLockReason?: 'storyboard' | 'assets'
   syncProjectTypeFromParent?: boolean
+  hideProjectType?: boolean
   onOpenChange: (open: boolean) => void
   onTitleChange: (value: string) => void
   onProjectTypeChange: (value: ProjectTypeValue) => void
@@ -54,6 +55,7 @@ export function CreateFirstStepModal({
   contentConfigLocked = false,
   contentConfigLockReason,
   syncProjectTypeFromParent = false,
+  hideProjectType = false,
   onOpenChange,
   onTitleChange,
   onProjectTypeChange,
@@ -88,6 +90,8 @@ export function CreateFirstStepModal({
         <button
           className={`close-btn${confirmLoading ? ' is-disabled' : ''}`}
           type="button"
+          aria-label={`关闭${modalTitleText}`}
+          disabled={confirmLoading}
           onClick={() => !confirmLoading && onOpenChange(false)}
         >
           <CloseOutlined />
@@ -104,6 +108,7 @@ export function CreateFirstStepModal({
           contentConfigLocked={contentConfigLocked}
           contentConfigLockReason={contentConfigLockReason}
           syncProjectTypeFromParent={syncProjectTypeFromParent}
+          hideProjectType={hideProjectType}
           title={title}
           projectType={projectType}
           aspectRatio={aspectRatio}
@@ -132,6 +137,7 @@ export function CreateFirstStepModal({
           <button
             type="button"
             className="btn btn-primary"
+            data-onboarding="create-modal-confirm"
             disabled={confirmLoading}
             onClick={onConfirmClick}
           >

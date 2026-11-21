@@ -1,0 +1,237 @@
+.notification-page {
+  .notification-search-card {
+    margin-bottom: 16px;
+
+    .ant-form {
+      row-gap: 12px;
+    }
+
+    .ant-input-affix-wrapper {
+      width: 260px;
+    }
+
+    .ant-select {
+      width: 180px;
+    }
+  }
+
+  .notification-toolbar,
+  .notification-recipient-panel__toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .notification-toolbar {
+    margin-bottom: 16px;
+  }
+
+  .notification-inline-alert {
+    margin-bottom: 16px;
+  }
+
+  .notification-title-cell {
+    min-width: 0;
+  }
+
+  .notification-title-link {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    padding: 0;
+    overflow: hidden;
+    color: #1677ff;
+    font-weight: 600;
+    line-height: 1.5;
+    text-align: left;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .notification-secondary-text {
+    max-width: 100%;
+    margin-top: 2px;
+    overflow: hidden;
+    color: #64748b;
+    font-size: 12px;
+    line-height: 1.5;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .notification-user-name {
+    color: #1f2937;
+    font-weight: 600;
+    line-height: 1.5;
+  }
+}
+
+.notification-editor-form {
+  .notification-form-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(180px, 1fr);
+    gap: 0 20px;
+  }
+
+  .notification-form-section {
+    padding: 16px;
+    margin-top: 16px;
+    background: #f8fafc;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+  }
+
+  .notification-section-heading {
+    padding-left: 10px;
+    margin-bottom: 14px;
+    color: #1f2937;
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 1.5;
+    border-left: 3px solid #1677ff;
+  }
+
+  .notification-recipient-panel {
+    padding: 14px;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+  }
+
+  .notification-recipient-tags {
+    display: flex;
+    align-items: center;
+    min-height: 38px;
+    padding-top: 12px;
+    margin-top: 12px;
+    overflow: hidden;
+    flex-wrap: wrap;
+    gap: 6px 2px;
+    border-top: 1px dashed #e5e7eb;
+  }
+}
+
+.notification-picker-search {
+  row-gap: 12px;
+  margin-bottom: 16px;
+
+  .ant-input-affix-wrapper {
+    width: 300px;
+  }
+}
+
+.notification-preview {
+  min-height: 280px;
+  padding: 8px 4px 4px;
+
+  .notification-preview__meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+  }
+
+  .notification-preview__summary {
+    padding: 10px 12px;
+    background: #f8fafc;
+    border-radius: 8px;
+  }
+
+  .notification-preview__content {
+    min-height: 180px;
+    padding: 18px;
+    overflow-wrap: anywhere;
+    color: #1f2937;
+    line-height: 1.8;
+    white-space: pre-wrap;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+  }
+
+  .notification-preview__times {
+    margin-top: 18px;
+  }
+}
+
+.notification-preview__placeholder {
+  min-height: 280px;
+}
+
+@media (max-width: 720px) {
+  .notification-page {
+    .page-header {
+      align-items: stretch;
+      flex-direction: column;
+      gap: 12px;
+
+      > div:last-child .ant-btn {
+        width: 100%;
+      }
+    }
+
+    .notification-search-card {
+      .ant-form,
+      .ant-form-item,
+      .ant-form-item-control,
+      .ant-input-affix-wrapper,
+      .ant-select {
+        width: 100%;
+      }
+
+      .ant-space {
+        display: flex;
+        flex-wrap: wrap;
+      }
+    }
+  }
+
+  .notification-editor-form {
+    .notification-form-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .notification-form-section {
+      padding: 12px;
+    }
+
+    .notification-recipient-panel__toolbar {
+      align-items: stretch;
+      flex-direction: column;
+
+      .ant-btn {
+        width: 100%;
+        min-height: 44px;
+      }
+    }
+
+    .ant-radio-group {
+      display: flex;
+      width: 100%;
+      flex-wrap: wrap;
+
+      .ant-radio-button-wrapper {
+        min-height: 40px;
+        line-height: 38px;
+        text-align: center;
+        flex: 1 1 auto;
+      }
+    }
+  }
+
+  .notification-picker-search {
+    .ant-form-item,
+    .ant-form-item-control,
+    .ant-input-affix-wrapper {
+      width: 100%;
+    }
+
+    .ant-space {
+      display: flex;
+      flex-wrap: wrap;
+    }
+  }
+}

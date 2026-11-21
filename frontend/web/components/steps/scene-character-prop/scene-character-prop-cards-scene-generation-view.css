@@ -51,8 +51,8 @@
   display: flex;
   flex-direction: column;
   gap: 0;
-  border: 1px solid rgba(74, 231, 253, 0.3);
-  background: #070d17;
+  border: 1px solid var(--ui-hair, rgba(74, 231, 253, 0.3));
+  background: var(--ui-bg, #070d17);
   border-radius: 8px;
   overflow: hidden;
 }
@@ -70,12 +70,12 @@
   align-items: center;
   gap: 0.75rem;
   padding: 0.5rem 0.75rem;
-  border-bottom: 1px solid rgba(74, 231, 253, 0.3);
+  border-bottom: 1px solid var(--ui-hair, rgba(74, 231, 253, 0.3));
 }
 /* 场景内容区与角色/道具保持一致：放到外层容器内 */
 .create-step-scp .scene-card-wrapper .scene-card-failed {
   padding: 0.75rem;
-  background: #080d14;
+  background: var(--ui-bg, #080d14);
 }
 
 /* 手动场景的卡片：定宽见 scp-step-shared.css --scp-card-width */
@@ -106,13 +106,13 @@
 
 .create-step-scp .scene-card-title-prefix {
   font-weight: 600;
-  color: var(--home-text, #e6edf3);
+  color: var(--home-text, var(--ui-text, #e6edf3));
   white-space: nowrap;
 }
 
 .create-step-scp .scene-card-title-editable {
   font-size: 12px;
-  color: var(--home-text, #e6edf3);
+  color: var(--home-text, var(--ui-text, #e6edf3));
   cursor: pointer;
   padding: 0.25rem 0.5rem 0.25rem 0;
   border-radius: var(--radius-md);
@@ -125,8 +125,7 @@
 }
 
 .create-step-scp .scene-card-title-editable:hover {
-  background: rgba(14, 89, 250, 0.12);
-  color: var(--home-cyan, #4ae7fd);
+  color: var(--home-text, var(--ui-text, #e6edf3));
 }
 
 .create-step-scp .scene-name-input {
@@ -150,7 +149,7 @@
 }
 
 .create-step-scp .scene-card-actions-header button {
-  border: 1px solid #2f3949 !important;
+  border: 1px solid var(--ui-hair, #2f3949) !important;
 }
 
 /* disabled 按钮本身不触发 mouse 事件，包一层给 a-tooltip 用 */
@@ -177,8 +176,8 @@
 }
 
 .create-step-scp .scene-card:hover {
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
-  border-color: rgba(74, 231, 253, 0.35);
+  box-shadow: var(--ui-no-shadow, 0 8px 24px rgba(0, 0, 0, 0.35));
+  border-color: var(--ui-ring, rgba(74, 231, 253, 0.35));
 }
 
 .create-step-scp .scene-card-header {
@@ -193,8 +192,8 @@
   position: relative;
   padding: 0;
   overflow: hidden;
-  background: rgba(8, 13, 24, 0.92);
-  border-color: rgba(74, 231, 253, 0.34);
+  background: var(--ui-bg, rgba(8, 13, 24, 0.92));
+  border-color: var(--ui-hair, rgba(74, 231, 253, 0.34));
 }
 
 .create-step-scp .character-card-auto,
@@ -202,8 +201,8 @@
   position: relative;
   padding: 0;
   overflow: hidden;
-  background: rgba(8, 13, 24, 0.92);
-  border-color: rgba(74, 231, 253, 0.34);
+  background: var(--ui-bg, rgba(8, 13, 24, 0.92));
+  border-color: var(--ui-hair, rgba(74, 231, 253, 0.34));
 }
 
 .create-step-scp .scene-card-auto .scene-card-header,
@@ -211,13 +210,13 @@
 .create-step-scp .prop-card-auto .prop-card-header {
   margin: 0;
   padding: 4px 10px;
-  background: #202434;
-  border-bottom: 1px solid #006c8f;
+  background: var(--ui-raised, #202434);
+  border-bottom: 1px solid var(--ui-hair, #006c8f);
 }
 
 .create-step-scp .scene-card-auto .scene-card-delete-btn {
   position: static;
-  color: var(--home-muted, #8e97a5);
+  color: var(--home-muted, var(--ui-muted, #8e97a5));
   padding: 0.25rem;
   width: auto;
   height: auto;

@@ -29,6 +29,15 @@ export function AppBootstrap() {
       localStorage.setItem('token', token)
       void useUserStore.getState().fetchProfile()
     }
+
+    // 新窗口共享 localStorage，但每个窗口的 Zustand 状态独立。
+    // 监听其他窗口登录/登出，让已打开的首页和画布同步同一主站身份。
+    const syncAuthFromStorage = (event: StorageEvent) => {
+      if (event.key !== null && event.key !== 'token' && event.key !== 'user-info') return
+      useUserStore.getState().hydrateFromStorage()
+    }
+    window.addEventListener('storage', syncAuthFromStorage)
+    return () => window.removeEventListener('storage', syncAuthFromStorage)
   }, [])
 
   return null

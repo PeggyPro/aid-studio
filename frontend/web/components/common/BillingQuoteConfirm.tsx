@@ -57,7 +57,7 @@ export function BillingQuoteConfirm({
   // eslint-disable-next-line react-hooks/refs
   return cloneElement(child, {
     disabled: disabled || running || child.props.disabled,
-    'aria-busy': running,
+    'aria-busy': running || child.props['aria-busy'],
     onClick: handleClick
   })
 }

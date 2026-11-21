@@ -1,15 +1,15 @@
 'use client'
 
-import ModalTitleWatermark from '@/components/ModalTitleWatermark'
+import { HistoryOutlined, LoadingOutlined } from '@ant-design/icons'
 import { useAuthPublicConfig } from '@/hooks/useAuthPublicConfig'
+import { loadRechargePaymentConfiguration } from '@/utils/rechargePaymentConfiguration'
 import { useUserStore } from '@/stores/user'
 import { Modal,message } from 'antd'
-import type { CSSProperties } from 'react'
+import { useRouter } from 'next/navigation'
 import { useCallback,useEffect,useRef,useState } from 'react'
 import groupAvatar from '~/assets/img/home/Group-avtor.svg'
-import topUpNor from '~/assets/img/icon/topUp-nor.svg'
-import topUpSel from '~/assets/img/icon/topUp-sel.svg'
-import type { RechargeOrderCreateData,RechargeOrderRow,RechargePackageItem } from '~/types/business-api'
+import starlightCoin from '~/assets/img/home/starlightCoin.svg'
+import type { AuthPublicConfigData,RechargeOrderCreateData,RechargeOrderRow,RechargePackageItem } from '~/types/business-api'
 import { assetUrl } from '~/utils/assetUrl'
 import {
 rechargeOrderCancel,
@@ -21,14 +21,8 @@ rechargePackageList
 } from '~/utils/businessApi'
 import { payQrToImageSrc } from '~/utils/payQrImage'
 import './recharge/recharge-modal.css'
-import { RechargeConsumeDrawer } from './recharge/RechargeConsumeDrawer'
 import { formatCreditAmount, formatPrice } from './recharge/rechargeFormat'
-import {
-  RECHARGE_MODAL_Z_INDEX,
-  closeRechargeHistoryDrawer,
-  openRechargeHistoryDrawer,
-  type RechargeHistoryDrawer
-} from './recharge/rechargeOverlayLifecycle'
+import { RECHARGE_MODAL_Z_INDEX } from './recharge/rechargeOverlayLifecycle'
 import {
 isPendingOrderConflictError,
 nextFrame,
@@ -40,25 +34,39 @@ type PayFlags
 } from './recharge/rechargeModalSupport'
 import { RechargeOrdersDrawer,type RechargeOrderTabKey } from './recharge/RechargeOrdersDrawer'
 import { RechargePayModal } from './recharge/RechargePayModal'
+import { RechargeAmount, RechargeTitle, rechargeModalClasses } from './recharge/RechargePresentation'
 
 export interface RechargeModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onPaid?: () => void
+  /** Host may require a fresh, single-flight configuration instead of cached payment flags. */
+  loadConfiguration?: () => Promise<AuthPublicConfigData | null>
 }
 
-/** 充值中心弹窗：选套餐下单 → 扫码支付轮询 → 订单管理 / 消耗明细 */
-export function RechargeModal({ open, onOpenChange, onPaid }: RechargeModalProps) {
+/** 充值中心弹窗：选套餐下单 → 扫码支付轮询 → 订单管理 */
+export function RechargeModal({ open, onOpenChange, onPaid, loadConfiguration = loadRechargePaymentConfiguration }: RechargeModalProps) {
+  const router = useRouter()
   const token = useUserStore((s) => s.token)
   const user = useUserStore((s) => s.user)
-  const {
-    alipayEnabled,
-    wxpayEnabled,
-    anyPaymentEnabled,
-    defaultPayType,
-    membershipAgreementUrl,
-    loadPublicConfig
-  } = useAuthPublicConfig()
+  const { alipayEnabled, wxpayEnabled, anyPaymentEnabled, defaultPayType } =
+    useAuthPublicConfig()
+  const [configurationLoading, setConfigurationLoading] = useState(false)
+  const [configurationError, setConfigurationError] = useState('')
+  const configurationRevision = useRef(0)
+  const refreshConfiguration = async () => {
+    const revision = ++configurationRevision.current
+    setConfigurationLoading(true); setConfigurationError('')
+    try {
+      const config = await loadConfiguration()
+      if (!config) throw new Error('支付配置不可用')
+      if (revision === configurationRevision.current) ensurePayTypeSynced(payFlagsFromConfig(config))
+    } catch {
+      if (revision === configurationRevision.current) setConfigurationError('支付方式读取失败，请重试')
+    } finally {
+      if (revision === configurationRevision.current) setConfigurationLoading(false)
+    }
+  }
 
   // 回调 / 定时器内读最新 props 与支付开关
   const onOpenChangeRef = useRef(onOpenChange)
@@ -81,7 +89,7 @@ export function RechargeModal({ open, onOpenChange, onPaid }: RechargeModalProps
   const [creatingOrder, setCreatingOrder] = useState(false)
   const [showPayModal, showPayModalRef, setShowPayModal] = useStateRef(false)
   /** 正在发起「立即购买」的套餐 id */
-  const [buyingPackageId, setBuyingPackageId] = useState<number | null>(null)
+  const [buyingPackageId, buyingPackageIdRef, setBuyingPackageId] = useStateRef<number | null>(null)
 
   const [qrImageSrc, setQrImageSrc] = useState('')
   const [, currentOrderNoRef, setCurrentOrderNo] = useStateRef('')
@@ -91,24 +99,7 @@ export function RechargeModal({ open, onOpenChange, onPaid }: RechargeModalProps
   const pollRequestPendingRef = useRef(false)
   const qrSeqRef = useRef(0)
 
-  /** 订单与消耗侧栏共用单一状态，禁止两个全屏遮罩同时残留。 */
-  const [historyDrawer, setHistoryDrawer] = useState<RechargeHistoryDrawer | null>(null)
-  const showOrders = historyDrawer === 'orders'
-  const showConsume = historyDrawer === 'consume'
-  const setShowOrders = (nextOpen: boolean) => {
-    setHistoryDrawer((current) =>
-      nextOpen
-        ? openRechargeHistoryDrawer('orders')
-        : closeRechargeHistoryDrawer(current, 'orders')
-    )
-  }
-  const setShowConsume = (nextOpen: boolean) => {
-    setHistoryDrawer((current) =>
-      nextOpen
-        ? openRechargeHistoryDrawer('consume')
-        : closeRechargeHistoryDrawer(current, 'consume')
-    )
-  }
+  const [showOrders, setShowOrders] = useState(false)
   const [orderTab, orderTabRef, setOrderTab] = useStateRef<RechargeOrderTabKey>('all')
   const [orders, ordersRef, setOrders] = useStateRef<RechargeOrderRow[]>([])
   const [, setOrdersLoading] = useState(false)
@@ -175,15 +166,6 @@ export function RechargeModal({ open, onOpenChange, onPaid }: RechargeModalProps
     return Number.isInteger(n) ? String(n) : formatPrice(n)
   })()
 
-  const payModalUnitPrice = (() => {
-    if (repayOrderRow) {
-      return formatPrice(Number(repayOrderRow.payPrice))
-    }
-    const p = selectedPackage?.payPrice
-    if (p == null) return '--'
-    return formatPrice(Number(p))
-  })()
-
   function resolveActivePayType(flags: PayFlags): PayChannel | null {
     if (payTypeRef.current === 'alipay' && flags.alipayEnabled) return 'alipay'
     if (payTypeRef.current === 'wxpay' && flags.wxpayEnabled) return 'wxpay'
@@ -229,7 +211,7 @@ export function RechargeModal({ open, onOpenChange, onPaid }: RechargeModalProps
     setHighlightOrderNo('')
     setRepayOrderRow(null)
     setShowPayModal(false)
-    setHistoryDrawer(null)
+    setShowOrders(false)
     onOpenChange(false)
   }
 
@@ -246,11 +228,8 @@ export function RechargeModal({ open, onOpenChange, onPaid }: RechargeModalProps
   }
 
   function openMemberAgreement() {
-    if (!membershipAgreementUrl) {
-      message.warning('暂未配置会员协议')
-      return
-    }
-    window.open(membershipAgreementUrl, '_blank', 'noopener,noreferrer')
+    onOpenChange(false)
+    router.push('/about')
   }
 
   async function loadPackages(): Promise<RechargePackageItem[]> {
@@ -428,6 +407,7 @@ export function RechargeModal({ open, onOpenChange, onPaid }: RechargeModalProps
   }
 
   async function handleBuyNow(pkg: RechargePackageItem) {
+    if (configurationLoading || configurationError || buyingPackageIdRef.current !== null) return
     const flags = payFlagsRef.current
     ensurePayTypeSynced(flags)
     const channel = resolveActivePayType(flags)
@@ -548,8 +528,8 @@ export function RechargeModal({ open, onOpenChange, onPaid }: RechargeModalProps
 
   /** 订单列表「立即支付」：与「立即购买」一致，先打开扫码弹窗 → 请求继续支付 → 再展示二维码并轮询 */
   async function handleRepay(row: RechargeOrderRow) {
-    const cfg = await loadPublicConfig()
-    const flags = payFlagsFromConfig(cfg)
+    if (configurationLoading || configurationError) { message.info('请先确认可用支付方式'); return }
+    const flags = payFlagsRef.current
     ensurePayTypeSynced(flags)
     if (!flags.anyPaymentEnabled) {
       message.warning('暂无可用支付方式，请稍后再试')
@@ -626,6 +606,7 @@ export function RechargeModal({ open, onOpenChange, onPaid }: RechargeModalProps
   // 对应原 watch(() => props.open, ..., { immediate: true })：打开初始化 / 关闭清理
   useEffect(() => {
     if (!open) {
+      configurationRevision.current += 1
       stopPolling()
       clearQrExpiryTimer()
       setShowRefreshQrButton(false)
@@ -636,12 +617,11 @@ export function RechargeModal({ open, onOpenChange, onPaid }: RechargeModalProps
       setCurrentOrderNo('')
       setCurrentAmount(null)
       setShowPayModal(false)
-      setHistoryDrawer(null)
+      setShowOrders(false)
       return
     }
     void (async () => {
-      const cfg = await loadPublicConfig()
-      ensurePayTypeSynced(payFlagsFromConfig(cfg))
+      await refreshConfiguration()
       void useUserStore.getState().fetchProfile()
       const list = await loadPackages()
       if (list.length) {
@@ -677,26 +657,24 @@ export function RechargeModal({ open, onOpenChange, onPaid }: RechargeModalProps
     }
   }, [stopPolling, clearQrExpiryTimer])
 
-  const packagesStyle = {
-    '--recharge-package-bg-nor': `url("${assetUrl(topUpNor)}")`,
-    '--recharge-package-bg-sel': `url("${assetUrl(topUpSel)}")`
-  } as CSSProperties
+  const paymentUnavailable = configurationLoading || !!configurationError || !anyPaymentEnabled
 
   return (
     <>
       {/* 第一步：选套餐（支付渠道在扫码弹窗内切换） */}
       <Modal
         open={open}
-        width={960}
+        width={920}
         footer={null}
         centered
-        className="recharge-modal recharge-modal-branded recharge-main-modal"
+        className="recharge-modal recharge-main-modal"
+        classNames={rechargeModalClasses}
         wrapClassName="recharge-modal-wrap"
         zIndex={RECHARGE_MODAL_Z_INDEX}
         onCancel={handleClose}
-        title={<ModalTitleWatermark title="充值中心" watermark="REFILL" />}
+        title={<RechargeTitle />}
       >
-        <div className="recharge-modal__body recharge-modal__body--step1">
+        <div className="recharge-modal__body">
           <div
             className={`recharge-modal__profile${
               !rechargeProfileLoggedIn ? ' recharge-modal__profile--guest' : ''
@@ -706,74 +684,62 @@ export function RechargeModal({ open, onOpenChange, onPaid }: RechargeModalProps
               <img src={assetUrl(groupAvatar)} alt="" width={48} height={48} />
             </div>
             <div className="recharge-modal__profile-text">
+              <span className="recharge-modal__profile-label">充值账号</span>
               <div className="recharge-modal__profile-name" title={rechargeProfileTooltip}>
                 {rechargeProfileNameLine}
               </div>
-              <p className="recharge-modal__profile-desc">购买credits，解锁更多创作能力</p>
             </div>
+            <button type="button" className="recharge-modal__orders" onClick={() => setShowOrders(true)}>
+              <HistoryOutlined aria-hidden /> 订单管理
+            </button>
           </div>
 
-          <div className="recharge-modal__packages" style={packagesStyle}>
-            {packages.map((pkg) => (
-              <div key={pkg.id} className="recharge-package">
-                <div className="recharge-package__inner">
-                  <div className="recharge-package__text">
-                    <div className="recharge-package__price-block">
-                      <span className="recharge-package__price">¥ {formatPrice(pkg.payPrice)}</span>
-                      {pkg.originalPrice > pkg.payPrice && (
-                        <span className="recharge-package__origin">
-                          ¥ {formatPrice(pkg.originalPrice)}
-                        </span>
-                      )}
-                    </div>
-                    <span className="recharge-package__points">
-                      获得 <span>{formatCreditAmount(pkg.credits)}</span> credits
-                    </span>
-                    <div className="recharge-package__grow" aria-hidden="true" />
-                  </div>
-                  <button
-                    type="button"
-                    className="recharge-package__buy"
-                    disabled={buyingPackageId === pkg.id || !anyPaymentEnabled}
-                    onClick={() => handleBuyNow(pkg)}
-                  >
-                    {!anyPaymentEnabled
-                      ? '暂不可用'
-                      : buyingPackageId === pkg.id
-                        ? '处理中…'
-                        : '立即购买'}
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {!anyPaymentEnabled && (
+          {configurationLoading || configurationError ? <div className="recharge-modal__pay-off" role={configurationError ? 'alert' : 'status'}>
+            {configurationLoading ? '正在确认可用支付方式…' : <>{configurationError}<button type="button" onClick={() => void refreshConfiguration()}>重新读取</button></>}
+          </div> : !anyPaymentEnabled && (
             <div className="recharge-modal__pay-off" role="status">
               支付通道暂未开放，请稍后再试
             </div>
           )}
 
+          <section aria-label="充值套餐" className="recharge-modal__packages">
+            {packages.map((pkg) => {
+              const busy = buyingPackageId === pkg.id
+              const price = formatPrice(pkg.payPrice)
+              const credits = formatCreditAmount(pkg.credits)
+              return (
+                <article key={pkg.id} className={busy ? 'recharge-package is-busy' : 'recharge-package'}>
+                  <div className="recharge-package__points">
+                    <span className="recharge-package__point-icon" aria-hidden="true">
+                      <span className="recharge-package__point-mark" style={{ maskImage: `url("${assetUrl(starlightCoin)}")` }} />
+                    </span>
+                    <span><strong>{credits}</strong> 积分</span>
+                  </div>
+                  <div className="recharge-package__price-block">
+                    <span className="recharge-package__price-label">应付金额</span>
+                    <RechargeAmount value={price} />
+                    {Number(pkg.originalPrice) > Number(pkg.payPrice) && (
+                      <span className="recharge-package__origin">原价 <del>¥{formatPrice(pkg.originalPrice)}</del></span>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    className="recharge-package__buy"
+                    disabled={paymentUnavailable || buyingPackageId !== null}
+                    aria-busy={busy}
+                    aria-label={busy ? '正在创建订单' : `充值 ${credits} 积分，¥${price}`}
+                    onClick={() => void handleBuyNow(pkg)}
+                  >
+                    {busy ? <><LoadingOutlined aria-hidden /> 正在创建订单</> : paymentUnavailable
+                      ? '暂不可用'
+                      : '充值'}
+                  </button>
+                </article>
+              )
+            })}
+          </section>
+
           <footer className="recharge-modal__footer-bottom">
-            <div className="recharge-modal__footer-links">
-              <button
-                type="button"
-                className="recharge-modal__footer-link"
-                onClick={() => setShowOrders(true)}
-              >
-                订单管理
-              </button>
-              <span className="recharge-modal__footer-divider" aria-hidden="true">
-                |
-              </span>
-              <button
-                type="button"
-                className="recharge-modal__footer-link"
-                onClick={() => setShowConsume(true)}
-              >
-                消耗明细
-              </button>
-            </div>
             <p className="recharge-modal__footer-agree">
               <span className="recharge-modal__footer-agree-text">购买前请阅读并同意</span>
               <button
@@ -802,9 +768,7 @@ export function RechargeModal({ open, onOpenChange, onPaid }: RechargeModalProps
         onCancelOrder={handleCancelOrder}
       />
 
-      <RechargeConsumeDrawer open={showConsume} onClose={() => setShowConsume(false)} />
-
-      {/* 第二步：扫码支付（无标题栏，金额摘要 + 支付方式图标 + 二维码） */}
+      {/* 第二步：扫码支付 */}
       <RechargePayModal
         open={showPayModal}
         payType={payType}
@@ -814,7 +778,6 @@ export function RechargeModal({ open, onOpenChange, onPaid }: RechargeModalProps
         anyPaymentEnabled={anyPaymentEnabled}
         amountText={payModalAmountText}
         creditsDisplay={payModalCreditsDisplay}
-        unitPrice={payModalUnitPrice}
         qrImageSrc={qrImageSrc}
         showRefreshQrButton={showRefreshQrButton}
         creatingOrder={creatingOrder}

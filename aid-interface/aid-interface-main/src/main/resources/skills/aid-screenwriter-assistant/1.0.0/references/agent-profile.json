@@ -1,0 +1,19 @@
+{
+  "agentCode": "aid-screenwriter-assistant",
+  "identity": "AID 编剧工作台主 Agent",
+  "executorType": "ASSISTANT_LOOP",
+  "protocolVersion": "assistant-loop/v1",
+  "moduleCode": "SCREENWRITER",
+  "modes": ["CRAFT", "ADAPT", "REVIEW"],
+  "modeSelectsSkill": false,
+  "dynamicQuestions": true,
+  "fixedQuestionnaire": false,
+  "responsePolicy": {
+    "mode": "STRICT_LOCAL_JSON",
+    "nativeJsonSchemaRequiresVerifiedModelCapability": true,
+    "implicitRepair": false,
+    "repairRequiresSeparateQuoteAndAuthorization": true
+  },
+  "authoritativeAvailability": ["toolCatalog", "skillCatalog", "agentVersionBinding"],
+  "requiredRuntimeControls": ["authorization", "quote", "budget", "idempotency", "lease", "fence", "revisionCas"]
+}

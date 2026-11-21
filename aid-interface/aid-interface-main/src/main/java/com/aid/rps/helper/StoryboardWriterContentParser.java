@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 
 import cn.hutool.core.util.StrUtil;
 
@@ -32,6 +33,22 @@ public final class StoryboardWriterContentParser
     public static List<String> requiredFields()
     {
         return REQUIRED_FIELDS;
+    }
+
+    /**
+     * 完整十字段对象仅缺 content 外层时无损补齐；不修补缺字段、额外字段或错误类型。
+     *
+     * @param shot 原始镜头节点
+     * @return 标准镜头结构；不满足兼容条件时保留原节点供后续严格校验
+     */
+    public static JsonNode normalizeShot(JsonNode shot)
+    {
+        if (Objects.nonNull(shot) && shot.isObject() && !shot.has("content")
+                && parseObject(shot).size() == REQUIRED_FIELDS.size())
+        {
+            return JsonNodeFactory.instance.objectNode().set("content", shot);
+        }
+        return shot;
     }
 
     /**

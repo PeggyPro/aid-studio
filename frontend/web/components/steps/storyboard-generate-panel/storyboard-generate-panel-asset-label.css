@@ -2,7 +2,7 @@
 
 
 .storyboard-generate-panel .asset-panel .asset-label {
-  color: rgba(142, 151, 165, 1) !important;
+  color: var(--ui-muted, rgba(142, 151, 165, 1)) !important;
   font-weight: 600;
   text-align: center;
 }
@@ -58,7 +58,7 @@
   height: var(--storyboard-card-height, calc(50px * var(--create-editor-scale, 1)));
   border-radius: var(--radius-md);
   border: calc(1px * var(--create-editor-scale, 1)) dashed var(--create-border-dashed);
-  background: rgba(18, 18, 18, 1);
+  background: var(--ui-bg, rgba(18, 18, 18, 1));
   color: var(--gray-700);
   width: 40%;
   cursor: pointer;
@@ -66,7 +66,7 @@
 }
 
 .storyboard-generate-panel .asset-card span {
-  color: #8E97A5 !important;
+  color: var(--ui-muted, #8E97A5) !important;
   font-size: calc(12px * var(--create-editor-scale, 1));
 }
 
@@ -107,8 +107,8 @@
   font-size: calc(14px * var(--create-editor-scale, 1));
   border: none;
   border-radius: calc(4px * var(--create-editor-scale, 1));
-  background: rgba(0, 0, 0, 0.55);
-  color: #fff;
+  background: var(--ui-bg, rgba(0, 0, 0, 0.55));
+  color: var(--ui-text, #fff);
   cursor: pointer;
   z-index: 2;
 }

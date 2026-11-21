@@ -73,6 +73,7 @@ export function StudioMediaPreview({ kind, mediaKind, mediaUrl, title, videoRef,
         }}
       >
         <img
+          data-studio-source-image="true"
           src={mediaUrl}
           alt={`${title}预览`}
           draggable={false}

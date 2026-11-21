@@ -312,7 +312,8 @@ export function collectStoryboardVideoPairs(
 
 export function panelHasStoryboardVideo(panel: StoryboardVideoPanel): boolean {
   const list = Array.isArray(panel.videos) ? panel.videos : []
-  return list.some((v) => v.isStoryboardVideo && String(v.url ?? '').trim())
+  return Boolean(String(panel.finalVideoUrl ?? '').trim())
+    || list.some((v) => v.isStoryboardVideo && String(v.url ?? '').trim())
 }
 
 function storePanelHasVideoFailure(

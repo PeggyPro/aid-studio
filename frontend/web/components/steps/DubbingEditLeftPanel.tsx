@@ -23,11 +23,8 @@ import { BillingQuoteHint } from '~/components/common/BillingQuoteHint'
 import { useBillingQuote } from '~/hooks/useBillingQuote'
 import type { BillingQuoteRequest } from '~/types/business-api'
 import { htmlPlainTextLength, isHtmlContentEmpty } from '~/utils/htmlPlain'
-import starWhiteRaw from '@/assets/img/icon/star_white.svg'
 import { assetUrl } from '~/utils/assetUrl'
 import './DubbingEditLeftPanel.css'
-
-const starWhiteIconUrl = assetUrl(starWhiteRaw)
 
 export interface DubbingEditLeftPanelProps {
   dialogue: string
@@ -388,12 +385,10 @@ export const DubbingEditLeftPanel = forwardRef<
         />
         <Button
           type="primary"
-          block
           size="large"
           className="dubbing-start-btn"
           onClick={onStartDubbingClick}
         >
-          <img src={starWhiteIconUrl} alt="" />
           开始配音
         </Button>
       </div>

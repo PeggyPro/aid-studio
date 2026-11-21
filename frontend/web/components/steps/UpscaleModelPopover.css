@@ -17,9 +17,9 @@
   flex-direction: column;
   padding: calc(8px * var(--create-editor-scale, 1)) calc(10px * var(--create-editor-scale, 1));
   border-radius: calc(12px * var(--create-editor-scale, 1));
-  background: rgba(19, 23, 34, 0.98);
-  border: calc(1px * var(--create-editor-scale, 1)) solid rgba(74, 231, 253, 0.22);
-  box-shadow: 0 calc(12px * var(--create-editor-scale, 1)) calc(36px * var(--create-editor-scale, 1)) rgba(0, 0, 0, 0.45);
+  background: var(--ui-surface, rgba(19, 23, 34, 0.98));
+  border: calc(1px * var(--create-editor-scale, 1)) solid var(--ui-hair, rgba(74, 231, 253, 0.22));
+  box-shadow: var(--ui-no-shadow, 0 calc(12px * var(--create-editor-scale, 1)) calc(36px * var(--create-editor-scale, 1)) rgba(0, 0, 0, 0.45));
   box-sizing: border-box;
   max-height: min(calc(420px * var(--create-editor-scale, 1)), 62vh);
   overflow: hidden;
@@ -52,14 +52,14 @@
 }
 
 .upscale-model-list::-webkit-scrollbar-thumb {
-  background: rgba(120, 140, 170, 0.35);
+  background: var(--ui-raised, rgba(120, 140, 170, 0.35));
   border-radius: calc(4px * var(--create-editor-scale, 1));
 }
 
 .upscale-model-empty {
   padding: calc(12px * var(--create-editor-scale, 1)) calc(8px * var(--create-editor-scale, 1));
   font-size: calc(13px * var(--create-editor-scale, 1));
-  color: #8e97a5;
+  color: var(--ui-muted, #8e97a5);
   text-align: center;
 }
 
@@ -70,13 +70,13 @@
   gap: calc(5px * var(--create-editor-scale, 1));
   margin: calc(8px * var(--create-editor-scale, 1)) 0 0;
   padding: calc(8px * var(--create-editor-scale, 1));
-  border-top: calc(1px * var(--create-editor-scale, 1)) solid rgba(74, 231, 253, 0.14);
+  border-top: calc(1px * var(--create-editor-scale, 1)) solid var(--ui-hair, rgba(74, 231, 253, 0.14));
   min-width: 0;
 }
 
 .upscale-model-billing-preview__name {
   overflow: hidden;
-  color: rgba(232, 236, 244, 0.9);
+  color: var(--ui-text, rgba(232, 236, 244, 0.9));
   font-size: calc(12px * var(--create-editor-scale, 1));
   line-height: calc(16px * var(--create-editor-scale, 1));
   text-overflow: ellipsis;
@@ -99,13 +99,13 @@
   background: transparent;
   cursor: pointer;
   text-align: left;
-  color: #e8ecf4;
+  color: var(--ui-text, #e8ecf4);
   transition: background 0.15s ease;
   box-sizing: border-box;
 }
 
 .upscale-model-item:hover:not(:disabled) {
-  background: rgba(74, 231, 253, 0.08);
+  background: var(--ui-soft-hover, rgba(74, 231, 253, 0.08));
 }
 
 .upscale-model-item:disabled {
@@ -122,9 +122,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #fff;
+  color: var(--ui-text, #fff);
   font-size: calc(14px * var(--create-editor-scale, 1));
-  background: rgba(6, 10, 18, 0.55);
+  background: var(--ui-bg, rgba(6, 10, 18, 0.55));
   font-weight: 600;
 }
 
@@ -154,20 +154,20 @@
 }
 
 .upscale-model-title {
-  color: #f1f5ff;
+  color: var(--ui-text, #f1f5ff);
 }
 
 .upscale-model-tag {
   font-size: calc(12px * var(--create-editor-scale, 1));
   font-weight: 500;
-  color: #4ae7fd;
+  color: var(--ui-brand, #4ae7fd);
 }
 
 .upscale-model-desc {
   margin: calc(4px * var(--create-editor-scale, 1)) 0 0;
   font-size: calc(12px * var(--create-editor-scale, 1));
   line-height: 1.4;
-  color: #8e97a5;
+  color: var(--ui-muted, #8e97a5);
 }
 
 .upscale-model-fade-enter-active,

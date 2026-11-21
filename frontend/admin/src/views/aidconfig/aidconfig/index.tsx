@@ -1,4 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import LocalStorageRootSection from './LocalStorageRootSection';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation } from 'react-router-dom';
+import { notifyStorageStatusChanged } from '@/api/aidconfig/storageStatus';
 import { Button, Empty, Form, Input, InputNumber, Modal, Spin, Tag, message } from 'antd';
 import {
   CheckOutlined,
@@ -17,6 +20,7 @@ import {
 
 import {
   listAidconfig,
+  getRealtimeOrigins,
   updateAidconfig,
   addAidconfig,
   refreshConfig,
@@ -183,6 +187,9 @@ interface Group {
 }
 
 export default function AidconfigPage() {
+  const location = useLocation();
+  const resourceRowRef = useRef<HTMLDivElement>(null);
+  const storageMutationRef = useRef(false);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -190,6 +197,7 @@ export default function AidconfigPage() {
   const [activeCategory, setActiveCategory] = useState<string>('');
   const [currentActiveConfig, setCurrentActiveConfig] = useState<Record<string, any>>({});
   const [models, setModels] = useState<any[]>([]);
+  const modelRequest = useRef<Promise<any> | null>(null);
   const [testing, setTesting] = useState(false);
   const [smsTestOpen, setSmsTestOpen] = useState(false);
   const [smsTestForm] = Form.useForm();
@@ -230,6 +238,21 @@ export default function AidconfigPage() {
     const ok = sections.some((s) => s.categories.includes(activeCategory));
     if (!ok) setActiveCategory(sections[0].categories[0]);
   }, [sections, activeCategory]);
+
+  useEffect(() => {
+    if (new URLSearchParams(location.search).get('category') === 'oss') setActiveCategory('oss');
+  }, [location.key, location.search]);
+
+  useEffect(() => {
+    if (loading || activeCategory !== 'oss'
+      || new URLSearchParams(location.search).get('focus') !== 'resourceAccessDomain') return;
+    const frame = requestAnimationFrame(() => {
+      const row = resourceRowRef.current;
+      row?.scrollIntoView({ behavior: 'auto', block: 'center' });
+      row?.querySelector('input')?.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [loading, activeCategory, location.key, location.search]);
 
   const loadList = async () => {
     setLoading(true);
@@ -293,19 +316,10 @@ export default function AidconfigPage() {
       ensureFields('sms', REQUIRED_SMS_BAO_FIELDS);
       ensureFields('oss', REQUIRED_STORAGE_FIELDS);
       ensureFields('account_security', REQUIRED_ACCOUNT_SECURITY_FIELDS);
-      const storageGroup = list.find((g) => g.category === 'oss');
-      const resourceDomain = storageGroup?.items.find((it) => it.configName === 'resourceAccessDomain');
-      const uploadMode = storageGroup?.items.find((it) => it.configName === 'uploadMode')?.configValue || 'local';
-      const legacyNames = uploadMode === 'cos'
-        ? ['cosCdnDomain', 'cdnDomain']
-        : uploadMode === 'local' ? ['localDomain', 'cdnDomain'] : ['cdnDomain'];
-      const legacyDomain = legacyNames
-        .map((name) => storageGroup?.items.find((it) => it.configName === name))
-        .find((item) => Boolean(item?.configValue));
-      if (resourceDomain && !resourceDomain.configValue && legacyDomain?.configValue) {
-        resourceDomain.configValue = legacyDomain.configValue;
-        resourceDomain._modified = true;
-      }
+      // Initialize from the effective server policy, never overwrite deployment defaults with an empty placeholder.
+      const realtime: any = await getRealtimeOrigins();
+      ensureFields('realtime', [{ id: -431, configName: 'allowed_origins', configDict: '允许连接的网站地址',
+        configValue: (realtime.data?.origins || []).join('\n'), orderNum: 1 }]);
       // 模型基础倍率是计费必填项。数据库尚未初始化时也提供可保存的页面占位项；说明固定写在页面，不落 configDict。
       let mediaGroup = list.find((g) => g.category === 'media');
       if (!mediaGroup) {
@@ -404,12 +418,19 @@ export default function AidconfigPage() {
     loadList();
   }, []);
 
-  // 加载所有模型（给 agent_model 字段下拉用）
+  // Only the model selector needs model-directory permissions.
   useEffect(() => {
-    listAidmodel({ pageNum: 1, pageSize: 1000 })
-      .then((r: any) => setModels(r.rows || r.data || []))
-      .catch(() => setModels([]));
-  }, []);
+    if (activeCategory !== 'agent_model') return;
+    let current = true;
+    if (!modelRequest.current) {
+      modelRequest.current = listAidmodel({ pageNum: 1, pageSize: 1000 })
+        .finally(() => { modelRequest.current = null; });
+    }
+    modelRequest.current
+      .then((r: any) => { if (current) setModels(r.rows || r.data || []); })
+      .catch(() => { if (current) setModels([]); });
+    return () => { current = false; };
+  }, [activeCategory]);
 
   const loadCurrentActive = async (category: string) => {
     if (!SYNCABLE_CATEGORIES.includes(category)) {
@@ -527,15 +548,18 @@ export default function AidconfigPage() {
   };
 
   const saveCurrentGroup = async () => {
+    if (storageMutationRef.current) return;
     // 从整组取已修改项保存（含被模式过滤隐藏但已改动的项，保持数据一致）
     const dirty = groupItems.filter((it) => it._modified);
     if (dirty.length === 0) return;
+    storageMutationRef.current = true;
     setSaving(true);
     try {
       if (activeCategory === 'oss') {
         const payload = Object.fromEntries(groupItems.map((item) => [item.configName, item.configValue]));
         await saveStorageConfig(payload);
-        message.success('保存成功，存储归属已校验');
+        message.success('保存成功，请点击“同步配置”使配置生效');
+        notifyStorageStatusChanged();
         await loadList();
         return;
       }
@@ -592,16 +616,26 @@ export default function AidconfigPage() {
       } else {
         message.warning(`成功保存 ${ok}/${dirty.length} 项`);
       }
+    } catch {
+      // 请求层已显示服务端明确的校验原因；保留修改供用户修正，消费失败避免未处理异常。
+      return;
     } finally {
+      storageMutationRef.current = false;
       setSaving(false);
     }
   };
 
   const syncConfig = async () => {
+    if (storageMutationRef.current) return;
+    if (activeCategory === 'oss' && groupItems.some((item) => item._modified)) {
+      message.warning('文件存储有尚未保存的修改，请先保存，再同步配置');
+      return;
+    }
     if (!SYNCABLE_CATEGORIES.includes(activeCategory)) {
       message.warning('该分类暂不支持同步配置');
       return;
     }
+    storageMutationRef.current = true;
     setSyncing(true);
     try {
       await refreshConfig(activeCategory);
@@ -610,7 +644,9 @@ export default function AidconfigPage() {
     } catch {
       message.error('同步配置失败');
     } finally {
+      storageMutationRef.current = false;
       setSyncing(false);
+      if (activeCategory === 'oss') notifyStorageStatusChanged();
     }
   };
 
@@ -864,13 +900,14 @@ export default function AidconfigPage() {
               </a>
             </div>
           )}
+          {activeCategory === 'oss' && <LocalStorageRootSection />}
           {activeCategory === 'oss' && currentStorageMode === 'local' && (
             <div className="config-page__provider-note">
               <div>
                 <strong>本地存储配置示例</strong>
                 <span>
                   资源访问地址必须填写协议和域名，例如 https://api.example.com，不要添加
-                  /profile 或其他路径。该地址只用于系统正常展示资源。
+                  /profile 或其他路径。使用非默认端口时必须填写实际端口；请手动填写、保存，再同步配置。数据库继续保存相对路径。
                 </span>
               </div>
             </div>
@@ -951,6 +988,8 @@ export default function AidconfigPage() {
                 return (
                   <div
                     key={item.id}
+                    ref={item.category === 'oss' && item.configName === 'resourceAccessDomain' ? resourceRowRef : undefined}
+                    id={item.category === 'oss' && item.configName === 'resourceAccessDomain' ? 'storage-resource-access-domain' : undefined}
                     className={`config-page__row ${item._modified ? 'modified' : ''} ${
                       isBlockRow ? 'config-page__row--block' : ''
                     }`}

@@ -58,7 +58,7 @@
 
 .ant-modal-header {
   border-bottom: 1px solid var(--dark-border);
-  padding: var(--spacing-lg) var(--spacing-xl) !important;
+  padding: var(--aid-modal-header-padding, var(--spacing-lg) var(--spacing-xl)) !important;
 }
 
 .ant-modal-title {
@@ -85,10 +85,10 @@
 
 @keyframes pulse-glow {
   0%, 100% {
-    box-shadow: 0 0 20px rgba(255, 152, 0, 0.3);
+    box-shadow: var(--ui-no-shadow, 0 0 20px rgba(255, 152, 0, 0.3));
   }
   50% {
-    box-shadow: 0 0 40px rgba(255, 152, 0, 0.6);
+    box-shadow: var(--ui-no-shadow, 0 0 40px rgba(255, 152, 0, 0.6));
   }
 }
 
@@ -114,10 +114,10 @@
 
 @keyframes warm-glow {
   0%, 100% {
-    box-shadow: 0 0 20px rgba(255, 152, 0, 0.2);
+    box-shadow: var(--ui-no-shadow, 0 0 20px rgba(255, 152, 0, 0.2));
   }
   50% {
-    box-shadow: 0 0 40px rgba(255, 152, 0, 0.4);
+    box-shadow: var(--ui-no-shadow, 0 0 40px rgba(255, 152, 0, 0.4));
   }
 }
 

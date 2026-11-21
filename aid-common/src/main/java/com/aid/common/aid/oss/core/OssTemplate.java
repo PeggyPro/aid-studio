@@ -1023,13 +1023,16 @@ public class OssTemplate
                 {
                     return fileUrl;
                 }
+                String s3Url = QiniuS3ResourceUrlSigner.signIfSupported(resourceDomain, objectKey,
+                        properties.getQiniuAccessKey(), properties.getQiniuSecretKey(), clampedExpire);
+                if (s3Url != null) return s3Url;
                 String baseUrl = stripDomainTrailingSlash(resourceDomain) + "/" + objectKey;
                 Auth auth = Auth.create(properties.getQiniuAccessKey(), properties.getQiniuSecretKey());
                 return auth.privateDownloadUrl(baseUrl, clampedExpire);
             }
             catch (Exception e)
             {
-                log.error("获取七牛云签名URL失败：{}", e.getMessage(), e);
+                log.warn("Qiniu resource signing failed, failureKind={}", e.getClass().getSimpleName());
                 return fileUrl;
             }
         }
@@ -1128,64 +1131,6 @@ public class OssTemplate
     public boolean isManagedResourceUrl(String fileUrl)
     {
         return isManagedResourceUrl(fileUrl, ossConfigManager.getOssProperties());
-    }
-
-    /**
-     * 为模型级第三方图片代理准备无签名的站点资源地址。系统自有资源统一换成站长配置的
-     * 资源访问域名，并移除原地址的查询参数和 Fragment；外部第三方 URL 原样返回。
-     *
-     * <p>该方法只由已显式开启图片代理的模型在签名前调用。普通模型仍走现有 COS/OSS
-     * 临时签名链路，不受图片代理配置影响。</p>
-     */
-    public String toModelProxyUnsignedSourceUrl(String sourceUrl)
-    {
-        if (StrUtil.isBlank(sourceUrl))
-        {
-            return sourceUrl;
-        }
-        OssProperties properties = ossConfigManager.getOssProperties();
-        if (Objects.isNull(properties))
-        {
-            return sourceUrl;
-        }
-        if (!isManagedResourceUrl(sourceUrl, properties))
-        {
-            return sourceUrl;
-        }
-        String resourceDomain = stripDomainTrailingSlash(properties.getEffectiveResourceAccessDomain());
-        if (StrUtil.isBlank(resourceDomain))
-        {
-            throw new OssException("资源访问域名未配置");
-        }
-        if (sourceUrl.startsWith("/"))
-        {
-            return toResourceAccessUrl(sourceUrl, properties);
-        }
-        try
-        {
-            URI source = URI.create(sourceUrl);
-            URI access = URI.create(resourceDomain);
-            if (!source.isAbsolute() || source.getHost() == null || access.getHost() == null
-                    || !("http".equalsIgnoreCase(access.getScheme())
-                    || "https".equalsIgnoreCase(access.getScheme())))
-            {
-                throw new OssException("资源访问域名配置无效");
-            }
-            String path = StrUtil.blankToDefault(source.getRawPath(), "/");
-            if (access.getHost().equalsIgnoreCase(source.getHost()))
-            {
-                return access.getScheme() + "://" + access.getRawAuthority() + path;
-            }
-            return resourceDomain + path;
-        }
-        catch (Exception exception)
-        {
-            if (exception instanceof OssException ossException)
-            {
-                throw ossException;
-            }
-            throw new OssException("资源访问地址转换失败");
-        }
     }
 
     private boolean isManagedResourceUrl(String fileUrl, OssProperties properties)
@@ -1486,6 +1431,52 @@ public class OssTemplate
         }
         return uploadBytesToOss(bytes, fileName, customDir);
     }
+
+    /** 先确定目标键再写文件，供持久化写入凭据与异常回收使用。键由服务端生成。 */
+    public record ManagedWrite(String location, String identity) { }
+    public ManagedWrite planManagedWrite(String fileId, String extension) {
+        return planManagedWrite(ossConfigManager.getOssProperties(),fileId,extension);
+    }
+    private ManagedWrite planManagedWrite(OssProperties p,String fileId,String extension) {
+        if (fileId == null || !fileId.matches("[a-f0-9]{32}") || extension == null || !extension.matches("[a-zA-Z0-9]{1,8}"))
+            throw new OssException("文件写入标识无效");
+        String mode=p==null?"local":Objects.toString(p.getUploadMode(),"oss").toLowerCase(java.util.Locale.ROOT);
+        String prefix=p==null?"":switch(mode) { case "cos"->p.getCosPrefix();case "qiniu"->p.getQiniuPrefix();default->p.getPrefix(); };
+        String key="publication-managed/"+fileId+"/content."+extension.toLowerCase(java.util.Locale.ROOT);
+        String location="local".equals(mode)?"/profile/"+key:"/"+(StrUtil.isBlank(prefix)?"":prefix.replaceAll("^/+|/+$","")+"/")+key;
+        String target="local".equals(mode)?Path.of(AidAppConfig.getProfile()).toAbsolutePath().normalize().toString():p==null?"":switch(mode) {case "cos"->p.getCosBucketName()+":"+p.getCosRegion();case "qiniu"->p.getQiniuBucketName();default->p.getBucketName()+":"+p.getEndpoint();};
+        String identity=cn.hutool.crypto.digest.DigestUtil.sha256Hex(mode+":"+target+":"+location.substring(0,location.indexOf(fileId)));
+        return new ManagedWrite(location,identity);
+    }
+    public void writeManaged(ManagedWrite planned,String fileId,String extension,byte[] bytes) {
+        OssProperties p=ossConfigManager.getOssProperties();
+        ManagedWrite current=planManagedWrite(p,fileId,extension);
+        if(!current.equals(planned)||bytes==null||bytes.length==0) throw new OssException("存储配置已变化或文件为空");
+        String mode=p==null?"local":Objects.toString(p.getUploadMode(),"oss").toLowerCase(java.util.Locale.ROOT);
+        String key=planned.location().substring(1);
+        try {
+            switch(mode) {
+                case "local" -> {Path base=Path.of(AidAppConfig.getProfile()).toAbsolutePath().normalize();Path file=base.resolve(planned.location().substring("/profile/".length())).normalize();if(!file.startsWith(base))throw new IOException("invalid managed path");Files.createDirectories(file.getParent());Files.write(file,bytes);}
+                case "cos" -> {if(cosClient==null)throw new IOException("COS unavailable");com.qcloud.cos.model.ObjectMetadata m=new com.qcloud.cos.model.ObjectMetadata();m.setContentLength(bytes.length);m.setContentType(getContentType(extension));cosClient.putObject(p.getCosBucketName(),key,new ByteArrayInputStream(bytes),m);}
+                case "qiniu" -> {validateQiniuConfig(p);Response response=qiniuUploadManager.put(bytes,key,Auth.create(p.getQiniuAccessKey(),p.getQiniuSecretKey()).uploadToken(p.getQiniuBucketName()),null,getContentType(extension),true);try{if(!response.isOK())throw new IOException("upload failed");}finally{closeQiniuResponse(response);}}
+                default -> {if(ossClient==null)throw new IOException("OSS unavailable");ObjectMetadata m=new ObjectMetadata();m.setContentLength(bytes.length);m.setContentType(getContentType(extension));ossClient.putObject(p.getBucketName(),key,new ByteArrayInputStream(bytes),m);}
+            }
+        } catch(Exception ex) {throw new OssException("文件写入失败");}
+    }
+    public boolean deleteManaged(ManagedWrite planned,String fileId,String extension) {
+        OssProperties p=ossConfigManager.getOssProperties();
+        if(!planManagedWrite(p,fileId,extension).equals(planned)) throw new OssException("原文件存储配置尚未恢复");
+        String mode=p==null?"local":Objects.toString(p.getUploadMode(),"oss").toLowerCase(java.util.Locale.ROOT),key=planned.location().substring(1);
+        try {
+            switch(mode) {
+                case "local" -> {Path base=Path.of(AidAppConfig.getProfile()).toAbsolutePath().normalize();Path file=base.resolve(planned.location().substring("/profile/".length())).normalize();if(!file.startsWith(base))throw new IOException("invalid managed path");Files.deleteIfExists(file);}
+                case "cos" -> {if(cosClient==null)throw new IOException("COS unavailable");cosClient.deleteObject(p.getCosBucketName(),key);}
+                case "qiniu" -> new BucketManager(Auth.create(p.getQiniuAccessKey(),p.getQiniuSecretKey()),qiniuConfiguration).delete(p.getQiniuBucketName(),key);
+                default -> {if(ossClient==null)throw new IOException("OSS unavailable");ossClient.deleteObject(p.getBucketName(),key);}
+            }
+            return true;
+        } catch(QiniuException ex){return ex.response!=null&&ex.response.statusCode==612;}catch(Exception ex){return false;}
+    }
     /**
      * 对外暴露的文件预校验入口：用于批量上传在真正上传前先做完整校验，
      * 避免出现“前几个文件已上传、后一个文件校验失败”导致的部分成功脏副作用。
@@ -1665,66 +1656,32 @@ public class OssTemplate
      */
     private String getObjectKeyFromUrl(String fileUrl, OssProperties properties)
     {
-        if (StrUtil.isBlank(fileUrl))
-        {
-            return null;
-        }
-
+        if (StrUtil.isBlank(fileUrl)) return null;
         try
         {
-            // 兼容旧数据：带 CDN 域名的完整 URL（按当前模式取生效的 CDN 域名）
-            String cdnDomain = properties.getEffectiveCdnDomain();
-            if (StrUtil.isNotBlank(cdnDomain) && fileUrl.startsWith(cdnDomain))
+            URI resource = URI.create(fileUrl);
+            String path = resource.getPath();
+            if (StrUtil.isBlank(path) || !path.startsWith("/")) return null;
+            String scheme = resource.getScheme();
+            if (scheme != null && !"http".equalsIgnoreCase(scheme)
+                    && !"https".equalsIgnoreCase(scheme)) return null;
+            // 只从路径取对象键；查询签名和片段永远不是文件名的一部分。
+            // URI统一解码一次，随后由各存储SDK按协议重新编码。
+            String domain = properties.getEffectiveCdnDomain();
+            if (scheme != null && StrUtil.isNotBlank(domain))
             {
-                String rest = fileUrl.substring(cdnDomain.length());
-                return rest.startsWith("/") ? rest.substring(1) : rest;
-            }
-
-            // 兼容旧数据：带默认云存储域名的完整 URL
-            String defaultDomain;
-            if ("cos".equalsIgnoreCase(properties.getUploadMode()))
-            {
-                // 腾讯云COS 默认域名：https://{bucket}.cos.{region}.myqcloud.com
-                defaultDomain = "https://" + properties.getCosBucketName()
-                        + ".cos." + properties.getCosRegion() + ".myqcloud.com";
-            }
-            else if ("oss".equalsIgnoreCase(properties.getUploadMode()))
-            {
-                // 阿里云OSS 默认域名：https://{bucket}.{endpoint}
-                defaultDomain = "https://" + properties.getBucketName() + "." + properties.getEndpoint();
-            }
-            else
-            {
-                // 七牛云下载域名由空间绑定，统一通过 cdnDomain 匹配。
-                defaultDomain = null;
-            }
-            if (StrUtil.isNotBlank(defaultDomain) && fileUrl.startsWith(defaultDomain))
-            {
-                return fileUrl.substring(defaultDomain.length() + 1);
-            }
-
-            // 新数据：以 / 开头的相对路径即 objectKey（去掉前导 /）
-            if (fileUrl.startsWith("/"))
-            {
-                return fileUrl.substring(1);
-            }
-
-            // 兜底：任意完整 http(s) URL（如跨云数据迁移留下的历史完整地址）。
-            // 归属（阿里云/腾讯云）已由 deleteByUrl 按 host 判定，这里不再依赖当前 uploadMode 的域名匹配，
-            // 直接用 URI 的 path 去掉前导 / 作为 objectKey，确保跨云完整 URL 也能正确解析删除。
-            String lower = fileUrl.toLowerCase();
-            if (lower.startsWith("http://") || lower.startsWith("https://"))
-            {
-                String path = java.net.URI.create(fileUrl).getPath();
-                if (StrUtil.isNotBlank(path))
+                URI base = URI.create(domain);
+                String basePath = base.getPath();
+                if (Objects.equals(resource.getHost(), base.getHost())
+                        && StrUtil.isNotBlank(basePath) && !"/".equals(basePath))
                 {
-                    return path.startsWith("/") ? path.substring(1) : path;
+                    while (basePath.endsWith("/")) basePath = basePath.substring(0, basePath.length() - 1);
+                    if (path.startsWith(basePath + "/")) path = path.substring(basePath.length());
                 }
             }
-
-            return null;
+            return path.length() > 1 ? path.substring(1) : null;
         }
-        catch (Exception e)
+        catch (IllegalArgumentException exception)
         {
             return null;
         }

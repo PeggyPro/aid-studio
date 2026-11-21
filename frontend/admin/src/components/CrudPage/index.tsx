@@ -30,6 +30,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useDict } from '@/hooks/useDict';
 import { parseTime } from '@/utils/ruoyi';
 import { download } from '@/utils/request';
+import { sanitizeRichText } from '@/utils/sanitizeRichText';
 import DictTag from '@/components/DictTag';
 import PageCard from '@/components/PageCard';
 
@@ -551,8 +552,7 @@ export default function CrudPage<T extends Record<string, any>>({ config }: Prop
                     <div
                       className="rich-content-view"
                       style={{ lineHeight: 1.8, wordBreak: 'break-word' }}
-                      // 内容来自后台编辑器，受信任；展示富文本
-                      dangerouslySetInnerHTML={{ __html: String(raw) }}
+                      dangerouslySetInnerHTML={{ __html: sanitizeRichText(String(raw)) }}
                     />
                   ) : item.type === 'image' && raw ? (
                     <Image

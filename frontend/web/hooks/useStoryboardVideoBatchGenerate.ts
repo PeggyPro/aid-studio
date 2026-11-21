@@ -20,6 +20,7 @@ import { createAsyncIdleBarrier } from '~/utils/asyncIdleBarrier'
 import type { StoryboardPanel, StoryboardVideoPanel } from '~/types'
 import {
   applyStoryboardVideoPanelUiFromStore,
+  panelHasStoryboardVideo,
   type StoryboardVideoBatchState
 } from '~/utils/storyboardVideoBatchShared'
 import { createStoryboardVideoBatchCore } from '~/utils/storyboardVideoBatchFollowCore'
@@ -278,8 +279,14 @@ function createStoryboardVideoBatchGenerate() {
         const selectedSet = new Set(payload.selectedStoryboardIds)
         pairs = pairs.filter((p) => selectedSet.has(p.storyboardId))
       }
+      if (payload.overwrite !== true) {
+        pairs = pairs.filter((pair) => !pair.video || !panelHasStoryboardVideo(pair.video))
+      }
       if (!pairs.length) {
-        return { ok: false, message: '请选择要生成的分镜' }
+        return {
+          ok: false,
+          message: payload.overwrite === true ? '请选择要生成的分镜' : '所选分镜均已有分镜视频'
+        }
       }
 
       const storyboardIds = pairs.map((p) => p.storyboardId)

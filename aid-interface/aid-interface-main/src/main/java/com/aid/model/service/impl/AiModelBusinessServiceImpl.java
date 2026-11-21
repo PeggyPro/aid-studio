@@ -20,6 +20,7 @@ import com.aid.aid.domain.AidAiModelFuncConfig;
 import com.aid.aid.domain.AidAiProvider;
 import com.aid.aid.domain.AidComicEpisode;
 import com.aid.aid.domain.AidComicProject;
+import com.aid.aid.domain.model.ModelCapabilityDefinition;
 import com.aid.aid.service.IAidAiModelFuncConfigService;
 import com.aid.aid.service.IAidAiModelService;
 import com.aid.aid.service.IAidAiProviderService;
@@ -33,6 +34,7 @@ import com.aid.model.service.IAiModelBusinessService;
 import com.aid.model.vo.AiModelFuncGroupVO;
 import com.aid.model.vo.AiModelVO;
 import com.aid.model.vo.CapabilityVO;
+import com.aid.model.vo.ModelCapabilityOptionVO;
 import com.aid.model.util.BuiltInBrandIcons;
 import com.aid.media.provider.ReferenceImageLimiter;
 import com.aid.media.util.ModelCapabilityResolver;
@@ -76,6 +78,8 @@ public class AiModelBusinessServiceImpl implements IAiModelBusinessService
 
     @org.springframework.beans.factory.annotation.Autowired
     private com.aid.model.definition.ModelBusinessBindingService modelBusinessBindings;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.aid.media.provider.audio.OfficialAudioClientContract audioClientContract;
     private final IAidAiProviderService aiProviderService;
     /** 按功能编码查模型时需要读功能配置 */
     private final IAidAiModelFuncConfigService aiModelFuncConfigService;
@@ -111,38 +115,27 @@ public class AiModelBusinessServiceImpl implements IAiModelBusinessService
     @Override
     public List<AiModelVO> listAvailableModels(AiModelListRequest request)
     {
+        return listAvailableModelsInScope(request, null);
+    }
+
+    @Override
+    public List<AiModelVO> listAvailableModelsByCodes(AiModelListRequest request, List<String> modelCodes)
+    {
+        if (modelCodes == null || modelCodes.isEmpty()) return List.of();
+        List<String> codes = modelCodes.stream().filter(StrUtil::isNotBlank).map(String::trim).distinct().toList();
+        if (codes.isEmpty()) return List.of();
+        if (codes.size() > 200) throw new IllegalArgumentException("模型查询范围过大");
+        return listAvailableModelsInScope(request, codes);
+    }
+
+    private List<AiModelVO> listAvailableModelsInScope(AiModelListRequest request, List<String> modelCodes)
+    {
         String modelType = Objects.isNull(request) ? null : request.getModelType();
         String generateMode = Objects.isNull(request) ? null : request.getGenerateMode();
         // 注意：校验性查询，只查必要字段
-        LambdaQueryWrapper<AidAiProvider> providerWrapper = Wrappers.lambdaQuery();
-        providerWrapper.select(AidAiProvider::getId, AidAiProvider::getProviderCode, AidAiProvider::getProviderName, AidAiProvider::getLogoUrl);
-        providerWrapper.eq(AidAiProvider::getStatus, STATUS_NORMAL);
-        providerWrapper.eq(AidAiProvider::getDelFlag, DEL_FLAG_NORMAL);
-        List<AidAiProvider> providers = aiProviderService.list(providerWrapper);
-
-        // 可用供应商ID集合
-        Set<Long> availableProviderIds = providers.stream()
-                .map(AidAiProvider::getId)
-                .collect(Collectors.toSet());
-        // 供应商ID→名称映射
-        Map<Long, String> providerNameMap = providers.stream()
-                .collect(Collectors.toMap(AidAiProvider::getId, AidAiProvider::getProviderName));
-        // 供应商ID→LOGO映射（logo 可能为空，过滤后再收集，避免 toMap 空值 NPE）
-        Map<Long, String> providerLogoMap = providers.stream()
-                .filter(p -> BuiltInBrandIcons.resolve(p.getProviderCode(), p.getLogoUrl()) != null)
-                .collect(Collectors.toMap(AidAiProvider::getId,
-                        p -> BuiltInBrandIcons.resolve(p.getProviderCode(), p.getLogoUrl())));
-
-        if (CollectionUtil.isEmpty(availableProviderIds))
-        {
-            log.info("无可用供应商");
-            return new ArrayList<>();
-        }
-
-        // 注意：校验性查询，只查必要字段
         LambdaQueryWrapper<AidAiModel> modelWrapper = Wrappers.lambdaQuery();
         // 注意：新增字段时务必同步追加到 select，否则前端拿不到能力配置
-        modelWrapper.select(AidAiModel::getId, AidAiModel::getModelCode,
+        modelWrapper.select(AidAiModel::getId, AidAiModel::getModelCode, AidAiModel::getRealModelCode, AidAiModel::getProtocol,
                 AidAiModel::getModelName, AidAiModel::getLogoUrl, AidAiModel::getModelType,
                 AidAiModel::getGenerateMode,
                 AidAiModel::getCostCredits, AidAiModel::getPriority,
@@ -166,12 +159,44 @@ public class AiModelBusinessServiceImpl implements IAiModelBusinessService
             modelWrapper.eq(AidAiModel::getModelType, modelType);
         }
         // 按生成模式细分筛选（对 modelType 大类做进一步过滤）
-        modelWrapper.in(AidAiModel::getProviderId, availableProviderIds);
+        modelWrapper.in(modelCodes != null, AidAiModel::getModelCode, modelCodes);
         // 按优先级降序排列
         modelWrapper.orderByDesc(AidAiModel::getPriority);
         List<AidAiModel> models = aiModelService.list(modelWrapper);
+        if (CollectionUtil.isEmpty(models)) return List.of();
+        models = models.stream().filter(model -> model.getProviderId() != null).toList();
+        if (models.isEmpty()) return List.of();
+        // 注意：校验性查询，只查必要字段
+        LambdaQueryWrapper<AidAiProvider> providerWrapper = Wrappers.lambdaQuery();
+        providerWrapper.select(AidAiProvider::getId, AidAiProvider::getProviderCode, AidAiProvider::getProviderName, AidAiProvider::getLogoUrl);
+        providerWrapper.in(AidAiProvider::getId, models.stream().map(AidAiModel::getProviderId).filter(Objects::nonNull).distinct().toList());
+        providerWrapper.eq(AidAiProvider::getStatus, STATUS_NORMAL);
+        providerWrapper.eq(AidAiProvider::getDelFlag, DEL_FLAG_NORMAL);
+        List<AidAiProvider> providers = aiProviderService.list(providerWrapper);
+
+        // 可用供应商ID集合
+        Set<Long> availableProviderIds = providers.stream()
+                .map(AidAiProvider::getId)
+                .collect(Collectors.toSet());
+        // 供应商ID→名称映射
+        Map<Long, String> providerNameMap = providers.stream()
+                .collect(Collectors.toMap(AidAiProvider::getId, AidAiProvider::getProviderName));
+        Map<Long, String> providerCodeMap = providers.stream()
+                .collect(Collectors.toMap(AidAiProvider::getId, AidAiProvider::getProviderCode));
+        // 供应商ID→LOGO映射（logo 可能为空，过滤后再收集，避免 toMap 空值 NPE）
+        Map<Long, String> providerLogoMap = providers.stream()
+                .filter(p -> BuiltInBrandIcons.resolve(p.getProviderCode(), p.getLogoUrl()) != null)
+                .collect(Collectors.toMap(AidAiProvider::getId,
+                        p -> BuiltInBrandIcons.resolve(p.getProviderCode(), p.getLogoUrl())));
+
+        if (CollectionUtil.isEmpty(availableProviderIds))
+        {
+            log.info("无可用供应商");
+            return new ArrayList<>();
+        }
+
+        models = models.stream().filter(model -> availableProviderIds.contains(model.getProviderId())).toList();
         modelDefinitions.preload(models);
-        models = models.stream().map(model -> modelDefinitions.project(model, generateMode)).filter(Objects::nonNull).toList();
 
         if (CollectionUtil.isEmpty(models))
         {
@@ -184,10 +209,25 @@ public class AiModelBusinessServiceImpl implements IAiModelBusinessService
         List<AiModelVO> result = new ArrayList<>();
         for (AidAiModel model : models)
         {
-            result.add(buildModelVo(model,
-                    providerNameMap.get(model.getProviderId()),
-                    providerLogoMap.get(model.getProviderId()),
-                    globalFactor));
+            AidAiModel projected = modelDefinitions.project(model, generateMode);
+            if (projected == null) continue;
+            String providerName = providerNameMap.get(model.getProviderId());
+            String providerLogo = providerLogoMap.get(model.getProviderId());
+            AiModelVO item = buildModelVo(projected, providerCodeMap.get(model.getProviderId()),
+                    providerName, providerLogo, globalFactor);
+            List<ModelCapabilityOptionVO> options = new ArrayList<>();
+            for (var capability : model.getCapabilities())
+            {
+                // 无细分筛选时返回全部可用能力；显式筛选只暴露本次选中的能力。
+                if (!Boolean.TRUE.equals(capability.getEnabled())
+                        || (StrUtil.isNotBlank(generateMode)
+                            && !Objects.equals(capability.getCode(), projected.getSelectedCapabilityCode()))) continue;
+                ModelCapabilityOptionVO option = buildCapabilityOption(model, capability, null,
+                        providerName, providerLogo, globalFactor);
+                if (option != null) options.add(option);
+            }
+            item.setAvailableCapabilities(options);
+            result.add(item);
         }
 
         log.info("查询可用模型列表: modelType={}, generateMode={}, 返回{}条", modelType, generateMode, result.size());
@@ -257,7 +297,7 @@ public class AiModelBusinessServiceImpl implements IAiModelBusinessService
 
         //    注意：这里不按优先级排序，因为最终要按 modelIds 配置顺序返回
         LambdaQueryWrapper<AidAiModel> modelWrapper = Wrappers.lambdaQuery();
-        modelWrapper.select(AidAiModel::getId, AidAiModel::getModelCode,
+        modelWrapper.select(AidAiModel::getId, AidAiModel::getModelCode, AidAiModel::getRealModelCode, AidAiModel::getProtocol,
                 AidAiModel::getModelName, AidAiModel::getLogoUrl, AidAiModel::getModelType,
                 AidAiModel::getGenerateMode,
                 AidAiModel::getCostCredits, AidAiModel::getPriority,
@@ -293,6 +333,8 @@ public class AiModelBusinessServiceImpl implements IAiModelBusinessService
                 .collect(Collectors.toSet());
         Map<Long, String> providerNameMap = providers.stream()
                 .collect(Collectors.toMap(AidAiProvider::getId, AidAiProvider::getProviderName));
+        Map<Long, String> providerCodeMap = providers.stream()
+                .collect(Collectors.toMap(AidAiProvider::getId, AidAiProvider::getProviderCode));
         // 供应商ID→LOGO映射（logo 可能为空，过滤后再收集，避免 toMap 空值 NPE）
         Map<Long, String> providerLogoMap = providers.stream()
                 .filter(p -> BuiltInBrandIcons.resolve(p.getProviderCode(), p.getLogoUrl()) != null)
@@ -355,6 +397,7 @@ public class AiModelBusinessServiceImpl implements IAiModelBusinessService
                 }
             }
             AiModelVO item = buildModelVo(projected,
+                    providerCodeMap.get(model.getProviderId()),
                     providerNameMap.get(model.getProviderId()),
                     providerLogoMap.get(model.getProviderId()),
                     globalFactor);
@@ -370,7 +413,7 @@ public class AiModelBusinessServiceImpl implements IAiModelBusinessService
             }
             if (model.getCapabilities() != null)
             {
-                List<com.aid.model.vo.ModelCapabilityOptionVO> capabilityOptions = new ArrayList<>();
+                List<ModelCapabilityOptionVO> capabilityOptions = new ArrayList<>();
                 for (var capability : model.getCapabilities())
                 {
                     if (!Boolean.TRUE.equals(capability.getEnabled())
@@ -382,32 +425,50 @@ public class AiModelBusinessServiceImpl implements IAiModelBusinessService
                             .filter(value -> Objects.equals(value.getModelId(), model.getId())
                                     && Objects.equals(value.getCapabilityCode(), capability.getCode()))
                             .findFirst();
-                    AidAiModel capabilityProjection = modelDefinitions.project(model, capability.getCode(),
-                            binding.map(com.aid.aid.domain.AidAiBusinessModelBinding::getDefaultsJson).orElse(null));
-                    if (capabilityProjection == null)
-                    {
-                        continue;
-                    }
-                    com.aid.model.vo.ModelCapabilityOptionVO option = new com.aid.model.vo.ModelCapabilityOptionVO();
-                    option.setCode(capability.getCode());
-                    option.setLabel(capability.getLabel());
-                    option.setGenerateMode(capability.getGenerateMode());
-                    var effectiveCapability = capabilityProjection.getCapabilities().stream()
-                            .filter(value -> Objects.equals(value.getCode(), capability.getCode()))
-                            .findFirst().orElse(capability);
-                    option.setParameterSchema(effectiveCapability.getParameters());
-                    option.setParameterRules(effectiveCapability.getRules());
-                    option.setPresentation(clientCapabilityPresentation(effectiveCapability.getPresentation()));
-                    option.setBilling(billingDetailQueryService.buildModelBillingDetail(capabilityProjection,
+                    ModelCapabilityOptionVO option = buildCapabilityOption(model, capability,
+                            binding.map(com.aid.aid.domain.AidAiBusinessModelBinding::getDefaultsJson).orElse(null),
                             providerNameMap.get(model.getProviderId()), providerLogoMap.get(model.getProviderId()),
-                            globalFactor));
-                    capabilityOptions.add(option);
+                            globalFactor);
+                    if (option != null) capabilityOptions.add(option);
                 }
                 item.setAvailableCapabilities(capabilityOptions);
+                if ("canvas.audio.generate".equals(funcCode) && capabilityOptions.isEmpty()) continue;
             }
             result.add(item);
         }
         return result;
+    }
+
+    /** 各查询入口先限定能力范围，再共用对应能力的参数及计费投影。 */
+    private ModelCapabilityOptionVO buildCapabilityOption(AidAiModel model, ModelCapabilityDefinition capability,
+            String businessDefaults, String providerName, String providerLogo, BigDecimal globalFactor)
+    {
+        AidAiModel projection = modelDefinitions.project(model, capability.getCode(), businessDefaults);
+        if (projection == null) return null;
+        ModelCapabilityDefinition effective = projection.getCapabilities().stream()
+                .filter(value -> Objects.equals(value.getCode(), capability.getCode()))
+                .findFirst().orElse(capability);
+        ModelCapabilityOptionVO option = new ModelCapabilityOptionVO();
+        var runtimeMusicInputs=com.aid.media.service.MusicInputContract.inputSupport(projection.getProtocol(),projection.getCapabilityJson());
+        option.setRuntimeMusicSupported(!runtimeMusicInputs.isEmpty());option.setRuntimeMusicInputSupport(runtimeMusicInputs);
+        option.setAudio(audioClientContract.describe(projection));
+        option.setCode(effective.getCode());
+        option.setLabel(effective.getLabel());
+        option.setGenerateMode(effective.getGenerateMode());
+        option.setParameterSchema(effective.getParameters());
+        option.setParameterRules(effective.getRules());
+        option.setPresentation(clientCapabilityPresentation(effective.getPresentation()));
+        option.setBilling(billingDetailQueryService.buildModelBillingDetail(projection,
+                providerName, providerLogo, globalFactor));
+        if (option.getAudio() != null && !audioBillingConfigured(option.getBilling())) return null;
+        return option;
+    }
+
+    private boolean audioBillingConfigured(com.aid.billing.vo.ModelBillingDetailVO billing) {
+        if (billing == null) return false;
+        if (Boolean.TRUE.equals(billing.getIsFree())) return true;
+        if (StrUtil.isNotBlank(billing.getPriceCurrency()) && !"CNY".equalsIgnoreCase(billing.getPriceCurrency().trim())) return false;
+        return billing.getRules() != null && !billing.getRules().isEmpty();
     }
 
     /** 仅返回 C 端渲染所需字段，供应商协议及运营路由元数据不得透出。 */
@@ -415,7 +476,8 @@ public class AiModelBusinessServiceImpl implements IAiModelBusinessService
     {
         if (source == null || source.isEmpty()) return null;
         Set<String> allowed = Set.of("description", "icon", "sort", "tags", "inputRequirement",
-                "supportsImageInput", "supportsMultiImageInput", "maxReferenceImages", "minReferenceImages");
+                "supportsImageInput", "supportsMultiImageInput", "maxReferenceImages", "minReferenceImages",
+                "targetResolutionOptions", "upscalePairs", "supportsInterpolation", "supportsSlowMotion");
         Map<String, Object> result = new LinkedHashMap<>();
         source.forEach((key, value) -> {
             if (allowed.contains(key)) result.put(key, value);
@@ -433,9 +495,13 @@ public class AiModelBusinessServiceImpl implements IAiModelBusinessService
      * @param globalFactor 全局价格折算系数（一次请求只查一次，循环内复用）
      * @return 组装完成的模型 VO
      */
-    private AiModelVO buildModelVo(AidAiModel model, String providerName, String providerLogo, BigDecimal globalFactor)
+    private AiModelVO buildModelVo(AidAiModel model, String providerCode, String providerName,
+                                   String providerLogo, BigDecimal globalFactor)
     {
         AiModelVO vo = new AiModelVO();
+        vo.setAudio(audioClientContract.describe(model));
+        var runtimeMusicInputs=com.aid.media.service.MusicInputContract.inputSupport(model.getProtocol(),model.getCapabilityJson());
+        vo.setRuntimeMusicSupported(!runtimeMusicInputs.isEmpty());vo.setRuntimeMusicInputSupport(runtimeMusicInputs);
         vo.setId(model.getId());
         vo.setModelCode(model.getModelCode());
         var legacy = model.getLegacyAliases() == null ? modelDefinitions.aliasesForModel(model.getId()) : model.getLegacyAliases();
@@ -455,6 +521,7 @@ public class AiModelBusinessServiceImpl implements IAiModelBusinessService
         vo.setIsFree(Boolean.TRUE.equals(model.getIsFree()));
         vo.setPriority(model.getPriority());
         vo.setImageRefine(model.getImageRefine());
+        vo.setProviderCode(providerCode);
         vo.setProviderName(providerName);
         vo.setModelLogo(model.getLogoUrl());
         vo.setProviderLogo(StrUtil.isNotBlank(model.getLogoUrl()) ? model.getLogoUrl() : providerLogo);

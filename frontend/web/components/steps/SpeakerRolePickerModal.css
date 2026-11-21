@@ -1,5 +1,5 @@
 .speaker-role-picker-wrap .ant-modal-content {
-  background: #191a1d !important;
+  background: var(--ui-surface, #191a1d) !important;
   border-radius: 4px !important;
   padding: 0 !important;
   overflow: hidden;
@@ -10,18 +10,18 @@
 }
 
 .speaker-role-picker-wrap .ant-modal-close {
-  color: #8e97a5 !important;
+  color: var(--ui-muted, #8e97a5) !important;
   top: 12px !important;
   right: 12px !important;
 }
 
 .speaker-role-picker-wrap .ant-modal-close:hover {
-  color: #4ae7fd !important;
+  color: var(--ui-brand, #4ae7fd) !important;
 }
 
 .speaker-role-picker-wrap .ant-modal-body {
   padding: 0 !important;
-  background: #191a1d !important;
+  background: var(--ui-surface, #191a1d) !important;
 }
 
 .speaker-picker-close {
@@ -33,8 +33,8 @@
   flex-direction: column;
   min-height: 197px;
   padding: 12px 16px 16px;
-  color: #e6edf3;
-  background: #27282d;
+  color: var(--ui-text, #e6edf3);
+  background: var(--ui-raised, #27282d);
 }
 
 .speaker-picker-title {
@@ -42,7 +42,7 @@
   font-size: 16px;
   font-weight: 600;
   line-height: 22px;
-  color: #fff;
+  color: var(--ui-text, #fff);
 }
 
 .speaker-picker-list {
@@ -69,14 +69,14 @@
   border: 3px solid transparent;
   border-radius: 12px;
   overflow: hidden;
-  background: #121212;
+  background: var(--ui-bg, #121212);
   cursor: pointer;
   color: inherit;
   transition: border-color 0.2s ease;
 }
 
 .speaker-picker-item.is-selected {
-  border-color: #56e3ff;
+  border-color: var(--ui-ring, #56e3ff);
 }
 
 .speaker-picker-cover {
@@ -84,7 +84,7 @@
   height: 100%;
   object-fit: cover;
   display: block;
-  background: #121212;
+  background: var(--ui-bg, #121212);
 }
 
 .speaker-picker-cover--placeholder {
@@ -114,8 +114,8 @@
   line-height: 16px;
   font-weight: 400;
   text-align: center;
-  color: #fff;
-  background: rgba(0, 0, 0, 0.7);
+  color: var(--ui-text, #fff);
+  background: var(--ui-bg, rgba(0, 0, 0, 0.7));
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -125,7 +125,7 @@
   width: 100%;
   padding: 16px 0;
   text-align: center;
-  color: #8e97a5;
+  color: var(--ui-muted, #8e97a5);
   font-size: 14px;
 }
 
@@ -143,8 +143,8 @@
 
 .speaker-picker-btn-cancel {
   background: transparent !important;
-  border-color: rgba(96, 124, 158, 0.35) !important;
-  color: #e6edf3 !important;
+  border-color: var(--ui-hair, rgba(96, 124, 158, 0.35)) !important;
+  color: var(--ui-text, #e6edf3) !important;
   min-width: 72px;
   height: 32px;
   padding: 0 16px;
@@ -152,14 +152,14 @@
 }
 
 .speaker-picker-btn-cancel:hover {
-  border-color: #4ae7fd !important;
-  color: #4ae7fd !important;
+  border-color: var(--ui-ring, #4ae7fd) !important;
+  color: var(--ui-brand, #4ae7fd) !important;
 }
 
 .speaker-picker-btn-ok {
-  background: linear-gradient(270deg, #0e59fa 0%, #00abd8 100%) !important;
-  border-color: transparent !important;
-  color: #fff !important;
+  background: var(--ui-surface, var(--home-grad-btn, linear-gradient(90deg, #0e59fa 0%, #00abd8 100%))) !important;
+  border: none !important;
+  color: var(--ui-text, #fff) !important;
   font-weight: 500;
   min-width: 72px;
   height: 32px;
@@ -169,8 +169,8 @@
 
 .speaker-picker-btn-ok:hover:not(:disabled) {
   filter: brightness(1.08);
-  border-color: transparent !important;
-  color: #fff !important;
+  border: none !important;
+  color: var(--ui-text, #fff) !important;
 }
 
 .speaker-picker-btn-ok:disabled {

@@ -1,0 +1,31 @@
+:is(.create-page, .assistant-mobile-drawer) .assistant-entry.canvas-assistant-panel {
+  --studio-ui-panel: var(--create-surface-modal, #191a1d);
+  --studio-ui-surface: var(--create-surface-modal, #191a1d);
+  --studio-ui-control: var(--ui-soft, #292d34);
+  --studio-ui-hover: var(--ui-hover, #292d34);
+  --studio-ui-text: var(--ui-text, #edf0f5);
+  --studio-ui-muted: var(--ui-muted, #a8afba);
+  --studio-ui-border: var(--ui-hair, rgba(154, 164, 180, .2));
+  --studio-ui-border-strong: var(--ui-hair-strong, #78899b);
+  --studio-ui-accent: var(--ui-ring, #88d7ed);
+}
+.assistant-entry.canvas-assistant-panel .assistant-entry-header,
+.assistant-entry.canvas-assistant-panel .assistant-toolbar { padding: 10px 14px; gap: 6px; }
+.assistant-entry-header .ant-btn { border: 0; border-radius: 8px; box-shadow: none; }
+.assistant-entry-header .ant-btn[aria-pressed="false"] { background: transparent; color: var(--studio-ui-muted); }
+.assistant-entry-header .ant-btn[aria-pressed="true"] { background: var(--studio-ui-control); color: var(--studio-ui-text); }
+.assistant-entry .assistant-toolbar .studio-canvas-dropdown-popover__trigger { min-width: 0; flex: 1; }
+.assistant-entry-history {
+  display: flex; align-items: center; gap: 7px; min-width: 0; max-width: 100%; min-height: 32px; padding: 5px 9px;
+  border: 0; border-radius: 8px; color: var(--studio-ui-text); background: var(--studio-ui-control); cursor: pointer;
+}
+.assistant-entry-history > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.assistant-entry-history:disabled { opacity: .5; cursor: default; }
+.assistant-panel--studio-layout .assistant-thread > .assistant-card { border: 0; border-top: 1px solid var(--studio-ui-border); border-radius: 0; padding: 14px 0 0; }
+.assistant-panel--studio-layout .assistant-conversation-message.is-user { margin-inline-start: 0; }
+.assistant-panel--studio-layout .assistant-composer .composer-send-button__glyph { width: 28px; height: 28px; }
+.assistant-entry .story-agent-user-message > p { padding: 11px 15px; border-radius: 16px 16px 4px 16px; background: var(--studio-ui-hover); }
+.assistant-entry .story-agent-assistant-message__bubble { border: 0; background: transparent; }
+@media (max-width: 767px) {
+  .assistant-entry-history { min-height: 44px; }
+}

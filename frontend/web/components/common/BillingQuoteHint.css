@@ -1,48 +1,58 @@
 .billing-quote-hint {
   display: inline-flex;
   align-items: center;
+  flex: 0 0 auto;
+  width: max-content;
+  max-width: 100%;
   min-width: 0;
   gap: calc(6px * var(--create-editor-scale, 1));
-  color: #b8d8e5;
-  font-size: calc(12px * var(--create-editor-scale, 1));
+  color: var(--studio-ui-text, var(--ui-text, rgba(184, 216, 229, 0.95)));
+  font-size: calc(13px * var(--create-editor-scale, 1));
   line-height: calc(18px * var(--create-editor-scale, 1));
   white-space: nowrap;
 }
 
-.billing-quote-hint__dot {
-  width: calc(6px * var(--create-editor-scale, 1));
-  height: calc(6px * var(--create-editor-scale, 1));
-  flex: 0 0 auto;
-  border-radius: 50%;
-  background: #4ae7fd;
-  box-shadow: 0 0 calc(8px * var(--create-editor-scale, 1)) rgba(74, 231, 253, 0.45);
+.billing-quote-hint__label {
+  color: var(--studio-ui-muted, var(--ui-muted, rgba(142, 151, 165, 0.95)));
+  font-size: calc(12px * var(--create-editor-scale, 1));
 }
 
-.billing-quote-hint__sku {
-  max-width: calc(160px * var(--create-editor-scale, 1));
-  overflow: hidden;
-  color: rgba(142, 151, 165, 0.95);
-  text-overflow: ellipsis;
+.billing-quote-hint__coin {
+  display: block;
+  width: calc(14px * var(--create-editor-scale, 1));
+  height: calc(14px * var(--create-editor-scale, 1));
+  flex: 0 0 auto;
+  object-fit: contain;
+}
+
+.billing-quote-hint__value {
+  color: var(--studio-ui-accent, var(--ui-brand, #4ae7fd));
+  font-size: calc(14px * var(--create-editor-scale, 1));
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
 }
 
 .billing-quote-hint.is-loading,
 .billing-quote-hint.is-unavailable,
 .billing-quote-hint.is-idle {
-  color: rgba(142, 151, 165, 0.95);
+  color: var(--studio-ui-muted, var(--ui-muted, rgba(142, 151, 165, 0.95)));
+  font-size: calc(12px * var(--create-editor-scale, 1));
 }
 
 .billing-quote-hint.is-free {
-  color: #78e6af;
+  color: var(--ui-success, #78e6af);
 }
 
-.billing-quote-hint.is-free .billing-quote-hint__dot {
-  background: #50d99b;
-  box-shadow: 0 0 calc(8px * var(--create-editor-scale, 1)) rgba(80, 217, 155, 0.4);
+.billing-quote-hint.is-free .billing-quote-hint__coin {
+  filter: saturate(0.85) brightness(1.05);
 }
 
 .billing-quote-hint--submit {
-  display: flex;
-  margin: 0 calc(2px * var(--create-editor-scale, 1)) calc(7px * var(--create-editor-scale, 1));
+  display: inline-flex;
+  flex: 0 0 auto;
+  width: max-content;
+  margin: 0;
 }
 
 .billing-quote-rule-preview {
@@ -50,16 +60,18 @@
   grid-template-columns: auto minmax(0, 1fr);
   align-items: start;
   gap: calc(8px * var(--create-editor-scale, 1));
+  width: 100%;
+  flex-basis: 100%;
   min-width: 0;
-  margin: 0 calc(2px * var(--create-editor-scale, 1)) calc(5px * var(--create-editor-scale, 1));
+  margin: 0 0 calc(8px * var(--create-editor-scale, 1));
   padding: calc(5px * var(--create-editor-scale, 1)) calc(8px * var(--create-editor-scale, 1));
-  border: calc(1px * var(--create-editor-scale, 1)) solid rgba(74, 231, 253, 0.12);
+  border: calc(1px * var(--create-editor-scale, 1)) solid var(--studio-ui-border-strong, var(--ui-hair, rgba(74, 231, 253, 0.12)));
   border-radius: calc(7px * var(--create-editor-scale, 1));
-  background: rgba(10, 18, 30, 0.42);
+  background: var(--studio-ui-surface, var(--ui-bg, rgba(10, 18, 30, 0.42)));
 }
 
 .billing-quote-rule-preview__label {
-  color: rgba(184, 216, 229, 0.92);
+  color: var(--studio-ui-text, var(--ui-text, rgba(184, 216, 229, 0.92)));
   font-size: calc(11px * var(--create-editor-scale, 1));
   line-height: calc(16px * var(--create-editor-scale, 1));
   white-space: nowrap;

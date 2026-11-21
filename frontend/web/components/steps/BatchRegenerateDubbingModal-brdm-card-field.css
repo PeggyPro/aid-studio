@@ -10,7 +10,7 @@
   padding: 0 8px;
   border: none;
   border-radius: 4px;
-  background: rgba(142, 151, 165, 0.12);
+  background: var(--ui-soft, rgba(142, 151, 165, 0.12));
   text-align: left;
   font-size: 12px;
 }
@@ -21,11 +21,11 @@
 }
 
 .batch-regenerate-dubbing-wrap .brdm-card-field--no-dubbing {
-  color: #8e97a5;
+  color: var(--ui-muted, #8e97a5);
 }
 
 .batch-regenerate-dubbing-wrap .brdm-field-label {
-  color: #8e97a5;
+  color: var(--ui-muted, #8e97a5);
   flex-shrink: 0;
 }
 
@@ -38,30 +38,29 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: #fff;
+  color: var(--ui-text, #fff);
 }
 
 .batch-regenerate-dubbing-wrap .brdm-voice-placeholder {
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  background: rgba(120, 235, 255, 0.35);
+  background: var(--ui-raised, rgba(120, 235, 255, 0.35));
   flex-shrink: 0;
 }
 
 .batch-regenerate-dubbing-wrap .brdm-no-dialogue-tip {
   margin: 0;
   font-size: 12px;
-  color: #8e97a5;
+  color: var(--ui-muted, #8e97a5);
   line-height: 18px;
 }
 
 .batch-regenerate-dubbing-wrap .brdm-footer {
   flex-shrink: 0;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  border-top: 1px solid var(--ui-hair, rgba(255, 255, 255, 0.06));
   display: flex;
   align-items: center;
-  justify-content: flex-end;
   gap: 16px;
   padding: 16px 0 0;
 }
@@ -71,14 +70,8 @@
   height: 40px;
   border-radius: 6px !important;
   border: none !important;
-  background: linear-gradient(270deg, #0e59fa 0%, #00abd8 100%) !important;
+  background: var(--ui-primary, linear-gradient(270deg, #0e59fa 0%, #00abd8 100%)) !important;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-}
-
-.batch-regenerate-dubbing-wrap .brdm-submit-btn img {
-  width: 16px;
-  height: 16px;
 }

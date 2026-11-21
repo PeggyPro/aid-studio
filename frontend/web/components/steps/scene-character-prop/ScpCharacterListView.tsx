@@ -1,5 +1,9 @@
 'use client'
 
+import { flowRowMotionStyle } from '~/utils/v10Motion'
+
+import { FlowActionIcon } from '~/components/common/FlowActionIcon'
+
 import { Button, Input, Tooltip } from 'antd'
 import { LoadingOutlined, PlusOutlined, RightOutlined, UserOutlined } from '@ant-design/icons'
 import { ShimmerImage } from '~/components/common/ShimmerImage'
@@ -33,12 +37,14 @@ export function ScpCharacterListView({ ctx }: { ctx: ScpCtx }) {
       <div className="character-cards-container">
         {ctx.visibleManualCharactersList().length > 0 ? (
           <div className="character-cards-manual">
-            {ctx.visibleManualCharactersList().map((character) => (
+            {ctx.visibleManualCharactersList().map((character, rowIndex) => (
               <div
                 key={`manual-character-${character.index}`}
                 className="character-card-wrapper"
+                style={flowRowMotionStyle(rowIndex)}
                 data-scp-asset-tab="character"
                 data-scp-asset-index={character.index}
+                data-scp-asset-id={ctx.characterAssetIds.value[character.index] ?? undefined}
               >
                 {/* 头部横条：和卡片同级，占满一行 */}
                 <div className="character-card-header-bar">
@@ -193,7 +199,7 @@ export function ScpCharacterListView({ ctx }: { ctx: ScpCtx }) {
                                 className="asset-visual-generating-block__shimmer"
                                 aria-hidden="true"
                               />
-                              <LoadingOutlined spin className="asset-visual-generating-block__icon" />
+                              <LoadingOutlined spin className="asset-visual-generating-block__icon flow-generation-spinner" />
                               <p className="asset-visual-generating-block__text">
                                 {ctx.characterFormGeneratingLabel(`${character.index}-${formIndex}`)}
                               </p>
@@ -320,7 +326,7 @@ export function ScpCharacterListView({ ctx }: { ctx: ScpCtx }) {
                                     <div className="scene-card-image-footer asset-action-footer">
                                       <Button
                                         icon={
-                                          <img src={iconPreview} alt="" className="footer-action-icon" />
+                                          <FlowActionIcon src={iconPreview} className="footer-action-icon" />
                                         }
                                         onClick={() =>
                                           ctx.handlePreviewCharacterFormImageByIndex(
@@ -359,9 +365,8 @@ export function ScpCharacterListView({ ctx }: { ctx: ScpCtx }) {
                                         >
                                           <Button
                                             icon={
-                                              <img
+                                              <FlowActionIcon
                                                 src={iconAutGenerate}
-                                                alt=""
                                                 className="footer-action-icon"
                                               />
                                             }
@@ -372,9 +377,8 @@ export function ScpCharacterListView({ ctx }: { ctx: ScpCtx }) {
                                       ) : (
                                         <Button
                                           icon={
-                                            <img
+                                            <FlowActionIcon
                                               src={iconReplace}
-                                              alt=""
                                               className="footer-action-icon"
                                             />
                                           }
@@ -391,7 +395,7 @@ export function ScpCharacterListView({ ctx }: { ctx: ScpCtx }) {
                                       )}
                                       <Button
                                         icon={
-                                          <img src={iconDownload} alt="" className="footer-action-icon" />
+                                          <FlowActionIcon src={iconDownload} className="footer-action-icon" />
                                         }
                                         onClick={() =>
                                           ctx.handleDownloadCharacterFormImageByIndex(
@@ -432,8 +436,7 @@ export function ScpCharacterListView({ ctx }: { ctx: ScpCtx }) {
                                   }
                                 >
                                   <Button
-                                    type="primary"
-                                    className="asset-generate-card__action asset-generate-card__action--primary"
+                                    className="asset-generate-card__action"
                                     disabled={
                                       !ctx.canAutoGenerateCharacterFormImage(
                                         character.index,
@@ -444,9 +447,8 @@ export function ScpCharacterListView({ ctx }: { ctx: ScpCtx }) {
                                       ] === 'generating'
                                     }
                                   >
-                                    <img
+                                    <FlowActionIcon
                                       src={iconAutGenerate}
-                                      alt=""
                                       className="asset-generate-card__action-icon"
                                       aria-hidden="true"
                                     />
@@ -460,9 +462,8 @@ export function ScpCharacterListView({ ctx }: { ctx: ScpCtx }) {
                                     ctx.handleImportCharacterFormImage(character.index, formIndex)
                                   }
                                 >
-                                  <img
+                                  <FlowActionIcon
                                     src={iconManual}
-                                    alt=""
                                     className="asset-generate-card__action-icon"
                                     aria-hidden="true"
                                   />
@@ -480,11 +481,11 @@ export function ScpCharacterListView({ ctx }: { ctx: ScpCtx }) {
                 {/* 新增形态按钮 */}
                 <div className="character-add-form">
                   <Button
-                    type="primary"
+                    type="default"
                     icon={<PlusOutlined />}
                     onClick={() => ctx.handleAddCharacterForm(character.index)}
                   >
-                    <div className="text-gradient">新增形态</div>
+                    新增形态
                   </Button>
                 </div>
               </div>

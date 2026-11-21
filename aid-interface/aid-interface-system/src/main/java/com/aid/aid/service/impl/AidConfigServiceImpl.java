@@ -62,7 +62,7 @@ public class AidConfigServiceImpl extends ServiceImpl<AidConfigMapper, AidConfig
     @Override
     public List<AidConfig> selectAidConfigList(AidConfig aidConfig) {
         LambdaQueryWrapper<AidConfig> lambdaQueryWrapper = Wrappers.lambdaQuery();
-        lambdaQueryWrapper.ne(AidConfig::getCategory, "error_diagnostics");
+        lambdaQueryWrapper.notIn(AidConfig::getCategory, "error_diagnostics", "storage_sync", "local_storage");
         if (aidConfig != null) {
             if (StringUtils.isNotEmpty(aidConfig.getCategory())) {
                 lambdaQueryWrapper.eq(AidConfig::getCategory, aidConfig.getCategory());
@@ -241,6 +241,11 @@ public class AidConfigServiceImpl extends ServiceImpl<AidConfigMapper, AidConfig
         this.save(config);
     }
 
+    @Override
+    public void recordStorageSynchronization(String fingerprint) {
+        upsertConfigValue("storage_sync", "fingerprint", fingerprint);
+    }
+
     /**
      * 获取当前操作者，无登录上下文时回退系统标识
      *
@@ -257,6 +262,22 @@ public class AidConfigServiceImpl extends ServiceImpl<AidConfigMapper, AidConfig
     }
 
     private void validateConfigValue(String category, String configName, String configValue) {
+        if ("realtime".equals(category) && "allowed_origins".equals(configName)) {
+            try {
+                com.aid.common.utils.RealtimeOrigins.parse(configValue);
+            } catch (IllegalArgumentException error) {
+                throw new ServiceException(error.getMessage());
+            }
+        }
+        if ("script".equals(category) && ("script_series_max_chars".equals(configName)
+                || "script_episode_max_chars".equals(configName))) {
+            try {
+                int value = Integer.parseInt(configValue.trim());
+                if (value < 1 || value > 1_000_000) throw new NumberFormatException();
+            } catch (RuntimeException invalid) {
+                throw new ServiceException("剧本字数上限须为1至1000000的整数");
+            }
+        }
         validateModelPriceMultiplier(category, configName, configValue);
         validateAccountCancellationConfig(category, configName, configValue);
     }
@@ -318,8 +339,13 @@ public class AidConfigServiceImpl extends ServiceImpl<AidConfigMapper, AidConfig
         return lqw;
     }
     private void rejectDiagnosticConfig(AidConfig config) {
-        if (config != null && "error_diagnostics".equals(config.getCategory())) {
-            throw new ServiceException("请在错误处理页面管理诊断配置");
+        if (config != null && "local_storage".equals(config.getCategory()))
+            throw new ServiceException("请通过统一本地存储目录入口维护");
+
+        if (config != null && ("error_diagnostics".equals(config.getCategory())
+                || "storage_sync".equals(config.getCategory()))) {
+            throw new ServiceException("storage_sync".equals(config.getCategory())
+                    ? "文件存储同步状态由系统维护，请使用同步配置按钮" : "请在错误处理页面管理诊断配置");
         }
     }
 }

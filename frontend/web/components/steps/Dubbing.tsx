@@ -1,5 +1,8 @@
 'use client'
 
+import { HomeSegmented } from '~/components/home/theme/HomeSegmented'
+import { FlowActionIcon } from '~/components/common/FlowActionIcon'
+
 import { Suspense, useContext, useEffect, useRef, useState } from 'react'
 import { Button, message } from 'antd'
 import { DeleteOutlined, LoadingOutlined, AudioOutlined } from '@ant-design/icons'
@@ -25,6 +28,8 @@ import {
   peekCreateFlowStepModalIntent,
 } from '~/utils/createFlowStepModalIntent'
 import { useCreateFlowStepModalIntent } from '~/hooks/useCreateFlowStepModalIntent'
+import { ONBOARDING_PREPARE_ANCHOR_EVENT } from '~/utils/onboardingDom'
+import { useOnboardingPrepareFlags } from '~/utils/onboardingPrepareAnchor'
 import {
   hasPersistedStoryboardScriptBatchGenWork,
   hasPersistedStoryboardVideoBatchGenWork
@@ -92,6 +97,7 @@ export function Dubbing({
   const dubbingBatchGeneratingIndices = useCreationStore((s) => s.dubbingBatchGeneratingIndices)
   const step4PlusLiveGenByScope = useCreationStore((s) => s.step4PlusLiveGenByScope)
   void step4PlusLiveGenByScope
+  const dubOnboardingShowToolbar = useOnboardingPrepareFlags((s) => s.dubOnboardingShowToolbar)
 
   function hasOngoingDubbingGenWork(): boolean {
     const store = useCreationStore.getState()
@@ -161,11 +167,33 @@ export function Dubbing({
 
   const [toolbarOpsOpen, setToolbarOpsOpen] = useState(false)
 
-  // 挂载时清理残留报错
+  function handleOnboardingPrepareAnchor(e: Event) {
+    const anchor = (e as CustomEvent<{ anchor?: string }>).detail?.anchor
+    if (anchor === 'dub-batch-dubbing') {
+      setToolbarOpsOpen(true)
+      return
+    }
+    if (anchor === 'dub-close-dropdown') {
+      setToolbarOpsOpen(false)
+    }
+  }
+
+  // 原第二处 onMounted：清理残留报错 + 注册引导锚点事件
   useEffect(() => {
     if (panelsRef.current.length === 0 && useCreationStore.getState().storyboardGenerationError) {
       useCreationStore.getState().clearStoryboardScriptGenerationOutcome()
     }
+    window.addEventListener(
+      ONBOARDING_PREPARE_ANCHOR_EVENT,
+      handleOnboardingPrepareAnchor as EventListener
+    )
+    return () => {
+      window.removeEventListener(
+        ONBOARDING_PREPARE_ANCHOR_EVENT,
+        handleOnboardingPrepareAnchor as EventListener
+      )
+    }
+     
   }, [])
 
   const [batchRegenerateModalOpen, setBatchRegenerateModalOpen] = useState(false)
@@ -260,6 +288,7 @@ export function Dubbing({
       key: 'batch-dubbing',
       label: dubbingBatchGenerateLabel,
       icon: AudioOutlined,
+      onboardingAnchor: 'dub-batch-dubbing',
       disabled: panels.length === 0 || batchGeneratingIndicesArray.length > 0,
       disabledTooltip:
         panels.length === 0 ? '暂无分镜，请先在「分镜设计」中生成分镜' : undefined
@@ -414,51 +443,25 @@ export function Dubbing({
   }
 
   return (
-    <div className="dubbing-step create-step-dubbing storyboard-step">
+    <div className="dubbing-step create-step-dubbing storyboard-step" data-onboarding="dubbing-track">
       <div className="storyboard-toolbar">
         <div className="storyboard-toolbar-left">
-          <div className="storyboard-view-toggle">
-            <Button
-              size="small"
-              type={viewMode === 'list' ? 'primary' : 'default'}
-              onClick={() => setViewMode('list')}
-              icon={
-                <img
-                  src={viewMode === 'list' ? listSelIcon : listNorIcon}
-                  alt=""
-                  className="storyboard-view-icon"
-                />
-              }
-            >
-              列表
-            </Button>
-            <Button
-              size="small"
-              type={viewMode === 'card' ? 'primary' : 'default'}
-              onClick={() => setViewMode('card')}
-              icon={
-                <img
-                  src={viewMode === 'card' ? cardSelIcon : cardNorIcon}
-                  alt=""
-                  className="storyboard-view-icon"
-                />
-              }
-            >
-              卡片
-            </Button>
-          </div>
+          <HomeSegmented value={viewMode} onChange={setViewMode} ariaLabel="展示方式" className="flow-segmented flow-segmented--dim storyboard-view-toggle" options={[
+  {value:'list',label:<><FlowActionIcon src={viewMode === 'list' ? listSelIcon : listNorIcon} /><span>列表</span></>},
+  {value:'card',label:<><FlowActionIcon src={viewMode === 'card' ? cardSelIcon : cardNorIcon} /><span>卡片</span></>}
+]} />
           <div className="storyboard-progress">
             <span>配音完成进度：{progressText}</span>
             {isSyncGeneratingStoryboard || batchGeneratingIndicesArray.length > 0 ? (
               <LoadingOutlined
-                className="storyboard-progress-icon storyboard-progress-loading"
+                className="storyboard-progress-icon storyboard-progress-loading flow-generation-spinner"
                 spin
               />
             ) : null}
           </div>
         </div>
         <div className="storyboard-toolbar-right">
-          {!isSyncGeneratingStoryboard ? (
+          {!isSyncGeneratingStoryboard || dubOnboardingShowToolbar ? (
             <StoryboardToolbarOpsDropdown
               open={toolbarOpsOpen}
               onOpenChange={setToolbarOpsOpen}
@@ -483,13 +486,13 @@ export function Dubbing({
             aria-live="polite"
             aria-busy="true"
           >
-            <LoadingOutlined spin className="storyboard-list-bootstrap-mask__icon" />
+            <LoadingOutlined spin className="storyboard-list-bootstrap-mask__icon flow-generation-spinner" />
             <p className="storyboard-list-bootstrap-mask__text">正在同步音画同步列表…</p>
           </div>
         ) : null}
         {showScriptSyncGeneratingView ? (
           <div className="storyboard-generating-view">
-            <div className="storyboard-generating-center">
+            <div className="storyboard-generating-center" role="status">
               <img src={generatingCenterIcon} alt="" className="storyboard-generating-center-icon" />
               <div className="storyboard-generating-center-title">
                 正在把剧本进行一格一格分镜拆解...

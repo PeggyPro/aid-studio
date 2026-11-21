@@ -1,2 +1,72 @@
-@import './MultiAngleCameraModal-selected-model.css';
-@import './MultiAngleCameraModal-center-image-overlay.css';
+.ma-camera-modal {
+  --studio-surface: var(--v10-s1);
+  --studio-bg: var(--v10-bg);
+  --studio-surface-2: var(--v10-s2);
+  --studio-surface-strong: var(--v10-s3);
+  --studio-border: var(--v10-ring);
+  --studio-text: var(--v10-text);
+  --studio-muted: var(--v10-muted);
+  --studio-accent: var(--v10-primary);
+  --studio-theme-inverse-text: var(--v10-on-primary);
+}
+.ma-camera-modal .ant-modal-container,
+.ma-camera-modal .ant-modal-content { padding: 0; overflow: hidden; border-radius: 18px; background: var(--studio-surface, #17191d); }
+.ma-camera-modal .ant-modal-body { padding: 0; }
+.ma-camera-modal-wrap .ma-dialog { display: flex; flex-direction: column; max-height: calc(100dvh - 64px); color: var(--studio-text, #e8edf4); }
+.ma-dialog .ma-header { display: flex; flex: none; align-items: center; justify-content: space-between; gap: 16px; padding: 20px 24px 16px; }
+.ma-dialog .ma-title { margin: 0; font-size: 20px; font-weight: 650; }
+.ma-header p { margin: 5px 0 0; color: var(--studio-muted, #969eac); font-size: 12px; }
+.ma-dialog .ma-close { display: grid; place-items: center; flex: none; width: 34px; height: 34px; padding: 0; border: 0; border-radius: 9px; color: inherit; background: transparent; cursor: pointer; }
+.ma-close:hover { background: var(--studio-surface-2, #272b32); }
+.ma-dialog .ma-layout { display: grid; grid-template-columns: minmax(0, 1fr) 286px; gap: 18px; min-height: 0; padding: 0 24px; overflow-y: auto; }
+.ma-viewport { display: flex; flex-direction: column; min-width: 0; border: 1px solid var(--studio-border, #32363f); border-radius: 14px; background: var(--studio-bg, #111316); }
+.ma-preview-heading { display: flex; justify-content: space-between; gap: 8px; padding: 13px 15px 0; font-size: 12px; }
+.ma-preview-heading small { color: var(--studio-muted, #929bab); font-size: 11px; }
+.ma-orbit { display: block; flex: 1 0 auto; width: 100%; min-height: 240px; max-height: min(450px, 52dvh); aspect-ratio: 600/480; touch-action: none; cursor: grab; }
+.ma-orbit:active { cursor: grabbing; }
+.ma-orbit--fixed { cursor: default; }
+.ma-orbit-grid { fill: none; stroke: var(--studio-muted, #8b98ac); stroke-width: .8; opacity: .23; }
+.ma-orbit-sight { fill: none; stroke: var(--studio-accent, #a9bfdf); stroke-width: 1; stroke-dasharray: 4 5; opacity: .45; }
+.ma-reference { display: flex; flex-direction: column; align-items: center; gap: 7px; width: 100%; height: 100%; padding: 6px; box-sizing: border-box; border-radius: 12px; background: var(--studio-bg, #111316); pointer-events: none; }
+.ma-reference img { display: block; width: 100%; min-height: 0; flex: 1; object-fit: contain; border-radius: 7px; }
+.ma-reference small, .ma-reference > span { font-size: 11px; color: var(--studio-muted, #929bab); }
+.ma-camera-handle { color: var(--studio-text, #eaf0fa); cursor: grab; outline: none; }
+.ma-camera-handle rect, .ma-camera-handle circle, .ma-camera-handle path { stroke: currentColor; stroke-width: 1.5; fill: var(--studio-surface-strong, #343d4a); }
+.ma-camera-handle .ma-camera-hit { fill: transparent; stroke: transparent; }
+.ma-camera-handle:focus-visible .ma-camera-hit { stroke: var(--studio-accent, #c1d9fc); stroke-width: 2; }
+.ma-camera-handle text { fill: currentColor; font-size: 12px; text-anchor: middle; }
+.ma-preview-note { margin: 0; padding: 8px 15px 14px; color: var(--studio-muted, #929bab); font-size: 11px; text-align: center; }
+.ma-preview-note.is-error { color: var(--studio-danger, #e7a39d); }
+.ma-controls { display: flex; flex-direction: column; min-width: 0; padding: 16px; border: 1px solid var(--studio-border, #32363f); border-radius: 14px; background: var(--studio-surface, #191c21); }
+.ma-controls-heading { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 19px; }
+.ma-controls-heading h3 { margin: 0; font-size: 13px; font-weight: 600; }
+.ma-controls button { padding: 5px 8px; border: 1px solid var(--studio-border, #353c45); border-radius: 7px; background: var(--studio-surface-2, #262b33); color: inherit; cursor: pointer; font-size: 11px; }
+.ma-controls-heading button { border: 0; background: transparent; color: var(--studio-muted, #a0aabb); }
+.ma-controls fieldset { min-width: 0; padding: 0; border: 0; margin: 0; }
+.ma-controls fieldset:disabled { opacity: .5; }
+/* 流程弹窗的通用文字规则读取 --ui-text；选中按钮需携带与选中底色配对的前景色。 */
+.ma-controls button[aria-pressed="true"] { --ui-text: var(--studio-theme-inverse-text, #1b222d); background: var(--studio-accent, #b9cee9); color: var(--ui-text); border-color: transparent; }
+.ma-angle-presets, .ma-focal-presets { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px; margin-bottom: 20px; }
+.ma-focal-presets { grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 0; }
+.ma-control { display: grid; grid-template-columns: minmax(0, 1fr) 66px; align-items: center; gap: 6px; margin-top: 18px; font-size: 12px; }
+.ma-control .ant-slider, .ma-control .ma-focal-presets { grid-column: 1/-1; }
+.ma-control .ant-slider { margin: 8px 7px 12px; }
+.ma-control .ant-input-number { width: 66px; font-size: 12px; }
+.ma-control b { font-size: 11px; font-weight: 500; text-align: right; color: var(--studio-muted, #929bab); }
+.ma-selection-summary { display: flex; align-items: center; gap: 7px; margin-top: auto; padding-top: 22px; color: var(--studio-muted, #a1adbf); font-size: 11px; }
+.ma-dialog .ma-footer { display: flex; flex: none; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 18px 24px 20px; }
+.ma-footer-source, .ma-footer-actions { display: flex; min-width: 0; align-items: center; gap: 9px; }
+.ma-footer-source { flex: 1 1 300px; }
+.ma-model-select { min-width: 0; flex: 1; max-width: 260px; }
+.ma-footer-actions { margin-left: auto; flex-wrap: wrap; justify-content: flex-end; }
+.ma-dialog button:focus-visible { outline: 2px solid var(--studio-accent, #b9cee9); outline-offset: 2px; }
+@media (max-width: 720px) {
+ .ma-dialog .ma-layout { grid-template-columns: minmax(0, 1fr); padding-inline: 16px; gap: 12px; }
+ .ma-dialog .ma-header, .ma-dialog .ma-footer { padding-inline: 16px; }
+ .ma-orbit { min-height: 220px; max-height: 290px; }
+ .ma-controls { padding: 12px; }
+ .ma-controls fieldset { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 0 12px; }
+ .ma-angle-presets { grid-column: 1/-1; margin-bottom: 0; }
+ .ma-control:last-child { grid-column: 1/-1; }
+ .ma-footer-source { flex-wrap: wrap; }
+}

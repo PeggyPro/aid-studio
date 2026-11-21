@@ -15,6 +15,8 @@ import FunctionCapabilityEditor from './FunctionCapabilityEditor';
 import { confirmModelPoolRemoval } from './confirmModelPoolRemoval';
 import { normalizeFunctionCapabilityBindings, usesStructuredCapabilities } from './functionCapabilityBindings';
 import type { BusinessModelBinding } from '../aimanage/ModelBusinessBindingEditor';
+import BusinessEntrypointDrawer from './BusinessEntrypointDrawer';
+import {useAuth} from '@/hooks/useAuth';
 
 const STATUS_OPTIONS = [
   { label: '启用', value: '0' },
@@ -22,6 +24,8 @@ const STATUS_OPTIONS = [
 ];
 
 export default function FuncconfigPage() {
+  const {hasPermi}=useAuth();
+  const [entryScene,setEntryScene]=useState<{funcCode:string;funcName:string}|null>(null);
   const [loading, setLoading] = useState(false);
   const [list, setList] = useState<any[]>([]);
   const [total, setTotal] = useState(0);
@@ -43,6 +47,7 @@ export default function FuncconfigPage() {
   const [editingData, setEditingData] = useState<any>(null);
 
   const loadPool = async () => {
+    if(!hasPermi('aid:aidmodel:list'))return [];
     try {
       // 全量加载（含停用模型）：停用模型需在列表/已选中标识展示而非变成“未知”，
       // 且编辑保存时不能丢失停用模型的原有配置，模型恢复后配置原样生效
@@ -54,6 +59,7 @@ export default function FuncconfigPage() {
 
   /** 服务商 id→名称映射（模型池标签展示用，加载失败不阻断） */
   const loadProviders = async () => {
+    if(!hasPermi('aid:aidprovider:list'))return;
     try {
       const res: any = await listProvider({ pageNum: 1, pageSize: 999 });
       const map: Record<number, string> = {};
@@ -215,9 +221,10 @@ export default function FuncconfigPage() {
       return <Tag color={color} style={{ borderRadius: 6 }}>{label}</Tag>;
     } },
     { title: '备注', dataIndex: 'remark', ellipsis: true, width: 180 },
-    { title: '操作', key: 'ops', width: 150, fixed: 'right' as const, render: (_: any, r: any) => (
+    { title: '操作', key: 'ops', width: 240, fixed: 'right' as const, render: (_: any, r: any) => (
       <Space size={0}>
         <Auth permission="aid:funcconfig:edit"><Button type="link" size="small" icon={<EditOutlined />} onClick={() => openEdit(r)}>修改</Button></Auth>
+        <Auth permission="aid:funcconfig:query"><Button type="link" size="small" onClick={()=>setEntryScene(r)}>Agent / Skill</Button></Auth>
         <Auth permission="aid:funcconfig:remove"><Popconfirm title="确认删除？" onConfirm={() => handleDelete(r)}><Button type="link" size="small" danger icon={<DeleteOutlined />}>删除</Button></Popconfirm></Auth>
       </Space>
     ) }
@@ -225,6 +232,7 @@ export default function FuncconfigPage() {
 
   return (
     <div className="crud-page">
+      <BusinessEntrypointDrawer scene={entryScene} onClose={()=>setEntryScene(null)}/>
       <Card className="page-card" bordered={false}>
         <Form form={searchForm} layout="inline" onFinish={(v) => setQuery({ ...query, ...v, pageNum: 1 })} style={{ rowGap: 8 }}>
           <Form.Item name="funcName" label="功能名称"><Input allowClear style={{ width: 160 }} placeholder="请输入" /></Form.Item>

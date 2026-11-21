@@ -19,7 +19,6 @@ import {
   blurVideoPromptEditorIfFocused,
   resolveVideoModalSelectPopupContainer
 } from '~/utils/videoModalSelectPopup'
-import starWhiteIconRaw from '~/assets/img/icon/star_white.svg'
 import type { ImageToVideoSettingKey, VideoModalCtx } from './types'
 import {
   buildStoryboardVideoReferenceOverrides,
@@ -30,8 +29,6 @@ import {
 import { buildStoryboardVideoResolutionField } from '~/utils/storyboardVideoGenerateParams'
 import { buildGenerateReferenceAudioFields } from '~/utils/storyboardVideoReferenceAudioWire'
 import { buildGenerateReferenceVideoFields } from '~/utils/storyboardVideoReferenceVideoWire'
-
-const starWhiteIcon = assetUrl(starWhiteIconRaw)
 
 const PROMPT_PLACEHOLDER = '描述你想要生成的画面内容和动作,如:一个穿着红色裙子的小女孩在草地上奔跑'
 
@@ -586,7 +583,6 @@ export function VideoConfigPanel({ ctx }: { ctx: VideoModalCtx }) {
             {isPrimaryVideoTab ? (
               <Button
                 type="primary"
-                block
                 size="large"
                 className="generate-btn"
                 loading={
@@ -600,40 +596,35 @@ export function VideoConfigPanel({ ctx }: { ctx: VideoModalCtx }) {
                     : ctx.showImageToVideoGenerateLoadingGet()) ||
                   ctx.showGeneratingVideoPromptForScene()
                 }
-                icon={<img src={starWhiteIcon} alt="" />}
                 onClick={() =>
                   isGridVideoTab
                     ? void ctx.handleGridVideoStartGenerate()
                     : void ctx.handleImageToVideoStartGenerate()
                 }
               >
-                开始生成视频
+                生成视频
               </Button>
             ) : leftActiveTab === 'multiParam' ? (
               <Button
                 type="primary"
-                block
                 size="large"
                 className="generate-btn"
                 loading={ctx.showMultiParamGenerateLoadingGet()}
                 disabled={ctx.showMultiParamGenerateLoadingGet()}
-                icon={<img src={starWhiteIcon} alt="" />}
                 onClick={() => void ctx.handleMultiParamStartGenerate()}
               >
-                开始生成视频
+                生成视频
               </Button>
             ) : (
               <Button
                 type="primary"
-                block
                 size="large"
                 className="generate-btn"
                 loading={ctx.showEdgeVideoGenerateLoadingGet()}
                 disabled={ctx.showEdgeVideoGenerateLoadingGet()}
-                icon={<img src={starWhiteIcon} alt="" />}
                 onClick={() => void ctx.handleEdgeVideoStartGenerate()}
               >
-                开始生成视频
+                生成视频
               </Button>
             )}
           </div>

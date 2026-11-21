@@ -41,7 +41,6 @@ import {
   type EditorTextSelection
 } from '~/utils/quill/editorTextSelection'
 import './story-script-agent.css'
-import '@/components/common/composer-flow.css'
 
 const agentIconUrl = assetUrl(agentIconRaw)
 
@@ -405,7 +404,7 @@ export function StoryScriptAgentPanel({
   references,
   onReferencesChange,
   onApplyScript,
-  emptyHint = '结合当前项目风格生成剧本，完成后可直接带入左侧编辑器。',
+  emptyHint = '生成剧本后，可直接带入左侧编辑器。',
   contextSlot,
   composerContextSlot,
   runtimeFeedbackEnabled = false
@@ -495,6 +494,7 @@ export function StoryScriptAgentPanel({
       <AgentConversationPanel
         open={open}
         title="新对话"
+        brandIcon={<img className="story-script-agent-panel__brand-icon" src={agentIconUrl} alt="" width={28} height={28} />}
         onClose={onClose}
         statusText={statusText}
         conversationRef={conversationRef}
@@ -504,6 +504,7 @@ export function StoryScriptAgentPanel({
         hasOlder={hasOlderMessages}
         loadingOlder={olderMessagesLoading}
         onLoadOlder={onLoadOlderMessages}
+        orbMode={sending ? 'thinking' : 'listening'}
         surfaceClassName="story-script-agent-panel__surface"
         headerClassName="story-script-agent-panel__header"
         brandClassName="story-script-agent-panel__brand"
@@ -521,7 +522,7 @@ export function StoryScriptAgentPanel({
         contextSlot={contextSlot}
         composer={
           <div
-            className={`story-script-agent-panel__input-wrap composer-flow composer-flow--dialog${
+            className={`story-script-agent-panel__input-wrap home-composer-flow home-composer-flow--dialog${
               composerFlowing ? ' is-flowing' : ''
             }${references.length ? ' has-references' : ''}${composerContextSlot ? ' has-context-chips' : ''}`}
             onMouseEnter={() => setComposerFlowing(true)}
@@ -597,8 +598,8 @@ export function StoryScriptAgentPanel({
                 loading={skillsLoading}
                 error={skillsError}
                 disabled={sending || canRetry || paused}
-                onSelect={onSkillChange}
                 onRequestLoad={onSkillsRequest}
+                onSelect={onSkillChange}
               />
               <StoryScriptAgentModelPicker
                 models={selectedSkill?.models ?? []}

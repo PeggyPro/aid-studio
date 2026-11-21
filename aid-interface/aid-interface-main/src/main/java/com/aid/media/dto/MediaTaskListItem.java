@@ -67,6 +67,9 @@ public class MediaTaskListItem {
     // 计费状态。
     private String billingStatus;
 
+    /** Optional basis of composite video settlement. */
+    private String settlementUsageSource;
+
     // 实际扣费金额（元）。
     private BigDecimal actualCost;
 

@@ -25,6 +25,7 @@ export interface ShimmerImageProps {
   revealMs?: number
   /** 若图片在该时间内加载完成（多为缓存），跳过流光与渐入动效 */
   fastRevealThresholdMs?: number
+  loadTimeoutMs?: number
   onClick?: (event: ReactMouseEvent<HTMLImageElement>) => void
   onLoad?: () => void
   onError?: () => void
@@ -48,6 +49,7 @@ export function ShimmerImage({
   revealDirection = 'vertical',
   revealMs = 780,
   fastRevealThresholdMs = 120,
+  loadTimeoutMs,
   onClick,
   onLoad,
   onError,
@@ -150,18 +152,20 @@ export function ShimmerImage({
   }
 
   function handleRevealAnimationEnd(event: ReactAnimationEvent<HTMLDivElement>) {
-    if (event.animationName !== REVEAL_ANIM_MAP[revealDirection]) return
+    if (revealPhaseRef.current !== 'revealing' || event.animationName !== REVEAL_ANIM_MAP[revealDirection]) return
     clearRevealFallbackTimer()
     setRevealPhase('done')
     onLoad?.()
   }
 
   function handleImgReady() {
+    if (imgReadyRef.current || hasErrorRef.current) return
     imgReadyRef.current = true
     tryReveal()
   }
 
   function handleError() {
+    if (hasErrorRef.current) return
     setHasError(true)
     clearRevealTimers()
     onError?.()
@@ -169,13 +173,13 @@ export function ShimmerImage({
 
   function tryApplyCachedReady(): boolean {
     const el = imgRef.current
-    if (!el?.complete || el.naturalWidth <= 0) return false
-    imgReadyRef.current = true
-    tryReveal()
-    return revealPhaseRef.current !== 'waiting'
+    if (!el?.complete) return false
+    if (el.naturalWidth > 0) handleImgReady()
+    else handleError()
+    return true
   }
 
-  async function syncLoadedFromCache() {
+  async function syncLoadedFromCache(current: () => boolean) {
     if (tryApplyCachedReady()) return
 
     await new Promise<void>((resolve) => {
@@ -183,7 +187,7 @@ export function ShimmerImage({
         requestAnimationFrame(() => resolve())
       })
     })
-    if (tryApplyCachedReady()) return
+    if (!current() || tryApplyCachedReady()) return
 
     clearCacheSyncFallbackTimer()
     cacheSyncFallbackTimerRef.current = window.setTimeout(() => {
@@ -203,14 +207,18 @@ export function ShimmerImage({
   useEffect(() => {
     resetLoadState()
     if (!resolvedSrc) return
-    void syncLoadedFromCache()
+    let active = true
+    void syncLoadedFromCache(() => active)
+    const timeout = loadTimeoutMs ? window.setTimeout(() => {
+      if (!imgReadyRef.current) handleError()
+    }, loadTimeoutMs) : undefined
+    return () => {
+      active = false
+      window.clearTimeout(timeout)
+      clearRevealTimers()
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resolvedSrc])
-
-  useEffect(() => {
-    return () => clearRevealTimers()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [resolvedSrc, loadTimeoutMs])
 
   const wrapperClassName = [
     'shimmer-image',
@@ -257,7 +265,7 @@ export function ShimmerImage({
       <div
         className="shimmer-image__placeholder"
         aria-hidden="true"
-        style={revealPhase === 'waiting' ? undefined : { display: 'none' }}
+        style={revealPhase === 'waiting' && !hasError ? undefined : { display: 'none' }}
       >
         <div className="shimmer-image__shimmer shimmer-image__shimmer--loop" />
       </div>

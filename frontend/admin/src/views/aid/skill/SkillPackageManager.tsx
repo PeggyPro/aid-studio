@@ -1,3 +1,4 @@
+import { allSkillVersions, suggestVersion } from '../authoring/suggestVersion';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert, Avatar, Button, Card, Col, Descriptions, Divider, Drawer, Form, Input, InputNumber,
@@ -10,14 +11,17 @@ import { CheckCircleOutlined, EyeOutlined, ReloadOutlined, RocketOutlined, SaveO
 import {
   activateSkillVersion, discardSkillDraft, getSkillDependencyLabels, getSkillDraft, getSkillVersion,
   listSkillTextModels, listSkillVersions, publishSkillDraft, saveSkillDraft, validateSkillDraft,
-  type AdminSkillSummary, type SkillDraftDetail, type SkillPackagePayload,
+  type AdminSkillSummary, type SkillDraftDetail, type SkillId, type SkillPackagePayload,
   type SkillTextModelOption, type SkillValidationIssue, type SkillValidationResult,
   type SkillVersionDetail, type SkillVersionSummary
 } from '@/api/aid/skill';
-import SchemaFieldEditor, { validateSkillSchema } from './SchemaFieldEditor';
+import { validateSkillSchema } from './SchemaFieldEditor';
+import ContractEditor, { skillTextOutputMode, withSkillTextOutputMode } from './ContractEditor';
+import StructuredValueEditor from './StructuredValueEditor';
 import SkillRelationEditor from './SkillRelationEditor';
 import SkillResourceEditor from './SkillResourceEditor';
-import { validateResourceContentBytes } from './skillPackageUtils';
+import { isSafeReferencePath, validateResourceContentBytes } from './skillPackageUtils';
+import TryRunModal from '@/views/aid/runtimeAgent/TryRunModal';
 
 interface SkillPackageManagerProps {
   open: boolean;
@@ -25,6 +29,7 @@ interface SkillPackageManagerProps {
   canEdit: boolean;
   onClose: () => void;
   onChanged?: () => void | Promise<void>;
+  onOpenRunRecords?: (runId: SkillId) => void;
 }
 
 interface PublishFormValues {
@@ -52,6 +57,7 @@ function validateResources(resources: SkillPackagePayload['resources'] | undefin
   for (const [index, resource] of (resources || []).entries()) {
     const field = `资源 ${index + 1}`;
     if (!/^[a-z0-9][a-z0-9._-]{0,99}$/.test(resource.resourceKey || '')) return `${field}标识错误`;
+    if (!isSafeReferencePath(resource.filePath)) return `${field}路径必须是 references/ 下不超过 192 字符的安全小写相对路径`;
     if (keys.has(resource.resourceKey)) return `资源标识 ${resource.resourceKey} 重复`;
     keys.add(resource.resourceKey);
     if (!resource.content?.trim()) return `${field}内容不能为空`;
@@ -101,10 +107,44 @@ function normalizedDraft(draft: SkillDraftDetail) {
     defaultModelCode: draft.defaultModelCode || draft.modelCode,
     selectableModelCodes: draft.selectableModelCodes?.length
       ? draft.selectableModelCodes : draft.modelCode ? [draft.modelCode] : [],
+    definitionJson: draft.definitionJson?.trim() ? draft.definitionJson : '{"outputKind":"TEXT"}',
+    skillMarkdown: draft.skillMarkdown || '',
     resources: draft.resources || [],
     relations: draft.relations || []
   };
 }
+
+function assertAuthoringDraft(draft: SkillDraftDetail) {
+  if (typeof draft.skillMarkdown !== 'string'
+    || (draft.resources || []).some((resource) => !resource.filePath)) {
+    throw new Error('服务端尚未返回 SKILL.md 或受控参考文件路径，请先升级配套存储接口');
+  }
+  return normalizedDraft(draft);
+}
+
+function outputKindOf(definitionJson?: string): 'TEXT' | 'IMAGE' | 'VIDEO' {
+  try {
+    const kind = (JSON.parse(definitionJson || '{}') as Record<string, unknown>).outputKind;
+    return kind === 'IMAGE' || kind === 'VIDEO' ? kind : 'TEXT';
+  } catch { return 'TEXT'; }
+}
+
+function withOutputKind(definitionJson: string | undefined, outputKind: 'TEXT' | 'IMAGE' | 'VIDEO') {
+  const previous = JSON.parse(definitionJson?.trim() || '{}') as Record<string, unknown>;
+  return JSON.stringify({ ...previous, outputKind });
+}
+
+function acceptsStyleImage(model: SkillTextModelOption) {
+  const modalities = model.capability?.inputModalities;
+  return Array.isArray(modalities) && modalities.some((value) => String(value).toUpperCase() === 'IMAGE');
+}
+
+const styleOutputExample = JSON.stringify({
+  assetName: '柔光水彩',
+  personalityDesc: '低饱和，纸纹细腻，边缘自然晕染',
+  promptText: '低饱和水彩插画，透明色层叠加，自然晕染，细腻纸纹，柔和漫射光',
+  remark: '适用于统一角色、道具和场景的画风'
+}, null, 2);
 
 function modelCapabilityText(model: SkillTextModelOption) {
   const capability = model.capability || {};
@@ -123,7 +163,7 @@ function modelPriceText(model: SkillTextModelOption) {
 
 /** 管理不可变 Skill 版本包：编辑草稿、校验、发布，再显式切换当前版本。 */
 export default function SkillPackageManager({
-  open, skill, canEdit, onClose, onChanged
+  open, skill, canEdit, onClose, onChanged, onOpenRunRecords
 }: SkillPackageManagerProps) {
   const [form] = Form.useForm<SkillPackagePayload>();
   const [publishForm] = Form.useForm<PublishFormValues>();
@@ -132,8 +172,8 @@ export default function SkillPackageManager({
   const [discarding, setDiscarding] = useState(false);
   const [validating, setValidating] = useState(false);
   const [publishing, setPublishing] = useState(false);
-  const [activatingId, setActivatingId] = useState<number>();
-  const [seedingVersionId, setSeedingVersionId] = useState<number>();
+  const [activatingId, setActivatingId] = useState<SkillId>();
+  const [seedingVersionId, setSeedingVersionId] = useState<SkillId>();
   const [error, setError] = useState('');
   const [draft, setDraft] = useState<SkillDraftDetail>();
   const [versions, setVersions] = useState<SkillVersionSummary[]>([]);
@@ -141,21 +181,25 @@ export default function SkillPackageManager({
   const [versionPageNum, setVersionPageNum] = useState(1);
   const [versionPageSize, setVersionPageSize] = useState(20);
   const [versionLoading, setVersionLoading] = useState(false);
-  const [currentVersionId, setCurrentVersionId] = useState<number | null>(null);
+  const [currentVersionId, setCurrentVersionId] = useState<SkillId | null>(null);
   const [models, setModels] = useState<SkillTextModelOption[]>([]);
-  const [relationSkillLabels, setRelationSkillLabels] = useState<Record<number, string>>({});
-  const [relationVersionLabels, setRelationVersionLabels] = useState<Record<number, string>>({});
+  const [relationSkillLabels, setRelationSkillLabels] = useState<Record<string, string>>({});
+  const [relationVersionLabels, setRelationVersionLabels] = useState<Record<string, string>>({});
   const [dirty, setDirty] = useState(false);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
   const [validation, setValidation] = useState<SkillValidationResult>();
   const [publishOpen, setPublishOpen] = useState(false);
-  const [pendingActivationId, setPendingActivationId] = useState<number>();
+  const [tryRunOpen, setTryRunOpen] = useState(false);
+  const [pendingActivationId, setPendingActivationId] = useState<SkillId>();
   const [versionDetail, setVersionDetail] = useState<SkillVersionDetail>();
   const [versionDetailLoading, setVersionDetailLoading] = useState(false);
   const loadSequence = useRef(0);
   const versionListSequence = useRef(0);
   const relationLabelSequence = useRef(0);
   const versionPageRef = useRef({ pageNum: 1, pageSize: 20 });
-  const requestedVersionId = useRef<number>();
+  const requestedVersionId = useRef<SkillId>();
+  const versionDetailSequence = useRef(0);
+  const activeSkillId = useRef<SkillId>();
   const packageActionRef = useRef<string>();
   const [packageAction, setPackageAction] = useState<string>();
 
@@ -172,17 +216,17 @@ export default function SkillPackageManager({
   };
   const packageBusy = !!packageAction;
 
-  const rememberSkillLabel = useCallback((id: number, label: string) => {
+  const rememberSkillLabel = useCallback((id: SkillId, label: string) => {
     setRelationSkillLabels((current) => current[id] === label ? current : { ...current, [id]: label });
   }, []);
-  const rememberVersionLabel = useCallback((id: number, label: string) => {
+  const rememberVersionLabel = useCallback((id: SkillId, label: string) => {
     setRelationVersionLabels((current) => current[id] === label ? current : { ...current, [id]: label });
   }, []);
 
   const hydrateRelationLabels = useCallback(async (nextDraft: SkillDraftDetail) => {
     const sequence = ++relationLabelSequence.current;
-    const skillLabels: Record<number, string> = {};
-    const versionLabels: Record<number, string> = {};
+    const skillLabels: Record<string, string> = {};
+    const versionLabels: Record<string, string> = {};
     for (const relation of nextDraft.relations || []) {
       skillLabels[relation.childSkillId] = relation.relationKey || `Skill #${relation.childSkillId}`;
       versionLabels[relation.childVersionId] = `版本 #${relation.childVersionId}`;
@@ -248,7 +292,7 @@ export default function SkillPackageManager({
       }
       setModels((modelResponse.data || []).filter((item) => item.modelCode));
       setDraft(nextDraft);
-      form.setFieldsValue(normalizedDraft(nextDraft));
+      form.setFieldsValue(assertAuthoringDraft(nextDraft));
       await hydrateRelationLabels(nextDraft);
       setDirty(false);
       setValidation(undefined);
@@ -261,6 +305,10 @@ export default function SkillPackageManager({
 
   useEffect(() => {
     if (open) {
+      activeSkillId.current = skill?.id;
+      versionDetailSequence.current += 1;
+      requestedVersionId.current = undefined;
+      setVersionDetail(undefined);
       setCurrentVersionId(skill?.currentVersionId ?? null);
       load();
     }
@@ -268,6 +316,9 @@ export default function SkillPackageManager({
       loadSequence.current += 1;
       versionListSequence.current += 1;
       relationLabelSequence.current += 1;
+      versionDetailSequence.current += 1;
+      activeSkillId.current = undefined;
+      requestedVersionId.current = undefined;
       versionPageRef.current = { pageNum: 1, pageSize: 20 };
       form.resetFields();
       publishForm.resetFields();
@@ -284,14 +335,42 @@ export default function SkillPackageManager({
       setRelationVersionLabels({});
       setValidation(undefined);
       setPendingActivationId(undefined);
+      setTryRunOpen(false);
       setVersionDetail(undefined);
       setDirty(false);
       setError('');
     }
-  }, [form, load, open, publishForm, skill?.currentVersionId]);
+  }, [form, load, open, publishForm, skill?.currentVersionId, skill?.id]);
+
+  const fixedStyleContract = skill?.skillCode === 'style_reference_analysis';
+  const definitionJson = Form.useWatch('definitionJson', form);
+  const outputSchemaJson = Form.useWatch('outputSchemaJson', form);
+  const executionOptions = useMemo(() => {
+    try {
+      return JSON.parse(definitionJson || '{}') || {};
+    } catch {
+      return {};
+    }
+  }, [definitionJson]);
+  const changeExecutionOption = (key: 'stream' | 'structuredOutputEnabled', value: boolean) => {
+    if (parseJson(definitionJson, '定义 JSON', true)) {
+      message.error('请先修正定义 JSON');
+      return;
+    }
+    form.setFieldValue('definitionJson', key === 'structuredOutputEnabled'
+      ? withSkillTextOutputMode(executionOptions, value ? 'JSON' : 'TEXT')
+      : JSON.stringify({ ...executionOptions, stream: value }, null, 2));
+    setDirty(true);
+    setValidation(undefined);
+  };
 
   const defaultModelCode = Form.useWatch('defaultModelCode', form);
-  const selectableModelCodes = Form.useWatch('selectableModelCodes', form) || [];
+  const outputKind = outputKindOf(definitionJson);
+  const watchedModelCodes = Form.useWatch('selectableModelCodes', form);
+  const selectableModelCodes = useMemo(() => watchedModelCodes || [], [watchedModelCodes]);
+  const eligibleModels = useMemo(() => models.filter((model) =>
+    !model.modelType || model.modelType.toUpperCase() === outputKind
+    || selectableModelCodes.includes(model.modelCode)), [models, outputKind, selectableModelCodes]);
   const selectedModels = useMemo(() => selectableModelCodes
     .map((code: string) => models.find((item) => item.modelCode === code))
     .filter((item): item is SkillTextModelOption => !!item), [models, selectableModelCodes]);
@@ -306,18 +385,35 @@ export default function SkillPackageManager({
     const resourceError = validateResources(values.resources);
     if (resourceError) throw new Error(resourceError);
     if (values.maxOutputTokens + values.safetyMarginTokens >= values.contextWindowTokens) {
+      form.setFields([{ name: 'contextWindowTokens', errors: ['上下文窗口必须大于输出上限与安全余量之和'] }]);
       throw new Error('输出上限与安全余量必须小于上下文窗口');
     }
     const modelCodes = [...new Set(values.selectableModelCodes || [])];
     if (!values.defaultModelCode || !modelCodes.includes(values.defaultModelCode)) {
+      form.setFields([{ name: 'defaultModelCode', errors: ['默认模型必须属于可选模型'] }]);
       throw new Error('默认模型必须属于可选模型');
+    }
+    const selectedKind = outputKindOf(values.definitionJson);
+    if (modelCodes.some((code) => {
+      const model = models.find((item) => item.modelCode === code);
+      return model?.modelType && model.modelType.toUpperCase() !== selectedKind;
+    })) {
+      form.setFields([{ name: 'selectableModelCodes', errors: ['可选模型与输出类型不一致'] }]);
+      throw new Error('可选模型与输出类型不一致，请先调整模型');
+    }
+    if (fixedStyleContract && modelCodes.some((code) => !models.some((model) =>
+      model.modelCode === code && acceptsStyleImage(model)))) {
+      form.setFields([{ name: 'selectableModelCodes', errors: ['风格解析需要支持图片输入的文本模型'] }]);
+      throw new Error('请将不支持图片输入的模型移除或替换');
     }
     if (modelCodes.length > 20 || modelCodes.some((code) => !models.find((model) =>
       model.modelCode === code && model.available))) {
+      form.setFields([{ name: 'selectableModelCodes', errors: ['可选模型数量超限或包含停用项'] }]);
       throw new Error('可选模型包含已停用模型，请先替换');
     }
     return {
       ...values, skillId: skill.id, baseVersionId: draft.baseVersionId,
+      modelConfigJson: draft.modelConfigJson,
       modelCode: values.defaultModelCode, selectableModelCodes: modelCodes,
       resources: values.resources || [], relations: values.relations || []
     };
@@ -333,7 +429,7 @@ export default function SkillPackageManager({
       });
       const nextDraft = response.data;
       setDraft(nextDraft);
-      form.setFieldsValue(normalizedDraft(nextDraft));
+      form.setFieldsValue(assertAuthoringDraft(nextDraft));
       setDirty(false);
       setValidation(undefined);
       message.success('草稿已保存，当前执行版本未变化');
@@ -362,7 +458,7 @@ export default function SkillPackageManager({
     }
   };
 
-  const discardDraft = async (baseVersionId?: number, baseVersionCode?: string) => {
+  const discardDraft = async (baseVersionId?: SkillId, baseVersionCode?: string) => {
     if (!skill || !draft?.draftId || !draft.draftDigest || !beginPackageAction('discard')) return;
     setDiscarding(true);
     if (baseVersionId) setSeedingVersionId(baseVersionId);
@@ -371,7 +467,7 @@ export default function SkillPackageManager({
       const response = await getSkillDraft(skill.id, baseVersionId, { force: true });
       const nextDraft = response.data;
       setDraft(nextDraft);
-      form.setFieldsValue(normalizedDraft(nextDraft));
+      form.setFieldsValue(assertAuthoringDraft(nextDraft));
       await hydrateRelationLabels(nextDraft);
       setDirty(false);
       setValidation(undefined);
@@ -403,6 +499,7 @@ export default function SkillPackageManager({
       setPendingActivationId(response.data.id);
       message.success('新版本已发布，需显式切换后才会执行');
       setPublishOpen(false);
+      setTryRunOpen(false);
       publishForm.resetFields();
       versionPageRef.current = { pageNum: 1, pageSize: versionPageRef.current.pageSize };
       setVersionPageNum(1);
@@ -417,14 +514,14 @@ export default function SkillPackageManager({
   };
 
   const activateVersion = async (version: SkillVersionSummary) => {
-    if (!skill || version.id === currentVersionId || !beginPackageAction('activate')) return;
+    if (!skill || String(version.id) === String(currentVersionId) || !beginPackageAction('activate')) return;
     const expectedCurrentVersionId = currentVersionId;
     setActivatingId(version.id);
     try {
       await activateSkillVersion(skill.id, version.id, expectedCurrentVersionId);
       setCurrentVersionId(version.id);
-      setVersions((current) => current.map((item) => ({ ...item, current: item.id === version.id })));
-      if (pendingActivationId === version.id) setPendingActivationId(undefined);
+      setVersions((current) => current.map((item) => ({ ...item, current: String(item.id) === String(version.id) })));
+      if (String(pendingActivationId) === String(version.id)) setPendingActivationId(undefined);
       message.success(`已切换到 ${version.versionCode}`);
       const page = versionPageRef.current;
       await loadVersionPage(page.pageNum, page.pageSize, true);
@@ -440,17 +537,35 @@ export default function SkillPackageManager({
   };
 
   const openVersion = async (version: SkillVersionSummary) => {
+    if (!open || !skill) return;
+    const skillId = skill.id;
+    const sequence = ++versionDetailSequence.current;
     requestedVersionId.current = version.id;
     setVersionDetailLoading(true);
     try {
       const response = await getSkillVersion(version.id);
-      if (requestedVersionId.current !== version.id) return;
+      if (sequence !== versionDetailSequence.current
+        || String(activeSkillId.current) !== String(skillId)
+        || String(requestedVersionId.current) !== String(version.id)) return;
       setVersionDetail(response.data);
     } catch (cause: any) {
-      if (requestedVersionId.current === version.id) message.error(cause?.message || '版本详情加载失败');
+      if (sequence === versionDetailSequence.current
+        && String(activeSkillId.current) === String(skillId)
+        && String(requestedVersionId.current) === String(version.id)) {
+        message.error(cause?.message || '版本详情加载失败');
+      }
     } finally {
-      if (requestedVersionId.current === version.id) setVersionDetailLoading(false);
+      if (sequence === versionDetailSequence.current
+        && String(activeSkillId.current) === String(skillId)
+        && String(requestedVersionId.current) === String(version.id)) setVersionDetailLoading(false);
     }
+  };
+
+  const closeVersionDetail = () => {
+    versionDetailSequence.current += 1;
+    requestedVersionId.current = undefined;
+    setVersionDetailLoading(false);
+    setVersionDetail(undefined);
   };
 
   const loadVersionSeed = async (version: SkillVersionSummary) => {
@@ -463,12 +578,12 @@ export default function SkillPackageManager({
       if (sequence !== loadSequence.current) return;
       const nextDraft = response.data;
       setDraft(nextDraft);
-      form.setFieldsValue(normalizedDraft(nextDraft));
+      form.setFieldsValue(assertAuthoringDraft(nextDraft));
       await hydrateRelationLabels(nextDraft);
       setDirty(false);
       setValidation(undefined);
       if (nextDraft.draftId) {
-        message.warning(nextDraft.baseVersionId === version.id
+        message.warning(String(nextDraft.baseVersionId) === String(version.id)
           ? '服务端返回了当前活动草稿，未创建新的编辑种子'
           : '仍有活动草稿，未切换到所选版本；请先放弃当前草稿');
       } else {
@@ -484,6 +599,30 @@ export default function SkillPackageManager({
     }
   };
 
+  const requestDraftReplacement = (
+    title: string,
+    content: string,
+    action: () => void | Promise<void>,
+    danger = false
+  ) => {
+    if (packageActionRef.current) {
+      message.warning('版本操作正在处理中，请稍候');
+      return;
+    }
+    if (!dirty) {
+      void action();
+      return;
+    }
+    Modal.confirm({
+      title,
+      content,
+      okText: '放弃并继续',
+      okButtonProps: danger ? { danger: true } : undefined,
+      cancelText: '继续编辑',
+      onOk: action
+    });
+  };
+
   const startFromVersion = (version: SkillVersionSummary) => {
     if (draft?.draftId) {
       if (!draft.draftDigest) {
@@ -491,43 +630,40 @@ export default function SkillPackageManager({
         return;
       }
       Modal.confirm({
-        title: '已有活动草稿，需先放弃',
-        content: `放弃当前已保存草稿后，才会基于 ${version.versionCode} 生成新的编辑种子。未保存修改也会丢失。`,
-        okText: '放弃并继续', okButtonProps: { danger: true }, cancelText: '保留草稿',
+        title: '已有活动草稿，请先确认',
+        content: `只有放弃当前已保存草稿后，才能基于 ${version.versionCode} 建立新的编辑起点。未保存修改也会丢失。`,
+        okText: '放弃并继续',
+        okButtonProps: { danger: true },
+        cancelText: '保留草稿',
         onOk: () => discardDraft(version.id, version.versionCode)
       });
       return;
     }
-    if (!dirty) {
-      loadVersionSeed(version);
-      return;
-    }
-    Modal.confirm({
-      title: `放弃未保存修改并基于 ${version.versionCode} 编辑？`,
-      content: '如果服务端已有活动草稿，会继续返回该草稿，不会创建第二份。',
-      okText: '继续', cancelText: '取消', onOk: () => loadVersionSeed(version)
-    });
+    requestDraftReplacement(
+      `放弃未保存修改并基于 ${version.versionCode} 编辑？`,
+      '服务端只允许一个活动草稿，继续会复用该草稿，不会创建第二份。',
+      () => loadVersionSeed(version)
+    );
   };
 
   const close = () => {
-    if (packageActionRef.current) {
-      message.warning('包管理操作进行中，请稍候');
-      return;
-    }
-    if (!dirty) {
+    requestDraftReplacement('放弃未保存修改？', '草稿仍保留服务端上次保存的内容。', () => {
+      closeVersionDetail();
       onClose();
-      return;
-    }
-    Modal.confirm({
-      title: '放弃未保存修改？', content: '草稿表单中有尚未保存的内容。',
-      okText: '放弃', okButtonProps: { danger: true }, cancelText: '继续编辑', onOk: onClose
-    });
+    }, true);
   };
+
+  const refresh = () => requestDraftReplacement(
+    '放弃未保存修改并刷新？',
+    '刷新会从服务端重新载入草稿，当前未保存内容会丢失。',
+    () => load(true),
+    true
+  );
 
   const versionColumns: ColumnsType<SkillVersionSummary> = [
     { title: '版本', dataIndex: 'versionCode', render: (value, row) => <Space>
-      <Typography.Text strong={row.id === currentVersionId}>{value}</Typography.Text>
-      {row.id === currentVersionId && <Tag color="success">当前</Tag>}
+      <Typography.Text strong={String(row.id) === String(currentVersionId)}>{value}</Typography.Text>
+      {String(row.id) === String(currentVersionId) && <Tag color="success">当前</Tag>}
     </Space> },
     { title: '发布状态', dataIndex: 'publishStatus', width: 110, render: (value) => <Tag>{value}</Tag> },
     { title: '包摘要', dataIndex: 'packageDigest', ellipsis: true, render: (value) => <Typography.Text
@@ -537,21 +673,21 @@ export default function SkillPackageManager({
     { title: '操作', key: 'action', width: 310, fixed: 'right', render: (_, row) => <Space>
       <Button type="link" icon={<EyeOutlined />} loading={versionDetailLoading}
         onClick={() => openVersion(row)}>查看</Button>
-      {canEdit && <Button type="link" disabled={packageBusy} loading={seedingVersionId === row.id}
+      {canEdit && <Button type="link" disabled={packageBusy} loading={String(seedingVersionId) === String(row.id)}
         onClick={() => startFromVersion(row)}>基于此版本编辑</Button>}
-      {canEdit && row.id !== currentVersionId && <Popconfirm title={`确认将 ${row.versionCode} 切换为当前执行版本？`}
+      {canEdit && String(row.id) !== String(currentVersionId) && <Popconfirm title={`确认将 ${row.versionCode} 切换为当前执行版本？`}
         description="只影响切换后的新运行；历史运行仍绑定原版本。" onConfirm={() => activateVersion(row)}>
         <Button type="link" disabled={packageBusy}
-          loading={activatingId === row.id}>切换</Button>
+          loading={String(activatingId) === String(row.id)}>切换</Button>
       </Popconfirm>}
     </Space> }
   ];
 
   return <>
-    <Drawer width={1180} open={open} onClose={close} destroyOnClose={false}
+    <Drawer width="min(1180px, 100vw)" open={open} onClose={close} destroyOnClose={false}
       title={skill ? `${skill.name} · 版本包` : 'Skill 版本包'}
       extra={<Button icon={<ReloadOutlined />} disabled={packageBusy} loading={loading}
-        onClick={() => load(true)}>刷新</Button>}>
+        onClick={refresh}>刷新</Button>}>
       {error && <Alert type="error" showIcon message={error} style={{ marginBottom: 16 }} />}
       <Spin spinning={loading}>
         <Alert type="info" showIcon style={{ marginBottom: 16 }}
@@ -580,26 +716,38 @@ export default function SkillPackageManager({
               ]} />}
               <Form form={form} layout="vertical" disabled={!canEdit || !draft || packageBusy}
                 onValuesChange={() => { setDirty(true); setValidation(undefined); }}>
+                <Form.Item label="输出类型" extra="选择文本、图片或视频；模型会按输出类型筛选。">
+                  <Select value={outputKind} options={[{ value: 'TEXT', label: '文本' },
+                    { value: 'IMAGE', label: '图片' }, { value: 'VIDEO', label: '视频' }]}
+                    onChange={(next: 'TEXT' | 'IMAGE' | 'VIDEO') => {
+                      form.setFieldValue('definitionJson', withOutputKind(form.getFieldValue('definitionJson'), next));
+                      form.setFieldsValue({ selectableModelCodes: [], defaultModelCode: undefined });
+                      setDirty(true); setValidation(undefined);
+                    }} />
+                </Form.Item>
                 <Row gutter={16}>
-                  <Col span={12}><Form.Item name="selectableModelCodes" label="可选模型（最多 20 个）"
+                  <Col xs={24} md={12}><Form.Item name="selectableModelCodes" label="可选模型（最多 20 个）"
                     rules={[{ required: true, message: '请选择至少一个模型' }]}>
                     <Select mode="multiple" showSearch optionFilterProp="label" maxCount={20}
-                      onChange={(codes: string[]) => {
+                    onChange={(codes: string[]) => {
                         if (!codes.includes(form.getFieldValue('defaultModelCode'))) {
                           form.setFieldValue('defaultModelCode', codes.find((code) =>
                             models.find((model) => model.modelCode === code)?.available));
                         }
-                      }} options={models.map((model) => ({
+                      }} options={eligibleModels.filter((model) => !fixedStyleContract || acceptsStyleImage(model)
+                        || selectableModelCodes.includes(model.modelCode)).map((model) => ({
                         value: model.modelCode,
-                        disabled: !model.available && !selectableModelCodes.includes(model.modelCode),
+                        disabled: (!model.available && !selectableModelCodes.includes(model.modelCode))
+                          || (!!model.modelType && model.modelType.toUpperCase() !== outputKind),
                         label: `${model.modelName || model.modelCode}（${model.modelCode}）${model.available
                           ? '' : ` · ${model.unavailableReason || '已停用、需替换'}`}`
                       }))} />
                   </Form.Item></Col>
-                  <Col span={12}><Form.Item name="defaultModelCode" label="默认模型"
+                  <Col xs={24} md={12}><Form.Item name="defaultModelCode" label="默认模型"
                     rules={[{ required: true, message: '请选择默认模型' }]}>
                     <Select showSearch optionFilterProp="label" options={selectedModels.map((model) => ({
-                      value: model.modelCode, disabled: !model.available,
+                      value: model.modelCode, disabled: !model.available || (fixedStyleContract && !acceptsStyleImage(model))
+                        || (!!model.modelType && model.modelType.toUpperCase() !== outputKind),
                       label: `${model.modelName || model.modelCode}${model.available ? '' : '（已停用、需替换）'}`
                     }))} />
                   </Form.Item></Col>
@@ -608,7 +756,7 @@ export default function SkillPackageManager({
                   style={{ marginBottom: 16 }} message="已引用模型中存在停用项"
                   description="停用模型仅用于保留历史版本审计，必须移除或替换后才能校验和发布。" />}
                 <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
-                  {selectedModels.map((model) => <Col span={12} key={model.modelCode}><Card size="small"
+                  {selectedModels.map((model) => <Col xs={24} md={12} key={model.modelCode}><Card size="small"
                     title={<Space><Avatar size="small" src={model.modelLogo || model.providerLogo} />
                       <Typography.Text>{model.modelName || model.modelCode}</Typography.Text>
                       {model.modelCode === defaultModelCode && <Tag color="blue">默认</Tag>}
@@ -619,28 +767,67 @@ export default function SkillPackageManager({
                     <Typography.Text>{modelPriceText(model)}</Typography.Text>
                   </Card></Col>)}
                 </Row>
-                <Form.Item name="systemPrompt" label="系统 Prompt" rules={[{ required: true, message: '请输入系统 Prompt' }]}>
+                <Form.Item name="skillMarkdown" label="主文件 · SKILL.md"
+                  extra="技能说明与使用边界的主文档；发布后作为不可变版本内容。"
+                  rules={[{ required: true, whitespace: true, message: '请输入 SKILL.md 内容' }]}>
+                  <Input.TextArea rows={14} maxLength={102400} showCount />
+                </Form.Item>
+                <Form.Item name="systemPrompt" label="系统提示 · system_prompt.md" rules={[{ required: true, message: '请输入系统 Prompt' }]}>
                   <Input.TextArea rows={12} maxLength={100000} showCount />
                 </Form.Item>
+                <Row gutter={16}>
+                  <Col span={12}>
+                    <Form.Item label="流式调用">
+                      <Select value={fixedStyleContract || executionOptions.stream === false ? 'complete' : 'stream'}
+                        disabled={!canEdit || fixedStyleContract}
+                        options={[{ value: 'stream', label: '开启' }, { value: 'complete', label: '关闭' }]}
+                        onChange={(value) => changeExecutionOption('stream', value === 'stream')} />
+                    </Form.Item>
+                  </Col>
+                  {outputKind === 'TEXT' && <Col span={12}>
+                    <Form.Item label="输出格式">
+                      <Select value={fixedStyleContract ? 'JSON' : skillTextOutputMode(executionOptions, outputSchemaJson)}
+                        disabled={!canEdit || fixedStyleContract}
+                        options={[{ value: 'TEXT', label: '普通正文' }, { value: 'JSON', label: '结构化 JSON' }]}
+                        onChange={(value) => changeExecutionOption('structuredOutputEnabled', value === 'JSON')} />
+                    </Form.Item>
+                  </Col>}
+                </Row>
+                {fixedStyleContract && <Card size="small" title="固定输入与输出" style={{ marginBottom: 16 }}>
+                  <Typography.Paragraph type="secondary">
+                    输入为上传的参考图。可编辑分析提示词，并选用支持图片输入的文本模型。
+                    结果包含资产名称、特征描述、可供场景／角色／道具复用的风格提示词，以及使用备注。
+                  </Typography.Paragraph>
+                  <Typography.Text strong>输出示例</Typography.Text>
+                  <Input.TextArea value={styleOutputExample} readOnly rows={7} aria-label="风格解析输出示例" />
+                </Card>}
+                <Button disabled={false} style={{ marginBottom: 16 }} onClick={() => setAdvancedOpen((current) => !current)}>
+                  {advancedOpen ? '收起高级配置' : '展开高级配置 · Schema、资源、步骤与限额'}
+                </Button>
+                <div style={{ display: advancedOpen ? 'block' : 'none' }}>
                 <Tabs items={[
-                  { key: 'input', label: '输入 Schema', forceRender: true, children: <Form.Item name="inputSchemaJson"
-                    rules={[{ validator: (_, value) => validateSkillSchema(value) }]}><SchemaFieldEditor /></Form.Item> },
-                  { key: 'output', label: '输出 Schema', forceRender: true, children: <Form.Item name="outputSchemaJson"
-                    rules={[{ validator: (_, value) => validateSkillSchema(value) }]}><SchemaFieldEditor /></Form.Item> },
-                  { key: 'definition', label: '定义 JSON', forceRender: true, children: <Form.Item name="definitionJson"
+                  { key: 'input', label: '输入参数', forceRender: true, children: <Form.Item name="inputSchemaJson"
+                    rules={[{ validator: (_, value) => validateSkillSchema(value) }]}><ContractEditor
+                      key={`${open}:${skill?.id}:${draft?.baseVersionId}:${draft?.draftId}`}
+                      direction="输入" disabled={!canEdit} fixedFields={fixedStyleContract} /></Form.Item> },
+                  { key: 'output', label: '输出参数', forceRender: true, children: <Form.Item name="outputSchemaJson"
+                    rules={[{ validator: (_, value) => validateSkillSchema(value) }]}><ContractEditor
+                      key={`${open}:${skill?.id}:${draft?.baseVersionId}:${draft?.draftId}`}
+                      direction="输出" disabled={!canEdit} fixedFields={fixedStyleContract} /></Form.Item> },
+                  { key: 'definition', label: '执行定义', forceRender: true, children: <Form.Item name="definitionJson"
                     rules={[{ validator: (_, value) => {
                       const errorMessage = value?.trim() ? parseJson(value, '定义 JSON', true) : undefined;
                       return errorMessage ? Promise.reject(new Error(errorMessage)) : Promise.resolve();
-                    } }]}><Input.TextArea rows={16} /></Form.Item> }
+                    } }]}>{fixedStyleContract ? <Input.TextArea readOnly rows={8} /> : <StructuredValueEditor objectOnly emptyText="按字段配置执行定义；未修改的历史字段会原样保留。" />}</Form.Item> }
                 ]} />
                 <Row gutter={16}>
-                  <Col span={8}><Form.Item name="maxOutputTokens" label="输出 Token 上限"
+                  <Col xs={24} md={8}><Form.Item name="maxOutputTokens" label="输出 Token 上限"
                     rules={[{ required: true }]}><InputNumber min={1} max={1600000} precision={0}
                       style={{ width: '100%' }} /></Form.Item></Col>
-                  <Col span={8}><Form.Item name="contextWindowTokens" label="上下文窗口"
+                  <Col xs={24} md={8}><Form.Item name="contextWindowTokens" label="上下文窗口"
                     rules={[{ required: true }]}><InputNumber min={1024} max={1600000} precision={0}
                       style={{ width: '100%' }} /></Form.Item></Col>
-                  <Col span={8}><Form.Item name="safetyMarginTokens" label="安全余量"
+                  <Col xs={24} md={8}><Form.Item name="safetyMarginTokens" label="安全余量"
                     rules={[{ required: true }]}><InputNumber min={0} max={1600000} precision={0}
                       style={{ width: '100%' }} /></Form.Item></Col>
                 </Row>
@@ -661,6 +848,7 @@ export default function SkillPackageManager({
                     onClick={() => add({ requiredFlag: true })}>添加子 Skill（{fields.length}/16）</Button>}
                   <Typography.Text type="secondary">版本发布后关系固定且不可变；服务端仍会校验版本归属、调用范围和可用状态。</Typography.Text>
                 </Space>}</Form.List>
+                </div>
               </Form>
               {validation && <Space direction="vertical" size={12} style={{ width: '100%', marginTop: 16 }}>
                 <Alert type={validation.valid ? 'success' : 'error'} showIcon
@@ -681,8 +869,19 @@ export default function SkillPackageManager({
                 </Popconfirm>}
                 <Button icon={<CheckCircleOutlined />} disabled={packageBusy}
                   loading={validating} onClick={validateDraft}>校验当前内容</Button>
+                <Button disabled={packageBusy || !canPublish}
+                  onClick={() => setTryRunOpen(true)}>样例试运行</Button>
                 <Button icon={<RocketOutlined />} disabled={packageBusy || !canPublish}
-                  onClick={() => setPublishOpen(true)}>发布新版本</Button>
+                  onClick={async () => {
+                    if (!skill) return;
+                    const id = skill.id;
+                    try {
+                      const history = await allSkillVersions(id);
+                      if (String(activeSkillId.current) !== String(id)) return;
+                      publishForm.setFieldsValue({ versionCode: suggestVersion(history) });
+                      setPublishOpen(true);
+                    } catch { message.error('版本历史读取失败，请重试'); }
+                  }}>发布新版本</Button>
                 {!canPublish && <Typography.Text type="secondary">先保存草稿并对已保存摘要完成校验</Typography.Text>}
               </Space>}
             </>
@@ -704,6 +903,19 @@ export default function SkillPackageManager({
       </Spin>
     </Drawer>
 
+    <TryRunModal open={tryRunOpen} memberType="SKILL" memberId={skill?.id} draftId={draft?.draftId}
+      draftDigest={draft?.draftDigest} defaultModelCode={draft?.defaultModelCode || draft?.modelCode}
+      allowedModelCodes={draft?.selectableModelCodes}
+      outputKind={outputKind} onClose={() => setTryRunOpen(false)}
+      onOpenRunRecords={onOpenRunRecords ? (target) => {
+        if (target.kind !== 'GENERIC_RUNTIME' || target.memberType !== 'SKILL') {
+          message.error('Skill 草稿返回了不匹配的运行记录类型');
+          return;
+        }
+        setTryRunOpen(false);
+        onOpenRunRecords(target.runId);
+      } : undefined} />
+
     <Modal title="发布不可变版本" open={publishOpen} onCancel={() => setPublishOpen(false)}
       onOk={publishDraft} confirmLoading={publishing} okButtonProps={{ disabled: packageBusy }}
       cancelButtonProps={{ disabled: packageBusy }} okText="发布（暂不切换）" destroyOnClose>
@@ -717,14 +929,15 @@ export default function SkillPackageManager({
       </Form>
     </Modal>
 
-    <Drawer width={980} open={!!versionDetail} onClose={() => setVersionDetail(undefined)}
+    <Drawer width="min(980px, 100vw)" open={!!versionDetail} onClose={closeVersionDetail}
       title={versionDetail ? `${versionDetail.skillCode} @ ${versionDetail.versionCode}` : '版本详情'}>
       {versionDetail && <>
         <Descriptions bordered size="small" column={3} items={[
-          { key: 'current', label: '当前版本', children: versionDetail.id === currentVersionId
+          { key: 'current', label: '当前版本', children: String(versionDetail.id) === String(currentVersionId)
             ? <Tag color="success">是</Tag> : '否' },
           { key: 'status', label: '状态', children: versionDetail.status === '0' ? '启用' : '停用' },
           { key: 'publish', label: '发布范围', children: versionDetail.publishStatus },
+          { key: 'outputKind', label: '输出类型', children: outputKindOf(versionDetail.definitionJson) },
           { key: 'model', label: '默认模型', children: versionDetail.defaultModelCode || versionDetail.modelCode },
           { key: 'models', label: '可选模型', span: 2, children: <Space wrap>
             {(versionDetail.selectableModelCodes?.length ? versionDetail.selectableModelCodes
@@ -736,19 +949,24 @@ export default function SkillPackageManager({
           { key: 'digest', label: '包摘要', span: 3, children: <Typography.Text copyable>
             {versionDetail.packageDigest}</Typography.Text> }
         ]} />
+        <Divider orientation="left">SKILL.md</Divider>
+        <Typography.Paragraph copyable style={{ whiteSpace: 'pre-wrap', maxHeight: 360,
+          overflow: 'auto', overflowWrap: 'anywhere' }}>
+          {versionDetail.skillMarkdown || '此历史版本没有 SKILL.md 数据'}
+        </Typography.Paragraph>
         <Divider orientation="left">系统 Prompt</Divider>
         <Typography.Paragraph copyable style={{ whiteSpace: 'pre-wrap', maxHeight: 360, overflow: 'auto' }}>
           {versionDetail.systemPrompt}
         </Typography.Paragraph>
         <Divider orientation="left">Schema 与定义</Divider>
         <Tabs items={[
-          { key: 'input', label: '输入 Schema', children: <Input.TextArea readOnly rows={14}
+          { key: 'input', label: '输入参数', children: <ContractEditor disabled direction="输入"
             value={versionDetail.inputSchemaJson} /> },
-          { key: 'output', label: '输出 Schema', children: <Input.TextArea readOnly rows={14}
+          { key: 'output', label: '输出参数', children: <ContractEditor disabled direction="输出"
             value={versionDetail.outputSchemaJson} /> },
-          { key: 'definition', label: '定义 JSON', children: <Input.TextArea readOnly rows={14}
-            value={versionDetail.definitionJson || ''} /> },
-          { key: 'manifest', label: 'Manifest', children: <Input.TextArea readOnly rows={14}
+          { key: 'definition', label: '执行定义', children: <StructuredValueEditor disabled objectOnly
+            value={versionDetail.definitionJson || '{}'} /> },
+          { key: 'manifest', label: '清单', children: <StructuredValueEditor disabled objectOnly
             value={versionDetail.manifestJson} /> }
         ]} />
         <Divider orientation="left">不可变资源</Divider>

@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.aid.runtime.mapper.AssistantSkillDirectoryMapper">
+    <select id="selectModules" resultType="com.aid.runtime.domain.AssistantModuleDirectoryEntry">
+        SELECT b.module_code AS moduleCode,
+               JSON_UNQUOTE(JSON_EXTRACT(v.definition_json, '$.protocolVersion')) AS protocolVersion,
+               m.model_code AS defaultModelCode
+        FROM aid_runtime_module_agent_binding b
+        JOIN aid_runtime_agent a ON a.id = b.runtime_agent_id
+        JOIN aid_runtime_agent_version v ON v.id = b.active_version_id AND v.agent_id = a.id
+        JOIN aid_ai_model m ON m.model_code = JSON_UNQUOTE(JSON_EXTRACT(v.model_config_json, '$.defaultModelCode'))
+          AND m.status = '0' AND m.del_flag = '0'
+        JOIN aid_ai_provider p ON p.id = m.provider_id AND p.status = '0' AND p.del_flag = '0'
+        WHERE b.status = 'ACTIVE' AND b.del_flag = '0'
+          AND a.agent_family = 'ASSISTANT_LOOP' AND a.status = '0' AND a.del_flag = '0'
+          AND a.current_version_id = v.id AND v.status = '0' AND v.del_flag = '0'
+          AND v.publish_status = 'FROZEN'
+          AND NOT EXISTS (SELECT 1 FROM aid_runtime_module_agent_binding other
+              WHERE other.runtime_agent_id = a.id AND other.module_code != b.module_code
+                AND other.status = 'ACTIVE' AND other.del_flag = '0')
+        ORDER BY b.module_code LIMIT 20
+    </select>
+    <select id="selectActiveAgentVersions" resultType="java.lang.Long">
+        SELECT v.id
+        FROM aid_runtime_module_agent_binding b
+        JOIN aid_runtime_agent a ON a.id = b.runtime_agent_id
+        JOIN aid_runtime_agent_version v ON v.id = b.active_version_id AND v.agent_id = a.id
+        WHERE b.module_code = #{moduleCode} AND b.status = 'ACTIVE' AND b.del_flag = '0'
+          AND a.agent_family = 'ASSISTANT_LOOP' AND a.status = '0' AND a.del_flag = '0'
+          AND a.current_version_id = v.id AND v.status = '0' AND v.del_flag = '0'
+          AND v.publish_status = 'FROZEN'
+          AND NOT EXISTS (SELECT 1 FROM aid_runtime_module_agent_binding other
+              WHERE other.runtime_agent_id = a.id AND other.module_code != b.module_code
+                AND other.status = 'ACTIVE' AND other.del_flag = '0')
+        LIMIT 2
+    </select>
+    <select id="selectPage" resultType="com.aid.runtime.domain.AssistantSkillDirectoryEntry">
+        SELECT s.skill_code AS code, s.name, s.description, s.icon_url AS iconUrl,
+               CAST(v.id AS CHAR) AS versionId, v.package_digest AS packageDigest,
+               s.owner_type AS ownerType, s.visibility,
+               COALESCE(NULLIF(UPPER(JSON_UNQUOTE(JSON_EXTRACT(
+                 CASE WHEN JSON_VALID(v.definition_json) THEN v.definition_json ELSE '{}' END,
+                 '$.outputKind'))), ''), 'TEXT') AS outputKind
+        FROM aid_skill s
+        LEFT JOIN aid_runtime_agent_skill_ref r
+          ON r.agent_version_id = #{agentVersionId} AND r.skill_id = s.id AND r.skill_code = s.skill_code
+        JOIN aid_skill_version v ON v.skill_id = s.id
+          AND v.id = CASE WHEN s.owner_type = 'PLATFORM' AND r.skill_version_id IS NOT NULL
+                     THEN r.skill_version_id ELSE s.current_version_id END
+        WHERE s.status = '0' AND s.del_flag = '0'
+          AND v.status = '0' AND v.del_flag = '0' AND v.executor_type = 'PROMPT'
+          AND v.publish_status IN ('PUBLISHED', 'PRIVATE')
+          AND ((#{scope} = 'OFFICIAL' AND s.owner_type = 'PLATFORM' AND s.visibility = 'PUBLIC'
+              AND v.visibility = 'PUBLIC'
+              AND ((s.invocation_scope IN ('INTERNAL', 'ENTRYPOINT') AND v.invocation_scope = s.invocation_scope
+                    AND v.package_digest = r.package_digest)
+                OR (s.invocation_scope = 'ENTRYPOINT' AND v.invocation_scope = 'ENTRYPOINT'
+                    AND v.publish_status = 'PUBLISHED' AND s.executor_type = 'PROMPT'
+                    AND JSON_UNQUOTE(JSON_EXTRACT(
+                      CASE WHEN JSON_VALID(v.definition_json) THEN v.definition_json ELSE '{}' END,
+                      '$.outputKind')) = 'IMAGE'
+                    AND EXISTS (SELECT 1 FROM aid_runtime_agent_tool_ref t
+                        WHERE t.agent_version_id = #{agentVersionId}
+                          AND t.tool_code = 'canvas.media.generate_skill_image'))))
+            <if test="allowOwned">
+              OR ((#{scope} = 'OWNED' OR #{code} IS NOT NULL <if test="codes != null">OR #{scope} = 'OFFICIAL'</if>)
+                AND s.owner_type = 'USER' AND s.owner_user_id = #{userId}
+                AND s.visibility IN ('PRIVATE', 'PUBLIC') AND v.visibility IN ('PRIVATE', 'PUBLIC')
+                AND s.invocation_scope = 'ENTRYPOINT' AND v.invocation_scope = 'ENTRYPOINT')
+            </if>
+          )
+        <if test="code != null">AND s.skill_code = #{code}</if>
+        <if test="codes != null">
+          AND s.skill_code IN
+          <foreach collection="codes" item="selectedCode" open="(" separator="," close=")">#{selectedCode}</foreach>
+        </if>
+        <if test="keyword != null">
+          AND (s.name LIKE CONCAT('%', #{keyword}, '%') ESCAPE '='
+            OR s.description LIKE CONCAT('%', #{keyword}, '%') ESCAPE '='
+            OR s.skill_code LIKE CONCAT('%', #{keyword}, '%') ESCAPE '=')
+        </if>
+        ORDER BY s.skill_code, s.id
+        LIMIT #{offset}, #{limit}
+    </select>
+</mapper>

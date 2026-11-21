@@ -1,6 +1,5 @@
 import type { CreationStep } from '@/types'
 import { creationStepToRoutePath } from '@/utils/createFlowRoutes'
-import { parsePositiveStudioId, parseStudioEpisodeId } from './studioFlowEntry'
 
 type StudioFlowHrefInput = {
   projectId?: number | null
@@ -10,6 +9,7 @@ type StudioFlowHrefInput = {
 }
 
 function applyStudioFlowScope(query: URLSearchParams, input: StudioFlowHrefInput): void {
+  query.set('studioMode', 'flow')
   if (input.projectId && input.projectId > 0) query.set('projectId', String(input.projectId))
   else query.delete('projectId')
 
@@ -38,11 +38,19 @@ export function buildStudioFlowCanvasHref(input: StudioFlowHrefInput = {}): stri
 
 export function buildStudioFlowCanvasEntryHref(search = ''): string {
   const query = new URLSearchParams(search.startsWith('?') ? search.slice(1) : search)
-  const projectId = parsePositiveStudioId(query.get('projectId') || query.get('id') || query.get('workId'))
-  const episodeId = parseStudioEpisodeId(query.get('episodeId'))
   query.delete('id')
   query.delete('workId')
-  applyStudioFlowScope(query, { projectId, episodeId })
+  applyStudioFlowScope(query, { episodeId: 0 })
+  return href('/create/studio', query)
+}
+
+export function buildStudioHomeCanvasEntryHref(search = ''): string {
+  const query = new URLSearchParams(search.startsWith('?') ? search.slice(1) : search)
+  query.delete('id')
+  query.delete('workId')
+  query.delete('projectId')
+  query.delete('episodeId')
+  query.set('studioMode', 'free')
   return href('/create/studio', query)
 }
 

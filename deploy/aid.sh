@@ -5445,6 +5445,13 @@ ROCKETMQ_ACCESS_KEY=
 ROCKETMQ_SECRET_KEY=
 EOF
   fi
+  cat >> "${target}" <<'EOF'
+NGINX_BACKEND_ORIGIN=
+NGINX_MAX_BODY_MB=1024
+NGINX_READ_TIMEOUT_SECONDS=300
+NGINX_CONNECT_TIMEOUT_SECONDS=10
+NGINX_EXTRA_DIRECTIVES=
+EOF
 }
 
 merge_missing_config_keys() { # merge_missing_config_keys <本地配置> <官方模板> <来源说明>
@@ -7538,10 +7545,13 @@ Type=simple
 WorkingDirectory=${DATA_ROOT}/app
 EnvironmentFile=${CONF}
 Environment=AID_PROFILE=${DATA_ROOT}/uploadPath
+Environment=CANVAS_PUBLICATION_STORAGE_ROOT=${DATA_ROOT}/uploadPath-private/canvas-publication
 Environment=LOG_PATH=${DATA_ROOT}/logs
 Environment=LANG=C.UTF-8
 Environment=LC_ALL=C.UTF-8
 Environment=SERVER_PORT=$(conf_get BACKEND_PORT 8080)
+Environment=SERVER_FORWARD_HEADERS_STRATEGY=native
+Environment=SERVER_TOMCAT_REMOTEIP_PORT_HEADER=X-Forwarded-Port
 Environment=JAVA_HOME=${JDK_HOME}
 Environment=AID_FFMPEG_PATH=${FFMPEG_RUNTIME_FFMPEG}
 Environment=AID_FFPROBE_PATH=${FFMPEG_RUNTIME_FFPROBE}

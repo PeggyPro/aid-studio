@@ -2,12 +2,17 @@ package com.aid.media.service;
 
 import com.aid.aid.domain.media.AidMediaTask;
 import com.aid.domain.vo.AiModelConfigVo;
+import com.aid.media.reconciliation.AuthoritativeProviderTaskQuery;
 
 /**
  * 统一任务调度中心：按供应商/模型策略驱动异步任务的轮询节奏。
  * 所有异步任务提交后，由调度中心统一驱动状态推进，前端不直接轮询上游。
  */
 public interface TaskDispatchService {
+
+    /** Legacy anomaly recheck; budget-managed confirmation must use authoritative provider evidence. */
+    com.aid.media.model.TaskRecheckResult recheckTask(Long taskId, boolean confirmFailure, String reason);
+    com.aid.media.model.TaskRecheckResult recheckTask(Long taskId, boolean confirmFailure, String reason, Long operatorId);
 
     /**
      * 提交任务时调用：决定调度模式、冻结策略快照、设 nextPollTime。
@@ -33,6 +38,15 @@ public interface TaskDispatchService {
      * @return 本轮实际轮询的任务数
      */
     int dispatchDueTasks(int batchSize);
+
+    /** Bounded environment recovery using the same due-time, polling CAS and terminal handling. */
+    boolean dispatchDueTask(Long taskId);
+
+    /** Routes an already-known provider task id through the same authoritative adapter used by normal polling. */
+    AuthoritativeProviderTaskQuery queryAuthoritativeProviderTask(AidMediaTask task);
+
+    /** Attaches a provider task id proven by durable receipt evidence and initializes normal polling. */
+    boolean attachAcceptedProviderTask(Long taskId, String providerTaskId);
 
     /**
      * 回调超时转轮询：扫描 callbackDeadline 已过的 WAIT_CALLBACK 任务。
@@ -75,9 +89,9 @@ public interface TaskDispatchService {
     boolean scheduleImmediatePollIfWaitingCallback(AidMediaTask task);
 
     /**
-     * 关闭「提交阶段中断」的僵尸任务：仅扫描 PENDING 且无 providerTaskId 且创建超过兜底时限的任务，
-     * 终结为 FAILED 并退款。用于进程重启/崩溃在同步提交途中遗留的任务（closeTimeoutTasks 因要求
-     * providerTaskId 非空、依赖调度快照而扫不到这类任务）。QUEUED 是合法排队，不超时关闭。
+     * 恢复提交阶段中断的同步任务：必须具有匹配任务与执行令牌的已释放同步许可证明。
+     * 缺少上游任务号或等待时间过长不能证明异步失败；QUEUED 继续等待正常调度。
+     * 合成任务保留原有幂等恢复逻辑，预算任务通过耐久提交核对记录恢复。
      *
      * @param batchSize 单次扫描上限
      * @return 本轮关闭的任务数

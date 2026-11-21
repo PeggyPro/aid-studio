@@ -18,8 +18,6 @@ export type FlowUserTaskListIntent = 'read' | 'bootstrap' | 'mutate'
 
 type FlowTaskListRequest = {
   owner: symbol
-  /** mutate 请求可顶替非 mutate 的 inflight */
-  isMutate: boolean
   promise: Promise<UserTaskRow[]>
 }
 
@@ -154,7 +152,7 @@ function startNetworkFetch(pid: number, isMutate: boolean): Promise<UserTaskRow[
       }
     })
 
-  inflightByProjectId.set(pid, { owner, isMutate, promise })
+  inflightByProjectId.set(pid, { owner, promise })
   return promise
 }
 
@@ -186,7 +184,8 @@ export function fetchFlowUserTaskList(
   }
 
   const inflight = inflightByProjectId.get(pid)
-  if (inflight?.isMutate) return inflight.promise
+  // mutate 只能绕过结果缓存，不能顶替相同 projectId 的进行中请求。
+  if (inflight) return inflight.promise
   return startNetworkFetch(pid, true)
 }
 

@@ -106,6 +106,8 @@ public final class AgnesConstants {
     /** 视频帧数下限（8*10+1） */
     public static final int MIN_NUM_FRAMES = 81;
     public static final String STATUS_QUEUED = "queued";
+    /** 查询响应也可能直接使用内部排队状态 pending；它不是终态。 */
+    public static final String STATUS_PENDING = "pending";
     public static final String STATUS_IN_PROGRESS = "in_progress";
     public static final String STATUS_COMPLETED = "completed";
     public static final String STATUS_FAILED = "failed";

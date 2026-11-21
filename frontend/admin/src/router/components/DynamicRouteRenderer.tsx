@@ -5,7 +5,10 @@ import { Result, Button } from 'antd';
 import { usePermissionStore, AppRoute } from '@/store/usePermissionStore';
 import { getToken } from '@/utils/auth';
 import { resolvePath } from '@/router/utils';
+import { resolveLegacyAuditRoute } from '@/router/legacyAuditRoute';
+import { useAuth } from '@/hooks/useAuth';
 import LoadingFallback from './LoadingFallback';
+import AdminWorkspacePage from './AdminWorkspacePage';
 
 /** 在拍扁的路由里按 path 匹配渲染 */
 function findRoute(routes: AppRoute[], path: string, base = ''): AppRoute | null {
@@ -66,22 +69,29 @@ export default function DynamicRouteRenderer() {
   const navigate = useNavigate();
   const routes = usePermissionStore((s) => s.routes);
   const loaded = usePermissionStore((s) => s.loaded);
+  const { hasPermi } = useAuth();
 
   const path = location.pathname;
 
   // 尝试按精确 path 命中
   const matched = findRoute(routes, path);
+  const legacyTarget = !matched && loaded
+    ? resolveLegacyAuditRoute(routes,path,!!getToken(),hasPermi('aid:audit:list')) : undefined;
 
   useEffect(() => {
     if (!loaded) return;
     if (matched) return;
+    if (legacyTarget && getToken() && hasPermi('aid:audit:list')) {
+      navigate({ pathname:legacyTarget, search:location.search, hash:location.hash }, { replace:true });
+      return;
+    }
     // 命中父级节点但无叶子，尝试跳转到第一个子
     const child = findDefaultChild(routes, path);
     if (child) {
       const base = path.endsWith('/') ? path.slice(0, -1) : path;
       navigate(resolvePath(base, child.path), { replace: true });
     }
-  }, [path, loaded, matched, routes, navigate]);
+  }, [path, loaded, matched, routes, navigate, legacyTarget, location.search, location.hash, hasPermi]);
 
   if (!loaded) {
     // 如果没有 token，不应该永远 loading，RootGuard 会处理跳转
@@ -91,15 +101,15 @@ export default function DynamicRouteRenderer() {
   }
 
   if (matched && matched.component) {
-    const Cmp = matched.component;
     return (
       <Suspense fallback={<LoadingFallback />}>
-        <Cmp />
+        <AdminWorkspacePage matched={matched} routes={routes} />
       </Suspense>
     );
   }
 
   // 父级节点渲染中
+  if (legacyTarget) return <LoadingFallback />;
   const child = findDefaultChild(routes, path);
   if (child) return <LoadingFallback />;
 

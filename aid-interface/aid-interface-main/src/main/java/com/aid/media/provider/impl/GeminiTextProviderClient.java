@@ -18,7 +18,6 @@ import com.aid.media.provider.TextReasoningOptionsResolver;
 import com.aid.media.provider.TextFinishReasonSupport;
 import com.aid.media.provider.TextFailureBillingPolicy;
 import com.aid.media.provider.TextStreamCallbacks;
-import com.aid.media.provider.ProviderUsageSupport;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Component;
@@ -36,7 +35,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Stream;
 
 /**
  * Google Gemini 文本 Provider：REST :generateContent 非流式（普通 JSON 请求/响应）。
@@ -48,6 +46,9 @@ public class GeminiTextProviderClient implements TextProviderClient {
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final int HTTP_TIMEOUT_MINUTES = 10;
     private static final int MAX_ERROR_BODY_BYTES = 64 * 1024;
+    private static final int MAX_SYNC_BODY_BYTES = 50 * 1024 * 1024;
+    private static final long MAX_STREAM_BODY_CHARS = 50L * 1024L * 1024L;
+    private static final int MAX_STREAM_LINE_CHARS = 50 * 1024 * 1024;
 
     /**
      * 共享 HttpClient 实例，避免每次请求都创建新的连接池/Selector 线程。
@@ -107,15 +108,18 @@ public class GeminiTextProviderClient implements TextProviderClient {
         com.aid.media.provider.TextOutputLimitResolver.normalize(request, modelConfig);
         String apiKey = modelConfig != null ? modelConfig.getApiKey() : null;
         if (StringUtils.isBlank(apiKey)) {
-            callbacks.onError(GeminiConstants.ERROR_API_KEY_EMPTY,
-                    TextFailureBillingPolicy.notSent(GeminiConstants.ERROR_API_KEY_EMPTY));
+            callbacks.onFailure(TextFailureBillingPolicy.notSentEvidence(
+                    GeminiConstants.ERROR_API_KEY_EMPTY));
             return;
         }
         String model = resolveEffectiveModel(modelConfig, request);
         // 业务含义：完整 URL = {base_url}{api_suffix}{model}:generateContent，与 Gemini 官方文档示例一致
         String url = buildStreamGenerateContentUrl(modelConfig.getBaseUrl(), modelConfig.getApiSuffix(), model);
         Map<String, Object> body = buildRequestBody(modelConfig, request);
-        String json = MAPPER.writeValueAsString(com.aid.model.definition.ModelConfiguredRequestBody.apply(modelConfig, body, request));
+        String json = MAPPER.writeValueAsString(
+                com.aid.model.definition.ModelConfiguredRequestBody.applyAfterRuntimeNormalization(
+                        modelConfig, body, request,
+                        TextReasoningOptionsResolver.RuntimeNormalization.GEMINI));
         log.info("Gemini 文本流式提交, url={}, model={}, contentsSize={}", url, model,
                 ((List<?>) body.getOrDefault("contents", List.of())).size());
         HttpClient client = SHARED_HTTP_CLIENT;
@@ -126,69 +130,106 @@ public class GeminiTextProviderClient implements TextProviderClient {
                 .header(HttpConstants.HEADER_CONTENT_TYPE, HttpConstants.CONTENT_TYPE_JSON)
                 .POST(HttpRequest.BodyPublishers.ofString(com.aid.diagnostics.DiagnosticCapture.outboundBody(json), StandardCharsets.UTF_8))
                 .build();
-        HttpResponse<Stream<String>> resp;
+        HttpResponse<Object> resp;
         try {
-            resp = com.aid.diagnostics.DiagnosticHttp.send(client, req, HttpResponse.BodyHandlers.ofLines());
+            resp = com.aid.diagnostics.DiagnosticHttp.send(client, req,
+                    com.aid.media.provider.BoundedResponseBody.inputStreamOrError(MAX_ERROR_BODY_BYTES));
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             callbacks.onError("请求被中断", e);
             return;
         }
         if (resp.statusCode() < 200 || resp.statusCode() >= 300) {
-            String response = readBoundedFailureBody(resp.body());
-            if (response == null) {
-                log.error("Gemini 文本流式 HTTP 错误响应超过上限, url={}, status={}",
-                        url, resp.statusCode());
-                callbacks.onError("上游错误响应过大", null);
-                return;
-            }
+            com.aid.media.provider.BoundedResponseBody.Utf8Read errorBody =
+                    com.aid.media.provider.BoundedResponseBody.requireRead(resp.body());
+            captureBoundedDiagnostic(resp, errorBody);
+            String response = errorBody.body();
             log.error("Gemini 文本流式 HTTP 失败, url={}, status={}, bodyLen={}",
                     url, resp.statusCode(), response.length());
-            String safeMessage = ProviderErrorSanitizer.fromHttp(resp.statusCode(), response);
-            Map<String, Object> usage = parseHttpFailureUsage(response,
-                    isReasoningProvablyDisabled(modelConfig, body));
-            if (ProviderUsageSupport.hasAnyProviderUsage(usage)) {
-                callbacks.onUsage(usage);
-            }
-            callbacks.onError(safeMessage,
-                    TextFailureBillingPolicy.httpFailure(resp.statusCode(), safeMessage, usage));
+            String safeMessage = errorBody.complete()
+                    ? ProviderErrorSanitizer.fromHttp(resp.statusCode(), response)
+                    : "上游错误响应过大";
+            Map<String, Object> usage = errorBody.complete()
+                    ? parseHttpFailureUsage(response, isReasoningProvablyDisabled(modelConfig, body))
+                    : null;
+            callbacks.onFailure(TextFailureBillingPolicy.httpFailureEvidence(
+                    resp.statusCode(), safeMessage, usage, errorBody.complete()));
             return;
         }
-        boolean includeReasoning = Boolean.TRUE.equals(request.getIncludeReasoning());
-        try (Stream<String> lines = resp.body()) {
-            if (lines != null) {
-                for (String line : (Iterable<String>) lines::iterator) {
-                    String data = StringUtils.defaultString(line).trim();
-                    if (data.isEmpty() || data.startsWith(":")) {
-                        continue;
-                    }
-                    if (data.startsWith("data:")) {
-                        data = data.substring(5).trim();
-                    }
-                    if (data.isEmpty() || "[DONE]".equals(data)) {
-                        continue;
-                    }
-                    callbacks.onSseDataLine(ReasoningContentSanitizer.sanitizeJson(data));
-                    JsonNode root = MAPPER.readTree(data);
-                    if (!emitStreamChunk(root, callbacks, includeReasoning,
-                            isReasoningProvablyDisabled(modelConfig, body))) {
+        boolean modelCompleted = false;
+        String terminalFailure = null;
+        boolean invalidOutput = false;
+        Map<String, Object> observedUsage = Map.of();
+        try (com.aid.media.provider.BoundedResponseBody.Utf8LineReader lines =
+                     new com.aid.media.provider.BoundedResponseBody.Utf8LineReader(
+                             com.aid.media.provider.BoundedResponseBody.requireInputStream(resp.body()),
+                             MAX_STREAM_BODY_CHARS, MAX_STREAM_LINE_CHARS)) {
+            String line;
+            while ((line = lines.readLine()) != null) {
+                String data = StringUtils.defaultString(line).trim();
+                if (data.isEmpty() || data.startsWith(":")) {
+                    continue;
+                }
+                if (data.startsWith("data:")) {
+                    data = data.substring(5).trim();
+                }
+                if (data.isEmpty() || "[DONE]".equals(data)) {
+                    continue;
+                }
+                callbacks.onSseDataLine(ReasoningContentSanitizer.sanitizeJson(data));
+                JsonNode root = MAPPER.readTree(data);
+                Map<String, Object> usage = normalizeUsage(root.path("usageMetadata"),
+                        isReasoningProvablyDisabled(modelConfig, body));
+                if (!usage.isEmpty()) {
+                    observedUsage = com.aid.media.provider.ProviderUsageSupport.merge(observedUsage, usage);
+                    callbacks.onUsage(usage);
+                }
+                String finishReason = resolveFinishReason(root);
+                if (StringUtils.isNotBlank(finishReason)) {
+                    if (!TextFinishReasonSupport.isRecognizedGeminiFinish(finishReason)) {
+                        callbacks.onError("上游终止异常", null);
                         return;
                     }
+                    modelCompleted = true;
+                    String finishError = resolveFinishError(root);
+                    if (finishError != null) {
+                        terminalFailure = finishError;
+                        invalidOutput = TextFinishReasonSupport.isRecoverableGeminiOutputFailure(finishReason);
+                    }
                 }
+                if (containsUnsupportedPart(root) && terminalFailure == null) {
+                    terminalFailure = "生成方式不支持";
+                    invalidOutput = true;
+                }
+                if (terminalFailure == null) emitStreamText(root, callbacks);
             }
+        } catch (com.aid.media.provider.BoundedResponseBody.LimitExceededException limit) {
+            log.error("Gemini 文本流式响应超过大小上限, model={}, message={}",
+                    model, limit.getMessage());
+            callbacks.onError("响应超限", null);
+            return;
         } catch (Exception e) {
             log.error("Gemini 文本流式解析失败, model={}, errorType={}",
                     model, e.getClass().getSimpleName());
             callbacks.onError("解析响应失败", null);
             return;
         }
-        callbacks.onComplete();
+        if (modelCompleted && terminalFailure != null) callbacks.onFailure(invalidOutput
+                ? TextFailureBillingPolicy.completedInvalidResponse(terminalFailure, null, observedUsage)
+                : TextFailureBillingPolicy.completedResponseFailure(terminalFailure, observedUsage));
+        else if (modelCompleted) callbacks.onComplete();
+        else callbacks.onError("上游响应未完整结束", null);
     }
 
     /**
      * 非流式文本生成：Gemini 本身已是 :generateContent 非流式，直接复用现有逻辑，
      * 返回 ProviderSubmitResult（含 directText / rawResponse / usage），不再走 streamChat→callback 中转。
      */
+    @Override
+    public boolean supportsNativeNonStream(MediaTextGenerateRequest request) {
+        return true;
+    }
+
     @Override
     public ProviderSubmitResult chatSync(AiModelConfigVo modelConfig, MediaTextGenerateRequest request) {
         try (GeminiFileUploadSupport.Session ignored = GeminiFileUploadSupport.prepare(modelConfig, request)) {
@@ -206,22 +247,20 @@ public class GeminiTextProviderClient implements TextProviderClient {
         com.aid.media.provider.TextOutputLimitResolver.normalize(request, modelConfig);
         String apiKey = modelConfig != null ? modelConfig.getApiKey() : null;
         if (StringUtils.isBlank(apiKey)) {
-            return ProviderSubmitResult.builder()
-                    .rawResponse(GeminiConstants.ERROR_API_KEY_EMPTY)
-                    .errorDetailJson(TextFailureBillingPolicy.notSentSnapshot(GeminiConstants.ERROR_API_KEY_EMPTY))
-                    .build();
+            return TextFailureBillingPolicy.notSentEvidence(
+                    GeminiConstants.ERROR_API_KEY_EMPTY).toSubmitResult();
         }
         String model = resolveEffectiveModel(modelConfig, request);
         String url = buildGenerateContentUrl(modelConfig.getBaseUrl(), modelConfig.getApiSuffix(), model);
         Map<String, Object> body = buildRequestBody(modelConfig, request);
         String json;
         try {
-            json = MAPPER.writeValueAsString(com.aid.model.definition.ModelConfiguredRequestBody.apply(modelConfig, body, request));
+            json = MAPPER.writeValueAsString(
+                    com.aid.model.definition.ModelConfiguredRequestBody.applyAfterRuntimeNormalization(
+                            modelConfig, body, request,
+                            TextReasoningOptionsResolver.RuntimeNormalization.GEMINI));
         } catch (Exception e) {
-            return ProviderSubmitResult.builder()
-                    .rawResponse("JSON序列化失败")
-                    .errorDetailJson(TextFailureBillingPolicy.notSentSnapshot("JSON序列化失败"))
-                    .build();
+            return TextFailureBillingPolicy.notSentEvidence("JSON序列化失败").toSubmitResult();
         }
         log.info("Gemini 非流式文本(NON_STREAM), url={}, model={}", url, model);
         HttpClient client = SHARED_HTTP_CLIENT;
@@ -232,27 +271,36 @@ public class GeminiTextProviderClient implements TextProviderClient {
                 .header(HttpConstants.HEADER_CONTENT_TYPE, HttpConstants.CONTENT_TYPE_JSON)
                 .POST(HttpRequest.BodyPublishers.ofString(com.aid.diagnostics.DiagnosticCapture.outboundBody(json), StandardCharsets.UTF_8))
                 .build();
-        HttpResponse<String> resp;
+        HttpResponse<com.aid.media.provider.BoundedResponseBody.Utf8Read> resp;
         try {
-            resp = com.aid.diagnostics.DiagnosticHttp.send(client, req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+            resp = com.aid.diagnostics.DiagnosticHttp.send(client, req,
+                    com.aid.media.provider.BoundedResponseBody.utf8(
+                            MAX_SYNC_BODY_BYTES, MAX_ERROR_BODY_BYTES));
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             return ProviderSubmitResult.builder().rawResponse("请求被中断").build();
         } catch (IOException e) {
             return ProviderSubmitResult.builder().rawResponse(e.getMessage()).build();
         }
-        String respBody = resp.body() != null ? resp.body() : "";
+        com.aid.media.provider.BoundedResponseBody.Utf8Read responseBody = resp.body();
+        captureBoundedDiagnostic(resp, responseBody);
+        String respBody = responseBody.body();
         if (resp.statusCode() < 200 || resp.statusCode() >= 300) {
             log.error("Gemini chatSync HTTP 失败, status={}, bodyLen={}", resp.statusCode(), respBody.length());
-            String safeMessage = ProviderErrorSanitizer.fromHttp(resp.statusCode(), respBody);
-            Map<String, Object> usage = parseHttpFailureUsage(respBody,
-                    isReasoningProvablyDisabled(modelConfig, body));
-            return ProviderSubmitResult.builder()
-                    .rawResponse(safeMessage)
-                    .errorDetailJson(TextFailureBillingPolicy.httpFailureSnapshot(
-                            resp.statusCode(), safeMessage, usage))
-                    .usage(usage)
-                    .build();
+            String safeMessage = responseBody.complete()
+                    ? ProviderErrorSanitizer.fromHttp(resp.statusCode(), respBody)
+                    : "上游错误响应过大";
+            Map<String, Object> usage = responseBody.complete()
+                    ? parseHttpFailureUsage(respBody, isReasoningProvablyDisabled(modelConfig, body))
+                    : null;
+            return TextFailureBillingPolicy.httpFailureEvidence(
+                    resp.statusCode(), safeMessage, usage,
+                    responseBody.complete()).toSubmitResult();
+        }
+        if (!responseBody.complete()) {
+            log.error("Gemini chatSync 响应超过大小上限, bodyLen={}, limit={}",
+                    respBody.length(), MAX_SYNC_BODY_BYTES);
+            return ProviderSubmitResult.builder().rawResponse("响应超限").build();
         }
         Map<String, Object> usage = Map.of();
         try {
@@ -264,20 +312,23 @@ public class GeminiTextProviderClient implements TextProviderClient {
             if (finishError != null) {
                 log.info("Gemini chatSync 未完整终止: finishReason={}, usage={}",
                         resolveFinishReason(root), usage);
-                return ProviderSubmitResult.builder()
-                        .rawResponse(finishError)
-                        .usage(usage.isEmpty() ? null : usage)
-                        .build();
+                if (TextFinishReasonSupport.isRecognizedGeminiFinish(resolveFinishReason(root)))
+                    return (TextFinishReasonSupport.isRecoverableGeminiOutputFailure(resolveFinishReason(root))
+                            ? TextFailureBillingPolicy.completedInvalidResponse(finishError, null, usage)
+                            : TextFailureBillingPolicy.completedResponseFailure(finishError, usage)).toSubmitResult();
+                return ProviderSubmitResult.builder().rawResponse(finishError).usage(usage).build();
             }
             // 解析文本
             StringBuilder fullText = new StringBuilder();
+            StringBuilder thoughtSummary = new StringBuilder();
             JsonNode candidates = root.path("candidates");
             if (candidates.isArray() && !candidates.isEmpty()) {
                 JsonNode parts = candidates.get(0).path("content").path("parts");
                 if (parts.isArray()) {
                     for (JsonNode part : parts) {
                         if (part.path("thought").asBoolean(false)) {
-                            // 非流式 thought 不公开、不持久化；token 仍由 usageMetadata 计量。
+                            if (Boolean.TRUE.equals(request.getIncludeReasoning()))
+                                thoughtSummary.append(part.path("text").asText(""));
                             continue;
                         }
                         String t = part.path("text").asText(null);
@@ -287,8 +338,10 @@ public class GeminiTextProviderClient implements TextProviderClient {
                     }
                 }
             }
-            log.info("Gemini chatSync 响应解析: hasText={}, usage={}", fullText.length() > 0, usage);
-            if (fullText.length() == 0) {
+            log.info("Gemini chatSync 响应解析: hasText={}, usage={}", StringUtils.isNotBlank(fullText.toString()), usage);
+            if (StringUtils.isBlank(fullText.toString())) {
+                if ("STOP".equalsIgnoreCase(StringUtils.trimToEmpty(resolveFinishReason(root))))
+                    return TextFailureBillingPolicy.completedEmptyResponse(usage).toSubmitResult();
                 return ProviderSubmitResult.builder()
                         .rawResponse("响应内容为空")
                         .usage(usage.isEmpty() ? null : usage)
@@ -299,6 +352,7 @@ public class GeminiTextProviderClient implements TextProviderClient {
                     ? sanitizedRaw.substring(0, 100_000) + "\n...[truncated]" : sanitizedRaw;
             return ProviderSubmitResult.builder()
                     .directText(fullText.length() > 0 ? fullText.toString() : null)
+                    .directReasoning(thoughtSummary.length() > 0 ? thoughtSummary.toString() : null)
                     .rawResponse(rawTruncated)
                     .usage(usage.isEmpty() ? null : usage)
                     .build();
@@ -324,7 +378,7 @@ public class GeminiTextProviderClient implements TextProviderClient {
 
     /**
      * 解析 Gemini :generateContent 响应：
-     *   - candidates[0].content.parts[*].text（跳过 thought=true 思考片段）→ 一次性 onDelta(fullText)
+     *   - candidates[0].content.parts[*].text：thought=true 的API思考摘要独立回调，正文 onDelta(fullText)
      *   - totalTokenCount - promptTokenCount 确定父级输出，与可见/思考子桶分别校验
      */
     private boolean parseAndEmit(String json, TextStreamCallbacks callbacks,
@@ -351,8 +405,8 @@ public class GeminiTextProviderClient implements TextProviderClient {
             if (parts.isArray()) {
                 for (JsonNode part : parts) {
                     if (part.path("thought").asBoolean(false)) {
-                        // :generateContent 是一次性响应，不伪装为实时 reasoning SSE。
-                        // thought 文本在此丢弃；仅 usageMetadata.thoughtsTokenCount 进入计量。
+                        String summary = part.path("text").asText("");
+                        if (!summary.isEmpty()) callbacks.onPublicReasoningSummaryDelta(summary);
                         continue;
                     }
                     String t = part.path("text").asText(null);
@@ -745,17 +799,7 @@ public class GeminiTextProviderClient implements TextProviderClient {
         return tokens > Integer.MAX_VALUE ? null : (int) tokens;
     }
 
-    private boolean emitStreamChunk(JsonNode root, TextStreamCallbacks callbacks,
-                                    boolean includeReasoning, boolean reasoningProvablyDisabled) {
-        Map<String, Object> usage = normalizeUsage(root.path("usageMetadata"), reasoningProvablyDisabled);
-        if (!usage.isEmpty()) {
-            callbacks.onUsage(usage);
-        }
-        String finishError = containsUnsupportedPart(root) ? "生成方式不支持" : resolveFinishError(root);
-        if (finishError != null) {
-            callbacks.onError(finishError, null);
-            return false;
-        }
+    private void emitStreamText(JsonNode root, TextStreamCallbacks callbacks) {
         JsonNode candidates = root.path("candidates");
         if (candidates.isArray() && !candidates.isEmpty()) {
             JsonNode parts = candidates.get(0).path("content").path("parts");
@@ -766,42 +810,20 @@ public class GeminiTextProviderClient implements TextProviderClient {
                         continue;
                     }
                     if (part.path("thought").asBoolean(false)) {
-                        if (includeReasoning) {
-                            callbacks.onReasoningDelta(value);
-                        }
+                        // Gemini thought parts are private reasoning, not public summaries.
                     } else {
                         callbacks.onDelta(value);
                     }
                 }
             }
         }
-        return true;
     }
 
-    /** 完整消费并关闭错误响应流；超过上限时返回 null，让调用方按结果不确定保守处理。 */
-    private String readBoundedFailureBody(Stream<String> body) {
-        if (body == null) {
-            return "";
-        }
-        try (Stream<String> lines = body) {
-            StringBuilder result = new StringBuilder();
-            java.util.Iterator<String> iterator = lines.iterator();
-            int bytes = 0;
-            while (iterator.hasNext()) {
-                String line = StringUtils.defaultString(iterator.next());
-                int nextBytes = line.getBytes(StandardCharsets.UTF_8).length + 1;
-                if (nextBytes > MAX_ERROR_BODY_BYTES - bytes) {
-                    if (com.aid.diagnostics.DiagnosticCapture.current() != null) while (iterator.hasNext()) iterator.next();
-                    return null;
-                }
-                if (!result.isEmpty()) {
-                    result.append('\n');
-                }
-                result.append(line);
-                bytes += nextBytes;
-            }
-            return result.toString();
-        }
+    private static void captureBoundedDiagnostic(HttpResponse<?> response,
+                                                 com.aid.media.provider.BoundedResponseBody.Utf8Read body) {
+        com.aid.diagnostics.DiagnosticCapture.transportResponse(response.statusCode(), body.body(),
+                response.headers().firstValue("x-request-id").orElse(null));
+        com.aid.diagnostics.DiagnosticCapture.transportComplete(body.complete());
     }
 
     private static Map<String, Object> geminiContent(String role, String text) {

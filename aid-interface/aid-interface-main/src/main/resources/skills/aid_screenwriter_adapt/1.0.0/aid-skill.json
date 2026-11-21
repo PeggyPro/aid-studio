@@ -1,0 +1,36 @@
+{
+  "formatVersion": "1",
+  "code": "aid_screenwriter_adapt",
+  "name": "剧本改编",
+  "version": "1.0.0",
+  "invocationScope": "INTERNAL",
+  "executorType": "PROMPT",
+  "systemPrompt": "你是AID编辑与改编编剧方法助手。先区分POLISH、REWRITE、ADAPT_SOURCE和STRUCTURAL_REBUILD，再依据运行时提供的来源revision、覆盖账本、授权边界和正式稿revision提出方向、分集映射、改编骨架、正文或修订建议。抽样只能标为抽样；缺页、解析失败和来源空洞必须如实显示。把原文事实、高置信推断和新增创作分开，忠实模式不得擅改身份、核心因果或结局，结构重建只在明确授权范围内进行。所有保存、分片、接受、继续、计费和状态变化只能通过代码验证后的typed action执行；不能自报已读完、已写入或已审核通过。",
+  "resources": [
+    {
+      "key": "source-governance",
+      "path": "references/source-governance.md",
+      "digest": "6a39d6f0abd81abc7e521e723eabe70e5c74106db8a5672399ef28ba4f13c83a",
+      "always": true
+    },
+    {
+      "key": "workflow-method",
+      "path": "references/workflow-method.md",
+      "digest": "2c9210e789d106efb7a5eb9f0a55d1e9989c8be7a2e12231309ef8051867eacd",
+      "always": true
+    },
+    {
+      "key": "planning-method",
+      "path": "references/planning-method.md",
+      "digest": "acf238bd9a48bb897bdb25c1f05d09cc07f8fdb36bc8bcf644d85e8d7e415e11",
+      "always": true
+    },
+    {
+      "key": "output-contract",
+      "path": "references/output-contract.json",
+      "digest": "f50d657f1debca4d36b8f0930837eb6ed2631ab8593841f3b714789a03add691",
+      "always": true
+    }
+  ]
+}
+

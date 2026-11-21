@@ -1,7 +1,7 @@
 /* Tailwind/PostCSS component styles for home-new-page. */
 /* =============================================================================
    新版首页（/）及 home-new 布局内子页（我的作品、资产库）专用
-   与其他页面壳层拆分，不共用 .home-theme-page 主内容区样式
+   与旧版 .home-legacy-page 拆分，不共用 .home-theme-page 主内容区样式
    ============================================================================= */
 
 /* ---------- 新版首页根节点 ---------- */
@@ -28,7 +28,7 @@
   min-height: 0;
   padding: 24px 32px 32px;
   color: var(--home-cyan);
-  --home-muted: #8e97a5;
+  --home-muted: var(--ui-muted, #8e97a5);
   /* background: #0d0d0f; */
 }
 
@@ -54,13 +54,13 @@
 
 .home-new-sub-page.about-page {
   padding: 0;
-  background: #121212;
+  background: var(--ui-bg, #121212);
 }
 
 .home-new-sub-page.invite-page {
   min-height: 100%;
-  background-color: #0d0d0f;
-  background-image: linear-gradient(to bottom right, #141f47 0%, rgba(20, 31, 71, 0.3) 50%);
+  background-color: var(--ui-bg, #0d0d0f);
+  background-image: var(--ui-no-image, linear-gradient(to bottom right, #141f47 0%, rgba(20, 31, 71, 0.3) 50%));
 }
 
 .home-new-sub-page.about-page .page-content,
@@ -184,31 +184,15 @@ html.app-shell-create .home-new-sub-page.assets-library-figma .assets-library-fi
   min-height: var(--works-lib-body-h, 68px);
 }
 
-/* 电视剧集：底部信息区随内容增高，避免集数按钮被裁切；电影/短片仍走上方固定高度 */
-.home-new-sub-page.works-library-figma .works-lib-card--series .works-lib-card__body {
-  height: auto;
-  min-height: var(--works-lib-body-h, 118px);
-}
-
-/* 电视剧集 Tab：网格同行拉伸，新建卡片与剧集卡片总高度一致 */
-.home-new-sub-page.works-library-figma.works-library-figma--series-tab {
-  --works-lib-body-h: 118px;
-}
-
-.home-new-sub-page.works-library-figma.works-library-figma--series-tab .works-lib-grid {
-  align-items: stretch;
-}
-
-.home-new-sub-page.works-library-figma.works-library-figma--series-tab .works-lib-card,
-.home-new-sub-page.works-library-figma.works-library-figma--series-tab .works-lib-add-card {
+.home-new-sub-page.works-library-figma .canvas-project-grid > :is(.works-lib-card, .works-lib-add-card) {
   align-self: stretch;
-  height: auto;
 }
 
-.home-new-sub-page.works-library-figma.works-library-figma--series-tab .works-lib-add-card__body {
-  height: auto;
-  min-height: var(--works-lib-body-h, 118px);
-  flex: 1 0 auto;
+.home-new-sub-page.works-library-figma .canvas-project-card > .works-lib-card__body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: center;
+  gap: 3px;
 }
 
 .home-new-sub-page.assets-library-figma .works-lib-grid::-webkit-scrollbar {

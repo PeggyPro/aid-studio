@@ -17,9 +17,9 @@ import { userScriptDetailByProject,userStoryboardList } from '~/utils/businessAp
 import { shouldSkipFlowProjectScopedApis } from '~/utils/createFlowProjectContext'
 import { isSeriesEpisodeListPath,routePathToCreationStep } from '~/utils/createFlowRoutes'
 import {
-htmlPlainTextLength,
-resolveStoryScriptEditorHtmlAfterApiLoad,
-storyScriptOriginalTextForApi
+  htmlPlainTextLength,
+  resolveStoryScriptEditorHtmlAfterApiLoad,
+  storyScriptOriginalTextForApi
 } from '~/utils/htmlPlain'
 import { applyStoryboardImageImmediatePanelLoadingRestore } from '~/utils/storyboardImageBatchShared'
 import { mapStoryboardListRowToPanel } from '~/utils/storyboardPanelMap'
@@ -35,6 +35,7 @@ readStoryScriptLocalSnapshot,
 setStoryScriptServerBaseline
 } from '~/utils/storyScriptPersistence'
 import { saveStoryScriptAsNewVersion } from '~/utils/storyScriptVersionSave'
+import { isPublicProjectPreviewQuery } from '~/utils/publicProjectPreviewNavigation'
 import { setBox,type RouteStepsCtx } from './types'
 
 export function isStoryScriptContentFilled(content: unknown): boolean {
@@ -110,7 +111,8 @@ export async function loadStoryScriptFromApi(ctx: RouteStepsCtx): Promise<void> 
     const store = useCreationStore.getState()
     setStoryScriptServerBaseline(saveCtx, data)
     const serverText = String(data?.originalText ?? '')
-    const localSnapshot = readStoryScriptLocalSnapshot(saveCtx)
+    const isPublicPreview = isPublicProjectPreviewQuery(ctx.getRoute().query)
+    const localSnapshot = isPublicPreview ? null : readStoryScriptLocalSnapshot(saveCtx)
     let editorText = serverText
     if (localSnapshot && localSnapshot.content !== serverText) {
       const restoreLocal = await shouldRestoreStoryScriptLocalSnapshot()

@@ -85,7 +85,7 @@ export interface StoryboardScriptViewSharedProps {
   onDownloadStoryboardImage: (panelIndex: number, imageIndex: number) => void
   onDeleteStoryboardImage: (panelIndex: number, imageIndex: number) => void
   /* 部分失败提示区 */
-  showStoryboardPartialBanner: boolean
+  showStoryboardErrorBanner: boolean
   generationError: string | null
   canResumePartialFailed: boolean
   isResumingPartialFailed: boolean

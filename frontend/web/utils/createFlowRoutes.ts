@@ -64,6 +64,8 @@ export const CREATE_FLOW_FROM_PANEL_WORKS = 'panel-works' as const
 export const WORKS_PAGE_TAB_QUERY_KEY = 'tab' as const
 export const WORKS_PAGE_TAB_SERIES = 'series' as const
 export const WORKS_PAGE_TAB_FILM = 'film' as const
+export const WORKS_PAGE_TAB_SUBMISSION = 'submission' as const
+export const WORKS_PAGE_TAB_CANVAS = 'canvas' as const
 
 export type CreateFlowBackTarget =
   | { type: 'path'; path: string }

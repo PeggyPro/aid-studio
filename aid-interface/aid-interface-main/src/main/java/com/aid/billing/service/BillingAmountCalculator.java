@@ -31,4 +31,8 @@ public interface BillingAmountCalculator {
      * @return 结算后的计算结果（含实际金额和退款金额）
      */
     BillingCalcResult calculateSettleAmount(BigDecimal preHoldAmount, String snapshotJson, Map<String, Object> usageData);
+
+    /** 已确定失败的文本任务仅计算实际已观察用量，不使用预估金额或缺失侧的估算值。 */
+    BillingCalcResult calculateFailedTextSettleAmount(BigDecimal preHoldAmount, String snapshotJson,
+                                                     Map<String, Object> usageData);
 }

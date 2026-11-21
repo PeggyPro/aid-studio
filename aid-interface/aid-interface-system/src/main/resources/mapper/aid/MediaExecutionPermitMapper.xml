@@ -1,0 +1,177 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.aid.aid.mapper.MediaExecutionPermitMapper">
+    <select id="lockAdmission" resultType="java.lang.Integer">
+        SELECT id FROM aid_media_execution_admission_guard WHERE id=1 AND ready=1 FOR UPDATE
+    </select>
+    <select id="lockMigration" resultType="java.lang.Integer">
+        SELECT id FROM aid_media_execution_admission_guard WHERE id=1 FOR UPDATE
+    </select>
+    <insert id="importLegacyActiveTasks">
+        INSERT INTO aid_media_execution_permit
+          (token,task_id,user_id,user_bucket,model_code,provider_id,state,execution_mode,owner_id,
+           lease_until,create_time,update_time)
+        SELECT SUBSTRING(SHA2(CONCAT('media-execution-legacy:',t.id),256),1,32),t.id,t.user_id,
+               CONCAT('media:concurrent:user:',COALESCE(CAST(t.user_id AS CHAR),'anonymous')),
+               COALESCE(NULLIF(t.model_name,''),'none'),m.provider_id,'ACTIVE','LEGACY','legacy',
+               NULL,NOW(3),NOW(3)
+        FROM aid_media_task t LEFT JOIN aid_ai_model m ON m.model_code=t.model_name
+        WHERE t.execution_permit_token IS NULL
+          AND t.status IN ('PENDING','PROCESSING','WAIT_POLL','WAIT_CALLBACK')
+          AND NOT EXISTS (SELECT 1 FROM aid_media_execution_permit p WHERE p.active_task_id=t.id)
+    </insert>
+    <update id="bindLegacyTaskTokens">
+        UPDATE aid_media_task t JOIN aid_media_execution_permit p ON p.active_task_id=t.id
+        SET t.execution_permit_token=p.token
+        WHERE t.execution_permit_token IS NULL AND p.execution_mode='LEGACY'
+          AND t.status IN ('PENDING','PROCESSING','WAIT_POLL','WAIT_CALLBACK')
+    </update>
+    <update id="markReady">
+        UPDATE aid_media_execution_admission_guard SET ready=1 WHERE id=1
+    </update>
+    <sql id="promoteAcceptedBody">
+        UPDATE aid_media_execution_permit p
+        JOIN aid_media_task t ON t.id=p.task_id AND t.execution_permit_token=p.token
+        SET p.state='ACTIVE',p.execution_mode='ASYNC',p.lease_until=NULL,
+            p.release_reason=NULL,p.released_at=NULL,p.update_time=NOW(3)
+        WHERE t.status IN ('PENDING','WAIT_POLL','WAIT_CALLBACK','PROCESSING')
+          AND t.provider_task_id IS NOT NULL AND t.provider_task_id != ''
+          AND p.execution_mode IN ('SYNC_TEXT','SYNC_IMAGE','SYNC_AUDIO','SUBMITTING')
+          AND (p.state='ACTIVE' OR (p.state='RELEASED' AND p.release_reason IN
+              ('LOCAL_EXECUTION_LEASE_EXPIRED','LOCAL_TEXT_CONNECTION_CLOSED','LOCAL_SYNC_CONNECTION_CLOSED')))
+    </sql>
+    <update id="promoteAcceptedTask">
+        <include refid="promoteAcceptedBody"/> AND p.token=#{token}
+    </update>
+    <update id="promoteAcceptedTasks">
+        <include refid="promoteAcceptedBody"/>
+    </update>
+    <update id="expireLocalLeases">
+        UPDATE aid_media_execution_permit
+        SET state='RELEASED', release_reason='LOCAL_EXECUTION_LEASE_EXPIRED',
+            released_at=NOW(3), update_time=NOW(3)
+        WHERE state IN ('RESERVED','ACTIVE') AND execution_mode IN ('RESERVED','SYNC_TEXT','SYNC_IMAGE','SYNC_AUDIO','SUBMITTING')
+          AND lease_until IS NOT NULL AND lease_until &lt;= NOW(3)
+    </update>
+    <select id="selectTerminalTokens" resultType="java.lang.String">
+        SELECT p.token FROM aid_media_execution_permit p
+        JOIN aid_media_task t ON t.id=p.task_id
+        WHERE p.state IN ('RESERVED','ACTIVE') AND t.status IN ('SUCCEEDED','FAILED','CANCELLED')
+        ORDER BY p.create_time,p.token LIMIT 200
+    </select>
+    <select id="countActive" resultType="java.lang.Long">
+        SELECT COUNT(*) FROM aid_media_execution_permit WHERE state IN ('RESERVED','ACTIVE')
+        <if test="userBucket != null">AND user_bucket=#{userBucket}</if>
+        <if test="modelCode != null">AND model_code=#{modelCode}</if>
+        <if test="providerId != null">AND provider_id=#{providerId}</if>
+    </select>
+    <!-- Admission counts use held permits; a task's unresolved receipt survives release of its local connection permit. -->
+    <select id="admissionSnapshot" resultType="com.aid.aid.domain.media.MediaAdmissionSnapshot">
+        SELECT COUNT(*) global_active,
+               COALESCE(SUM(CASE WHEN user_bucket=#{userBucket} THEN 1 ELSE 0 END),0) user_active,
+               COALESCE(SUM(CASE WHEN model_code=#{modelCode} THEN 1 ELSE 0 END),0) model_active,
+               COALESCE(SUM(CASE WHEN provider_id=#{providerId} THEN 1 ELSE 0 END),0) provider_active,
+               COALESCE(SUM(uncertain),0) global_uncertain,
+               COALESCE(SUM(CASE WHEN user_bucket=#{userBucket} THEN uncertain ELSE 0 END),0) user_uncertain,
+               COALESCE(SUM(CASE WHEN model_code=#{modelCode} THEN uncertain ELSE 0 END),0) model_uncertain,
+               COALESCE(SUM(CASE WHEN provider_id=#{providerId} THEN uncertain ELSE 0 END),0) provider_uncertain,
+               (SELECT COUNT(*) FROM aid_media_task own_task
+                JOIN aid_media_submission_reconciliation own_reconciliation
+                  ON own_reconciliation.task_id=own_task.id AND own_reconciliation.del_flag='0'
+                JOIN aid_media_submission_evidence own_evidence
+                  ON own_evidence.id=own_reconciliation.last_evidence_id
+                  AND own_evidence.task_id=own_task.id
+                  AND own_evidence.reconciliation_id=own_reconciliation.id AND own_evidence.del_flag='0'
+                WHERE own_task.id IN
+                  <foreach collection="taskIds" item="taskId" open="(" separator="," close=")">#{taskId}</foreach>
+                  AND own_task.status='PENDING'
+                  AND own_reconciliation.status IN ('PENDING','CLAIMED','UNSUPPORTED')
+                  AND own_evidence.verdict IN ('UNKNOWN','UNSUPPORTED')
+                  AND NOT EXISTS (
+                      SELECT 1 FROM aid_media_execution_permit own_live
+                      WHERE own_live.task_id=own_task.id AND own_live.token=own_task.execution_permit_token
+                        AND own_live.state='ACTIVE'
+                        AND own_live.execution_mode IN ('SYNC_TEXT','SYNC_IMAGE','SYNC_AUDIO','SUBMITTING')
+                        AND own_live.lease_until IS NOT NULL AND own_live.lease_until &gt; NOW(3))) own_uncertain
+        FROM (
+            SELECT p.task_id,p.user_bucket,p.model_code,p.provider_id,
+                   CASE WHEN p.state='ACTIVE' AND t.status='PENDING'
+                        AND NOT (p.execution_mode IN ('SYNC_TEXT','SYNC_IMAGE','SYNC_AUDIO','SUBMITTING')
+                            AND p.lease_until IS NOT NULL AND p.lease_until &gt; NOW(3))
+                        AND r.status IN ('PENDING','CLAIMED','UNSUPPORTED')
+                        AND e.verdict IN ('UNKNOWN','UNSUPPORTED') THEN 1 ELSE 0 END uncertain
+            FROM aid_media_execution_permit p
+            LEFT JOIN aid_media_task t ON t.id=p.task_id
+            LEFT JOIN aid_media_submission_reconciliation r ON r.task_id=p.task_id AND r.del_flag='0'
+            LEFT JOIN aid_media_submission_evidence e ON e.id=r.last_evidence_id
+                AND e.task_id=p.task_id AND e.reconciliation_id=r.id AND e.del_flag='0'
+            WHERE p.state IN ('RESERVED','ACTIVE')
+        ) admissions
+    </select>
+    <insert id="insertReserved">
+        INSERT INTO aid_media_execution_permit
+          (token,task_id,user_id,user_bucket,model_code,provider_id,state,execution_mode,owner_id,
+           lease_until,create_time,update_time)
+        VALUES (#{permit.token},#{permit.taskId},#{permit.userId},#{permit.userBucket},#{permit.modelCode},
+                #{permit.providerId},'RESERVED','RESERVED',#{permit.ownerId},
+                TIMESTAMPADD(SECOND,#{leaseSeconds},NOW(3)),NOW(3),NOW(3))
+    </insert>
+    <select id="selectByToken" resultType="com.aid.aid.domain.media.MediaExecutionPermit">
+        SELECT token,task_id,user_id,user_bucket,model_code,provider_id,state,execution_mode,owner_id,
+               lease_until,release_reason,create_time,update_time,released_at
+        FROM aid_media_execution_permit WHERE token=#{token}
+    </select>
+    <update id="activate">
+        UPDATE aid_media_execution_permit
+        SET state='ACTIVE',execution_mode=#{executionMode},
+            lease_until=CASE WHEN #{executionMode} IN ('SYNC_TEXT','SYNC_IMAGE','SYNC_AUDIO','SUBMITTING')
+                THEN TIMESTAMPADD(SECOND,#{leaseSeconds},NOW(3)) ELSE NULL END,update_time=NOW(3)
+        WHERE token=#{token} AND owner_id=#{ownerId} AND state='RESERVED'
+          AND execution_mode='RESERVED' AND lease_until &gt; NOW(3)
+    </update>
+    <select id="selectActiveTokenForTask" resultType="java.lang.String">
+        SELECT token FROM aid_media_execution_permit
+        WHERE active_task_id=#{taskId}
+    </select>
+    <select id="ownedActive" resultType="java.lang.Integer">
+        SELECT COUNT(*) FROM aid_media_execution_permit
+        WHERE token=#{token} AND owner_id=#{ownerId} AND state='ACTIVE'
+          AND (execution_mode='ASYNC' OR (execution_mode IN ('SYNC_TEXT','SYNC_IMAGE','SYNC_AUDIO','SUBMITTING') AND lease_until &gt; NOW(3)))
+    </select>
+    <update id="renew">
+        UPDATE aid_media_execution_permit
+        SET lease_until=TIMESTAMPADD(SECOND,#{leaseSeconds},NOW(3)),update_time=NOW(3)
+        WHERE owner_id=#{ownerId} AND state='ACTIVE' AND execution_mode IN ('SYNC_TEXT','SYNC_IMAGE','SYNC_AUDIO','SUBMITTING')
+          AND lease_until &gt; NOW(3)
+          AND token IN
+          <foreach collection="tokens" item="token" open="(" separator="," close=")">#{token}</foreach>
+    </update>
+    <update id="release">
+        UPDATE aid_media_execution_permit
+        SET state='RELEASED',release_reason=#{reason},released_at=NOW(3),update_time=NOW(3)
+        WHERE token=#{token} AND state IN ('RESERVED','ACTIVE')
+    </update>
+    <update id="releaseReturnedSynchronous">
+        UPDATE aid_media_execution_permit p
+        JOIN aid_media_task t ON t.id=p.task_id AND t.execution_permit_token=p.token
+        SET p.state='RELEASED',p.execution_mode=#{executionMode},
+            p.release_reason='LOCAL_SYNC_RESPONSE_COMPLETED',p.released_at=NOW(3),p.update_time=NOW(3)
+        WHERE p.token=#{token} AND p.task_id=#{taskId} AND p.state='ACTIVE' AND p.execution_mode='ASYNC'
+          AND t.status='PENDING' AND (t.provider_task_id IS NULL OR t.provider_task_id='')
+          AND ((t.media_type='TEXT' AND #{executionMode}='SYNC_TEXT')
+            OR (t.media_type='IMAGE' AND #{executionMode}='SYNC_IMAGE')
+            OR (t.media_type='AUDIO' AND #{executionMode}='SYNC_AUDIO'))
+    </update>
+    <select id="countModels" resultType="com.aid.aid.domain.media.MediaExecutionPermitCount">
+        SELECT model_code,COUNT(*) active_count FROM aid_media_execution_permit
+        WHERE state IN ('RESERVED','ACTIVE') AND model_code IN
+        <foreach collection="codes" item="code" open="(" separator="," close=")">#{code}</foreach>
+        GROUP BY model_code
+    </select>
+    <select id="countProviders" resultType="com.aid.aid.domain.media.MediaExecutionPermitCount">
+        SELECT provider_id,COUNT(*) active_count FROM aid_media_execution_permit
+        WHERE state IN ('RESERVED','ACTIVE') AND provider_id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+        GROUP BY provider_id
+    </select>
+</mapper>

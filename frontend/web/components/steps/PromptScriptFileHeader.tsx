@@ -1,5 +1,6 @@
 'use client'
 
+import type { ReactNode } from 'react'
 import { Button, Tooltip } from 'antd'
 import { FileTextOutlined, PictureOutlined } from '@ant-design/icons'
 import { assetUrl } from '~/utils/assetUrl'
@@ -20,6 +21,8 @@ export interface PromptScriptFileHeaderProps {
   showGeneratePromptButton?: boolean
   /** 生成提示词进行中 */
   generatePromptLoading?: boolean
+  /** 生成提示词按钮左侧额外内容（如积分消耗） */
+  generatePromptExtra?: ReactNode
   /** 左侧标题行是否可点击（打开脚本/场景设定） */
   sceneFileClickable?: boolean
   /** 非空时：标题行不可点击，悬停展示说明（如手动添加的资产无法编辑设定） */
@@ -42,6 +45,7 @@ export function PromptScriptFileHeader({
   referenceDisplayMode = 'button',
   showGeneratePromptButton = true,
   generatePromptLoading = false,
+  generatePromptExtra = null,
   sceneFileClickable = true,
   settingClickBlockedTooltip = undefined,
   theme = 'panel',
@@ -67,6 +71,38 @@ export function PromptScriptFileHeader({
       <span className="scene-file-name">{fileName}</span>
     </>
   )
+
+  const generatePromptButton =
+    showGeneratePromptButton && theme === 'scene-modal' ? (
+      <Button
+        className="generate-prompt-btn generate-prompt-btn--gradient"
+        type="primary"
+        loading={generatePromptLoading}
+        disabled={generatePromptLoading}
+        onClick={() => onGeneratePrompt?.()}
+      >
+        <span className="text-gradient">生成提示词</span>
+      </Button>
+    ) : showGeneratePromptButton && theme === 'modal-dark' ? (
+      <Button
+        className="generate-prompt-btn generate-prompt-btn--gradient"
+        loading={generatePromptLoading}
+        disabled={generatePromptLoading}
+        onClick={() => onGeneratePrompt?.()}
+      >
+        <span className="text-gradient">生成提示词</span>
+      </Button>
+    ) : showGeneratePromptButton ? (
+      <Button
+        type="primary"
+        className="generate-prompt-btn generate-prompt-btn--gradient"
+        loading={generatePromptLoading}
+        disabled={generatePromptLoading}
+        onClick={() => onGeneratePrompt?.()}
+      >
+        <span className="text-gradient">生成提示词</span>
+      </Button>
+    ) : null
 
   return (
     <div
@@ -107,35 +143,11 @@ export function PromptScriptFileHeader({
               参考图
             </Button>
           ) : null}
-          {showGeneratePromptButton && theme === 'scene-modal' ? (
-            <Button
-              className="generate-prompt-btn generate-prompt-btn--gradient"
-              type="primary"
-              loading={generatePromptLoading}
-              disabled={generatePromptLoading}
-              onClick={() => onGeneratePrompt?.()}
-            >
-              <span className="text-gradient">生成提示词</span>
-            </Button>
-          ) : showGeneratePromptButton && theme === 'modal-dark' ? (
-            <Button
-              className="generate-prompt-btn generate-prompt-btn--gradient"
-              loading={generatePromptLoading}
-              disabled={generatePromptLoading}
-              onClick={() => onGeneratePrompt?.()}
-            >
-              <span className="text-gradient">生成提示词</span>
-            </Button>
-          ) : showGeneratePromptButton ? (
-            <Button
-              type="primary"
-              className="generate-prompt-btn generate-prompt-btn--gradient"
-              loading={generatePromptLoading}
-              disabled={generatePromptLoading}
-              onClick={() => onGeneratePrompt?.()}
-            >
-              <span className="text-gradient">生成提示词</span>
-            </Button>
+          {showGeneratePromptButton ? (
+            <div className="generate-prompt-with-quote">
+              {generatePromptExtra}
+              {generatePromptButton}
+            </div>
           ) : null}
         </div>
       ) : null}

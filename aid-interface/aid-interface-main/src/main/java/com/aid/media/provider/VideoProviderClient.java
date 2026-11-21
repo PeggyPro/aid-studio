@@ -40,9 +40,31 @@ public interface VideoProviderClient {
         return null;
     }
 
+    /**
+     * 在实际提交前补充仅由服务端生成的瞬态参数。
+     *
+     * @param modelConfig 模型配置
+     * @param request 视频请求
+     * @param mediaTaskId 本地媒体任务编号
+     * @param submissionTraceId 跨任务唯一且重试稳定的提交追踪号
+     */
+    default void prepareSubmitRequest(AiModelConfigVo modelConfig,
+                                      MediaVideoGenerateRequest request,
+                                      Long mediaTaskId,
+                                      String submissionTraceId) {
+    }
+
     /** True when a quote needs trusted source-video dimensions, frame rate or duration. */
     default boolean requiresVerifiedMetadataForQuote() {
         return false;
+    }
+
+    /** Whether persisted server-owned metadata is enough to quote without probing the media. */
+    default boolean hasTrustedMetadataForQuote(MediaVideoGenerateRequest request) {
+        if (request == null || request.getResolvedReferenceVideos() == null
+                || request.getResolvedReferenceVideos().isEmpty()) return true;
+        return request.getResolvedReferenceVideos().stream().allMatch(input -> input != null
+                && input.getDurationMs() != null && input.getDurationMs() > 0);
     }
 
     /** 在能力校验和报价之前对齐协议默认参数，不访问上游。 */

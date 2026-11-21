@@ -31,6 +31,7 @@ import { useRouteLike } from '~/hooks/useRouteLike'
 import { usePreviewPlayerReadyOverlay } from '~/hooks/usePreviewPlayerReadyOverlay'
 import { createFlowShellContext } from '~/utils/createFlowInjection'
 import { EPISODE_TIMELINE_REBUILD_EVENT } from '~/utils/episodeTimelineRebuildSignal'
+import { isPublicProjectPreviewRuntimeActive } from '~/utils/publicProjectPreviewRuntime'
 import { resolvePreviewPlayerPosterUrl } from '~/utils/previewPlayerPoster'
 import { emptyImageIconUrl as emptyImageIconRaw } from '~/utils/emptyImageIcon'
 import { assetUrl } from '~/utils/assetUrl'
@@ -116,6 +117,7 @@ const emptyImageIconUrl = assetUrl(emptyImageIconRaw)
 
 export function VideoPreview(props: VideoPreviewProps) {
   const { storyboardVideoPanels, dubbingPanels, bgm } = props
+  const publicProjectReadOnly = isPublicProjectPreviewRuntimeActive()
 
   const route = useRouteLike()
   const shell = useContext(createFlowShellContext)
@@ -199,13 +201,17 @@ export function VideoPreview(props: VideoPreviewProps) {
 
   // --- 壳层导出桥接：挂载注册 / exporting 变化重注册 / 卸载注销 ---
   useEffect(() => {
+    if (publicProjectReadOnly) {
+      registerPreviewExportBridge?.(null)
+      return
+    }
     registerPreviewExportBridge?.({
       exportFullVideo: () => handleExport(ctx),
       exportSegments: () => handleDownloadSegments(ctx),
       exporting: S.exporting.value,
       segmentsDownloading: S.segmentsDownloading.value
     })
-  }, [ctx, registerPreviewExportBridge, S.exporting.value, S.segmentsDownloading.value])
+  }, [ctx, publicProjectReadOnly, registerPreviewExportBridge, S.exporting.value, S.segmentsDownloading.value])
 
   // --- onMounted / onUnmounted ---
   useEffect(() => {
@@ -220,8 +226,10 @@ export function VideoPreview(props: VideoPreviewProps) {
     window.addEventListener('keydown', handleKeydown)
     window.addEventListener(EPISODE_TIMELINE_REBUILD_EVENT, handleRebuild)
     void ensureCanvas(ctx)
-    void refreshExportStatusFromServer(ctx)
-    void resumeEpisodeExportFollowIfNeeded(ctx)
+    if (!publicProjectReadOnly) {
+      void refreshExportStatusFromServer(ctx)
+      void resumeEpisodeExportFollowIfNeeded(ctx)
+    }
     normalizeEmptyClipDurations(ctx)
     const setupTimer = window.setTimeout(() => {
       updateTimelineStripWidth(ctx)
@@ -336,8 +344,10 @@ export function VideoPreview(props: VideoPreviewProps) {
     resetPreviewTimelineState(ctx)
     setTimeout(() => {
       hydrateTimelineForCurrentProject(ctx)
-      void refreshExportStatusFromServer(ctx)
-      void resumeEpisodeExportFollowIfNeeded(ctx)
+      if (!publicProjectReadOnly) {
+        void refreshExportStatusFromServer(ctx)
+        void resumeEpisodeExportFollowIfNeeded(ctx)
+      }
     }, 0)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectScopeKey])
@@ -383,7 +393,7 @@ export function VideoPreview(props: VideoPreviewProps) {
       </div>
 
       <div className="preview-simple-wrap">
-        <div className="preview-player-wrap">
+        <div className="preview-player-wrap" data-onboarding="preview-player">
           <div className="preview-player-area" onClick={() => onPreviewPlayerAreaClick(ctx)}>
             <div
               ref={dom.canvasHostRef}
@@ -470,6 +480,7 @@ export function VideoPreview(props: VideoPreviewProps) {
 
         <div
           className="timeline-wrap"
+          data-onboarding="preview-timeline"
           ref={dom.timelineWrapRef}
           onPointerDown={(e) => onTimelinePointerDown(ctx, e)}
           onWheel={() => onTimelineUserScroll(ctx)}

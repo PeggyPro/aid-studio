@@ -5,7 +5,6 @@ import { Button, Modal, Tooltip, message } from 'antd'
 import { CloseOutlined } from '@ant-design/icons'
 import dialogSelectNorRaw from '@/assets/img/icon/dialog-select-nor.svg'
 import dialogSelectSelRaw from '@/assets/img/icon/dialog-select-sel.svg'
-import starWhiteRaw from '@/assets/img/icon/star_white.svg'
 import { emptyImageIconUrl as emptyImageIconRaw } from '~/utils/emptyImageIcon'
 import { assetUrl } from '~/utils/assetUrl'
 import { ShimmerVideo } from '~/components/common/ShimmerVideo'
@@ -29,7 +28,6 @@ import './BatchRegenerateDubbingModal.css'
 
 const dialogSelectNorIcon = assetUrl(dialogSelectNorRaw)
 const dialogSelectSelIcon = assetUrl(dialogSelectSelRaw)
-const starWhiteIconUrl = assetUrl(starWhiteRaw)
 const emptyImageIconUrl = assetUrl(emptyImageIconRaw)
 
 export interface BatchRegenerateDubbingModalProps {
@@ -535,12 +533,12 @@ export function BatchRegenerateDubbingModal({
             loading={batchQuote.loading}
             error={batchQuote.error}
             active={Boolean(quoteRequest)}
+            className="billing-quote-hint--submit"
           />
           <Button
             type="primary"
             className="brdm-submit-btn"
             disabled={selectedIds.size === 0 || listLoading}
-            icon={<img src={starWhiteIconUrl} alt="" />}
             onClick={handleBatchGenerate}
           >
             批量生成

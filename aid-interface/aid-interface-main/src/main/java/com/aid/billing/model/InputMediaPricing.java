@@ -39,6 +39,8 @@ public class InputMediaPricing {
      */
     @Data
     public static class VideoPricing {
+        /** 输入视频计费秒数至少为输出秒数；仅显式配置时启用。 */
+        private Boolean minimumOutputDuration;
         /** 官方原价（元/秒）；null 或 0 = 不计费 */
         private BigDecimal unitPrice;
         /** 计费秒数上限（输入视频总时长上限）；时长未知但确有输入视频时按此值预扣（宁高勿低） */

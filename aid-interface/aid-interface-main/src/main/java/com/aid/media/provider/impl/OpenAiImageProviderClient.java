@@ -1,8 +1,8 @@
 package com.aid.media.provider.impl;
 
+import com.aid.common.aid.image.ManagedImageIO;
 
-import cn.hutool.http.HttpRequest;
-import cn.hutool.http.HttpResponse;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.aid.common.constant.HttpConstants;
@@ -48,6 +48,12 @@ import java.util.UUID;
 @Slf4j
 @Component
 public class OpenAiImageProviderClient implements ImageProviderClient {
+    private static final java.net.http.HttpClient HTTP_CLIENT = java.net.http.HttpClient.newBuilder()
+            .version(java.net.http.HttpClient.Version.HTTP_1_1)
+            .connectTimeout(java.time.Duration.ofSeconds(30)).build();
+
+    @Override
+    public boolean usesSynchronousExecution(AiModelConfigVo modelConfig) { return true; }
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final String OPERATION_PLACEHOLDER = "{operation}";
@@ -58,6 +64,12 @@ public class OpenAiImageProviderClient implements ImageProviderClient {
     @Override
     public String protocol() {
         return OpenAiImageConstants.PROTOCOL_IMAGE;
+    }
+
+    @Override public InputDelivery inputDelivery(AiModelConfigVo config, MediaImageGenerateRequest request) {
+        return !resolveReferenceImages(request, config).isEmpty() && useMultipartEdits(config, resolveEffectiveModel(config, request))
+                ? InputDelivery.MULTIPART : (com.aid.media.provider.ReferenceImageBase64Support.isBase64Enabled(config)
+                    ? InputDelivery.INLINE : InputDelivery.URL);
     }
 
     @Override
@@ -85,7 +97,9 @@ public class OpenAiImageProviderClient implements ImageProviderClient {
         if (StringUtils.isBlank(apiKey)) {
             log.error("OpenAI 图片提交失败: apiKey 为空, modelCode={}",
                     modelConfig == null ? null : modelConfig.getModelCode());
-            return ProviderSubmitResult.builder().rawResponse(OpenAiImageConstants.ERROR_API_KEY_EMPTY).build();
+            return com.aid.media.provider.ProviderSubmissionFailures.localPreparationFailure(
+                    com.aid.common.error.TaskErrorPresentation.fromCode(
+                            com.aid.common.error.TaskErrorCode.MODEL_ACCOUNT_UNAVAILABLE, "模型鉴权未配置"));
         }
         String model = resolveEffectiveModel(modelConfig, request);
         List<String> images = resolveReferenceImages(request, modelConfig);
@@ -120,13 +134,18 @@ public class OpenAiImageProviderClient implements ImageProviderClient {
         try {
             // 单次 HTTP 超时按模型 capability_json.submitTimeoutSeconds 取值，缺省回退官方 300s 常量。
             int timeoutMs = SubmitTimeoutResolver.resolveMs(modelConfig, OpenAiImageConstants.IMAGE_TIMEOUT_MS);
-            respBody = edit && useMultipartEdits(modelConfig, model)
+            HttpReply response = edit && useMultipartEdits(modelConfig, model)
                     ? doMultipart(url, apiKey, modelConfig.getAuthHeader(), modelConfig.getAuthPrefix(),
                             body, images, request, timeoutMs)
                     : doPost(url, apiKey, modelConfig.getAuthHeader(), modelConfig.getAuthPrefix(), json, timeoutMs);
+            if (response.status() < 200 || response.status() >= 300)
+                return com.aid.media.provider.ProviderSubmissionFailures.httpResponse(response.status(), response.body(), model);
+            respBody = response.body();
+        } catch (MultipartPreparationException e) {
+            return com.aid.media.provider.ProviderSubmissionFailures.localPreparationFailure(e.getCause());
         } catch (Exception e) {
             log.error("OpenAI 图片提交网络异常, model={}, error={}", model, e.getMessage(), e);
-            return ProviderSubmitResult.builder().rawResponse(e.getMessage()).build();
+            return com.aid.media.provider.ProviderSubmissionFailures.unknownResponse(e.getMessage());
         }
 
         try {
@@ -177,6 +196,14 @@ public class OpenAiImageProviderClient implements ImageProviderClient {
         if (StringUtils.isNotBlank(quality)) {
             validateGpt25Quality(model, quality);
             body.put(OpenAiImageConstants.JSON_QUALITY, quality.trim());
+        }
+        String complexity = getStringOption(request == null ? null : request.getOptions(), "complexity");
+        if (isGpt26(model) && StringUtils.isNotBlank(complexity)) {
+            String normalized = complexity.trim().toLowerCase(java.util.Locale.ROOT);
+            if (!java.util.Set.of("low", "medium", "high").contains(normalized)) {
+                throw new ServiceException("图片构图复杂度无效");
+            }
+            body.put("complexity", normalized);
         }
         // 可选：背景 / 输出格式（仅在业务显式指定时下发）
         String background = getStringOption(request == null ? null : request.getOptions(), "background");
@@ -309,7 +336,7 @@ public class OpenAiImageProviderClient implements ImageProviderClient {
     /**
      * 解析输出尺寸为官方 "宽x高" 字符串或 "auto"。
      */
-    private String resolveSize(String model, MediaImageGenerateRequest request) {
+    public static String resolveSize(String model, MediaImageGenerateRequest request) {
         if (request == null) {
             return OpenAiImageConstants.DEFAULT_IMAGE_SIZE;
         }
@@ -343,13 +370,13 @@ public class OpenAiImageProviderClient implements ImageProviderClient {
         }
         String byRatio = sizeFromAspectRatio(ratio);
         String normalized = normalizeSize(optSize);
-        if (isGpt25(model) && StringUtils.isNotBlank(optSize)
+        if ((isGpt25(model) || isGpt26(model)) && StringUtils.isNotBlank(optSize)
                 && !"auto".equalsIgnoreCase(optSize.trim()) && normalized == null) {
             throw new ServiceException("图片尺寸无效");
         }
         if (normalized == null) {
             normalized = normalizeSize(request.getSize());
-            if (isGpt25(model) && StringUtils.isNotBlank(request.getSize())
+            if ((isGpt25(model) || isGpt26(model)) && StringUtils.isNotBlank(request.getSize())
                     && !"auto".equalsIgnoreCase(request.getSize().trim()) && normalized == null) {
                 throw new ServiceException("图片尺寸无效");
             }
@@ -371,7 +398,7 @@ public class OpenAiImageProviderClient implements ImageProviderClient {
     }
 
     /** 判断显式宽高是否与目标比例一致，容忍标准显示分辨率的舍入误差。 */
-    private boolean matchesAspectRatio(String size, String ratio) {
+    private static boolean matchesAspectRatio(String size, String ratio) {
         if (StringUtils.isBlank(size) || StringUtils.isBlank(ratio)) {
             return false;
         }
@@ -390,7 +417,7 @@ public class OpenAiImageProviderClient implements ImageProviderClient {
     }
 
     /** 把 "1024*1024"/"1024x1024"/"1024×1024" 规范化为 "1024x1024"；非法或档位返回 null。 */
-    private String normalizeSize(String size) {
+    private static String normalizeSize(String size) {
         if (StringUtils.isBlank(size)) {
             return null;
         }
@@ -415,7 +442,7 @@ public class OpenAiImageProviderClient implements ImageProviderClient {
      * gpt-image-2 接受任意满足约束的分辨率：1:1→1024x1024、3:2→1536x1024、2:3→1024x1536、
      * 16:9→1536x864、9:16→864x1536。
      */
-    private String sizeFromAspectRatio(String ratio) {
+    private static String sizeFromAspectRatio(String ratio) {
         if (StringUtils.isBlank(ratio)) {
             return null;
         }
@@ -451,8 +478,10 @@ public class OpenAiImageProviderClient implements ImageProviderClient {
         if (errorNode.isObject() && !errorNode.isNull()) {
             String errMsg = errorNode.path(OpenAiImageConstants.JSON_MESSAGE).asText("未知错误");
             log.error("OpenAI 图片上游错误, model={}, error={}", model, errMsg);
-            return ProviderSubmitResult.builder()
-                    .rawResponse(StringUtils.abbreviate(respBody, OpenAiImageConstants.LOG_RESPONSE_SNIPPET_MAX)).build();
+            JsonNode outputs = root.path(OpenAiImageConstants.JSON_DATA);
+            if (outputs.isArray() && !outputs.isEmpty())
+                return com.aid.media.provider.ProviderSubmissionFailures.unknownResponse("上游同时返回错误和图片数据，需核实结果");
+            return com.aid.media.provider.ProviderSubmissionFailures.reportedFailure(respBody, model);
         }
 
         JsonNode data = root.path(OpenAiImageConstants.JSON_DATA);
@@ -532,6 +561,12 @@ public class OpenAiImageProviderClient implements ImageProviderClient {
         usage.put("input_tokens", inputTokens);
         usage.put("output_tokens", outputTokens);
         usage.put("total_tokens", totalTokens);
+        JsonNode inputDetails = meta.path("input_tokens_details");
+        if (inputDetails.path("text_tokens").isIntegralNumber()
+                && inputDetails.path("image_tokens").isIntegralNumber()) {
+            usage.put("image_request_text_tokens", inputDetails.path("text_tokens").asInt());
+            usage.put("image_request_image_tokens", inputDetails.path("image_tokens").asInt());
+        }
         // 兼容文本 LLM 口径
         usage.put("prompt_tokens", inputTokens);
         usage.put("completion_tokens", outputTokens);
@@ -573,21 +608,24 @@ public class OpenAiImageProviderClient implements ImageProviderClient {
             return null;
         }
     }
-    private String doPost(String url, String apiKey, String authHeader, String authPrefix, String json, int timeoutMs) {
+    private record HttpReply(int status, String body) { }
+
+    private HttpReply doPost(String url, String apiKey, String authHeader, String authPrefix, String json, int timeoutMs)
+            throws java.io.IOException, InterruptedException {
         String headerName = StringUtils.isNotBlank(authHeader) ? authHeader : HttpConstants.HEADER_AUTHORIZATION;
         String prefix = authPrefix != null ? authPrefix : HttpConstants.AUTH_BEARER_PREFIX;
-        try (HttpResponse response = HttpRequest.post(url)
+        var request = java.net.http.HttpRequest.newBuilder(java.net.URI.create(url))
                 .header(headerName, prefix + apiKey)
                 .header(HttpConstants.HEADER_CONTENT_TYPE, HttpConstants.CONTENT_TYPE_JSON)
-                .body(json)
-                .timeout(timeoutMs)
-                .execute()) {
-            return response.body();
-        }
+                .POST(java.net.http.HttpRequest.BodyPublishers.ofString(json, StandardCharsets.UTF_8))
+                .timeout(java.time.Duration.ofMillis(timeoutMs)).build();
+        var response = com.aid.media.provider.TextExecutionTransportScope.send(HTTP_CLIENT, request,
+                java.net.http.HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        return new HttpReply(response.statusCode(), response.body());
     }
 
     private void validateGpt25Size(String model, String size) {
-        if (!isGpt25(model) || StringUtils.isBlank(size) || "auto".equalsIgnoreCase(size)) return;
+        if ((!isGpt25(model) && !isGpt26(model)) || StringUtils.isBlank(size) || "auto".equalsIgnoreCase(size)) return;
         String[] parts = size.split("x");
         if (parts.length != 2) throw new ServiceException("图片尺寸无效");
         try {
@@ -606,20 +644,25 @@ public class OpenAiImageProviderClient implements ImageProviderClient {
     }
 
     private void validateGpt25Quality(String model, String quality) {
-        if (!isGpt25(model) || StringUtils.isBlank(quality)) return;
+        if ((!isGpt25(model) && !isGpt26(model)) || StringUtils.isBlank(quality)) return;
         String normalized = quality.trim().toLowerCase();
         if (!java.util.Set.of("auto", "low", "medium", "high", "xhigh", "max").contains(normalized)) {
             throw new ServiceException("图片质量无效");
         }
     }
 
-    private boolean isGpt25(String model) {
+    private static boolean isGpt25(String model) {
         return model != null && model.toLowerCase().contains("gpt-image-2.5");
     }
 
-    /** 新 2.5 官方契约使用 multipart；旧兼容网关保持既有 JSON edit 路径，可由配置显式升级。 */
+    private static boolean isGpt26(String model) {
+        return "gpt-image-2.6-flare".equalsIgnoreCase(model)
+                || "gpt-image-2.6-sunburst".equalsIgnoreCase(model);
+    }
+
+    /** GPT Image 2.5 和 2.6 官方编辑使用 multipart。 */
     private boolean useMultipartEdits(AiModelConfigVo modelConfig, String model) {
-        if (isGpt25(model)) return true;
+        if (isGpt25(model) || isGpt26(model)) return true;
         if (modelConfig == null || StringUtils.isBlank(modelConfig.getCapabilityJson())) return false;
         try {
             return MAPPER.readTree(modelConfig.getCapabilityJson()).path("openAiMultipartEdits").asBoolean(false);
@@ -628,61 +671,72 @@ public class OpenAiImageProviderClient implements ImageProviderClient {
         }
     }
 
-    private String doMultipart(String url, String apiKey, String authHeader, String authPrefix,
+    private HttpReply doMultipart(String url, String apiKey, String authHeader, String authPrefix,
                                Map<String, Object> body, List<String> images,
                                MediaImageGenerateRequest request, int timeoutMs) throws Exception {
         String boundary = "----aid-image-" + UUID.randomUUID().toString().replace("-", "");
-        Path multipartFile = Files.createTempFile("aid-openai-image-", ".multipart");
+        Path multipartFile = null;
         try {
-            try (OutputStream fileOutput = new BufferedOutputStream(Files.newOutputStream(multipartFile,
-                    StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE));
-                 LimitedOutputStream output = new LimitedOutputStream(fileOutput, MAX_MULTIPART_BYTES)) {
-                for (Map.Entry<String, Object> entry : body.entrySet()) {
-                    if (OpenAiImageConstants.JSON_IMAGES.equals(entry.getKey()) || entry.getValue() == null
-                            || entry.getValue() instanceof Map<?, ?> || entry.getValue() instanceof List<?>) continue;
-                    writePart(output, boundary, entry.getKey(), String.valueOf(entry.getValue()));
-                }
-                if (ImageEditAssetSupport.isOutpainting(request)) {
-                    ImageEditAssetSupport.OpenAiExpandPayload payload =
-                            ImageEditAssetSupport.prepareOpenAiExpand(request);
-                    writeFile(output, boundary, "image[]", "image.png", "image/png",
-                            payload.image());
-                    writeFile(output, boundary, "mask", "mask.png", "image/png",
-                            payload.mask());
-                } else {
-                    int index = 0;
-                    java.awt.image.BufferedImage primaryImage = null;
-                    for (String image : images) {
-                        ImageEditAssetSupport.BinaryImage binary = ImageEditAssetSupport.read(image, "参考图");
-                        if (primaryImage == null) primaryImage = binary.image();
-                        writeImageFile(output, boundary, "image[]", "image-" + (++index) + ".png",
-                                binary.image());
+            java.net.http.HttpRequest httpRequest;
+            try {
+                multipartFile = Files.createTempFile(com.aid.common.config.AidAppConfig.getTemporaryDirectory(), "aid-openai-image-", ".multipart");
+                try (OutputStream fileOutput = new BufferedOutputStream(Files.newOutputStream(multipartFile,
+                        StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE));
+                     LimitedOutputStream output = new LimitedOutputStream(fileOutput, MAX_MULTIPART_BYTES)) {
+                    for (Map.Entry<String, Object> entry : body.entrySet()) {
+                        if (OpenAiImageConstants.JSON_IMAGES.equals(entry.getKey()) || entry.getValue() == null
+                                || entry.getValue() instanceof Map<?, ?> || entry.getValue() instanceof List<?>) continue;
+                        writePart(output, boundary, entry.getKey(), String.valueOf(entry.getValue()));
                     }
-                    if (ImageEditAssetSupport.isInpainting(request)) {
-                        if (primaryImage == null) throw new ServiceException("蒙版编辑缺少原图");
+                    if (ImageEditAssetSupport.isOutpainting(request)) {
+                        ImageEditAssetSupport.OpenAiExpandPayload payload =
+                                ImageEditAssetSupport.prepareOpenAiExpand(request);
+                        writeFile(output, boundary, "image[]", "image.png", "image/png",
+                                payload.image());
                         writeFile(output, boundary, "mask", "mask.png", "image/png",
-                                ImageEditAssetSupport.toOpenAiMask(request, primaryImage));
+                                payload.mask());
+                    } else {
+                        int index = 0;
+                        java.awt.image.BufferedImage primaryImage = null;
+                        for (String image : images) {
+                            ImageEditAssetSupport.BinaryImage binary = ImageEditAssetSupport.readRequestReference(request, image, "参考图");
+                            if (primaryImage == null) primaryImage = binary.image();
+                            writeImageFile(output, boundary, "image[]", "image-" + (++index) + ".png",
+                                    binary.image(), image);
+                        }
+                        if (ImageEditAssetSupport.isInpainting(request)) {
+                            if (primaryImage == null) throw new ServiceException("蒙版编辑缺少原图");
+                            writeFile(output, boundary, "mask", "mask.png", "image/png",
+                                    ImageEditAssetSupport.toOpenAiMask(request, primaryImage));
+                        }
                     }
+                    output.write(("--" + boundary + "--\r\n").getBytes(StandardCharsets.UTF_8));
                 }
-                output.write(("--" + boundary + "--\r\n").getBytes(StandardCharsets.UTF_8));
+                String headerName = StringUtils.isNotBlank(authHeader) ? authHeader : HttpConstants.HEADER_AUTHORIZATION;
+                String prefix = authPrefix != null ? authPrefix : HttpConstants.AUTH_BEARER_PREFIX;
+                httpRequest = java.net.http.HttpRequest.newBuilder(java.net.URI.create(url))
+                        .header(headerName, prefix + apiKey)
+                        .header(HttpConstants.HEADER_CONTENT_TYPE, "multipart/form-data; boundary=" + boundary)
+                        .POST(java.net.http.HttpRequest.BodyPublishers.ofFile(multipartFile))
+                        .timeout(java.time.Duration.ofMillis(timeoutMs)).build();
+            } catch (Exception preparationFailure) {
+                // Only this pre-transport block can prove the request was never sent.
+                throw new MultipartPreparationException(preparationFailure);
             }
-            String headerName = StringUtils.isNotBlank(authHeader) ? authHeader : HttpConstants.HEADER_AUTHORIZATION;
-            String prefix = authPrefix != null ? authPrefix : HttpConstants.AUTH_BEARER_PREFIX;
-            try (HttpResponse response = HttpRequest.post(url)
-                    .header(headerName, prefix + apiKey)
-                    .header(HttpConstants.HEADER_CONTENT_TYPE, "multipart/form-data; boundary=" + boundary)
-                    .body(new cn.hutool.core.io.resource.FileResource(multipartFile))
-                    .timeout(timeoutMs)
-                    .execute()) {
-                return response.body();
-            }
+            var response = com.aid.media.provider.TextExecutionTransportScope.send(HTTP_CLIENT, httpRequest,
+                    java.net.http.HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+            return new HttpReply(response.statusCode(), response.body());
         } finally {
             try {
-                Files.deleteIfExists(multipartFile);
+                if (multipartFile != null) Files.deleteIfExists(multipartFile);
             } catch (Exception cleanupFailure) {
-                log.warn("OpenAI 图片临时请求体清理失败, file={}", multipartFile.getFileName());
+                log.warn("OpenAI 图片临时请求体清理失败, file={}", multipartFile == null ? null : multipartFile.getFileName());
             }
         }
+    }
+
+    private static final class MultipartPreparationException extends Exception {
+        private MultipartPreparationException(Exception cause) { super(cause); }
     }
 
     private void writePart(OutputStream output, String boundary, String name, String value)
@@ -704,13 +758,16 @@ public class OpenAiImageProviderClient implements ImageProviderClient {
     }
 
     private void writeImageFile(OutputStream output, String boundary, String name, String filename,
-                                java.awt.image.BufferedImage image) throws Exception {
+                                java.awt.image.BufferedImage image, String source) throws Exception {
         output.write(("--" + boundary + "\r\nContent-Disposition: form-data; name=\"" + name
                 + "\"; filename=\"" + filename + "\"\r\nContent-Type: image/png\r\n\r\n")
                 .getBytes(StandardCharsets.UTF_8));
-        LimitedOutputStream imageOutput = new LimitedOutputStream(output, ImageEditAssetSupport.MAX_INPUT_BYTES);
-        if (!javax.imageio.ImageIO.write(image, "png", imageOutput)) throw new ServiceException("图片编码失败");
+        var digest = java.security.MessageDigest.getInstance("SHA-256");
+        LimitedOutputStream imageOutput = new LimitedOutputStream(new java.security.DigestOutputStream(output, digest), ImageEditAssetSupport.MAX_INPUT_BYTES);
+        if (!ManagedImageIO.write(image, "png", imageOutput)) throw new ServiceException("图片编码失败");
         imageOutput.flush();
+        var scope = com.aid.media.provider.ImageInputExecutionScope.current();
+        if (scope != null) scope.recordDelivery(source, "MULTIPART", java.util.HexFormat.of().formatHex(digest.digest()), image.getWidth(), image.getHeight());
         output.write("\r\n".getBytes(StandardCharsets.UTF_8));
     }
 
@@ -784,7 +841,7 @@ public class OpenAiImageProviderClient implements ImageProviderClient {
         return ProviderEndpointUtils.buildSubmitUrl(modelConfig.getBaseUrl(), suffix);
     }
 
-    private String getStringOption(Map<String, Object> options, String key) {
+    private static String getStringOption(Map<String, Object> options, String key) {
         if (options == null || key == null) {
             return null;
         }

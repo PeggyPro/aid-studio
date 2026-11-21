@@ -3,7 +3,7 @@
 import { Modal } from 'antd'
 import { getRouteLikeSnapshot } from '~/composables/useRouteLike'
 import { useCreationStore } from '~/stores/creation'
-import { userAssetRpsList } from '~/utils/businessApi'
+import { hasProjectSceneCharacterPropAssets } from '~/utils/projectConfigAssetGuard'
 import { normalizeScriptContent } from '~/utils/scriptContentFingerprint'
 import { scriptExtractBaselineStore } from '~/utils/scriptExtractBaseline'
 import { resolveStoryScriptSaveContext } from '~/utils/storyScriptSaveContext'
@@ -11,29 +11,6 @@ import { resolveStoryScriptSaveContext } from '~/utils/storyScriptSaveContext'
 const SCRIPT_CHANGE_MODAL_TITLE = '剧本已更新'
 const SCRIPT_CHANGE_MODAL_CONTENT =
   '检测到剧本有实质性更新，且素材库已有内容。可继续提取以补充新角色/场景/道具，或重新提取（会删除此前自动提取的内容并重新计费）。'
-
-async function hasAnyExtractedAssets(projectId: number, episodeId: number): Promise<boolean> {
-  const local = useCreationStore.getState().formData.sceneCharacter
-  if (
-    (local.scenes?.length ?? 0) > 0 ||
-    (local.characters?.length ?? 0) > 0 ||
-    (local.props?.length ?? 0) > 0
-  ) {
-    return true
-  }
-  try {
-    const [scenes, characters, props] = await Promise.all([
-      userAssetRpsList({ projectId, episodeId, assetType: 'scene' }),
-      userAssetRpsList({ projectId, episodeId, assetType: 'character' }),
-      userAssetRpsList({ projectId, episodeId, assetType: 'prop' })
-    ])
-    const count = (r: { total?: number; rows?: unknown[] } | null | undefined) =>
-      Number(r?.total) > 0 || (Array.isArray(r?.rows) && (r?.rows?.length ?? 0) > 0)
-    return count(scenes) || count(characters) || count(props)
-  } catch {
-    return false
-  }
-}
 
 async function resolvePromptContext(): Promise<{
   projectId: number
@@ -46,7 +23,9 @@ async function resolvePromptContext(): Promise<{
   const ctx = await resolveStoryScriptSaveContext(creationStore, getRouteLikeSnapshot())
   if (!ctx) return null
   const scriptHtml = useCreationStore.getState().formData.storyScript.content || ''
-  const hasExtractedAssets = await hasAnyExtractedAssets(ctx.projectId, ctx.episodeId)
+  const hasExtractedAssets = await hasProjectSceneCharacterPropAssets(ctx.projectId, ctx.episodeId, {
+    sceneCharacter: useCreationStore.getState().formData.sceneCharacter
+  })
   return {
     projectId: ctx.projectId,
     episodeId: ctx.episodeId,

@@ -13,8 +13,9 @@ import {
   applyEpisodeRowToCreationStore,
   hydrateCreationStoreFromProjectDetail
 } from '@/utils/hydrateCreationStoreFromProjectDetail'
-import { resolveStoryScriptEditorHtmlAfterApiLoad } from '@/utils/htmlPlain'
-import { setStoryScriptServerBaseline } from '@/utils/storyScriptPersistence'
+import { resolveStoryScriptEditorHtmlAfterApiLoad, storyScriptOriginalTextForApi } from '@/utils/htmlPlain'
+import { getStoryScriptServerBaseline, readStoryScriptLocalSnapshot, setStoryScriptServerBaseline } from '@/utils/storyScriptPersistence'
+import { canApplyStudioFlowScriptRefresh, type StudioFlowScriptRefreshGuard } from '@/utils/studio/studioFlowScriptRefreshGuard'
 import { mapStoryboardListRowToPanel } from '@/utils/storyboardPanelMap'
 import { userEpisodeList } from '@/utils/businessApi'
 import type { FlowUserTaskListIntent } from '@/utils/userTaskListFlowOnce'
@@ -37,9 +38,9 @@ import {
 } from '@/utils/studio/studioFlowEvents'
 import { requestStudioFlowAdvancedModal } from '@/utils/studio/studioFlowAdvancedModal'
 import { StudioFlowModalHost } from './composer/StudioFlowModalHost'
-import { StudioFlowExportProvider } from './StudioFlowExportProvider'
+import { StudioFlowPublishExportProvider } from './StudioFlowPublishExportProvider'
 import { isStudioFlowWorkspaceScopeReady } from '@/utils/studio/studioFlowWorkspace'
-import { canonicalStudioFlowEpisodeId } from '@/utils/studio/studioFlowEntry'
+import { canonicalStudioFlowEpisodeId } from '@/utils/studio/studioModeEntry'
 import { CREATE_SERIES_EPISODE_LIST_PATH } from '@/utils/createFlowRoutes'
 import {
   isStudioFlowRuntimeScopeReady,
@@ -104,7 +105,7 @@ export function StudioFlowRuntimeProvider({
     isStudioFlowWorkspaceScopeReady(state, workspaceScopeKey)
   )
 
-  const applySnapshot = useCallback((snapshot: LoadedStudioFlowProject) => {
+  const applySnapshot = useCallback((snapshot: LoadedStudioFlowProject, scriptGuard: StudioFlowScriptRefreshGuard) => {
     const creation = useCreationStore.getState()
     const previous = lastSuccessRef.current
     const episodeForStore = resolveStudioFlowEpisodeForStore(snapshot, previous)
@@ -112,7 +113,13 @@ export function StudioFlowRuntimeProvider({
     creation.setCurrentProjectType(snapshot.projectType)
     creation.setWorkTitle(snapshot.title)
     if (episodeForStore) applyEpisodeRowToCreationStore(creation, episodeForStore)
-    if (shouldApplyStudioFlowStoreSection(snapshot.failedSteps, 'story-script')) {
+    const currentScriptBaseline = getStoryScriptServerBaseline({ projectId, episodeId: snapshot.episodeId })
+    const canRefreshScript = canApplyStudioFlowScriptRefresh(scriptGuard, {
+      projectId: Number(creation.currentProjectId), episodeId: creation.currentEpisodeId,
+      requestRevision: generationRef.current, editorContent: creation.formData.storyScript.content || '',
+      baselineRevision: JSON.stringify([currentScriptBaseline.scriptId, currentScriptBaseline.comicVersion, currentScriptBaseline.contentHash])
+    })
+    if (canRefreshScript && shouldApplyStudioFlowStoreSection(snapshot.failedSteps, 'story-script')) {
       const serverText = String(snapshot.source.script?.originalText ?? '')
       setStoryScriptServerBaseline(
         { projectId, episodeId: snapshot.episodeId },
@@ -137,7 +144,7 @@ export function StudioFlowRuntimeProvider({
 
     useStudioUiStore.setState((state) => {
       const graph = reconcileStudioFlowGraph(
-        { nodes: state.nodes, edges: state.edges },
+        { nodes: state.nodes, edges: state.edges, groups: state.groups },
         { nodes: snapshot.nodes, edges: snapshot.edges },
         {
           preserveMissingSteps: snapshot.failedSteps,
@@ -166,10 +173,21 @@ export function StudioFlowRuntimeProvider({
       if (generation !== generationRef.current) return
       const creation = useCreationStore.getState()
       const projectChanged = Number(creation.currentProjectId ?? 0) !== projectId
+      const sameScriptScope = creation.currentProjectId === projectId && creation.currentEpisodeId === episodeId
       creation.setCurrentProjectContext({ projectId, episodeId })
+      const scriptContent = useCreationStore.getState().formData.storyScript.content || ''
+      const scriptContext = { projectId, episodeId: episodeId ?? 0 }
+      const scriptBaseline = getStoryScriptServerBaseline(scriptContext)
+      const scriptApiText = storyScriptOriginalTextForApi(scriptContent)
+      const localScript = readStoryScriptLocalSnapshot(scriptContext)
+      const scriptGuard: StudioFlowScriptRefreshGuard = { projectId, episodeId, requestRevision: generation, editorContent: scriptContent,
+        baselineRevision: JSON.stringify([scriptBaseline.scriptId, scriptBaseline.comicVersion, scriptBaseline.contentHash]),
+        preserveUnsaved: sameScriptScope && ((!isInitial && scriptApiText !== scriptBaseline.originalText) || localScript?.content === scriptApiText)
+      }
       const project = await hydrateCreationStoreFromProjectDetail(useCreationStore.getState(), projectId, {
         force: !isInitial,
-        shouldApply: () => generation === generationRef.current,
+        shouldApply: () => generation === generationRef.current && useCreationStore.getState().currentProjectId === projectId
+          && useCreationStore.getState().currentEpisodeId === episodeId,
         explicitSeriesEpisodeId: episodeId,
         preservePreviousProjectStyle: !projectChanged
       })
@@ -196,8 +214,10 @@ export function StudioFlowRuntimeProvider({
         project
       })
       if (generation !== generationRef.current) return
+      const activeScope = useCreationStore.getState()
+      if (activeScope.currentProjectId !== scriptGuard.projectId || activeScope.currentEpisodeId !== scriptGuard.episodeId) return
       const snapshot = preserveStudioFlowTasksAfterFailure(loaded, lastSuccessRef.current)
-      const preservedEpisode = applySnapshot(snapshot)
+      const preservedEpisode = applySnapshot(snapshot, scriptGuard)
       lastSuccessRef.current = preservedEpisode === snapshot.source.episode
         ? snapshot
         : { ...snapshot, source: { ...snapshot.source, episode: preservedEpisode } }
@@ -345,6 +365,7 @@ export function StudioFlowRuntimeProvider({
 
   const openEpisodeManagement = () => {
     const next = new URLSearchParams(query.toString())
+    next.delete('studioMode')
     next.delete('episodeId')
     next.set('projectId', String(projectId))
     next.set('id', String(projectId))
@@ -419,7 +440,7 @@ export function StudioFlowRuntimeProvider({
   }
   return (
     <StudioFlowRuntimeContext.Provider value={value}>
-      <StudioFlowExportProvider pageReady={phase === 'ready'}>
+      <StudioFlowPublishExportProvider pageReady={phase === 'ready'}>
         {children}
         {errors.length ? (
           <aside className="studio-flow-runtime-errors" role="alert" aria-live="polite">
@@ -428,7 +449,7 @@ export function StudioFlowRuntimeProvider({
           </aside>
         ) : null}
         <StudioFlowModalHost />
-      </StudioFlowExportProvider>
+      </StudioFlowPublishExportProvider>
     </StudioFlowRuntimeContext.Provider>
   )
 }

@@ -50,14 +50,14 @@
 }
 
 .dubbing-step .storyboard-generating-center-title {
-  color: var(--home-text, #e6edf3);
+  color: var(--home-text, var(--ui-text, #e6edf3));
   font-size: 15px;
   line-height: 1.5;
   font-weight: 500;
 }
 
 .dubbing-step .storyboard-generating-center-progress {
-  color: var(--home-muted, #8e97a5);
+  color: var(--home-muted, var(--ui-muted, #8e97a5));
   font-size: 13px;
   line-height: 1.4;
 }
@@ -65,7 +65,7 @@
 .dubbing-step .dubbing-empty-desc {
   margin: 0;
   font-size: 13px;
-  color: #8e97a5;
+  color: var(--ui-muted, #8e97a5);
   text-align: center;
   max-width: 22rem;
   line-height: 1.5;
@@ -84,7 +84,7 @@
 }
 
 .dubbing-step .storyboard-list-item--chosen {
-  border-color: rgba(74, 231, 253, 0.45);
+  border-color: var(--ui-hair, rgba(74, 231, 253, 0.45));
 }
 
 .dubbing-step .storyboard-list-item--fallback,
@@ -117,7 +117,7 @@
 
 .dubbing-step .storyboard-block-title {
   font-size: 0.82rem;
-  color: var(--home-muted, #8e97a5);
+  color: var(--home-muted, var(--ui-muted, #8e97a5));
   margin-bottom: 0.35rem;
   font-weight: 600;
 }
@@ -126,12 +126,12 @@
   position: relative;
   border-radius: var(--radius-md);
   overflow: hidden;
-  background: rgba(6, 10, 18, 0.55);
+  background: var(--ui-bg, rgba(6, 10, 18, 0.55));
 }
 
 /* 高度复用 storyboard-list-media 的剩余空间布局，不能再固定为 200px。 */
 .dubbing-step .dubbing-video-area--list {
-  border: 1px dashed rgba(74, 231, 253, 0.3);
+  border: 1px dashed var(--ui-hair, rgba(74, 231, 253, 0.3));
 }
 
 .dubbing-step .dubbing-video-area.is-generating {
@@ -164,12 +164,12 @@
 .dubbing-step .dubbing-skeleton-line {
   height: 12px;
   border-radius: 4px;
-  background: linear-gradient(
+  background: var(--ui-surface, linear-gradient(
     90deg,
     rgba(74, 231, 253, 0.12) 25%,
     rgba(74, 231, 253, 0.22) 50%,
     rgba(74, 231, 253, 0.12) 75%
-  );
+  ));
   background-size: 200% 100%;
   animation: dubbing-skeleton-shine 1.2s ease-in-out infinite;
 }

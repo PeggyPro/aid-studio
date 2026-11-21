@@ -1,7 +1,7 @@
 /* Tailwind/PostCSS component styles for SceneSettingModal. */
 /* 与 BatchRegenerateDubbingModal .brdm 同高 */
 .setting-modal-shell {
-  color: #e6edf3;
+  color: var(--ui-text, #e6edf3);
   height: 698px;
   max-height: calc(100vh - 80px);
   display: flex;
@@ -29,14 +29,14 @@
   border: none;
   border-radius: 4px;
   background: transparent;
-  color: rgba(142, 151, 165, 1);
+  color: var(--ui-muted, rgba(142, 151, 165, 1));
   cursor: pointer;
   font-size: 16px;
   flex-shrink: 0;
 }
 
 .setting-modal-close:hover {
-  color: #4ae7fd;
+  color: var(--ui-brand, #4ae7fd);
 }
 
 .setting-modal-body {
@@ -58,13 +58,13 @@
   font-size: 1.0625rem;
   line-height: 1.375;
   font-weight: 600;
-  color: var(--home-text, #e6edf3);
+  color: var(--home-text, var(--ui-text, #e6edf3));
 }
 
 .modal-title-prefix {
   font-size: inherit;
   font-weight: inherit;
-  color: var(--accent-400, #4ae7fd);
+  color: var(--accent-400, var(--ui-brand, #4ae7fd));
   flex-shrink: 0;
 }
 
@@ -85,8 +85,7 @@
 }
 
 .modal-title-editable:hover {
-  background: rgba(14, 89, 250, 0.12);
-  color: var(--home-cyan, #4ae7fd);
+  color: inherit;
 }
 
 .modal-title-input {
@@ -118,10 +117,10 @@
 }
 
 .modal-title-input .ant-input::placeholder {
-  color: var(--home-muted, #8e97a5);
+  color: var(--home-muted, var(--ui-muted, #8e97a5));
 }
 
-.modal-content {
+.scene-setting-modal .modal-content {
   flex: 1 1 auto;
   min-height: 0;
   display: grid;
@@ -129,7 +128,7 @@
   overflow: hidden;
 }
 
-.toolbar {
+.scene-setting-modal .toolbar {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -137,12 +136,12 @@
   flex-shrink: 0;
 }
 
-.toolbar-left {
+.scene-setting-modal .toolbar-left {
   display: flex;
   gap: 0.5rem;
 }
 
-.toolbar-btn {
+.scene-setting-modal .toolbar-btn {
   display: flex;
   align-items: center;
   gap: 0.25rem;
@@ -152,39 +151,39 @@
   background: var(--create-surface-panel);
   cursor: pointer;
   transition: all 0.2s ease;
-  color: var(--home-text, #e6edf3);
+  color: var(--home-text, var(--ui-text, #e6edf3));
   font-size: 0.875rem;
 }
 
-.toolbar-btn:hover:not(:disabled) {
-  border-color: var(--accent-400, #4ae7fd);
-  color: var(--accent-400, #4ae7fd);
-  background: rgba(74, 231, 253, 0.1);
+.scene-setting-modal .toolbar-btn:hover:not(:disabled) {
+  border-color: var(--accent-400, var(--ui-ring, #4ae7fd));
+  color: var(--accent-400, var(--ui-brand, #4ae7fd));
+  background: var(--ui-soft-hover, rgba(74, 231, 253, 0.1));
 }
 
-.toolbar-btn:disabled {
+.scene-setting-modal .toolbar-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
 
-.toolbar-right {
+.scene-setting-modal .toolbar-right {
   display: flex;
   gap: 0.75rem;
 }
 
-.toolbar-right .ant-btn {
-  border: 1px solid rgba(47, 57, 73, 1) !important;
+.scene-setting-modal .toolbar-right .ant-btn {
+  border: 1px solid var(--ui-hair, rgba(47, 57, 73, 1)) !important;
   border-radius: 8px;
 }
 
-.editor-container {
+.scene-setting-modal .editor-container {
   min-height: 0;
   overflow: hidden;
   display: flex;
   flex-direction: column;
 }
 
-.script-editor {
+.scene-setting-modal .script-editor {
   flex: 1 1 auto;
   min-height: 0;
   width: 100%;
@@ -193,22 +192,22 @@
   --rte-max-height: none;
 }
 
-.script-editor .rich-text-editor {
+.scene-setting-modal .script-editor .rich-text-editor {
   height: 100%;
   min-height: 0;
 }
 
-.script-editor .rich-text-editor__host {
+.scene-setting-modal .script-editor .rich-text-editor__host {
   height: 100%;
   min-height: 0;
 }
 
-.script-editor .ql-container.ql-snow {
+.scene-setting-modal .script-editor .ql-container.ql-snow {
   height: 100%;
   min-height: 0;
 }
 
-.script-editor .ql-editor {
+.scene-setting-modal .script-editor .ql-editor {
   min-height: 0 !important;
   height: 100% !important;
   max-height: 100% !important;
@@ -217,5 +216,5 @@
 
 /* 结构化设定：小节标题 strong 主色（与锁定区视觉一致） */
 .scene-setting-modal--structured .script-editor--structured-setting .ql-editor strong {
-  color: #4ae7fd !important;
+  color: var(--ui-brand, #4ae7fd) !important;
 }

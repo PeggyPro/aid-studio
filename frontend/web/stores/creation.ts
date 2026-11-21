@@ -9,6 +9,7 @@ import { createStep3Slice } from './creation/step3Slice'
 import { createStep4Slice } from './creation/step4Slice'
 import { createModalTaskSlice } from './creation/modalTaskSlice'
 import { createVideoBatchSlice } from './creation/videoBatchSlice'
+import { isPublicProjectPreviewRuntimeActive } from '~/utils/publicProjectPreviewRuntime'
 
 /** 与原 Pinia persist.paths 一一对应：只持久化需要的数据，排除临时状态 */
 const CREATION_PERSIST_PATHS = [
@@ -83,6 +84,8 @@ const creationPersistStorage: PersistStorage<CreationPersistedState> = {
   },
   setItem: (name, value) => {
     if (typeof window === 'undefined') return
+    // 公开快照只借用正常流程页的内存 store 渲染，不能污染登录用户的本地工程草稿。
+    if (isPublicProjectPreviewRuntimeActive()) return
     window.localStorage.setItem(name, JSON.stringify(value))
   },
   removeItem: (name) => {

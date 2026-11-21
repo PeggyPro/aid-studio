@@ -16,6 +16,10 @@
     </description>
 
     <dependencies>
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-websocket</artifactId>
+        </dependency>
 
         <!-- Spring框架基本的核心工具 -->
         <dependency>
@@ -147,6 +151,13 @@
         <dependency>
             <groupId>com.qiniu</groupId>
             <artifactId>qiniu-java-sdk</artifactId>
+        </dependency>
+
+        <!-- 官方AWS Signature V4：用于七牛S3系统域名的标准资源签名。 -->
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>http-auth-aws</artifactId>
+            <version>2.57.9</version>
         </dependency>
 
         <!-- aid-springboot3 / mybatis-plus 配置 -->

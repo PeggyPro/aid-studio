@@ -1,6 +1,7 @@
 import type { StoryboardPanel } from '@/types'
-import type { StudioCanvasNode } from '@/types/studio'
+import type { StudioCanvasNode, StudioMode } from '@/types/studio'
 import { isStoryboardImageSelected } from '@/utils/storyboardImageCover'
+import { resolveStudioStoryboardCompositionReferenceUrl } from '@/utils/studio/studioStoryboardComposition'
 
 export interface StudioStoryboardImageBinding {
   storyboardId: number | null
@@ -29,14 +30,22 @@ export function resolveStudioStoryboardImageBinding(
   }
 }
 
+/** 节点是否具备可提交的图编辑参考源（自身媒体或分镜构图引用） */
+export function resolveStudioImageActionSourceUrl(node: StudioCanvasNode): string {
+  return resolveStudioStoryboardCompositionReferenceUrl(node.data)
+}
+
 export function studioImageActionDisabledReason(input: {
   node: StudioCanvasNode
   binding: StudioStoryboardImageBinding
   requiresRecord?: boolean
   modelAvailable?: boolean
+  /** free：不要求事先绑定分镜，提交时再懒创建；flow：仍要求真实分镜绑定 */
+  studioMode?: StudioMode
 }): string | null {
-  if (!input.node.data.mediaUrl) return '请先上传或生成源图片'
-  if (!input.binding.storyboardId) {
+  if (!resolveStudioImageActionSourceUrl(input.node)) return '请先上传或生成源图片'
+  const requireStoryboard = input.studioMode !== 'free'
+  if (requireStoryboard && !input.binding.storyboardId) {
     return '仅绑定到真实分镜的数据节点可提交该任务'
   }
   if (input.requiresRecord && !input.binding.genRecordId) {

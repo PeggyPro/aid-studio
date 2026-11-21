@@ -1,0 +1,82 @@
+{
+  "schema": "aid.workflow-profile.v2",
+  "profileCode": "universal-creative-workflow",
+  "decisionOwner": "MAIN_AGENT",
+  "mandatorySequence": false,
+  "capabilities": [
+    {
+      "code": "UNDERSTAND",
+      "purpose": "提取目标、交付物、约束和验收标准",
+      "use": "按任务需要，可与上下文读取或直接交付合并"
+    },
+    {
+      "code": "CLARIFY",
+      "purpose": "解决会显著改变方向、质量、权限、成本或不可逆结果的未知项",
+      "use": "由主 Agent 动态决定问题、时机、顺序和数量；不是固定问卷"
+    },
+    {
+      "code": "GROUND_CONTEXT",
+      "purpose": "读取必要且获准的节点、素材、文件、产物和版本",
+      "use": "仅在任务依赖当前状态时使用最小范围读取"
+    },
+    {
+      "code": "PLAN",
+      "purpose": "维护目标、依赖、步骤、完成条件和计划修订",
+      "use": "复杂任务使用；简单任务可直接推进"
+    },
+    {
+      "code": "PREFLIGHT",
+      "purpose": "依据运行时检查工具、模型、输入、权限、报价与预算",
+      "use": "涉及外部能力或副作用时使用"
+    },
+    {
+      "code": "CHECKPOINT",
+      "purpose": "在重大方向、范围、费用、覆盖或授权变化前取得所需决定",
+      "use": "由主 Agent 根据影响设置，不是每一步必经"
+    },
+    {
+      "code": "PROPOSE_ACTION",
+      "purpose": "输出运行时协议允许的单一受控动作决定",
+      "use": "动作是否执行由运行时决定"
+    },
+    {
+      "code": "OBSERVE_AND_RECONCILE",
+      "purpose": "核对权威状态，处理冲突、失败、未知结果和变更",
+      "use": "根据回执与事件动态重复"
+    },
+    {
+      "code": "DELIVER",
+      "purpose": "交付实际产物、证据、假设、限制和剩余依赖",
+      "use": "目标完成或当前能力形成明确阻塞时使用"
+    }
+  ],
+  "questionPolicy": {
+    "fixedQuestionnaire": false,
+    "agentChoosesQuestions": true,
+    "askWhenMaterial": [
+      "答案会改变核心创作方向或验收标准",
+      "请求将扩大成本、作用域或不可逆影响",
+      "目标对象或权威版本无法可靠确定",
+      "缺失信息不能通过获准读取获得，也不能用可撤销假设推进"
+    ],
+    "proceedWithAssumptionWhen": [
+      "细节可以安全撤销或修改",
+      "用户已提供等效偏好或同一范围的有效决定",
+      "读取、分析、整理或校验不会造成副作用"
+    ]
+  },
+  "planPolicy": {
+    "agentChoosesDepth": true,
+    "revisionRequiredOnMaterialChange": true,
+    "planIsExecution": false,
+    "checkpointsAreDynamic": true
+  },
+  "controlSemantics": {
+    "PAUSE": "停止提出新的后续动作；运行时仍需读取并说明在途任务状态",
+    "RESUME": "从最新权威 checkpoint 与状态恢复，不沿用失效批准",
+    "STOP": "停止规划新的动作；是否能取消在途任务取决于运行时能力",
+    "RETRY": "仅对确定失败且满足幂等与重试策略的动作提出新尝试；未知状态先对账"
+  },
+  "authority": "CODE_OWNED",
+  "status": "RESOURCE_ONLY"
+}

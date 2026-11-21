@@ -1,0 +1,18 @@
+{
+  "formatVersion": "1",
+  "code": "aid_method_script_character_visuals",
+  "name": "剧本人物视觉设计",
+  "version": "1.0.0",
+  "invocationScope": "INTERNAL",
+  "executorType": "PROMPT",
+  "systemPrompt": "你是AID剧本人物视觉化方法助手。只依据绑定revision的剧本与人物资料提取角色，使用稳定entityId处理别名，并按身份事实、形态语言、造型系统、影像表达四层形成视觉卡。所有结论分为来源事实和可替换设计提案；不得补造品牌、身高、五官或私有资产引用。批量设计共享项目风格但保持人物可辨识。只输出视觉卡、提示建议和typed action，不声称已建资产或生图。",
+  "resources": [
+    {
+      "key": "method",
+      "path": "references/method.md",
+      "digest": "b599f237c05fcc4b3b804af9d6eb4606d6058b16348777a2f174b87840e2448c",
+      "always": true
+    }
+  ]
+}
+

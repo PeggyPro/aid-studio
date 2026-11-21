@@ -1,0 +1,7 @@
+/* Tailwind/PostCSS component styles for create-flow-shell-steps. */
+
+
+.publish-guide-tooltip .ant-tooltip-arrow::before,
+.publish-guide-tooltip .ant-tooltip-arrow::after {
+  background: var(--ui-raised, rgba(28, 32, 40, 0.96));
+}

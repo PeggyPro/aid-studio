@@ -1,0 +1,21 @@
+.studio-workspace-modal { --workspace-dialog-gutter: 22px; }
+.studio-workspace-modal .ant-modal-container.studio-workspace-modal__container { padding: 0; }
+.studio-workspace-modal .ant-modal-header.studio-workspace-modal__header {
+  display: flex;
+  align-items: center;
+  min-height: 56px;
+  margin: 0;
+  /* The legacy global header declares important padding; this scoped owner replaces that geometry. */
+  padding: 12px 56px 12px var(--workspace-dialog-gutter) !important;
+  border-bottom: 0;
+  background: transparent;
+}
+.studio-workspace-modal .ant-modal-title.studio-workspace-modal__title { min-width: 0; font-size: 15px; font-weight: 600; line-height: 32px; padding: 0; color: var(--studio-ui-text); }
+.studio-workspace-modal .ant-modal-close.studio-workspace-modal__close { top: 12px; inset-inline-end: 12px; width: 32px; height: 32px; margin: 0; border-radius: 9px; color: var(--studio-ui-muted); display: grid; place-items: center; }
+.studio-workspace-modal .ant-modal-close:hover { color: var(--studio-ui-text); background: var(--studio-ui-hover); }
+.studio-workspace-modal .ant-modal-body.studio-workspace-modal__body { padding: 12px var(--workspace-dialog-gutter) var(--workspace-dialog-gutter); }
+.studio-workspace-modal .ant-modal-footer.studio-workspace-modal__footer { padding: 0 var(--workspace-dialog-gutter) 20px; margin: 0; }
+/* Ant Design confirms render their own content and buttons outside the normal body/footer semantics. */
+.studio-workspace-modal .ant-modal-confirm .ant-modal-body { padding: 8px var(--workspace-dialog-gutter) 20px; }
+.studio-workspace-modal .ant-modal-confirm:has(.studio-workspace-modal__header) .ant-modal-confirm-title { display: none; }
+@media (max-width: 600px) { .studio-workspace-modal { --workspace-dialog-gutter: 16px; } }

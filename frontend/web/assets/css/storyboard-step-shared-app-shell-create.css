@@ -29,7 +29,7 @@ html.app-shell-create {
 .storyboard-step .storyboard-script-empty,
 .storyboard-step .storyboard-video-empty,
 .storyboard-step .dubbing-wrap {
-  border: 1px solid rgba(74, 231, 253, 0.3);
+  border: 1px solid var(--ui-hair, rgba(74, 231, 253, 0.3));
   border-radius: 10px;
   min-height: 0;
   height: 100%;
@@ -65,7 +65,7 @@ html.app-shell-create {
   gap: 12px;
   padding: 24px;
   text-align: center;
-  background: rgba(8, 14, 26, 0.97);
+  background: var(--ui-bg, rgba(8, 14, 26, 0.97));
   backdrop-filter: blur(6px);
   border-radius: var(--radius-m, 10px);
   pointer-events: auto;
@@ -73,14 +73,14 @@ html.app-shell-create {
 
 .storyboard-step .storyboard-list-bootstrap-mask__icon {
   font-size: 28px;
-  color: var(--home-accent, #4ae7fd);
+  color: var(--home-accent, var(--ui-brand, #4ae7fd));
 }
 
 .storyboard-step .storyboard-list-bootstrap-mask__text {
   margin: 0;
   font-size: 14px;
   line-height: 1.5;
-  color: rgba(255, 255, 255, 0.75);
+  color: var(--ui-text, rgba(255, 255, 255, 0.75));
 }
 
 .storyboard-step .storyboard-toolbar {
@@ -101,7 +101,7 @@ html.app-shell-create {
   display: inline-flex;
   gap: 0.25rem;
   background: transparent;
-  border: 1px solid #2f3949;
+  border: 1px solid var(--ui-hair, #2f3949);
   border-radius: 8px;
   height: 28px;
 }
@@ -122,29 +122,29 @@ html.app-shell-create {
   line-height: 1;
   border: 1px solid transparent !important;
   background: transparent !important;
-  color: #d7e2ee !important;
+  color: var(--ui-text, #d7e2ee) !important;
   box-shadow: none !important;
   transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease !important;
 }
 
 .storyboard-step .storyboard-view-toggle .ant-btn:hover,
 .storyboard-step .storyboard-view-toggle .ant-btn:active {
-  border-color: #2f3949 !important;
-  background: rgba(47, 57, 73, 0.35) !important;
-  color: #d7e2ee !important;
+  border-color: var(--ui-ring, #2f3949) !important;
+  background: var(--ui-hover, rgba(47, 57, 73, 0.35)) !important;
+  color: var(--ui-text, #d7e2ee) !important;
 }
 
 .storyboard-step .storyboard-view-toggle .ant-btn-primary {
-  border: 1px solid #335678 !important;
-  background: linear-gradient( 270deg, rgba(14, 89, 250, .3) 0%, rgba(0, 171, 216, .3) 100%) !important;
-  color: #ffffff !important;
+  border: 1px solid var(--ui-hair, #335678) !important;
+  background: var(--ui-primary, linear-gradient( 270deg, rgba(14, 89, 250, .3) 0%, rgba(0, 171, 216, .3) 100%)) !important;
+  color: var(--ui-on-primary, #ffffff) !important;
   box-shadow: none !important;
 }
 
 .storyboard-step .storyboard-view-toggle .ant-btn-primary:hover{
-  border: 1px solid #335678 !important;
-  background: linear-gradient( 270deg, rgba(14, 89, 250, .3) 0%, rgba(0, 171, 216, .3) 100%) !important;
-  color: #ffffff !important;
+  border: 1px solid var(--ui-ring, #335678) !important;
+  background: var(--ui-primary, linear-gradient( 270deg, rgba(14, 89, 250, .3) 0%, rgba(0, 171, 216, .3) 100%)) !important;
+  color: var(--ui-on-primary, #ffffff) !important;
   box-shadow: none !important;
 }
 
@@ -161,21 +161,21 @@ html.app-shell-create {
   padding: 0 0.5rem;
   height: 22px;
   border-radius: 999px;
-  background: #0f1422;
+  background: var(--ui-surface, #0f1422);
   font-weight: 600;
-  color: #d7e2ee;
+  color: var(--ui-text, #d7e2ee);
   font-size: 12px;
   line-height: 1;
 }
 
 .storyboard-step .storyboard-progress-icon {
-  color: #4ae7fd;
+  color: var(--ui-brand, #4ae7fd);
   font-size: 12px;
 }
 
 .storyboard-step .storyboard-progress-loading {
   margin-left: 0.35rem;
-  color: var(--accent-500, #4ae7fd);
+  color: var(--accent-500, var(--ui-brand, #4ae7fd));
   font-size: 0.9rem;
 }
 
@@ -198,14 +198,14 @@ html.app-shell-create {
 
 .storyboard-step .storyboard-action-btn.ant-btn-primary {
   box-shadow: none;
-  background: linear-gradient(270deg, #0e59fa 0%, #00abd8 100%);
+  background: var(--ui-primary, linear-gradient(270deg, #0e59fa 0%, #00abd8 100%));
   border: none;
 }
 
 .storyboard-step .storyboard-action-btn:not(.ant-btn-primary) {
-  border-color: rgba(74, 231, 253, 0.24);
-  background: #101a2b;
-  color: #e6edf3;
+  border-color: var(--ui-hair, rgba(74, 231, 253, 0.24));
+  background: var(--ui-surface, #101a2b);
+  color: var(--ui-on-primary, #e6edf3);
 }
 
 /*
@@ -217,9 +217,9 @@ html.app-shell-create .storyboard-step .storyboard-toolbar-right .storyboard-too
 html.app-shell-create .storyboard-step .storyboard-toolbar-right .storyboard-toolbar-cyan-btn.ant-btn-primary:hover,
 html.app-shell-create .storyboard-step .storyboard-toolbar-right .storyboard-toolbar-cyan-btn.ant-btn-primary:active {
   box-shadow: none !important;
-  background: #4ae7fd !important;
+  background: var(--ui-raised, #4ae7fd) !important;
   border: none !important;
-  color: #121212 !important;
+  color: var(--ui-text, #121212) !important;
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -227,5 +227,5 @@ html.app-shell-create .storyboard-step .storyboard-toolbar-right .storyboard-too
 }
 
 html.app-shell-create .storyboard-step .storyboard-toolbar-right .storyboard-toolbar-cyan-btn.ant-btn-primary .anticon {
-  color: #121212 !important;
+  color: var(--ui-text, #121212) !important;
 }

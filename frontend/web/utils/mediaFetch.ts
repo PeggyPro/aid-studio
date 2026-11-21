@@ -3,7 +3,7 @@ import {
 isRejectedMediaContentType,
 isUsableMediaBlob
 } from '~/utils/mediaBlobGuard'
-import { resolveSameOriginApiUrl } from '~/utils/sameOriginApiUrl'
+import { inspectMediaUrl } from '~/utils/mediaUrlPolicy'
 
 function isSameOriginUrl(url: string): boolean {
   if (typeof window === 'undefined') return true
@@ -14,28 +14,22 @@ function isSameOriginUrl(url: string): boolean {
   }
 }
 
-function buildMediaProxyUrl(remoteUrl: string): string {
-  const params = new URLSearchParams({ url: remoteUrl })
-  return `${resolveSameOriginApiUrl('/media/proxy')}?${params.toString()}`
+/** Use the media URL returned by the API for playback. */
+export function resolveMediaPlaybackUrl(url: string): string {
+  const source = String(url || '').trim()
+  return inspectMediaUrl(source).allowed ? source : ''
 }
 
-/**
- * 将跨域媒体地址转换为同源代理地址，供 video/audio 直接播放。
- * 预览与 Canvas 截帧必须使用相同地址，避免媒体可播放却无法读取画面的情况。
- * 静态站的可信资源预览可显式 direct；需要读取像素时由调用方保证 CDN CORS。
- */
-export function resolveMediaPlaybackUrl(url: string, options?: { direct?: boolean }): string {
-  const remote = String(url || '').trim()
-  if (
-    options?.direct ||
-    !remote ||
-    remote.startsWith('blob:') ||
-    remote.startsWith('data:') ||
-    isSameOriginUrl(remote)
-  ) {
-    return remote
-  }
-  return buildMediaProxyUrl(remote)
+export type StudioVideoFilmstripSource = {
+  src: string
+  crossOrigin?: 'anonymous'
+}
+
+/** Frame extraction needs permission to read pixels from cross-origin media. */
+export function resolveStudioVideoFilmstripSource(url: string): StudioVideoFilmstripSource {
+  const src = resolveMediaPlaybackUrl(url)
+  if (!src || src.startsWith('blob:') || src.startsWith('data:') || isSameOriginUrl(src)) return { src }
+  return { src, crossOrigin: 'anonymous' }
 }
 
 async function tryFetchMediaBlob(href: string, init?: RequestInit): Promise<Blob | null> {
@@ -43,38 +37,21 @@ async function tryFetchMediaBlob(href: string, init?: RequestInit): Promise<Blob
     const res = await diagnosticFetch(href, init)
     if (!res.ok) return null
     const contentType = res.headers.get('content-type')
-    // 静态站 SPA 回退常把 /media/proxy 指到 index.html（仍是 200）
     if (isRejectedMediaContentType(contentType)) return null
     const blob = await res.blob()
     if (!(await isUsableMediaBlob(blob))) return null
     return blob
   } catch {
+    init?.signal?.throwIfAborted()
     return null
   }
 }
 
-/**
- * 拉取媒体 Blob。跨域 CDN 优先走同源 `/media/proxy`；
- * 代理不可用（如纯静态部署不运行 Next Proxy）时回退直连 CORS，避免把 HTML 当 MP4 喂给 WebAV。
- */
-export async function fetchMediaBlob(url: string): Promise<Blob | null> {
-  const remote = String(url || '').trim()
-  if (!remote) return null
-
-  if (remote.startsWith('blob:') || remote.startsWith('data:') || isSameOriginUrl(remote)) {
-    return tryFetchMediaBlob(remote, { credentials: 'same-origin' })
-  }
-
-  const proxied = await tryFetchMediaBlob(buildMediaProxyUrl(remote), {
-    credentials: 'same-origin'
-  })
-  if (proxied) return proxied
-
-  // 回退：CDN CORS + 防盗链通常要求带站点 Referer；勿用 no-referrer（空 Referer 会被 COS 403）
-  return tryFetchMediaBlob(remote, {
-    mode: 'cors',
-    credentials: 'omit'
-  })
+/** Read the asset directly, including cross-origin media that permits CORS. */
+export async function fetchMediaBlob(url: string, signal?: AbortSignal): Promise<Blob | null> {
+  signal?.throwIfAborted()
+  const source = resolveMediaPlaybackUrl(url)
+  return source ? tryFetchMediaBlob(source, { credentials: 'same-origin', signal }) : null
 }
 
 /** 供 WebAV MP4Clip / AudioClip 使用的可读流 */

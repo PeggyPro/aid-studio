@@ -12,7 +12,7 @@
  * 统一尺寸 token 见 --hn-c-* 变量，便于后续微调。
  * 尺寸按 postcss-pxtorem（rootValue 16）编译为 rem。
  * layout-home-new：html 保持 16px 根字号，token 视觉尺寸与写入 px 一致。
- * layout-create-flow：html 为 13px/12px 根字号（步骤页不放大）；侧栏固定物理 px 与首页一致。
+ * layout-create-flow：html 为 13px/12px 根字号（步骤页不放大）。
  * 物理字号不得低于 12px 的 token 写为 12Px（大写 P 跳过 pxtorem）。
  */
 
@@ -56,96 +56,13 @@
     --hn-c-card-cover-max: 142px;
     --hn-c-card-row-min: 220px;
     --hn-c-cover-btn: 28px;
-    /* 首页内容卡片封面（小分辨率压缩高度，大屏默认 16/9） */
+    /* 首页案例广场卡片封面（小分辨率压缩高度，大屏默认 16/9） */
     --home-gallery-cover-ratio: 16 / 10;
     --hn-c-gallery-body-pad: 8px 10px 9px;
     --hn-c-gallery-title-mb: 6px;
     --hn-c-gallery-stats-gap: 4px;
     /* 首页 Hero 视频区：14:7，比 16:9 略矮 */
     --hn-c-hero-h: auto;
-  }
-
-  /* —— 侧栏（固定物理 px，首页壳 / 流程壳完全一致，不受 html 根字号与 zoom 影响）—— */
-  :is(html.layout-home-new, html.app-shell-create) .home-new-sidebar {
-    width: 68Px;
-    padding: 0 0 14px;
-  }
-
-  :is(html.layout-home-new, html.app-shell-create) .home-new-brand {
-    margin-bottom: 10Px;
-  }
-
-  :is(html.layout-home-new, html.app-shell-create) .home-new-logo {
-    width: 32Px;
-    height: 32Px;
-  }
-
-  :is(html.layout-home-new, html.app-shell-create) .home-new-nav {
-    gap: 6Px;
-  }
-
-  :is(html.layout-home-new, html.app-shell-create) .home-new-nav-item {
-    width: 56Px;
-    min-height: 46Px;
-    padding: 6Px 2Px;
-    gap: 4Px;
-    font-size: 12Px;
-    border-radius: 8Px;
-  }
-
-  :is(html.layout-home-new, html.app-shell-create) .home-new-nav-ico {
-    width: 20Px;
-    height: 20Px;
-  }
-
-  :is(html.layout-home-new, html.app-shell-create) .home-new-nav-divider {
-    width: 48Px;
-    margin: 10Px 0 6Px;
-  }
-
-  :is(html.layout-home-new, html.app-shell-create) .home-new-sidebar-spacer {
-    min-height: 16Px;
-  }
-
-  :is(html.layout-home-new, html.app-shell-create) .home-new-sidebar-bottom {
-    gap: 8Px;
-  }
-
-  :is(html.layout-home-new, html.app-shell-create) .home-new-user {
-    gap: 12Px;
-  }
-
-  :is(html.layout-home-new, html.app-shell-create) .home-new-points {
-    width: 56Px;
-    min-height: 20Px;
-    gap: 4Px;
-  }
-
-  :is(html.layout-home-new, html.app-shell-create) .home-new-points-ico {
-    width: 12Px;
-    height: 12Px;
-  }
-
-  :is(html.layout-home-new, html.app-shell-create) .home-new-points-num {
-    font-size: 12Px;
-  }
-
-  :is(html.layout-home-new, html.app-shell-create) .home-new-avatar-frame {
-    width: 34Px;
-    height: 34Px;
-    border-radius: 8Px;
-  }
-
-  :is(html.layout-home-new, html.app-shell-create) .home-new-avatar-img {
-    width: 26Px;
-    height: 26Px;
-  }
-
-  :is(html.layout-home-new, html.app-shell-create) .home-new-login {
-    width: 50Px;
-    padding: 4Px 2Px;
-    font-size: 12Px;
-    border-radius: 8Px;
   }
 
   /* —— 子页通用（我的作品 / 资产库）—— */

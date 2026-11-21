@@ -1,6 +1,7 @@
 import React from 'react';
 import { Button, Card, Form, Input, InputNumber, Select, Space, Switch } from 'antd';
 import type { ConfigValue } from './StructuredValueEditor';
+import StructuredValueEditor from './StructuredValueEditor';
 import type { ModelParameter, ModelParameterRule } from './modelDefinition';
 import { MATERIAL_STATISTICS } from './modelDefinition';
 import { previewActions, previewDefaults } from './modelParameterPreviewRules';
@@ -27,7 +28,8 @@ export default function ModelParameterPreview({ fields, value, onChange, rules =
     for (const action of rulesForField.filter((a) => a.operator === 'choices')) if (Array.isArray(action.value)) choices = choices ? choices.filter((choice) => (action.value as ConfigValue[]).some((allowed) => equalChoice(allowed, choice))) : action.value;
     const change = (next: ConfigValue) => onChange({ ...value, [field.name]: next });
     let control: React.ReactNode;
-    if (choices) {
+    if (field.alternatives?.length) control = <StructuredValueEditor label={field.label} disabled={locked} value={current ?? null} onChange={change} />;
+    else if (choices) {
       const available = choices;
       const keyOf = (value: unknown) => { const index = available.findIndex((choice) => equalChoice(choice, value)); return index < 0 ? undefined : String(index); };
       const selected = field.type === 'array' ? (Array.isArray(current) ? current : []).map(keyOf).filter((key) => key !== undefined) : keyOf(current);

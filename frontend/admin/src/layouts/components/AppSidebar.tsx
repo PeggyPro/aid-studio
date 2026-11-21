@@ -1,5 +1,5 @@
-import React, { useMemo } from 'react';
-import { Menu, Dropdown, Avatar, Modal } from 'antd';
+import React, { useMemo, useState } from 'react';
+import { Menu, Dropdown, Avatar, Modal, ConfigProvider, theme } from 'antd';
 import type { MenuProps } from 'antd';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { UserOutlined, LogoutOutlined, DownOutlined } from '@ant-design/icons';
@@ -10,6 +10,9 @@ import { useAdminBrandStore } from '@/store/useAdminBrandStore';
 import { resolvePath } from '@/router/utils';
 import { resolveAppUrl } from '@/utils/ruoyi';
 import MenuIcon from './MenuIcon';
+import { organizeNavigation, type NavigationItem } from '@/utils/adminNavigation';
+import { authoringKind, getAuthoringAccess, type AuthoringAccess } from '@/utils/adminWorkspaces';
+import { useAuth } from '@/hooks/useAuth';
 import SidebarVersionPanel from './SidebarVersionPanel';
 import './AppSidebar.less';
 
@@ -17,45 +20,38 @@ interface Props {
   collapsed: boolean;
 }
 
-type MenuItem = Required<MenuProps>['items'][number];
+type MenuItem = NonNullable<NonNullable<MenuProps['items']>[number]>;
 
-/**
- * 把动态路由转换成 antd Menu items
- */
-function convertToMenuItems(routes: AppRoute[], basePath = ''): MenuItem[] {
-  const list: MenuItem[] = [];
-  for (const r of routes) {
-    if (r.hidden) continue;
-    const full = resolvePath(basePath, r.path);
-    const visibleChildren = (r.children || []).filter((c) => !c.hidden);
-    // 单子且父级不 alwaysShow → 直接显示子
-    if (visibleChildren.length === 1 && !r.alwaysShow) {
-      const only = visibleChildren[0];
-      const childFull = resolvePath(full, only.path);
-      list.push({
-        key: childFull,
-        icon: <MenuIcon icon={only.meta?.icon || r.meta?.icon} />,
-        label: only.meta?.title || r.meta?.title || ''
-      });
-    } else if (visibleChildren.length > 0) {
-      list.push({
-        key: full,
-        icon: <MenuIcon icon={r.meta?.icon} />,
-        label: r.meta?.title || '',
-        children: convertToMenuItems(visibleChildren, full)
-      });
-    } else if (r.component || r.meta) {
-      list.push({
-        key: full,
-        icon: <MenuIcon icon={r.meta?.icon} />,
-        label: r.meta?.title || ''
-      });
+function buildSidebar(routes: AppRoute[], authoring: AuthoringAccess) {
+  const parentKeys = new Map<string, string[]>();
+  const menuKeys = new Map<string, string>();
+  function collect(route: AppRoute, base: string, icon?: string, fallback?: string): NavigationItem<AppRoute>[] {
+    if (route.hidden) return [];
+    const key = resolvePath(base, route.path);
+    const title = route.meta?.title || fallback || '';
+    const itemIcon = route.meta?.icon || icon;
+    const children = (route.children || []).filter(child => !child.hidden);
+    if (children.length === 1 && !route.alwaysShow) return collect(children[0], key, itemIcon, title);
+    if (route.children?.length) {
+      const nested = children.flatMap(child => collect(child, key));
+      return nested.length ? [{ key, title, icon: itemIcon, children: nested }] : [];
     }
+    if (!route.component && (route.isLayout || route.isParentView || !route.meta)) return [];
+    return [{ key, title, icon: itemIcon, view: route.view }];
   }
-  return list;
+  function render(item: NavigationItem<AppRoute>, parents: string[]): MenuItem {
+    const entry = { key: item.key, label: item.title, icon: item.icon ? <MenuIcon icon={item.icon} /> : undefined };
+    if (item.children) return { ...entry, children: item.children.map(child => render(child, [...parents, item.key])) };
+    parentKeys.set(item.key, parents);
+    item.aliases?.forEach(path => menuKeys.set(path, item.key));
+    return entry;
+  }
+  const items = organizeNavigation(routes.flatMap(route => collect(route, '')), authoring).map(item => render(item, []));
+  return { items, parentKeys, menuKeys };
 }
 
 export default function AppSidebar({ collapsed }: Props) {
+  const { token } = theme.useToken();
   const sidebarRouters = usePermissionStore((s) => s.sidebarRouters);
   const location = useLocation();
   const navigate = useNavigate();
@@ -63,19 +59,16 @@ export default function AppSidebar({ collapsed }: Props) {
   const sidebarLogo = useAdminBrandStore((s) => s.resolvedSidebarLogo);
   const siteName = useAdminBrandStore((s) => s.resolvedSiteName);
 
-  const menuItems = useMemo(() => convertToMenuItems(sidebarRouters), [sidebarRouters]);
-
-  const selectedKey = location.pathname;
-  const openKeys = useMemo(() => {
-    const segs = location.pathname.split('/').filter(Boolean);
-    const keys: string[] = [];
-    let current = '';
-    for (const s of segs) {
-      current += '/' + s;
-      keys.push(current);
-    }
-    return keys;
-  }, [location.pathname]);
+  const { hasPermi } = useAuth();
+  const { skill, agent } = getAuthoringAccess(hasPermi);
+  const { items: menuItems, parentKeys, menuKeys } = useMemo(
+    () => buildSidebar(sidebarRouters, { skill, agent }), [sidebarRouters, skill, agent]
+  );
+  const [opened, setOpened] = useState<{ path: string; keys: string[] }>();
+  const kind = authoringKind(location.search);
+  const selectedKey = (kind ? menuKeys.get(location.pathname + '?kind=' + kind) : undefined)
+    ?? menuKeys.get(location.pathname) ?? location.pathname;
+  const openKeys = opened?.path === selectedKey ? opened.keys : parentKeys.get(selectedKey) ?? [];
 
   const handleClick: MenuProps['onClick'] = ({ key }) => {
     if (key.startsWith('http://') || key.startsWith('https://')) {
@@ -115,16 +108,19 @@ export default function AppSidebar({ collapsed }: Props) {
       </div>
 
       <div className="app-sidebar__menu-wrap">
+        <ConfigProvider theme={{ components: { Menu: { zIndexPopup: token.zIndexPopupBase - 1 } } }}>
         <Menu
           mode="inline"
           theme="light"
           items={menuItems}
           selectedKeys={[selectedKey]}
-          defaultOpenKeys={openKeys}
+          openKeys={collapsed ? undefined : openKeys}
+          onOpenChange={keys => { if (!collapsed) setOpened({ path: selectedKey, keys }); }}
           onClick={handleClick}
           inlineCollapsed={collapsed}
           className="app-sidebar__menu"
         />
+        </ConfigProvider>
       </div>
 
       <Dropdown

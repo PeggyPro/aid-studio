@@ -1,16 +1,16 @@
 'use client'
 
-import axios from 'axios'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useUserStore } from '~/stores/user'
 import type { BillingQuoteRequest, BillingQuoteVO } from '~/types/business-api'
-import { userBillingQuote } from '~/utils/businessApi'
+import { canvasUserBillingQuote, userBillingQuote } from '~/utils/business/billing'
 
 const DEFAULT_DEBOUNCE_MS = 320
 
 export interface UseBillingQuoteOptions {
   enabled?: boolean
   debounceMs?: number
+  canvas?: boolean
 }
 
 export interface UseBillingQuoteResult {
@@ -51,8 +51,8 @@ function extractErrorMessage(error: unknown): string {
 }
 
 /**
- * 对生成请求做防抖权威报价。参数变化时清除旧报价并取消当前订阅，网络请求按业务键合并。
- * 请求序号防止竞态回写；报价失败只返回提示状态，不改变调用方提交按钮状态。
+ * 对生成请求做防抖权威报价。参数变化时立即清除旧报价；取消请求和请求序号共同防止竞态回写。
+ * 报价失败只返回提示状态，不改变调用方提交按钮状态。请求和结果均不进入模块级缓存。
  */
 export function useBillingQuote(
   request: BillingQuoteRequest | null,
@@ -60,6 +60,7 @@ export function useBillingQuote(
 ): UseBillingQuoteResult {
   const enabled = options.enabled !== false
   const debounceMs = options.debounceMs ?? DEFAULT_DEBOUNCE_MS
+  const canvas = options.canvas === true
   const authToken = useUserStore((state) => state.token)
   const serializedRequest = useMemo(() => requestKey(request), [request])
   const stableRequest = useMemo<BillingQuoteRequest | null>(
@@ -68,7 +69,6 @@ export function useBillingQuote(
   )
   const sequenceRef = useRef(0)
   const forceNextRef = useRef(false)
-  const controllerRef = useRef<AbortController | null>(null)
   const timerRef = useRef<number | null>(null)
   const [refreshToken, setRefreshToken] = useState(0)
   const [quote, setQuote] = useState<BillingQuoteVO | null>(null)
@@ -80,8 +80,6 @@ export function useBillingQuote(
       window.clearTimeout(timerRef.current)
       timerRef.current = null
     }
-    controllerRef.current?.abort()
-    controllerRef.current = null
   }, [])
 
   const clear = useCallback(() => {
@@ -114,34 +112,31 @@ export function useBillingQuote(
       return
     }
 
-    const controller = new AbortController()
-    controllerRef.current = controller
     setLoading(true)
     timerRef.current = window.setTimeout(() => {
       timerRef.current = null
       const force = forceNextRef.current
       forceNextRef.current = false
-      void userBillingQuote(current, { signal: controller.signal, force })
+      void (canvas ? canvasUserBillingQuote(current) : userBillingQuote(current, { force }))
         .then((value) => {
-          if (sequence !== sequenceRef.current || controller.signal.aborted) return
+          if (sequence !== sequenceRef.current) return
           setQuote(value)
           setError('')
         })
         .catch((reason: unknown) => {
-          if (sequence !== sequenceRef.current || controller.signal.aborted || axios.isCancel(reason)) return
+          if (sequence !== sequenceRef.current) return
           setQuote(null)
           setError(extractErrorMessage(reason))
         })
         .finally(() => {
-          if (controllerRef.current === controller) controllerRef.current = null
-          if (sequence === sequenceRef.current && !controller.signal.aborted) setLoading(false)
+          if (sequence === sequenceRef.current) setLoading(false)
         })
     }, Math.max(0, debounceMs))
 
     return () => {
       cancelPending()
     }
-  }, [authToken, cancelPending, debounceMs, enabled, refreshToken, serializedRequest, stableRequest])
+  }, [authToken, cancelPending, canvas, debounceMs, enabled, refreshToken, serializedRequest, stableRequest])
 
   return { quote, loading, error, refresh, clear }
 }

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import '@wangeditor/editor/dist/css/style.css';
 import { Editor, Toolbar } from '@wangeditor/editor-for-react';
 import { IDomEditor, IEditorConfig, IToolbarConfig } from '@wangeditor/editor';
+import { sanitizeRichText } from '@/utils/sanitizeRichText';
 
 export interface RichTextEditorProps {
   /** 受控值（HTML 字符串），可直接用于 antd Form.Item */
@@ -31,12 +32,12 @@ export default function RichTextEditor({
   readOnly = false
 }: RichTextEditorProps) {
   const [editor, setEditor] = useState<IDomEditor | null>(null);
-  const [html, setHtml] = useState<string>(value || '');
+  const [html, setHtml] = useState<string>(() => sanitizeRichText(value || ''));
 
   // 外部 value 变化时同步（主要用于弹窗打开时回填）
   useEffect(() => {
     if (typeof value === 'string' && value !== html) {
-      setHtml(value);
+      setHtml(sanitizeRichText(value));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value]);

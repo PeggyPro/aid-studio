@@ -128,3 +128,30 @@ export function getModelQueueSnapshot() {
     method: 'get'
   })
 }
+
+export interface ModelRouteHealth {
+  enabled: boolean
+  observable: boolean
+  channels: Array<{
+    phase: 'COOLDOWN' | 'READY_TO_PROBE' | 'PROBING'
+    reason?: string | null
+    nextProbeAt: number
+  }>
+}
+
+const routeHealthPending = new Map<string, Promise<ModelRouteHealth>>()
+
+export function getModelRouteHealth(modelCode: string) {
+  const pending = routeHealthPending.get(modelCode)
+  if (pending) return pending
+  const loading = request<ModelRouteHealth>({
+    url: '/aid/modelmonitor/route-health',
+    method: 'get',
+    params: { modelCode }
+  }).then(response => {
+    const value = response as ModelRouteHealth | { data: ModelRouteHealth }
+    return 'data' in value ? value.data : value
+  }).finally(() => routeHealthPending.delete(modelCode))
+  routeHealthPending.set(modelCode, loading)
+  return loading
+}

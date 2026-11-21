@@ -250,7 +250,7 @@ public class TencentCiCosMediaGateway {
             }
             Path file = null;
             try {
-                file = Files.createTempFile("aid-tencent-ci-output-", "." + extension);
+                file = Files.createTempFile(com.aid.common.config.AidAppConfig.getTemporaryDirectory(), "aid-tencent-ci-output-", "." + extension);
                 long size;
                 String persistedContentType = contentType;
                 try (COSObject object = client.getObject(bucket, objectKey);
@@ -330,7 +330,7 @@ public class TencentCiCosMediaGateway {
                     .setSocketTimeout(readTimeoutMs)
                     .setRedirectsEnabled(false)
                     .build();
-            Path file = Files.createTempFile("aid-tencent-ci-", "." + extension);
+            Path file = Files.createTempFile(com.aid.common.config.AidAppConfig.getTemporaryDirectory(), "aid-tencent-ci-", "." + extension);
             boolean complete = false;
             try (CloseableHttpClient http = HttpClients.custom()
                     .setDefaultRequestConfig(requestConfig)

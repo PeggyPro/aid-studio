@@ -4,19 +4,24 @@
  * 场景/角色/道具智能提取执行器（原 composables/useCreateFlowExtractAgents.ts 的执行侧拆分）：
  * 1) 预估（estimate）
  * 2) 提交异步任务（parallel）
- * 3) 跟任务 SSE 直至完成（不再调用 /api/user/task/detail 轮询）
+ * 3) 跟任务 SSE 直至完成；必要时补查终态详情与旧版部分失败的续生预扣
  * 4) 完成后回刷 rps/list，同步第三步名称列表
  * 5) 对尚无形态的入库资产写入 store「待生成形态」列表，由用户在第三步小卡片上逐条触发
  *    /extract/form/generate（不再在提取成功后自动串行调用）
  */
 
 import { message } from 'antd'
+import { handleSseErrorRecharge } from '~/utils/api'
+import { shouldOpenUserRechargeFromSseError } from '~/utils/insufficientBalanceRecharge'
 import type { ExtractAgents,ExtractModalScope } from '~/components/steps/ExtractAgentModal'
 import { createTaskStream } from '~/composables/useTaskStream'
 import type { AssetExtractType,UserTaskStatus } from '~/types/business-api'
 import {
-userAssetExtractEstimate,
-userAssetExtractParallel
+  userAssetExtractEstimate,
+  userAssetExtractParallel,
+  userBalance,
+  userBillingQuote,
+  userTaskDetailCached
 } from '~/utils/businessApi'
 import type { ExtractModelCodes } from '~/utils/extractAgentBiz'
 import { shouldAnnounceExtractSuccess } from '~/utils/extractTaskSuccessAnnounce'
@@ -24,7 +29,7 @@ import { inferExtractAssetTabFromSse } from '~/utils/inferExtractAssetTabFromSse
 import { buildAssetExtractSubmitBody } from '~/utils/assetExtractSubmitBody'
 import { scriptExtractBaselineStore } from '~/utils/scriptExtractBaseline'
 import { resolveStoryScriptSaveContext } from '~/utils/storyScriptSaveContext'
-import { formatPartialFailedMessage } from '~/utils/taskPartialFailed'
+import { buildTaskResumeBillingRequest, formatPartialFailedMessage, parseTaskPartialFailedData, taskPartialFailedNeedsUserRecharge } from '~/utils/taskPartialFailed'
 import { resolveStepIndexTotalFromSse } from '~/utils/taskSseProgressText'
 import { requestCancelUserTaskById } from '~/utils/userTaskCancelFlow'
 
@@ -104,6 +109,7 @@ export function startExtractAssets(
       }
 
       /** @returns 仅 SSE 真正 SUCCEEDED 时为 true；切页中断/停止/部分失败为 false */
+      let rechargeRequired = false
       const runExtractOnce = async (types: AssetExtractType[]): Promise<boolean> => {
         if (types.length === 0) return true
         if (runtime.extractStopRequested.value) return false
@@ -158,8 +164,8 @@ export function startExtractAssets(
           window.dispatchEvent(new CustomEvent('create-flow-global-tasks-updated'))
         }
 
-        // 优先 SSE：实时进度；完成以 SSE 为准，不再请求 task/detail 轮询兜底
-        let statusRes: { status: UserTaskStatus; errorMessage?: string | null } | null = null
+        // SSE 负责实时进度和终态。仅在失败时单次补查缺失的错误明细。
+        let statusRes: { status: UserTaskStatus; errorMessage?: string | null; needsRecharge?: boolean } | null = null
         let streamConnected = false
         try {
           const stream = createTaskStream(taskId)
@@ -199,12 +205,17 @@ export function startExtractAssets(
           try {
             const res = await stream.done
             if (res.type === 'error') {
-              statusRes = { status: 'FAILED', errorMessage: res.errorMessage || '任务失败' }
+              statusRes = {
+                status: 'FAILED',
+                errorMessage: res.errorMessage || '任务失败',
+                needsRecharge: shouldOpenUserRechargeFromSseError(res.errorData, res.errorMessage)
+              }
             } else if (res.type === 'cancelled') {
               statusRes = { status: 'CANCELLED', errorMessage: res.message || '任务已取消' }
             } else if (res.type === 'partial_failed') {
               statusRes = {
                 status: 'PARTIAL_FAILED',
+                needsRecharge: taskPartialFailedNeedsUserRecharge(res.data),
                 errorMessage: formatPartialFailedMessage(res.data, '部分提取失败，可在任务中心续生')
               }
             } else {
@@ -264,12 +275,47 @@ export function startExtractAssets(
           stepTitle: '同步结果',
           message: ''
         })
+        if ((statusRes.status === 'PARTIAL_FAILED' || statusRes.status === 'FAILED') && !statusRes.needsRecharge) {
+          const detail = await userTaskDetailCached(taskId, { force: true }).catch(() => null)
+          if (runtime.extractStopRequested.value || sessionAtStart !== runtime.extractFollowSession.value ||
+            getExtractFlowContextKey(runtime) !== flowCtxAtStart) return false
+          if (detail?.status === 'PARTIAL_FAILED' || detail?.status === 'FAILED') {
+            const failure = parseTaskPartialFailedData(detail.resultData, detail.errorMessage || undefined)
+            statusRes.needsRecharge = failure
+              ? taskPartialFailedNeedsUserRecharge(failure)
+              : shouldOpenUserRechargeFromSseError(null, detail.errorMessage || undefined)
+
+            if (detail.status === 'PARTIAL_FAILED' && !failure && !statusRes.needsRecharge) {
+              // 旧资产提取的部分终态只返回资产数组。用续生预扣和可用积分判断能否继续。
+              const request = buildTaskResumeBillingRequest(taskId)
+              if (request) {
+                const funds = await Promise.all([userBillingQuote(request, { force: true }), userBalance()])
+                  .catch(() => null)
+                if (runtime.extractStopRequested.value || sessionAtStart !== runtime.extractFollowSession.value ||
+                  getExtractFlowContextKey(runtime) !== flowCtxAtStart) return false
+                if (funds) {
+                  const [quote, account] = funds
+                  const required = Number(quote.preHoldAmount ?? NaN)
+                  const available = Number(account.balance ?? NaN)
+                  statusRes.needsRecharge = quote.matched === true && quote.isFree === false &&
+                    Number.isFinite(required) && Number.isFinite(available) && required > 0 && available < required
+                }
+              }
+            }
+          }
+        }
+        if (statusRes.needsRecharge) {
+          rechargeRequired = true
+          handleSseErrorRecharge({ needRecharge: true, rechargeOwner: 'USER' })
+        }
+
         const refreshTypes = extractResultRefreshTypes(scope, types, runtime.getRoute())
         if (refreshTypes.length > 0) {
           const pending = await syncExtractedAssetsFromServer(ctx, refreshTypes)
           store().mergePendingExtractFormAssets(pending)
         }
 
+        if (rechargeRequired) return false
         if (statusRes.status === 'PARTIAL_FAILED') {
           message.warning(statusRes.errorMessage || '部分提取失败，可在任务中心续生')
           return false
@@ -294,6 +340,7 @@ export function startExtractAssets(
           runtime.extractStopRequested.value = false
           return
         }
+        if (rechargeRequired) return
         const rest: AssetExtractType[] = []
         if (extractTypes.includes('scene')) rest.push('scene')
         if (extractTypes.includes('prop')) rest.push('prop')

@@ -23,6 +23,7 @@ export interface UseAuthSendCodeOptions {
   account: string
   /** 仅 login 场景携带 */
   inviteCode?: string
+  smsOnly?: boolean
 }
 
 /**
@@ -34,7 +35,8 @@ export function useAuthSendCode({
   countdownScope,
   captchaBindEl,
   account,
-  inviteCode = ''
+  inviteCode = '',
+  smsOnly = false
 }: UseAuthSendCodeOptions) {
   const {
     captchaEnabled,
@@ -55,8 +57,8 @@ export function useAuthSendCode({
   const [sendCodeLoading, setSendCodeLoading] = useState(false)
   const sendCodeLoadingRef = useRef(false)
 
-  const codeLoginPresentation = getCodeLoginPresentation(smsLoginEnabled, emailLoginEnabled)
-  const activeChannel = resolveCodeLoginChannel(account.trim(), smsLoginEnabled, emailLoginEnabled)
+  const codeLoginPresentation = getCodeLoginPresentation(smsLoginEnabled, !smsOnly && emailLoginEnabled)
+  const activeChannel = resolveCodeLoginChannel(account.trim(), smsLoginEnabled, !smsOnly && emailLoginEnabled)
 
   useEffect(() => {
     countdown.restore(account.trim())

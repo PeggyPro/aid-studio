@@ -17,6 +17,11 @@ public class AidSkillDraft implements Serializable {
     private Long skillId;
     private Long ownerUserId;
     private String activeKey;
+    /** 仅可信 Skill 创建器写入的来源运行。 */
+    private Long creatorRunId;
+    private Long creatorStepId;
+    private String creatorRequestKey;
+    private String provenanceJson;
     private String draftJson;
     private String draftDigest;
     private String status;

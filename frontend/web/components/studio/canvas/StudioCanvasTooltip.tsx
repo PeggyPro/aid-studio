@@ -5,7 +5,8 @@ import { Tooltip, type TooltipProps } from 'antd'
 
 export type StudioCanvasTooltipProps = TooltipProps
 
-const popupContainer = () => document.body
+const popupContainer = (trigger: HTMLElement) =>
+  trigger.closest<HTMLElement>('[data-studio-free-theme-scope]') ?? document.body
 
 function wrapTrigger(children: ReactNode): ReactElement {
   if (
@@ -18,7 +19,7 @@ function wrapTrigger(children: ReactNode): ReactElement {
   return <span className="studio-canvas-tooltip-trigger">{children}</span>
 }
 
-/** Canvas chrome tooltip: always portals to body, works on disabled buttons. */
+/** Keep tooltips in a local theme when present. The wrapper also supports disabled buttons. */
 export function StudioCanvasTooltip({
   children,
   classNames,

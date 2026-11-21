@@ -16,6 +16,7 @@ import java.util.Set;
 
 /** 公共媒体请求的可配置字段；身份、计费权限和业务关联不属于模型参数。 */
 public final class ModelRequestParameters {
+    private static final List<String> VIDEO_AUDIO_PATHS = List.of("audio", "options.generate_audio", "options.audio");
     private static final Map<String, Set<String>> ROOTS = Map.of(
             "text", Set.of("prompt", "messages", "options", "reasoningEnabled", "reasoningLevel", "reasoningBudgetTokens", "includeReasoning"),
             "image", Set.of("prompt", "size", "negativePrompt", "referenceImageUrl", "maskImageUrl", "maskEncoding",
@@ -35,7 +36,17 @@ public final class ModelRequestParameters {
             alias(fields, parameters, "options.aspectRatio", "options.aspect_ratio");
             alias(fields, parameters, "size", "options.size");
         }
-        if ("video".equals(modelType)) alias(fields, parameters, "options.resolution", "options.size");
+        if ("video".equals(modelType)) {
+            alias(fields, parameters, "options.resolution", "options.size");
+            if ("video_enhance".equals(definition.getGenerateMode()))
+                alias(fields, parameters, "options.resolution", "options.targetResolution");
+            // 显式音频选择必须先于业务和模型默认值展开，避免 false 被另一个别名的 true 默认值冲突。
+            for (String target : VIDEO_AUDIO_PATHS) {
+                for (String source : VIDEO_AUDIO_PATHS) {
+                    if (!target.equals(source)) alias(fields, parameters, target, source);
+                }
+            }
+        }
         for (String path : Set.of("size", "aspectRatio", "options.aspectRatio", "options.aspect_ratio", "options.size", "options.resolution")) {
             var field = fields.get(path);
             Object value = ModelParameterValidator.read(parameters, path);
@@ -44,6 +55,32 @@ public final class ModelRequestParameters {
             String matched = ModelCapabilityResolver.matchOption(choices, text);
             if (matched != null) ModelParameterValidator.write(parameters, path, matched);
         }
+    }
+
+    /** Map one explicit audio choice only to aliases declared by this effective definition.
+     * No defaults or undeclared fields are introduced; callers still validate types and rules.
+     */
+    public static boolean writeDeclaredVideoAudio(ModelCapabilityDefinition definition,
+            Map<String, Object> parameters, Boolean value) {
+        if (definition == null || parameters == null || value == null)
+            throw new IllegalArgumentException("Video audio choice is required");
+        Map<String, ModelParameter> fields = new LinkedHashMap<>();
+        collect(definition.getParameters(), "", fields);
+        List<String> declared = VIDEO_AUDIO_PATHS.stream().filter(fields::containsKey).toList();
+        for (String path : declared) {
+            Object existing = ModelParameterValidator.read(parameters, path);
+            if (existing != null && !Objects.equals(existing, value))
+                throw new ServiceException("参数别名冲突：" + path);
+        }
+        for (String path : declared) ModelParameterValidator.write(parameters, path, value);
+        return !declared.isEmpty();
+    }
+
+    /** The same declared audio aliases used by submission, without inventing a model field. */
+    public static String declaredVideoAudioPath(List<ModelParameter> parameters) {
+        Map<String, ModelParameter> fields = new LinkedHashMap<>();
+        collect(parameters, "", fields);
+        return VIDEO_AUDIO_PATHS.stream().filter(fields::containsKey).findFirst().orElse(null);
     }
 
     private static void alias(Map<String, ModelParameter> fields, Map<String, Object> parameters, String target, String source) {

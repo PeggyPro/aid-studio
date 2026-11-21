@@ -11,9 +11,32 @@ import {
   type SelectOption
 } from '@/utils/modelCapability'
 
+/** @deprecated 自由画布旧节点控件兜底；多功能参数面板请用 resolveStudioParamsPanelOptions */
+export const STUDIO_FREE_ASPECT_RATIO_VALUES = ['16:9', '9:16', '1:1', '4:3'] as const
+
+/** @deprecated 见 resolveStudioParamsPanelOptions */
+export const STUDIO_ASPECT_RATIO_OPTIONS = [
+  '1:1', '1:2', '2:1', '9:16', '16:9', '3:4', '4:3', '3:2', '2:3', '4:5', '5:4', '21:9', '9:21'
+].map((value) => ({
+  value,
+  label: value
+}))
+
+/** @deprecated 见 resolveStudioParamsPanelOptions */
+export function studioAspectRatioOptions(mode: 'free' | 'flow') {
+  return mode === 'flow'
+    ? STUDIO_ASPECT_RATIO_OPTIONS
+    : STUDIO_FREE_ASPECT_RATIO_VALUES.map((value) => ({ value, label: value }))
+}
+
 export const STUDIO_VIDEO_DURATION_OPTIONS = [3, 5, 8].map((value) => ({
   value,
   label: `${value} 秒`
+}))
+
+export const STUDIO_VOICE_OPTIONS = ['自然叙事', '克制电影感', '轻快对白'].map((value) => ({
+  value,
+  label: value
 }))
 
 const VIDEO_FALLBACK_SIZES = ['720p', '1080p'] as const

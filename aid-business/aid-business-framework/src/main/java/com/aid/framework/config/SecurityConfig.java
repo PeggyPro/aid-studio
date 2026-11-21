@@ -4,11 +4,14 @@ import com.aid.framework.config.properties.PermitAllUrlProperties;
 import com.aid.framework.security.filter.JwtAuthenticationTokenFilter;
 import com.aid.framework.security.handle.AuthenticationEntryPointImpl;
 import com.aid.framework.security.handle.LogoutSuccessHandlerImpl;
+import com.aid.common.constant.Constants;
+import com.aid.common.core.domain.model.LoginUser;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authorization.AuthorizationDecision;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -98,6 +101,11 @@ public class SecurityConfig
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             // 注解标记允许匿名访问的url
             .authorizeHttpRequests((requests) -> {
+                requests.requestMatchers("/druid/**", "/actuator/**", "/swagger-ui.html",
+                        "/swagger-ui/**", "/v3/api-docs/**").access((authentication, context) ->
+                        new AuthorizationDecision(authentication.get().getPrincipal() instanceof LoginUser user
+                                && user.getPermissions() != null
+                                && user.getPermissions().contains(Constants.ALL_PERMISSION)));
                 permitAllUrl.getUrls().forEach(url -> requests.requestMatchers(url).permitAll());
                 // 对于登录login 注册register 验证码captchaImage 允许匿名访问
                 requests.requestMatchers("/login", "/register", "/captchaImage").permitAll()
@@ -105,6 +113,11 @@ public class SecurityConfig
                     .requestMatchers("/auth/login", "/auth/sendCode", "/auth/resetPassword", "/auth/public-config").permitAll()
                     // 接口加密公钥下发，允许匿名访问（信封加密引导起点）
                     .requestMatchers("/auth/crypto/public-key").permitAll()
+                    .requestMatchers("/ws/notification").permitAll()
+                    // Browser upgrades carry one-use tickets. Both handlers enforce ticket authorization.
+                    .requestMatchers(HttpMethod.GET, "/ws/canvas", "/ws/canvas/assistant").permitAll()
+                    // The director socket validates a one-time room ticket after the upgrade.
+                    .requestMatchers(HttpMethod.GET, "/api/user/studio/director/virtual-camera/ws").permitAll()
                     // 行为验证码生成/校验接口，允许匿名访问
                     .requestMatchers("/captcha/gen", "/captcha/check").permitAll()
                     // 静态资源，可匿名访问
@@ -112,8 +125,6 @@ public class SecurityConfig
                             "/brand-icons/**", "/default-avatars/**", "/captcha-backgrounds/**").permitAll()
                     // 图片 URL 强校验会先发 HEAD；本地存储必须与 GET 使用相同的匿名访问策略
                     .requestMatchers(HttpMethod.HEAD, "/profile/**", "/brand-icons/**", "/default-avatars/**", "/captcha-backgrounds/**").permitAll()
-                    // 修复 SC3：Druid / Swagger / api-docs 必须登录后才能访问，防止匿名泄漏 Controller/DTO 元数据或默认账号攻击
-                    .requestMatchers("/swagger-ui.html", "/v3/api-docs/**", "/swagger-ui/**", "/druid/**").authenticated()
                     // 除上面外的所有请求全部需要鉴权认证
                     .anyRequest().authenticated();
             })

@@ -1,5 +1,7 @@
 'use client'
 
+import { flowPopoverDuration } from '~/utils/v10Motion'
+
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
 import { useCreateEditorPortalStyle } from '~/components/common/CreateEditorViewport'
@@ -187,7 +189,7 @@ export function ModelSelectDropdown({ value: suppliedValue, options, expanded, o
         transitionTimerRef.current = setTimeout(() => {
           transitionTimerRef.current = null
           setTransitionClass('')
-        }, DROPDOWN_DURATION_MS)
+        }, flowPopoverDuration(DROPDOWN_DURATION_MS))
       })
       return
     }
@@ -202,7 +204,7 @@ export function ModelSelectDropdown({ value: suppliedValue, options, expanded, o
       // 离场结束后再复位方向与定位（Vue 在关闭瞬间清空，React 侧保留至卸载避免离场闪跳）
       setOpenUpward(false)
       setPanelFixedStyle({})
-    }, DROPDOWN_DURATION_MS)
+    }, flowPopoverDuration(DROPDOWN_DURATION_MS))
   }, [visible])
 
   useEffect(() => {

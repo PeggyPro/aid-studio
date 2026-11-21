@@ -1,7 +1,8 @@
 const BRAND_EXTENSIONS: Record<string, string> = {
   dashscope: 'jpg', volcengine: 'jpg', jimeng: 'jpg', gemini: 'png',
   openai: 'png', volcengine_tts: 'jpg', minimax: 'png', agnes: 'png',
-  vidu: 'jpg', deepseek: 'jpg', kling: 'png', tokendance: 'png', topaz: 'ico', wavespeed: 'ico'
+  vidu: 'jpg', deepseek: 'jpg', kling: 'png', tokendance: 'png', topaz: 'ico', wavespeed: 'ico',
+  mureka: 'png', sonilo: 'png', elevenlabs: 'png'
 };
 
 /** An uploaded URL always wins; a packaged icon fills an unset public provider. */
@@ -10,6 +11,7 @@ export function resolveProviderLogo(providerCode?: string | null, configuredUrl?
   if (custom) return custom;
   const code = providerCode?.trim().toLowerCase() || '';
   if (code === 'tencent_ci_media' || code === 'tencent_mps') return '/brand-icons/tencent-cloud.ico';
+  if (code === 'volcengine_seed_audio') return '/brand-icons/volcengine_tts.jpg';
   const extension = BRAND_EXTENSIONS[code];
   return extension ? `/brand-icons/${code}.${extension}` : undefined;
 }

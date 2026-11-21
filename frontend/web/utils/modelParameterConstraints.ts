@@ -9,6 +9,7 @@ export interface ParameterConstraint {
   step?: number
   stepBase?: number
   forbidden?: boolean
+  required?: boolean
 }
 const read = (values: Values, path = ''): unknown => path.split('.').reduce<unknown>((value, key) => value && typeof value === 'object' && !Array.isArray(value) ? (value as Values)[key] : undefined, values)
 const empty = (value: unknown) => value == null || typeof value === 'string' && !value.trim() || Array.isArray(value) && value.length === 0
@@ -76,6 +77,7 @@ export function modelParameterConstraints(model: UserModelListItem | null | unde
       const constraint = constraints.get(action.field) || {}
       const number = Number(action.value)
       if (action.operator === 'forbidden') constraint.forbidden = true
+      if (action.operator === 'required') constraint.required = true
       if (action.operator === 'minimum') constraint.minimum = Math.max(constraint.minimum ?? -Infinity, number)
       if (action.operator === 'maximum') constraint.maximum = Math.min(constraint.maximum ?? Infinity, number)
       if (action.operator === 'maximum_sum' && action.valueField && read(values, action.valueField) != null) constraint.maximum = Math.min(constraint.maximum ?? Infinity, number - Number(read(values, action.valueField)))

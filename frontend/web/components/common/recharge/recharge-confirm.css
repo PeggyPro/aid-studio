@@ -1,0 +1,33 @@
+/* 取消订单确认框：与流程弹窗深色主题一致 */
+.recharge-confirm-wrap .ant-modal-content,
+.recharge-confirm-modal .ant-modal-content {
+  background: var(--create-surface-modal, var(--ui-surface, rgba(25, 26, 29, 1))) !important;
+  border: 1px solid var(--ui-hair, rgba(74, 231, 253, 0.09)) !important;
+  box-shadow: var(--ui-shadow, 0 24px 56px rgba(8, 12, 24, 0.45)) !important;
+  border-radius: 8px !important;
+}
+
+.recharge-confirm-wrap .ant-modal-confirm-body,
+.recharge-confirm-modal .ant-modal-confirm-body {
+  color: var(--ui-text, #e6edf3) !important;
+}
+
+.recharge-confirm-wrap .ant-modal-confirm-title,
+.recharge-confirm-modal .ant-modal-confirm-title {
+  color: var(--ui-text, #fff) !important;
+}
+
+.recharge-confirm-wrap .ant-modal-confirm-content,
+.recharge-confirm-modal .ant-modal-confirm-content {
+  color: var(--ui-muted, #a8b4c4) !important;
+}
+
+.recharge-confirm-wrap .ant-modal-confirm-body > .anticon,
+.recharge-confirm-modal .ant-modal-confirm-body > .anticon {
+  color: var(--ui-brand, #4ae7fd) !important;
+}
+
+.recharge-confirm-wrap .ant-modal-confirm-btns .ant-btn,
+.recharge-confirm-modal .ant-modal-confirm-btns .ant-btn {
+  border-radius: 8px;
+}

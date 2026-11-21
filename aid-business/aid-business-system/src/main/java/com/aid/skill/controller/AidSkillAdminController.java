@@ -10,6 +10,8 @@ import com.aid.skill.service.ISkillAdminService;
 import com.aid.skill.service.ISkillPackageAdminService;
 import com.aid.skill.vo.SkillAdminVO;
 import com.aid.skill.vo.SkillPackageAdminVO;
+import com.aid.runtime.dto.GenericRuntimeRequests;
+import com.aid.runtime.service.GenericRuntimeService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -19,6 +21,8 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.multipart.MultipartFile;
 
 /** Skill 配置与运行审计接口。 */
 @RestController
@@ -29,6 +33,40 @@ public class AidSkillAdminController {
 
     private final ISkillAdminService skillAdminService;
     private final ISkillPackageAdminService skillPackageAdminService;
+    private final GenericRuntimeService runtime;
+
+    @PreAuthorize("@ss.hasPermi('aid:skill:edit')")
+    @PostMapping("/draft/try-run")
+    public AjaxResult tryDraft(@Valid @RequestBody GenericRuntimeRequests.DraftTryRun request) {
+        return AjaxResult.success(runtime.tryDraft(request, "SKILL", SecurityUtils.getUserId(),
+                SecurityUtils.getUsername()));
+    }
+
+    @PreAuthorize("@ss.hasPermi('aid:skill:run:list')")
+    @PostMapping("/runtime-run/list")
+    public AjaxResult runtimeRuns(@Valid @RequestBody(required = false)
+                                  GenericRuntimeRequests.SkillRunPage request) {
+        var page = runtime.adminSkillRuns(request);
+        AjaxResult result = AjaxResult.success();
+        result.put("total", page.getTotal());
+        result.put("data", page.getRecords());
+        return result;
+    }
+
+    @PreAuthorize("@ss.hasPermi('aid:skill:run:query')")
+    @PostMapping("/runtime-run/detail")
+    public AjaxResult runtimeRun(@Valid @RequestBody GenericRuntimeRequests.RunId request) {
+        return AjaxResult.success(runtime.adminRun(request.getRunId()));
+    }
+
+    @PreAuthorize("@ss.hasPermi('aid:skill:edit')")
+    @PostMapping("/create")
+    @Operation(summary = "创建 Skill 稳定身份",
+            description = "skillCode 为 2-64 位 snake_case 编码，以小写字母开头，仅含小写字母、数字和下划线")
+    public AjaxResult create(@Valid @RequestBody SkillAdminRequests.CreateRequest request) {
+        return AjaxResult.success(skillAdminService.createSkill(request,
+                SecurityUtils.getUserId(), SecurityUtils.getUsername(), true));
+    }
 
     @PreAuthorize("@ss.hasPermi('aid:skill:list')")
     @PostMapping("/list")
@@ -72,6 +110,47 @@ public class AidSkillAdminController {
     public AjaxResult restore(@Valid @RequestBody SkillAdminRequests.DetailRequest request) {
         skillAdminService.restoreSkill(request.getId(), SecurityUtils.getUserId(), SecurityUtils.getUsername());
         return AjaxResult.success();
+    }
+
+    @PreAuthorize("@ss.hasPermi('aid:skill:query')")
+    @PostMapping("/publication/settings")
+    @Operation(summary = "查询用户 Skill 公开配置")
+    public AjaxResult publicationSettings(
+            @RequestBody(required = false) SkillAdminRequests.EmptyRequest request) {
+        return AjaxResult.success(skillAdminService.publicationSettings());
+    }
+
+    @PreAuthorize("@ss.hasPermi('aid:skill:edit')")
+    @Log(title = "Skill 公开配置", businessType = BusinessType.UPDATE)
+    @PostMapping("/publication/settings/save")
+    @Operation(summary = "保存用户 Skill 公开配置",
+            description = "关闭后只阻止新的公开与重新发布，不影响现有公开 Skill 的读取")
+    public AjaxResult savePublicationSettings(
+            @Valid @RequestBody SkillAdminRequests.PublicationSettingsRequest request) {
+        skillAdminService.updatePublicationSettings(request,
+                SecurityUtils.getUserId(), SecurityUtils.getUsername());
+        return AjaxResult.success();
+    }
+
+    @PreAuthorize("@ss.hasPermi('aid:skill:edit')")
+    @Log(title = "Skill 撤回公开", businessType = BusinessType.UPDATE)
+    @PostMapping("/moderation/unpublish")
+    @Operation(summary = "将用户公开 Skill 撤回为私有")
+    public AjaxResult moderateUnpublish(
+            @Valid @RequestBody SkillAdminRequests.ModerateUnpublishRequest request) {
+        skillAdminService.moderateUnpublish(request,
+                SecurityUtils.getUserId(), SecurityUtils.getUsername());
+        return AjaxResult.success();
+    }
+
+    @PreAuthorize("@ss.hasPermi('aid:skill:edit')")
+    @Log(title = "Skill 封面", businessType = BusinessType.INSERT)
+    @PostMapping("/cover/upload")
+    @Operation(summary = "上传 Skill 封面到对象存储")
+    public AjaxResult uploadCover(@RequestParam("skillId") Long skillId,
+                                  @RequestParam("file") MultipartFile file) {
+        return AjaxResult.success(skillAdminService.uploadCover(skillId, file,
+                SecurityUtils.getUserId(), SecurityUtils.getUsername(), true));
     }
 
     @PreAuthorize("@ss.hasPermi('aid:skill:query')")

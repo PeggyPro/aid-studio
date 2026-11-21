@@ -1,5 +1,7 @@
 'use client'
 
+import { FlowActionIcon } from '~/components/common/FlowActionIcon'
+
 import { FullscreenOutlined,LoadingOutlined } from '@ant-design/icons'
 import { Button } from 'antd'
 import iconPreviewRaw from '~/assets/img/icon/Preview.svg'
@@ -72,7 +74,7 @@ export function StoryboardVideoBlock({
       <div className="storyboard-block-card storyboard-video-loading">
         <div className="asset-visual-generating-block" role="status" aria-live="polite">
           <div className="asset-visual-generating-block__shimmer" aria-hidden="true" />
-          <LoadingOutlined spin className="asset-visual-generating-block__icon" />
+          <LoadingOutlined spin className="asset-visual-generating-block__icon flow-generation-spinner" />
           <p className="asset-visual-generating-block__text">正在生成分镜视频…</p>
         </div>
       </div>
@@ -158,7 +160,7 @@ export function StoryboardVideoBlock({
                 e.stopPropagation()
                 onPreviewStoryboardVideo(index)
               }}
-              icon={<img src={iconPreview} alt="" className="footer-action-icon" />}
+              icon={<FlowActionIcon src={iconPreview} className="footer-action-icon" />}
             >
               预览
             </Button>
@@ -167,7 +169,7 @@ export function StoryboardVideoBlock({
                 e.stopPropagation()
                 onOpenEditVideoModal(index)
               }}
-              icon={<img src={iconReplace} alt="" className="footer-action-icon" />}
+              icon={<FlowActionIcon src={iconReplace} className="footer-action-icon" />}
             >
               替换
             </Button>
@@ -176,7 +178,7 @@ export function StoryboardVideoBlock({
                 e.stopPropagation()
                 onDownloadStoryboardVideo(index)
               }}
-              icon={<img src={iconDownload} alt="" className="footer-action-icon" />}
+              icon={<FlowActionIcon src={iconDownload} className="footer-action-icon" />}
             >
               下载
             </Button>

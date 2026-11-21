@@ -36,6 +36,9 @@ import org.springframework.stereotype.Component;
 @Slf4j
 @Component
 public class ConfigurableAsyncImageProviderClient implements ImageProviderClient {
+    @Override public InputDelivery inputDelivery(AiModelConfigVo config, MediaImageGenerateRequest request) {
+        return referenceImages(config, request).isEmpty() ? InputDelivery.URL : InputDelivery.MULTIPART;
+    }
 
     @Override
     public String protocol() {
@@ -48,18 +51,27 @@ public class ConfigurableAsyncImageProviderClient implements ImageProviderClient
     }
 
     @Override
+    public void validateRequest(AiModelConfigVo modelConfig, MediaImageGenerateRequest request) {
+        requireConfig(modelConfig);
+    }
+
+    @Override
     public ProviderSubmitResult submit(AiModelConfigVo modelConfig, MediaImageGenerateRequest request) {
         requireConfig(modelConfig);
         List<String> references = referenceImages(modelConfig, request);
         ReferencePromptSanitizer.sanitizeInPlace(request, references.size());
         boolean edit = !references.isEmpty();
-        HttpResult response = edit
-                ? submitEdit(modelConfig, request, references.get(0))
-                : submitGeneration(modelConfig, request);
-        if (!isSuccess(response.statusCode()) || !JSONUtil.isTypeJSON(response.body())) {
+        HttpResult response;
+        try {
+            response = edit ? submitEdit(modelConfig, request, references.get(0)) : submitGeneration(modelConfig, request);
+        } catch (ImagePreparationException preparation) {
+            return com.aid.media.provider.ProviderSubmissionFailures.localPreparationFailure(preparation.getCause());
+        }
+        if (!isSuccess(response.statusCode())) {
             log.error("可配置异步图片提交失败, modelCode={}, detail={}", modelConfig.getModelCode(),
                     ProviderErrorSanitizer.fromHttp(response.statusCode(), response.body()));
-            throw new ServiceException("上游提交失败");
+            return com.aid.media.provider.ProviderSubmissionFailures.httpResponse(
+                    response.statusCode(), response.body(), modelConfig.getModelCode());
         }
         JsonNode root = ProviderResponseHelper.readTree(response.body());
         String taskId = ProviderResponseHelper.readText(root, "task_id", "id", "data.task_id", "data.id");
@@ -97,7 +109,7 @@ public class ConfigurableAsyncImageProviderClient implements ImageProviderClient
                     providerTaskId, ex.getClass().getSimpleName());
             return queryAnomaly(null, null, "上游查询暂不可用");
         }
-        if (!isSuccess(response.statusCode()) || !JSONUtil.isTypeJSON(response.body())) {
+        if (!isSuccess(response.statusCode())) {
             log.warn("可配置异步图片查询异常, taskId={}, httpStatus={}, responseLength={}",
                     providerTaskId, response.statusCode(), StrUtil.length(response.body()));
             return queryAnomaly(response.body(), null, "上游查询暂不可用");
@@ -204,16 +216,26 @@ public class ConfigurableAsyncImageProviderClient implements ImageProviderClient
 
     private static HttpResult submitEdit(AiModelConfigVo modelConfig,
                                          MediaImageGenerateRequest request, String imageUrl) {
-        byte[] imageBytes = downloadReferenceImage(imageUrl);
-        String fileName = resolveFileName(imageUrl);
-        HttpRequest httpRequest = applyAuth(HttpRequest.post(buildSubmitUrl(modelConfig, true)), modelConfig)
-                .form("model", ModelCodeResolver.resolveUpstreamModel(modelConfig,
-                        request == null ? null : request.getModelName()))
-                .form("prompt", request == null ? "" : StrUtil.nullToEmpty(request.getPrompt()))
-                .form("image", imageBytes, fileName);
-        String size = resolveSize(modelConfig, request);
-        if (StrUtil.isNotBlank(size)) {
-            httpRequest.form("size", size);
+        HttpRequest httpRequest;
+        try {
+            var image = com.aid.media.provider.ImageEditAssetSupport.readRequestReference(request, imageUrl, "参考图");
+            byte[] imageBytes = image.bytes();
+            if (imageBytes.length > ConfigurableAsyncMediaConstants.MAX_REFERENCE_IMAGE_BYTES)
+                throw com.aid.common.error.TaskErrorPresentation.fromCode(com.aid.common.error.TaskErrorCode.USER_FILE_TOO_LARGE, "参考图过大");
+            var scope = com.aid.media.provider.ImageInputExecutionScope.current();
+            if (scope != null) scope.recordDelivery(imageUrl, "MULTIPART", com.aid.media.provider.ImageInputExecutionScope.sha256(imageBytes), image.image().getWidth(), image.image().getHeight());
+            String fileName = resolveFileName(imageUrl);
+            httpRequest = applyAuth(HttpRequest.post(buildSubmitUrl(modelConfig, true)), modelConfig)
+                    .form("model", ModelCodeResolver.resolveUpstreamModel(modelConfig,
+                            request == null ? null : request.getModelName()))
+                    .form("prompt", request == null ? "" : StrUtil.nullToEmpty(request.getPrompt()))
+                    .form("image", imageBytes, fileName);
+            String size = resolveSize(modelConfig, request);
+            if (StrUtil.isNotBlank(size)) {
+                httpRequest.form("size", size);
+            }
+        } catch (Exception preparation) {
+            throw new ImagePreparationException(preparation);
         }
         try (HttpResponse response = httpRequest
                 .timeout(ConfigurableAsyncMediaConstants.HTTP_TIMEOUT_MS)
@@ -224,6 +246,10 @@ public class ConfigurableAsyncImageProviderClient implements ImageProviderClient
                     modelConfig.getModelCode(), ex.getClass().getSimpleName());
             throw new ServiceException("上游提交失败");
         }
+    }
+
+    private static final class ImagePreparationException extends RuntimeException {
+        private ImagePreparationException(Exception cause) { super(cause); }
     }
 
     static byte[] downloadReferenceImage(String imageUrl) {
@@ -460,7 +486,7 @@ public class ConfigurableAsyncImageProviderClient implements ImageProviderClient
                 || StrUtil.isBlank(modelConfig.getApiKey())) {
             log.error("可配置异步图片配置不完整, modelCode={}",
                     modelConfig == null ? null : modelConfig.getModelCode());
-            throw new ServiceException("模型配置不完整");
+            throw com.aid.media.provider.ProviderSubmissionFailures.notSent("模型地址或密钥未配置");
         }
     }
 

@@ -32,8 +32,8 @@ public class ModelSkuCoverageService {
     private static final int MAX_CASES = 2048;
     private static final Set<String> AXES = Set.of("resolution", "duration", "audio", "imageCount", "expectedImageCount",
             "referenceImageCount", "referenceVideoCount", "inputVideoCount", "referenceAudioCount",
-            "inputTokens", "outputPixels");
-    private static final Set<String> ROUTE = Set.of("protocol", "operation", "scene", "generateMode", "hasVideoInput");
+            "inputTokens", "outputPixels", "inputResolution");
+    private static final Set<String> ROUTE = Set.of("protocol", "operation", "scene", "generateMode", "hasVideoInput", "capabilityCode");
     private final BillingRuleResolver resolver;
 
     public Report inspect(AidAiModel model) {
@@ -63,6 +63,7 @@ public class ModelSkuCoverageService {
         for (String key : keys) if (!AXES.contains(key) && !ROUTE.contains(key)) warnings.add("需按实际请求核验条件：" + key);
         JsonNode capability = ModelCapabilityResolver.parseCapability(model.getCapabilityJson());
         if (capability == null) return new Report("REVIEW_REQUIRED", 0, List.of(), List.of(), List.of("模型能力尚未配置"));
+        config.setCapabilityCode(capability.path("capabilityCode").asText(null));
         String type = model.getModelType() == null ? "" : model.getModelType().toUpperCase(Locale.ROOT);
         List<CoverageScene> scenes = scenes(model, capability, type);
         warnUnhandledCombinationConstraints(capability, scenes, warnings);
@@ -117,6 +118,12 @@ public class ModelSkuCoverageService {
                 cases = expanded;
             }
             for (Map<String, Object> sample : cases) {
+                if (sample.containsKey("inputResolution") && capability.path("upscalePairs").isObject()) {
+                    JsonNode allowed = capability.path("upscalePairs").path(String.valueOf(sample.get("inputResolution")));
+                    boolean supported = false;
+                    for (JsonNode target : allowed) if (target.asText().equalsIgnoreCase(String.valueOf(sample.get("resolution")))) supported = true;
+                    if (!supported) continue;
+                }
                 if (checked >= MAX_CASES) break;
                 // 尚未求解的条件不能用缺失值参与匹配，否则会把未知误报为缺价。
                 if (keys.stream().anyMatch(key -> !sample.containsKey(key))) {
@@ -173,6 +180,12 @@ public class ModelSkuCoverageService {
 
     private List<Object> values(String key, AidAiModel model, JsonNode root, JsonNode local,
                                 CoverageScene scene, List<String> warnings) {
+        if ("inputResolution".equals(key)) {
+            List<Object> sources = new ArrayList<>();
+            root.path("upscalePairs").fieldNames().forEachRemaining(sources::add);
+            if (sources.isEmpty()) warnings.add("未声明可检查的源视频分辨率组合");
+            return sources;
+        }
         if ("resolution".equals(key) || "duration".equals(key)) {
             String field = "resolution".equals(key) ? "sizeOptions" : "durationOptions";
             JsonNode options = local.has(field) ? local.path(field) : root.path(field);
@@ -335,6 +348,7 @@ public class ModelSkuCoverageService {
             case TOKEN -> nonNegative(sku.getInputPricePerMillion())
                     && nonNegative(sku.getOutputPricePerMillion());
             case PER_IMAGE, PER_CREDIT, SKU_PACKAGE -> nonNegative(sku.getPrice());
+            case PER_MINUTE -> false;
             case PER_SECOND -> nonNegative(sku.getPricePerSecond())
                     || (!explicitMeter && positive(sku.getPrice()) && positiveDurationMax(sku.getMatch()));
             case PER_CHAR -> nonNegative(sku.getPricePerChar())

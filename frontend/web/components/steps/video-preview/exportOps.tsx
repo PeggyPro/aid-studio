@@ -12,6 +12,7 @@ import {
 import { downloadEpisodeSegmentsZipForContext } from '~/hooks/useEpisodeTimeline'
 import { resolveEpisodeExportProgressDisplay } from '~/utils/episodeExportProgress'
 import { resolveStoryScriptSaveContext } from '~/utils/storyScriptSaveContext'
+import { hasPendingReauditVideo } from '~/utils/projectAudit'
 import { hasClipVideoUrl } from './layoutOps'
 import { reloadEpisodeTimelineFromServer } from './timelineOps'
 import type { VideoPreviewCtx } from './types'
@@ -102,6 +103,7 @@ export async function refreshExportStatusFromServer(ctx: VideoPreviewCtx) {
       pendingVideoUrl: status.pendingVideoUrl ?? null,
       exportStatus: status.exportStatus
     })
+    S.exportNeedReaudit.set(Boolean(status.needReaudit))
     S.exportPendingVideoUrl.set(String(status.pendingVideoUrl || '').trim())
     S.exportFinalVideoUrl.set(String(status.finalVideoUrl || '').trim())
     if (Number(status.exportStatus) === 1) {
@@ -119,6 +121,11 @@ export async function refreshExportStatusFromServer(ctx: VideoPreviewCtx) {
     const latest = useCreationStore.getState()
     const currentScopeKey = liveGenScopeKeyFromIds(latest.currentProjectId, latest.currentEpisodeId)
     if (currentScopeKey !== requestedScopeKey) return
+    S.exportNeedReaudit.set(
+      hasPendingReauditVideo({
+        pendingVideoUrl: latest.currentPendingVideoUrl
+      })
+    )
     S.exportPendingVideoUrl.set(String(latest.currentPendingVideoUrl || '').trim())
     S.exportFinalVideoUrl.set(String(latest.currentFinalVideoUrl || '').trim())
   }
@@ -145,6 +152,7 @@ function applyExportOutcomeToUi(ctx: VideoPreviewCtx, result: EpisodeVideoExport
     pendingVideoUrl: result.pendingVideoUrl ?? null,
     exportStatus: 2
   })
+  S.exportNeedReaudit.set(Boolean(result.needReaudit))
   S.exportPendingVideoUrl.set(String(result.pendingVideoUrl || '').trim())
   S.exportFinalVideoUrl.set(String(result.finalVideoUrl || '').trim())
 }
@@ -226,6 +234,7 @@ export async function resumeEpisodeExportFollowIfNeeded(ctx: VideoPreviewCtx) {
 
 export async function handleExport(ctx: VideoPreviewCtx): Promise<{
   videoUrl: string
+  needReaudit?: boolean
   episodeEditorId?: number
 } | null> {
   if (typeof window === 'undefined') return null
@@ -292,6 +301,7 @@ export async function handleExport(ctx: VideoPreviewCtx): Promise<{
         notifyExportSuccess(ctx, result, key, { openModal: true })
         return {
           videoUrl: result.videoUrl,
+          needReaudit: Boolean(result.needReaudit),
           episodeEditorId: result.episodeEditorId
         }
       }
@@ -299,6 +309,7 @@ export async function handleExport(ctx: VideoPreviewCtx): Promise<{
       notifyExportSuccess(ctx, result, key, { openModal: false })
       return {
         videoUrl: result.videoUrl,
+        needReaudit: Boolean(result.needReaudit),
         episodeEditorId: result.episodeEditorId
       }
     })

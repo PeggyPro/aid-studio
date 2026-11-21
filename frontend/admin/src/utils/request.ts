@@ -11,9 +11,38 @@ import { getToken } from './auth';
 import errorCode from './errorCode';
 import { tansParams, blobValidate, resolveAppUrl } from './ruoyi';
 import cache from './cache';
+import { preserveApiIntegerResponse } from './parseApiJson';
 import { ApiResponse } from '@/types/common';
+import { ApiBusinessError, type ApiErrorDetails } from './apiErrorDetails';
+
+interface ApiRequestConfig extends AppRequestConfig {
+  /** The caller renders 409 details in a contextual dialog. */
+  suppressConflictToast?: boolean;
+  /** Preserve explicit 4xx business rejections so idempotent writers can distinguish them from unknown results. */
+  preserveBusinessError?: boolean;
+}
+
+const reportedRequestErrors = new WeakSet<object>();
+
+function markRequestErrorReported<T>(error: T, reported = true): T {
+  if (reported && error != null && (typeof error === 'object' || typeof error === 'function')) {
+    reportedRequestErrors.add(error as object);
+  }
+  return error;
+}
+
+/** Allows a page with contextual error handling to avoid repeating interceptor feedback. */
+export function wasRequestErrorReported(error: unknown) {
+  return error != null
+    && (typeof error === 'object' || typeof error === 'function')
+    && reportedRequestErrors.has(error as object);
+}
 
 export const isRelogin = { show: false };
+
+/** Opt in only when the caller renders the rejection in its own persistent UI. */
+export interface AppRequestConfig extends AxiosRequestConfig { errorFeedback?: 'global' | 'caller' }
+const callerFeedback = (config?: AxiosRequestConfig) => (config as AppRequestConfig | undefined)?.errorFeedback === 'caller';
 
 // 用户手动登出时调用的钩子（注册在 store 初始化里）
 let logoutHandler: (() => void | Promise<void>) | null = null;
@@ -24,6 +53,9 @@ export function registerLogoutHandler(handler: () => void | Promise<void>) {
 const service: AxiosInstance = axios.create({
   baseURL: import.meta.env.VITE_APP_BASE_API,
   timeout: 30000,
+  transformResponse: [preserveApiIntegerResponse, ...(
+    Array.isArray(axios.defaults.transformResponse) ? axios.defaults.transformResponse
+      : axios.defaults.transformResponse ? [axios.defaults.transformResponse] : [])],
   headers: { 'Content-Type': 'application/json;charset=utf-8' }
 });
 
@@ -50,7 +82,7 @@ service.interceptors.request.use(
 
     // 防重复提交
     // 仅拦截"写操作"，放行以 POST 发起的查询类接口（列表/详情/分页/导出等），
-    // 避免以 POST 查询的页面在切换或重查时被误判为重复提交。
+    // 避免审核等以 POST 查询的页面在切换/重查时被误判为"重复提交"。
     const reqUrl = config.url || '';
     const isQueryLike = /\/(list|page|query|detail|export|tree|getInfo|getNames|getKeys|getValue)(\/|\?|$)/i.test(reqUrl);
     if (!isRepeatSubmit && !isQueryLike && (config.method === 'post' || config.method === 'put')) {
@@ -129,36 +161,72 @@ service.interceptors.response.use(
           }
         }, 30000);
       }
-      return Promise.reject(new Error('无效的会话，或者会话已过期，请重新登录。'));
+      return Promise.reject(markRequestErrorReported(
+        new Error('无效的会话，或者会话已过期，请重新登录。')
+      ));
     }
 
     if (code === 500) {
-      message.error(msg);
-      return Promise.reject(new Error(msg));
+      if (!callerFeedback(res.config)) message.error(msg);
+      return Promise.reject(markRequestErrorReported(new Error(msg), !callerFeedback(res.config)));
     }
 
     if (code === 601) {
-      message.warning(msg);
-      return Promise.reject(new Error(msg));
+      if (!callerFeedback(res.config)) message.warning(msg);
+      return Promise.reject(markRequestErrorReported(new Error(msg), !callerFeedback(res.config)));
+    }
+
+    if (code === 409) {
+      const suppressToast = (res.config as ApiRequestConfig).suppressConflictToast || callerFeedback(res.config);
+      if (!suppressToast) if (!callerFeedback(res.config)) message.error(msg);
+      return Promise.reject(markRequestErrorReported(
+        new ApiBusinessError(msg, code, res.data.data as ApiErrorDetails | undefined),
+        !suppressToast
+      ));
     }
 
     if (code !== 200) {
-      message.error({ content: msg, duration: 3 });
-      return Promise.reject(new Error(msg));
+      const preserveBusinessError = (res.config as ApiRequestConfig).preserveBusinessError;
+      if (!callerFeedback(res.config)) message.error({ content: msg, duration: 3 });
+      return Promise.reject(markRequestErrorReported(
+        preserveBusinessError && code >= 400 && code < 500
+          ? new ApiBusinessError(msg, code, res.data.data as ApiErrorDetails | undefined)
+          : new Error(msg), !callerFeedback(res.config)
+      ));
     }
 
     return res.data as any;
   },
   (error) => {
     if (axios.isCancel(error)) return Promise.reject(error);
+    if (error?.response?.status === 409) {
+      const body = error.response.data as ApiResponse<ApiErrorDetails> | undefined;
+      const suppressToast = (error.config as ApiRequestConfig | undefined)?.suppressConflictToast || callerFeedback(error?.config);
+      if (!suppressToast) message.error(body?.msg || '当前内容仍被使用');
+      return Promise.reject(markRequestErrorReported(
+        new ApiBusinessError(body?.msg || '当前内容仍被使用', 409, body?.data),
+        !suppressToast
+      ));
+    }
+    const responseStatus = Number(error?.response?.status || 0);
+    const preserveBusinessError = (error.config as ApiRequestConfig | undefined)?.preserveBusinessError;
+    if (preserveBusinessError && responseStatus >= 400 && responseStatus < 500) {
+      const body = error.response?.data as ApiResponse<ApiErrorDetails> | undefined;
+      const msg = body?.msg || `系统接口 ${responseStatus} 异常`;
+      if (!callerFeedback(error?.config)) message.error({ content: msg, duration: 3 });
+      return Promise.reject(markRequestErrorReported(
+        new ApiBusinessError(msg, responseStatus, body?.data), !callerFeedback(error?.config)
+      ));
+    }
     let msg = error?.message || '请求失败';
     if (msg === 'Network Error') msg = '后端接口连接异常';
     else if (msg.includes('timeout')) msg = '系统接口请求超时';
     else if (error?.response?.status) {
       msg = `系统接口 ${error.response.status} 异常`;
     }
-    message.error({ content: msg, duration: 5 });
-    return Promise.reject(error);
+    if (!callerFeedback(error?.config)) message.error({ content: msg, duration: 5 });
+    else if (error instanceof Error) error.message = msg;
+    return Promise.reject(markRequestErrorReported(error, !callerFeedback(error?.config)));
   }
 );
 
@@ -231,6 +299,6 @@ export function downloadZip(url: string, filename: string) {
 export default service;
 
 /** 类型化的 request 方法 —— 返回 data，与后端 ApiResponse 同形 */
-export function request<T = any>(config: AxiosRequestConfig): Promise<ApiResponse<T>> {
+export function request<T = any>(config: ApiRequestConfig): Promise<ApiResponse<T>> {
   return service.request(config) as unknown as Promise<ApiResponse<T>>;
 }

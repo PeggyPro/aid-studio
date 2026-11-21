@@ -50,6 +50,15 @@ public interface AudioProviderClient {
         return false;
     }
 
+    /** 报价和建任务前的纯参数预检；需要素材元数据时只执行受控只读检查。 */
+    default void validate(AiModelConfigVo modelConfig, MediaAudioGenerateRequest request, boolean verifyMetadata) { }
+
+    /** 音乐/对话等结构化输入由操作Schema判断必填，兼容历史TTS必填文本规则。 */
+    default boolean usesStructuredInput() { return false; }
+
+    /** 同步音频连接由统一执行许可持有；异步任务继续按上游任务状态核验。 */
+    default boolean usesSynchronousExecution(AiModelConfigVo config,MediaAudioGenerateRequest request) {return false;}
+
     /**
      * 提交 TTS 任务（异步），返回 providerTaskId。
      * 豆包 TTS 明确为异步模式，不会同步返回直出 URL；

@@ -5,8 +5,8 @@
   padding: 0 !important;
   border-radius: 4px;
   overflow: hidden;
-  background: #181a23;
-  border: 1px solid rgba(74, 231, 253, 0.22);
+  background: var(--ui-surface, #181a23);
+  border: 1px solid var(--ui-hair, rgba(74, 231, 253, 0.22));
 }
 
 .batch-generate-asset-modal .ant-modal-header {
@@ -18,7 +18,7 @@
 }
 
 .batch-generate-asset-wrap .bgam {
-  color: #e6edf3;
+  color: var(--ui-text, #e6edf3);
   height: min(698px, calc(100dvh - 80px));
   max-height: min(698px, calc(100dvh - 80px));
   display: flex;
@@ -46,14 +46,14 @@
   border: none;
   border-radius: 4px;
   background: transparent;
-  color: rgba(142, 151, 165, 1);
+  color: var(--ui-muted, rgba(142, 151, 165, 1));
   cursor: pointer;
   font-size: 24px;
   flex-shrink: 0;
 }
 
 .batch-generate-asset-wrap .bgam-close:hover {
-  color: #4ae7fd;
+  color: var(--ui-brand, #4ae7fd);
 }
 
 .batch-generate-asset-wrap .bgam-title-wrap {
@@ -68,13 +68,13 @@
   font-size: 18px;
   line-height: 1;
   font-weight: 600;
-  color: #fff;
+  color: var(--ui-text, #fff);
 }
 
 .batch-generate-asset-wrap .bgam-subtitle {
   margin: 0;
   font-size: 12px;
-  color: #8e97a5;
+  color: var(--ui-muted, #8e97a5);
 }
 
 .batch-generate-asset-wrap .bgam-toolbar {
@@ -108,16 +108,16 @@
 
 .batch-generate-asset-wrap .bgam-select-all-text {
   font-size: 14px;
-  color: #fff;
+  color: var(--ui-text, #fff);
 }
 
 .batch-generate-asset-wrap .bgam-pending {
   font-size: 14px;
-  color: #4ae7fd;
+  color: var(--ui-brand, #4ae7fd);
 }
 
 .batch-generate-asset-wrap .bgam-pending--muted {
-  color: #dce6f2;
+  color: var(--ui-text, #dce6f2);
 }
 
 .batch-generate-asset-wrap .bgam-body {
@@ -136,7 +136,7 @@
   justify-content: center;
   min-height: 240px;
   font-size: 14px;
-  color: #8b95a8;
+  color: var(--ui-muted, #8b95a8);
 }
 
 .batch-generate-asset-wrap .bgam-body::-webkit-scrollbar {
@@ -155,9 +155,9 @@
 
 .batch-generate-asset-wrap .bgam-card {
   position: relative;
-  border: 1px solid rgba(74, 231, 253, 0.3);
+  border: 1px solid var(--ui-hair, rgba(74, 231, 253, 0.3));
   border-radius: 6px;
-  background: #121621;
+  background: var(--ui-surface, #121621);
   overflow: hidden;
   cursor: pointer;
   transition:
@@ -167,7 +167,7 @@
 }
 
 .batch-generate-asset-wrap .bgam-card:hover:not(.bgam-card--disabled):not(.bgam-card--selected) {
-  border-color: rgba(74, 231, 253, 0.5);
+  border-color: var(--ui-ring, rgba(74, 231, 253, 0.5));
 }
 
 .batch-generate-asset-wrap .bgam-card--disabled {
@@ -178,7 +178,7 @@
 .batch-generate-asset-wrap .bgam-card-media {
   position: relative;
   height: 168px;
-  background: #101522;
+  background: var(--ui-surface, #101522);
   overflow: hidden;
 }
 

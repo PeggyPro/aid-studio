@@ -1,0 +1,130 @@
+/* The collapsed tools and the conversation share one dock anchor. */
+@import '../studio/theme/studio-surface-motion.css';
+
+.pv-agent-dock {
+  position: absolute;
+  z-index: 14;
+  left: 50%;
+  bottom: var(--director-dock-bottom, 14px);
+  width: min(620px, calc(100% - 16px));
+  transform: translateX(-50%);
+  container-type: inline-size;
+}
+
+.pv-agent-dock__launcher {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: max-content;
+  max-width: 100%;
+  margin-inline: auto;
+  padding: 4px;
+  box-sizing: border-box;
+  border: 1px solid var(--director-line);
+  border-radius: 12px;
+  background: var(--director-floating);
+  box-shadow: var(--director-elevation);
+}
+
+.pv-agent-dock__tools {
+  flex: 0 1 auto;
+  min-width: 0;
+  padding: 0;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+.pv-agent-dock__tools[hidden] { display: none; }
+.pv-agent-dock__tools .director-bottom-bar button { width: 32px; height: 32px; }
+
+.pv-agent-dock.is-expanded {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 8px;
+  width: min(max(620px, var(--pv-agent-width, 510px)), calc(100% - 16px));
+  height: min(calc(var(--pv-agent-height, 504px) + var(--pv-agent-launcher-height, 56px) + 8px), calc(100% - var(--director-dock-bottom, 14px) - 8px));
+}
+
+.pv-agent-dock__content {
+  position: relative;
+  width: min(var(--pv-agent-width, 510px), 100%);
+  justify-self: center;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  box-sizing: border-box;
+  overflow: hidden;
+  border: 1px solid var(--director-line);
+  border-radius: 18px;
+  color: var(--pv-text);
+  background: var(--director-floating);
+  box-shadow: var(--director-elevation);
+  transform-origin: center bottom;
+  animation: studio-surface-expand var(--studio-surface-enter-duration) var(--studio-surface-enter-ease) both;
+}
+.pv-agent-dock [hidden] { display: none; }
+.pv-agent-resize { position: absolute; z-index: 3; touch-action: none; user-select: none; color: var(--pv-muted); }
+.pv-agent-resize:hover, .pv-agent-resize:focus-visible { color: var(--pv-accent); background: var(--studio-ui-hover); }
+.pv-agent-resize:focus-visible { outline: 2px solid var(--pv-accent); outline-offset: -2px; }
+.pv-agent-resize--top { top: 0; left: 24px; right: 56px; height: 8px; cursor: ns-resize; }
+.pv-agent-resize--left, .pv-agent-resize--right { top: 24px; bottom: 20px; width: 8px; cursor: ew-resize; }
+.pv-agent-resize--left { left: 0; }
+.pv-agent-resize--right { right: 0; }
+.pv-agent-resize--corner { right: 0; top: 0; width: 20px; height: 20px; display: grid; place-items: center; cursor: nesw-resize; }
+.pv-agent-dock.is-resizing .pv-agent-dock__content { user-select: none; }
+.pv-agent-dock__return {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 26px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 7px;
+  color: var(--director-muted);
+  background: transparent;
+  cursor: pointer;
+}
+.pv-agent-dock__launch-slot { flex: 0 0 auto; min-width: 0; border-left: 1px solid var(--director-line); padding-left: 4px; }
+.pv-agent-dock__collapse { position: absolute; z-index: 1; top: 6px; right: 24px; display: grid; place-items: center; width: 34px; height: 34px; border: 0; border-radius: 8px; color: var(--director-text); background: transparent; cursor: pointer; }
+.pv-agent-dock__collapse:hover { background: var(--studio-ui-hover); }
+.pv-agent-dock__collapse:focus-visible { outline: 2px solid var(--director-accent); }
+.pv-agent-dock__return:hover { background: var(--studio-ui-hover); }
+.pv-agent-dock__return:focus-visible { outline: 2px solid var(--director-accent); outline-offset: 2px; }
+
+.pv-agent-dock .pv-agent-dock-heading { border: 0; padding: 8px 64px 4px 10px; min-height: 44px; max-height: none; }
+.pv-agent-dock .pv-agent-dock-heading .pv-choice { border: 0; color: var(--director-text); background: transparent; gap: 8px; padding: 5px 6px; font-size: 12px; font-weight: 550; cursor: pointer; }
+.pv-agent-dock .pv-guidance-shell,
+.pv-agent-dock .pv-guidance-session,
+.pv-agent-dock .assistant-panel { flex: 1; min-height: 0; }
+.pv-agent-dock .pv-guidance-launch {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  min-height: 34px;
+  padding: 3px 8px 3px 4px;
+  border: 0;
+  border-radius: 8px;
+  color: var(--director-text);
+  background: color-mix(in srgb, var(--director-accent, var(--pv-accent)) 7%, transparent);
+  text-align: left;
+  cursor: pointer;
+}
+.pv-agent-dock .pv-guidance-launch:hover { background: var(--studio-ui-hover); }
+.pv-agent-dock .pv-guidance-launch:focus-visible { outline: 2px solid var(--pv-accent); outline-offset: 1px; }
+.pv-agent-dock .pv-guidance-launch > .anticon { width: 24px; height: 24px; flex: 0 0 auto; font-size: 16px; }
+.pv-agent-dock .pv-guidance-launch > .pv-assistant-mark { width: 28px; height: 28px; }
+.pv-agent-dock .pv-guidance-launch > .pv-guidance-launch__chevron { width: 10px; height: auto; color: var(--director-muted); font-size: 10px; }
+.pv-guidance-launch-copy { display: flex; align-items: center; min-width: 0; white-space: nowrap; }
+.pv-guidance-launch-copy strong { font-size: 12px; line-height: 1.4; font-weight: 600; }
+@container (max-width: 360px) {
+  .pv-agent-dock__launcher { gap: 2px; }
+  .pv-agent-dock__tools .director-bottom-bar button { width: 30px; height: 32px; }
+}
+.pv-agent-dock.is-exiting .pv-agent-dock__content {
+  pointer-events: none;
+  animation: studio-surface-collapse var(--studio-surface-exit-duration) var(--studio-surface-exit-ease) both;
+}
+@media (prefers-reduced-motion: reduce) { .pv-agent-dock .pv-agent-dock__content { animation: none; } }

@@ -273,6 +273,7 @@ export function makeDefaultScheduleStrategy(): ScheduleStrategy {
     maxIntervalSeconds: 30,
     backoffFactor: 1.5,
     maxRetryCount: 120,
+    maxConsecutiveQueryFailures: 3,
     maxLifeSeconds: 3600,
     progressTimeoutSeconds: 600
   };

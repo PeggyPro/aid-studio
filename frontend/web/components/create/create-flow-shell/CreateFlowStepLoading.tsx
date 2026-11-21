@@ -1,3 +1,5 @@
+import { AppLoadingIndicator } from '~/components/common/AppLoadingIndicator'
+
 interface CreateFlowStepLoadingProps {
   label?: string
 }
@@ -12,8 +14,7 @@ export function CreateFlowStepLoading({
       aria-live="polite"
       aria-label={label}
     >
-      <span className="create-step-swap-placeholder__spinner" aria-hidden="true" />
-      <span className="create-step-swap-placeholder__text">{label}</span>
+      <AppLoadingIndicator label={label} inline />
     </div>
   )
 }

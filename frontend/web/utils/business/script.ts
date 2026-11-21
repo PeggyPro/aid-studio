@@ -40,6 +40,9 @@ export async function userScriptDetailByProject(
   options: { force?: boolean } = {}
 ): Promise<ScriptDetailRow | null> {
   const key = scriptDetailDedupeKey(body)
+  const running = scriptDetailInflight.get(key)
+  if (running) return running
+
   const load = async () => {
     try {
       const res = await request.post<ApiEnvelope<ScriptDetailRow>>('/api/user/script/detailByProject', body)
@@ -52,7 +55,8 @@ export async function userScriptDetailByProject(
       throw e
     }
   }
-  return options.force ? load() : runListDedupe(key, scriptDetailInflight, scriptDetailBurst, load)
+  if (options.force) scriptDetailBurst.current = null
+  return runListDedupe(key, scriptDetailInflight, scriptDetailBurst, load)
 }
 
 /** 保存剧本（版本+1，旧版进历史）/api/user/script/save */
@@ -108,6 +112,7 @@ export async function userScriptSplitPreview(
   )
   const data = unwrap(res)
   return {
+    firstEpisodeNo: data?.firstEpisodeNo,
     totalEpisodes: Number(data?.totalEpisodes) || 0,
     totalCharCount: data?.totalCharCount ?? null,
     episodeKeyword: data?.episodeKeyword ?? null,

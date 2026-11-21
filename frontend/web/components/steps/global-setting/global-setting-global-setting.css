@@ -16,12 +16,12 @@
 
 .global-setting .dict-placeholder {
   margin: 0.5rem 0 0;
-  color: var(--home-muted, #8e97a5);
+  color: var(--home-muted, var(--ui-muted, #8e97a5));
   font-size: 0.9375rem;
 }
 
 .global-setting .step-description-text {
-  color: var(--home-muted, #8e97a5);
+  color: var(--home-muted, var(--ui-muted, #8e97a5));
   font-size: 1rem;
   line-height: 1.6;
   margin: 0;
@@ -43,7 +43,7 @@
 .global-setting .section-title {
   font-size: 1.125rem;
   font-weight: 600;
-  color: var(--home-text, #e6edf3);
+  color: var(--home-text, var(--ui-text, #e6edf3));
   margin: 0;
   display: flex;
   align-items: center;
@@ -52,7 +52,7 @@
 
 .global-setting .info-icon {
   font-size: 1rem;
-  color: var(--home-cyan, #4ae7fd);
+  color: var(--home-cyan, var(--ui-brand, #4ae7fd));
   cursor: help;
 }
 
@@ -64,9 +64,9 @@
 
 .global-setting .option-card {
   padding: 0.875rem 1.5rem;
-  border: 2px solid rgba(74, 231, 253, 0.22);
+  border: 2px solid var(--studio-ui-border-strong, var(--ui-hair, rgba(74, 231, 253, 0.22)));
   border-radius: var(--radius-lg);
-  background: rgba(12, 16, 24, 0.88);
+  background: var(--studio-ui-surface, var(--ui-bg, rgba(12, 16, 24, 0.88)));
   cursor: pointer;
   transition: all 0.2s ease;
   display: flex;
@@ -77,21 +77,21 @@
 }
 
 .global-setting .option-card:hover {
-  border-color: rgba(74, 231, 253, 0.45);
-  background: rgba(14, 89, 250, 0.12);
+  border-color: var(--studio-ui-border-strong, var(--ui-ring, rgba(74, 231, 253, 0.45)));
+  background: var(--ui-soft-hover, rgba(14, 89, 250, 0.12));
 }
 
 .global-setting .option-card.active {
-  border-color: rgba(0, 171, 216, 0.75);
-  background: rgba(14, 89, 250, 0.18);
-  color: var(--home-cyan, #4ae7fd);
+  border-color: var(--studio-ui-border-strong, var(--ui-ring, rgba(0, 171, 216, 0.75)));
+  background: var(--ui-soft, rgba(14, 89, 250, 0.18));
+  color: var(--home-cyan, var(--ui-brand, #4ae7fd));
   font-weight: 600;
 }
 
 .global-setting .option-checkbox {
   width: 20px;
   height: 20px;
-  border: 2px solid rgba(74, 231, 253, 0.35);
+  border: 2px solid var(--studio-ui-border-strong, var(--ui-hair, rgba(74, 231, 253, 0.35)));
   border-radius: 4px;
   display: flex;
   align-items: center;
@@ -100,23 +100,23 @@
 }
 
 .global-setting .option-card.active .option-checkbox {
-  border-color: rgba(0, 171, 216, 0.9);
-  background: linear-gradient(270deg, #0e59fa 0%, #00abd8 100%);
+  border-color: var(--studio-ui-border-strong, var(--ui-ring, rgba(0, 171, 216, 0.9)));
+  background: var(--ui-selected, linear-gradient(270deg, #0e59fa 0%, var(--studio-ui-control, #00abd8) 100%));
 }
 
 .global-setting .check-icon {
-  color: white;
+  color: var(--studio-ui-text, white);
   font-size: 0.875rem;
 }
 
 .global-setting .option-label {
   font-size: 0.9375rem;
-  color: var(--home-text, #e6edf3);
+  color: var(--home-text, var(--ui-text, #e6edf3));
   font-weight: 500;
 }
 
 .global-setting .option-card.active .option-label {
-  color: var(--home-cyan, #4ae7fd);
+  color: var(--home-cyan, var(--ui-brand, #4ae7fd));
 }
 .global-setting .content_box {
   padding: 8px 16px;
@@ -124,7 +124,7 @@
 /* 风格选择区域 */
 .global-setting .subsection-title {
   font-size: 14px;
-  color: var(--home-text, #e6edf3);
+  color: var(--home-text, var(--ui-text, #e6edf3));
   margin-bottom: 0;
 }
 .global-setting .title-one {
@@ -134,7 +134,7 @@
   padding-left: 16px;
   height: 40px;
   width: 100%;
-  background: rgba(32, 36, 52, 1);
+  background: var(--studio-ui-surface, var(--ui-raised, rgba(32, 36, 52, 1)));
   display: flex;
   align-items: center;
   gap: 6px;
@@ -154,7 +154,7 @@
   padding: 4px 2px 4px 10px;
   border: 0;
   background: transparent;
-  color: var(--home-cyan, #4ae7fd);
+  color: var(--home-cyan, var(--ui-brand, #4ae7fd));
   cursor: pointer;
   font-size: 13px;
   font-weight: 500;
@@ -163,7 +163,7 @@
 
 .global-setting .style-more-button:hover,
 .global-setting .style-more-button:focus-visible {
-  color: #8af3ff;
+  color: var(--ui-brand, #8af3ff);
   outline: none;
 }
 
@@ -207,8 +207,8 @@ html.app-shell-create .ant-modal.global-setting-style-modal .ant-modal-container
   overflow: hidden;
   border: none !important;
   border-radius: 12px;
-  background: #191a1d;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55);
+  background: var(--studio-ui-surface, var(--ui-surface, #191a1d));
+  box-shadow: var(--ui-shadow, 0 24px 64px var(--studio-ui-shadow, rgba(0, 0, 0, 0.55)));
   box-sizing: border-box;
 }
 
@@ -222,14 +222,14 @@ html.layout-home-new .ant-modal.global-setting-style-modal .ant-modal-header {
   margin: 0 !important;
   padding: 20px 24px 0 !important;
   border-bottom: 0 !important;
-  background: #191a1d;
+  background: var(--studio-ui-surface, var(--ui-surface, #191a1d));
 }
 
 .global-setting-style-modal .ant-modal-title,
 .global-setting-style-modal-wrap .ant-modal-title,
 html.app-shell-create .global-setting-style-modal-wrap .ant-modal-title,
 html.layout-home-new .global-setting-style-modal-wrap .ant-modal-title {
-  color: var(--home-text, #e6edf3);
+  color: var(--home-text, var(--ui-text, #e6edf3));
   font-size: 16px;
   font-weight: 600;
   line-height: 24px;
@@ -241,13 +241,13 @@ html.app-shell-create .ant-modal-wrap.global-setting-style-modal-wrap .ant-modal
 html.layout-home-new .ant-modal-wrap.global-setting-style-modal-wrap .ant-modal-close {
   top: 18px !important;
   inset-inline-end: 20px !important;
-  color: rgba(255, 255, 255, 0.75);
+  color: var(--studio-ui-text, var(--ui-text, rgba(255, 255, 255, 0.75)));
 }
 
 .global-setting-style-modal .ant-modal-close:hover,
 .global-setting-style-modal-wrap .ant-modal-close:hover {
-  color: var(--home-cyan, #4ae7fd);
-  background: rgba(255, 255, 255, 0.06);
+  color: var(--home-cyan, var(--ui-brand, #4ae7fd));
+  background: var(--studio-ui-hover, var(--ui-soft-hover, rgba(255, 255, 255, 0.06)));
 }
 
 .global-setting-style-modal .ant-modal-body,
@@ -278,7 +278,7 @@ html.layout-home-new .ant-modal-wrap.global-setting-style-modal-wrap .ant-modal-
   /* 标题与 Tab 留出间距；Tab 与卡片列表收紧 */
   padding: 12px 24px 8px;
   border-bottom: 0;
-  background: #191a1d;
+  background: var(--studio-ui-surface, var(--ui-surface, #191a1d));
   container-type: inline-size;
 }
 
@@ -289,7 +289,7 @@ html.layout-home-new .ant-modal-wrap.global-setting-style-modal-wrap .ant-modal-
   overflow-y: auto;
   padding: 4px 24px 20px;
   scrollbar-width: thin;
-  scrollbar-color: rgba(74, 231, 253, 0.28) transparent;
+  scrollbar-color: var(--studio-ui-scrollbar, rgba(74, 231, 253, 0.28)) transparent;
 }
 
 .global-setting-style-modal .style-browser-popover__body::-webkit-scrollbar {
@@ -298,11 +298,11 @@ html.layout-home-new .ant-modal-wrap.global-setting-style-modal-wrap .ant-modal-
 
 .global-setting-style-modal .style-browser-popover__body::-webkit-scrollbar-thumb {
   border-radius: 999px;
-  background: rgba(74, 231, 253, 0.28);
+  background: var(--studio-ui-scrollbar, var(--ui-raised, rgba(74, 231, 253, 0.28)));
 }
 
-.global-setting-style-modal .styles-grid {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+.global-setting.global-setting-style-modal .styles-grid {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 128px), 1fr));
   gap: 10px;
 }
 
@@ -313,30 +313,34 @@ html.layout-home-new .ant-modal-wrap.global-setting-style-modal-wrap .ant-modal-
 .global-setting .style-category-filter {
   display: flex;
   flex-wrap: nowrap;
-  align-items: stretch;
-  gap: clamp(4px, 0.9cqi, 8px);
+  align-items: center;
+  gap: 3px;
   width: 100%;
   min-width: 0;
   margin: 0;
-  padding: 0;
-  overflow-x: hidden;
+  padding: 4px;
+  border: 1px solid var(--studio-ui-border, var(--ui-hair, rgba(255,255,255,.1)));
+  border-radius: 11px;
+  background: var(--studio-ui-control, var(--ui-bg, rgba(0,0,0,.14)));
+  overflow-x: auto;
   overflow-y: hidden;
+  scrollbar-width: thin;
 }
 
 .global-setting .style-category-filter__item {
   display: inline-flex;
-  flex: 1 1 0%;
+  flex: 1 0 auto;
   align-items: center;
   justify-content: center;
-  min-width: 0;
+  min-width: 58px;
   min-height: 32px;
-  padding: 6px clamp(4px, 1.2cqi, 8px);
-  border: 1px solid rgba(47, 57, 73, 1);
-  border-radius: 8px;
-  background: rgba(10, 14, 22, 0.72);
-  color: var(--home-muted, rgba(255, 255, 255, 0.66));
+  padding: 6px 12px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--home-muted, var(--ui-muted, rgba(255, 255, 255, 0.66)));
   cursor: pointer;
-  font-size: clamp(11px, 1.8cqi, 13px);
+  font-size: 13px;
   font-weight: 500;
   line-height: 1.2;
   white-space: nowrap;
@@ -352,16 +356,15 @@ html.layout-home-new .ant-modal-wrap.global-setting-style-modal-wrap .ant-modal-
 
 .global-setting .style-category-filter__item:hover,
 .global-setting .style-category-filter__item:focus-visible {
-  border-color: rgba(74, 231, 253, 0.35);
-  color: rgba(255, 255, 255, 0.92);
-  outline: none;
+  color: var(--studio-ui-text, var(--ui-text, rgba(255, 255, 255, 0.92)));
+  background: var(--studio-ui-hover, var(--ui-raised, rgba(255,255,255,.06)));
 }
+.global-setting .style-category-filter__item:focus-visible { outline:2px solid var(--studio-ui-accent,var(--ui-brand,#dce4f0)); outline-offset:-2px; }
 
 .global-setting .style-category-filter__item.is-active {
-  border-color: rgba(0, 108, 143, 1);
-  background: linear-gradient(270deg, rgba(14, 89, 250, 0.2) 0%, rgba(0, 171, 216, 0.2) 100%);
-  color: #fff;
-  box-shadow: 0 2px 12px rgba(74, 231, 253, 0.18);
+  background: var(--studio-ui-row-selected, var(--studio-ui-hover, var(--ui-selected, rgba(255,255,255,.1))));
+  color: var(--studio-ui-text, var(--ui-text, #fff));
+  box-shadow: inset 0 0 0 1px var(--studio-ui-border, var(--ui-hair, rgba(255,255,255,.1)));
 }
 
 .global-setting .style-category-filter__item:disabled {
@@ -371,7 +374,7 @@ html.layout-home-new .ant-modal-wrap.global-setting-style-modal-wrap .ant-modal-
 
 .global-setting .style-category-filter__hint {
   min-height: 32px;
-  color: rgba(255, 255, 255, 0.45);
+  color: var(--studio-ui-muted, var(--ui-muted, rgba(255, 255, 255, 0.45)));
   font-size: 12px;
   line-height: 32px;
 }
@@ -387,7 +390,7 @@ html.layout-home-new .ant-modal-wrap.global-setting-style-modal-wrap .ant-modal-
   padding: 10px 12px;
   border: 1px solid rgba(250, 173, 20, 0.38);
   border-radius: 6px;
-  color: #ffd666;
+  color: var(--ui-warning, #ffd666);
   background: rgba(250, 173, 20, 0.08);
   font-size: 0.875rem;
   line-height: 1.5;
@@ -403,15 +406,15 @@ html.layout-home-new .ant-modal-wrap.global-setting-style-modal-wrap .ant-modal-
     border-color 0.38s cubic-bezier(0.4, 0, 0.2, 1),
     box-shadow 0.38s cubic-bezier(0.4, 0, 0.2, 1),
     transform 0.38s cubic-bezier(0.4, 0, 0.2, 1);
-  border: 2px solid rgba(74, 231, 253, 0.2);
-  background: rgba(12, 16, 24, 0.9);
+  border: 2px solid var(--studio-ui-border-strong, var(--ui-hair, rgba(74, 231, 253, 0.2)));
+  background: var(--studio-ui-surface, var(--ui-bg, rgba(12, 16, 24, 0.9)));
   isolation: isolate;
   will-change: transform, box-shadow;
 }
 
 .global-setting .style-card:hover:not(.active) {
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.42);
-  border-color: rgba(74, 231, 253, 0.45);
+  box-shadow: var(--ui-no-shadow, 0 10px 28px var(--studio-ui-shadow, rgba(0, 0, 0, 0.42)));
+  border-color: var(--studio-ui-border-strong, var(--ui-ring, rgba(74, 231, 253, 0.45)));
   transform: translateY(-2px);
 }
 
@@ -422,18 +425,18 @@ html.layout-home-new .ant-modal-wrap.global-setting-style-modal-wrap .ant-modal-
 }
 
 .global-setting .style-card.is-style-locked:hover {
-  border-color: rgba(74, 231, 253, 0.2);
+  border-color: var(--studio-ui-border-strong, var(--ui-ring, rgba(74, 231, 253, 0.2)));
   box-shadow: none;
   transform: none;
 }
 
 .global-setting .style-card.active {
-  border-color: rgba(74, 231, 253, 0.95);
+  border-color: var(--studio-ui-border-strong, var(--ui-ring, rgba(74, 231, 253, 0.95)));
   transform: translateY(-2px) scale(1.02);
   box-shadow:
-    0 0 0 2px rgba(14, 89, 250, 0.45),
-    0 0 18px rgba(74, 231, 253, 0.38),
-    0 10px 28px rgba(0, 0, 0, 0.45);
+    var(--ui-no-shadow, 0 0 0 2px rgba(14, 89, 250, 0.45),
+    0 0 18px var(--studio-ui-shine, rgba(74, 231, 253, 0.38)),
+    0 10px 28px var(--studio-ui-shadow, rgba(0, 0, 0, 0.45)));
 }
 
 .global-setting .selected-style-shortcut {
@@ -442,7 +445,7 @@ html.layout-home-new .ant-modal-wrap.global-setting-style-modal-wrap .ant-modal-
 
 .global-setting .selected-style-shortcut:focus-visible {
   box-shadow:
-    0 0 0 2px rgba(14, 89, 250, 0.55),
-    0 0 0 4px rgba(74, 231, 253, 0.5),
-    0 10px 28px rgba(0, 0, 0, 0.45);
+    var(--ui-no-shadow, 0 0 0 2px rgba(14, 89, 250, 0.55),
+    0 0 0 4px var(--studio-ui-shine, rgba(74, 231, 253, 0.5)),
+    0 10px 28px var(--studio-ui-shadow, rgba(0, 0, 0, 0.45)));
 }

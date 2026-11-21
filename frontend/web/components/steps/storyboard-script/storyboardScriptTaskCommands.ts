@@ -10,6 +10,7 @@ import { message } from 'antd'
 import type { MutableRefObject } from 'react'
 import type { StoryboardImageBatchGenerate } from '~/composables/useStoryboardImageBatchGenerate'
 import type { useStoryboardScriptBatchGenerate } from '~/composables/useStoryboardScriptBatchGenerate'
+import { captureCreationLiveGenScope, matchesCreationLiveGenScope } from '~/composables/useCreationLiveGenScopeGuard'
 import { useCreationStore } from '~/stores/creation'
 import {
 ackCreateFlowTaskCommand,
@@ -73,8 +74,9 @@ export function createStoryboardScriptTaskCommandHandlers(deps: StoryboardScript
     }
     generationStoppedRef.current = false
     prepareGeneratingProgress()
+    const scope = captureCreationLiveGenScope()
     storyboardScriptGen.onGlobalTrackTask(event, (result) => {
-      if (pageDisposedRef.current) return
+      if (pageDisposedRef.current || !matchesCreationLiveGenScope(scope)) return
       syncStoryboardScriptPanelsFromTaskResult(result.panels)
       if (result.ok) {
         message.success('分镜生成完成')
@@ -190,11 +192,23 @@ export function createStoryboardScriptTaskCommandHandlers(deps: StoryboardScript
     getStore().stopStoryboardGeneration()
   }
 
+  function handleOnboardingPrepareAnchor(e: Event) {
+    const anchor = (e as CustomEvent<{ anchor?: string }>).detail?.anchor
+    if (anchor === 'btn-auto-storyboard' || anchor === 'sbs-batch-image') {
+      setToolbarOpsOpen(true)
+      return
+    }
+    if (anchor === 'sbs-close-dropdown') {
+      setToolbarOpsOpen(false)
+    }
+  }
+
   return {
     handleGlobalTrackTaskEvent,
     handleGlobalResumeTaskEvent,
     handleGlobalRestartTaskEvent,
     deliverPendingCreateFlowTaskCommands,
-    handleGlobalStopTaskEvent
+    handleGlobalStopTaskEvent,
+    handleOnboardingPrepareAnchor
   }
 }

@@ -48,6 +48,12 @@ public final class AgnesVideo25RequestBuilder {
                 || AgnesConstants.VIDEO_MODEL_25_FLASH.equals(normalized);
     }
 
+    static boolean hasVideoInput(MediaVideoGenerateRequest request) {
+        return request != null && (request.getReferenceVideoRecordIds() != null && !request.getReferenceVideoRecordIds().isEmpty()
+                || request.getResolvedReferenceVideos() != null && !request.getResolvedReferenceVideos().isEmpty()
+                || !collect(request).videos().isEmpty());
+    }
+
     /** 原始请求必须先于通用素材截断校验，避免 Flash 超限输入被静默少发。 */
     public static void validateRawInputs(AiModelConfigVo modelConfig, MediaVideoGenerateRequest request) {
         if (!supportsModel(modelConfig) || request == null) {
@@ -56,12 +62,12 @@ public final class AgnesVideo25RequestBuilder {
         Inputs inputs = collect(request);
         validateN(request);
         if (isFlash(modelConfig)) {
-            String mode = resolveMode(request, inputs);
+            String mode = resolveMode(modelConfig, request, inputs);
             if ("reference".equals(mode)) {
                 require(referenceImages(request, inputs).size() <= AgnesConstants.VIDEO_25_FLASH_MAX_IMAGES,
                         "参考图超限");
             }
-            require(inputs.videos().isEmpty(), "模型不支持视频");
+            require(!hasVideoInput(request), "模型不支持参考视频");
         }
     }
 
@@ -87,7 +93,7 @@ public final class AgnesVideo25RequestBuilder {
         require(supportedSizes.contains(size(request)), "分辨率不支持");
         require(RATIOS.contains(ratio(request)), "比例不支持");
 
-        String mode = resolveMode(request, inputs);
+        String mode = resolveMode(modelConfig, request, inputs);
         require(MODES.contains(mode), "生成模式不支持");
         boolean hasFrames = StrUtil.isNotBlank(request.getImageUrl()) || StrUtil.isNotBlank(inputs.lastFrame());
         boolean hasReferences = !referenceImages(request, inputs).isEmpty()
@@ -115,7 +121,7 @@ public final class AgnesVideo25RequestBuilder {
                                                            MediaVideoGenerateRequest request) {
         validateFullRequest(modelConfig, request);
         Inputs inputs = collect(request);
-        String mode = resolveMode(request, inputs);
+        String mode = resolveMode(modelConfig, request, inputs);
         List<String> images = "reference".equals(mode)
                 ? referenceImages(request, inputs) : new ArrayList<>();
         List<Map<String, Object>> videos = "reference".equals(mode)
@@ -233,14 +239,25 @@ public final class AgnesVideo25RequestBuilder {
         return new ArrayList<>(images);
     }
 
-    private static String resolveMode(MediaVideoGenerateRequest request, Inputs inputs) {
+    private static String resolveMode(AiModelConfigVo modelConfig, MediaVideoGenerateRequest request, Inputs inputs) {
         String configured = firstText(request.getOptions(), "mode");
         if ("keyframes".equalsIgnoreCase(configured)) {
             configured = "keyframe";
         }
+        String selectedMode = StrUtil.blankToDefault(modelConfig.getGenerateMode(), request.getCapabilityCode());
+        String selected = switch (StrUtil.blankToDefault(selectedMode, "").trim().toLowerCase(Locale.ROOT)) {
+            case "text_to_video" -> "text";
+            case "image_to_video", "start_end_to_video", "last_frame_to_video" -> "keyframe";
+            case "reference_to_video" -> "reference";
+            default -> null;
+        };
         if (StrUtil.isNotBlank(configured)) {
-            return configured.trim().toLowerCase(Locale.ROOT);
+            configured = configured.trim().toLowerCase(Locale.ROOT);
+            require(selected == null || selected.equals(configured), "生成模式与所选能力不一致");
+            return configured;
         }
+        // A single reference remains a reference; infer from materials only for legacy unscoped calls.
+        if (selected != null) return selected;
         if (StrUtil.isNotBlank(inputs.lastFrame())) {
             return "keyframe";
         }

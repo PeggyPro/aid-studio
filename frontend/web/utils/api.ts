@@ -16,7 +16,6 @@ refreshApiCryptoConfig,
 shouldEncryptApiPath,
 takeAxiosRequestAesKey
 } from '~/utils/apiCrypto'
-import { redirectToLogin } from '~/utils/authLoginNavigation'
 import {
   captureBrowserFailure,
   configureErrorDiagnostics,
@@ -29,13 +28,13 @@ clearPendingCaptchaToken,
 isCaptchaProtectedAuthPath,
 takePendingCaptchaToken
 } from '~/utils/captchaToken'
+import { resolvePublicProjectPreviewRequest } from '~/utils/publicProjectPreviewRuntime'
 import {
 isInsufficientBalanceMessage,
 shouldOpenUserRechargeFromSseError,
 type SseRechargeErrorData
 } from '~/utils/insufficientBalanceRecharge'
-
-export { redirectToLogin } from '~/utils/authLoginNavigation'
+import { toApiError } from '~/utils/apiError'
 
 type ApiCryptoRetryConfig = InternalAxiosRequestConfig & {
   __diagnosticRequest?: DiagnosticRequest
@@ -100,6 +99,26 @@ function isLoginRequiredApi(url?: string): boolean {
   if (!path || ANONYMOUS_USER_API_PATHS.has(path)) return false
   // 其余 /api/user/** 仍然必须登录；匿名白名单只允许精确匹配公开目录接口。
   return path.startsWith('/api/user/')
+}
+
+export function redirectToLogin(): void {
+  if (!(typeof window !== 'undefined')) return
+  try {
+    localStorage.removeItem('token')
+    localStorage.removeItem('user-info')
+  } catch {
+    /* ignore */
+  }
+  const path = window.location.pathname || '/'
+  if (path.startsWith('/login')) return
+  void import('@/stores/user').then(({ useUserStore }) => {
+    if (!localStorage.getItem('token')) useUserStore.getState().logout()
+  })
+  /**
+   * 只清登录态，不自动弹登录窗。
+   * 公开页（案例广场等）保持游客浏览；需登录页由 RouteGuard 感知 token 变化后回首页。
+   * 真正打开登录弹窗的入口：侧栏/创作等 requireLogin、goToLogin 点击。
+   */
 }
 
 function extractApiMessage(data: unknown): string {
@@ -182,8 +201,10 @@ export function handleSseErrorRecharge(
   }
 }
 
-function shouldOpenRecharge(data: any): boolean {
-  return isInsufficientBalanceMessage(String(data?.msg ?? data?.message ?? ''))
+function shouldOpenRecharge(data: unknown): boolean {
+  if (!data || typeof data !== 'object') return false
+  const payload = data as SseRechargeErrorData & { msg?: string; message?: string }
+  return shouldOpenUserRechargeFromSseError(payload, String(payload.msg ?? payload.message ?? ''))
 }
 
 function emitRechargeEvent() {
@@ -357,14 +378,14 @@ api.interceptors.response.use(
           { status: response.status, body: data }, undefined,
           String(response.headers['x-aid-request-id'] || data.requestId || ''))
         if (handleLoginRequiredResponse(data)) {
-          return Promise.reject(data)
+          return Promise.reject(toApiError(data))
         }
         if (shouldOpenRecharge(data)) {
           emitRechargeEvent()
         }
         // 处理业务错误（与后端文档字段 msg 一致）
         console.log('API 错误:', extractApiMessage(data))
-        return Promise.reject(data)
+        return Promise.reject(toApiError(data))
       }
     }
 
@@ -375,6 +396,24 @@ api.interceptors.response.use(
     if (axios.isCancel(error)) {
       return Promise.reject(error)
     }
+    // HTTP errors use the same encrypted envelope and per-request key as success.
+    const config = error.config as InternalAxiosRequestConfig | undefined
+    const aesKey = config ? takeAxiosRequestAesKey(config) : undefined
+    if (error.response) {
+      try {
+        if (error.response.data?.encrypted === true && !aesKey) {
+          throw new Error('API_CRYPTO_RESPONSE_KEY_MISSING')
+        }
+        error.response.data = await maybeDecryptApiPayload(error.response.data, aesKey)
+      } catch (decryptionError) {
+        captureBrowserFailure((config as ApiCryptoRetryConfig | undefined)?.__diagnosticRequest,
+          { status: error.response.status, body: error.response.data, encrypted: true }, decryptionError,
+          String(error.response.headers?.['x-aid-request-id'] || ''))
+        // Preserve transport evidence without treating an unreadable envelope as a rejection.
+        error.apiCryptoDecryptionFailed = true
+        return Promise.reject(error)
+      }
+    }
     if (isDiagnosticUrl(error.config?.url)) return Promise.reject(error)
     captureBrowserFailure((error.config as ApiCryptoRetryConfig | undefined)?.__diagnosticRequest,
       error.response ? { status: error.response.status, body: error.response.data } : undefined,
@@ -384,9 +423,7 @@ api.interceptors.response.use(
     if (error.response) {
       // 服务器返回错误
       const { status, data } = error.response
-      const config = error.config as InternalAxiosRequestConfig | undefined
       if (config) {
-        const aesKey = takeAxiosRequestAesKey(config)
         const retryResult = await retryExpiredEncryptedRequest(config, data, Boolean(aesKey))
         if (retryResult !== API_CRYPTO_NO_RETRY) return retryResult
       }
@@ -438,6 +475,10 @@ function asPayloadPromise<T>(promise: Promise<unknown>): Promise<T> {
 export const request = {
   // GET 请求
   get<T = any>(url: string, params?: any, config?: AxiosRequestConfig): Promise<T> {
+    const preview = resolvePublicProjectPreviewRequest('get', url, params)
+    if (preview.handled) {
+      return preview.error ? Promise.reject(preview.error) : Promise.resolve(preview.payload as T)
+    }
     return asPayloadPromise<T>(api.get(url, {
       params,
       ...config
@@ -446,16 +487,28 @@ export const request = {
 
   // POST 请求
   post<T = any>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
+    const preview = resolvePublicProjectPreviewRequest('post', url, data)
+    if (preview.handled) {
+      return preview.error ? Promise.reject(preview.error) : Promise.resolve(preview.payload as T)
+    }
     return asPayloadPromise<T>(api.post(url, data, config))
   },
 
   // PUT 请求
   put<T = any>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
+    const preview = resolvePublicProjectPreviewRequest('put', url, data)
+    if (preview.handled) {
+      return preview.error ? Promise.reject(preview.error) : Promise.resolve(preview.payload as T)
+    }
     return asPayloadPromise<T>(api.put(url, data, config))
   },
 
   // DELETE 请求
   delete<T = any>(url: string, params?: any, config?: AxiosRequestConfig): Promise<T> {
+    const preview = resolvePublicProjectPreviewRequest('delete', url, params)
+    if (preview.handled) {
+      return preview.error ? Promise.reject(preview.error) : Promise.resolve(preview.payload as T)
+    }
     return asPayloadPromise<T>(api.delete(url, {
       params,
       ...config
@@ -464,6 +517,10 @@ export const request = {
 
   // PATCH 请求
   patch<T = any>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
+    const preview = resolvePublicProjectPreviewRequest('patch', url, data)
+    if (preview.handled) {
+      return preview.error ? Promise.reject(preview.error) : Promise.resolve(preview.payload as T)
+    }
     return asPayloadPromise<T>(api.patch(url, data, config))
   }
 }

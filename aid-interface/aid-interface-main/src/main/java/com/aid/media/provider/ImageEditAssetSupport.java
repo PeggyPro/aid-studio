@@ -1,7 +1,10 @@
 package com.aid.media.provider;
 
+import com.aid.common.aid.image.ManagedImageIO;
+
 import com.aid.common.exception.ServiceException;
 import com.aid.common.oss.factory.OssFactory;
+import com.aid.media.dto.AuthorizedImageAssetSnapshot;
 import com.aid.media.dto.MediaImageGenerateRequest;
 import com.aid.media.util.MediaBytesFetcher;
 import com.drew.imaging.ImageMetadataReader;
@@ -60,6 +63,12 @@ public final class ImageEditAssetSupport {
     }
 
     public static BinaryImage read(String source, String label) {
+        var scope = ImageInputExecutionScope.current();
+        if (scope != null && scope.contains(source)) return scope.read(source, label);
+        return readUncached(source, label);
+    }
+
+    static BinaryImage readUncached(String source, String label) {
         if (source == null || source.isBlank()) {
             throw new ServiceException(label + "不能为空");
         }
@@ -71,13 +80,13 @@ public final class ImageEditAssetSupport {
             }
             if (content.isEmpty() || content.truncated()) {
                 log.warn("图片编辑素材读取失败, label={}, truncated={}", label, content.truncated());
-                throw new ServiceException(label + "读取失败");
+                throw assetReadFailure(label, content);
             }
             bytes = content.bytes();
         }
         try {
             validateEncodedDimensions(bytes, label);
-            BufferedImage image = ImageIO.read(new ByteArrayInputStream(bytes));
+            BufferedImage image = ManagedImageIO.read(new ByteArrayInputStream(bytes));
             if (image == null) {
                 throw new ServiceException(label + "格式不支持");
             }
@@ -92,21 +101,151 @@ public final class ImageEditAssetSupport {
         }
     }
 
+    private static BinaryImage readReference(MediaImageGenerateRequest request) {
+        return readAuthorizedOrLegacy(request.getAuthorizedReferenceImage(),
+                request.getReferenceImageUrl(), "原图");
+    }
+
+    /** Multipart reads the same authorized primary asset as quote validation and post-processing. */
+    public static BinaryImage readRequestReference(MediaImageGenerateRequest request, String source, String label) {
+        var scope = ImageInputExecutionScope.current();
+        if (scope != null && scope.contains(source)) return scope.read(source, label);
+        if (request != null && request.getAuthorizedReferenceImages() != null
+                && request.getAuthorizedReferenceImages().containsKey(source))
+            return readAuthorizedOrLegacy(request.getAuthorizedReferenceImages().get(source), source, label);
+        if (request != null && source != null && source.equals(request.getReferenceImageUrl())) {
+            return readAuthorizedOrLegacy(request.getAuthorizedReferenceImage(), source, label);
+        }
+        return read(source, label);
+    }
+
+    private static ServiceException assetReadFailure(String label, MediaBytesFetcher.Content content) {
+        String message = label + "读取失败";
+        org.slf4j.LoggerFactory.getLogger("media-image-input").warn("image input read failed, taskId={}, httpStatus={}, failureKind={}, truncated={}",
+                ImageInputExecutionScope.current() == null ? null : ImageInputExecutionScope.current().taskId(),
+                content.httpStatus(), content.failureKind(), content.truncated());
+        return new ServiceException(message).setTaskErrorJson(com.aid.common.error.TaskErrorSnapshot.write(
+                com.aid.common.error.TaskErrorResult.of(
+                        content.truncated() ? com.aid.common.error.TaskErrorCode.USER_FILE_TOO_LARGE
+                                : com.aid.common.error.TaskErrorCode.USER_FILE_DOWNLOAD_FAILED, message)));
+    }
+
+    private static BinaryImage readMask(MediaImageGenerateRequest request) {
+        return readAuthorizedOrLegacy(request.getAuthorizedMaskImage(), request.getMaskImageUrl(), "蒙版");
+    }
+
+    private static BinaryImage readAuthorizedOrLegacy(AuthorizedImageAssetSnapshot snapshot,
+                                                        String source, String label) {
+        if (snapshot == null) return read(source, label);
+        var scope = ImageInputExecutionScope.current();
+        return scope == null ? readAuthorizedUncached(snapshot, label) : scope.readAuthorized(snapshot, label);
+    }
+
+    static BinaryImage readAuthorizedUncached(AuthorizedImageAssetSnapshot snapshot, String label) {
+        // The request URL may be replaced by a short-lived provider URL after task admission.
+        // Always read the frozen site locator and verify the actual bytes against its metadata.
+        snapshot.requireValid(snapshot.getLocator(), label);
+        MediaBytesFetcher.Content content = MediaBytesFetcher.fetchAuthorized(
+                snapshot.getLocator(), MAX_INPUT_BYTES, REQUIRED_IMAGE_TIMEOUT_MS);
+        if (content.isEmpty() || content.truncated()) {
+            throw assetReadFailure(label, content);
+        }
+        if (!Long.valueOf(content.bytes().length).equals(snapshot.getFileSize())) {
+            throw new ServiceException(label + "内容已变化");
+        }
+        BinaryImage image = decodeBinary(content.bytes(), label);
+        if (image.image().getWidth() != snapshot.getWidth()
+                || image.image().getHeight() != snapshot.getHeight()) {
+            throw new ServiceException(label + "尺寸已变化");
+        }
+        return image;
+    }
+
+    public static BinaryImage decodeBinary(byte[] bytes, String label) {
+        try {
+            validateEncodedDimensions(bytes, label);
+            BufferedImage image = ManagedImageIO.read(new ByteArrayInputStream(bytes));
+            if (image == null) throw new ServiceException(label + "格式不支持");
+            image = normalizeOrientation(bytes, image, label);
+            validatePixels(image, label);
+            return new BinaryImage(bytes, image);
+        } catch (ServiceException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw new ServiceException(label + "解析失败");
+        }
+    }
+
     /** 从真实素材读取尺寸，不能依赖调用方提交或旧资源可能缺失的元数据。 */
     public static Dimensions dimensions(String source, String label) {
         BufferedImage image = read(source, label).image();
         return new Dimensions(image.getWidth(), image.getHeight());
     }
 
+    /** Quote-safe dimensions from a server-owned authorization snapshot; never reads the file. */
+    public static Dimensions authorizedDimensions(MediaImageGenerateRequest request, boolean mask, String label) {
+        AuthorizedImageAssetSnapshot snapshot = mask
+                ? request.getAuthorizedMaskImage() : request.getAuthorizedReferenceImage();
+        String locator = mask ? request.getMaskImageUrl() : request.getReferenceImageUrl();
+        if (snapshot == null) {
+            throw com.aid.media.service.MediaPreparationErrorCode.MEDIA_INPUT_METADATA_REQUIRED
+                    .reject(label + "可信元数据缺失");
+        }
+        snapshot.requireValid(locator, label);
+        if (snapshot.getFileSize() > MAX_INPUT_BYTES) {
+            throw com.aid.media.service.MediaPreparationErrorCode.MEDIA_INPUTS_INVALID
+                    .reject(label + "文件过大");
+        }
+        if ((long) snapshot.getWidth() > MAX_PIXELS / snapshot.getHeight()) {
+            throw com.aid.media.service.MediaPreparationErrorCode.MEDIA_INPUTS_INVALID
+                    .reject(label + "像素数量过大");
+        }
+        return new Dimensions(snapshot.getWidth(), snapshot.getHeight());
+    }
+
+    /** Quote-safe structural checks shared with the later byte verification. */
+    public static Dimensions validateAuthorizedEditMetadata(MediaImageGenerateRequest request) {
+        Dimensions source = authorizedDimensions(request, false, "原图");
+        if (request.getMaskImageUrl() != null && !request.getMaskImageUrl().isBlank()) {
+            Dimensions mask = authorizedDimensions(request, true, "蒙版");
+            if (source.width() != mask.width() || source.height() != mask.height()) {
+                throw com.aid.media.service.MediaPreparationErrorCode.MEDIA_INPUTS_INVALID
+                        .reject("蒙版尺寸必须与原图一致");
+            }
+        }
+        return source;
+    }
+
+    /** Submission-time dimensions from real bytes; authorized locators use the bounded storage reader. */
+    public static Dimensions verifiedDimensions(MediaImageGenerateRequest request, String label) {
+        BinaryImage image = readReference(request);
+        return new Dimensions(image.image().getWidth(), image.image().getHeight());
+    }
+
+    /** Submission/result processing reads the authorized original through the same storage-aware path. */
+    public static BufferedImage verifiedSourceImage(MediaImageGenerateRequest request) {
+        return readReference(request).image();
+    }
+
+    /** Re-check the frozen authorized assets immediately before the provider call. */
+    public static void verifyAuthorizedAssets(MediaImageGenerateRequest request) {
+        if (request == null || request.getAuthorizedReferenceImage() == null) return;
+        BinaryImage source = readReference(request);
+        if (request.getAuthorizedMaskImage() != null) {
+            BinaryImage mask = readMask(request);
+            requireSameSize(source.image(), mask.image());
+        }
+    }
+
     /** OpenAI mask：透明区域为编辑区，非透明区域为保留区。 */
     public static byte[] toOpenAiMask(MediaImageGenerateRequest request) {
-        BinaryImage source = read(request.getReferenceImageUrl(), "原图");
+        BinaryImage source = readReference(request);
         return toOpenAiMask(request, source.image());
     }
 
     /** 已读取原图时复用解码结果，避免构造 multipart 时重复下载、重复解码。 */
     public static byte[] toOpenAiMask(MediaImageGenerateRequest request, BufferedImage source) {
-        BinaryImage mask = read(request.getMaskImageUrl(), "蒙版");
+        BinaryImage mask = readMask(request);
         requireSameSize(source, mask.image());
         BufferedImage output = new BufferedImage(mask.image().getWidth(), mask.image().getHeight(),
                 BufferedImage.TYPE_INT_ARGB);
@@ -136,7 +275,7 @@ public final class ImageEditAssetSupport {
 
     /** 一次读取原图，同时构造 OpenAI 扩图输入与蒙版。 */
     public static OpenAiExpandPayload prepareOpenAiExpand(MediaImageGenerateRequest request) {
-        BinaryImage source = read(request.getReferenceImageUrl(), "原图");
+        BinaryImage source = readReference(request);
         validateExpand(request, source.image(), null);
         BufferedImage canvas = new BufferedImage(request.getTargetWidth(), request.getTargetHeight(),
                 BufferedImage.TYPE_INT_ARGB);
@@ -156,8 +295,8 @@ public final class ImageEditAssetSupport {
 
     /** 万相 mask：白色为编辑区，黑色为保留区。 */
     public static String toWanMaskUrl(MediaImageGenerateRequest request) {
-        BinaryImage source = read(request.getReferenceImageUrl(), "原图");
-        BinaryImage mask = read(request.getMaskImageUrl(), "蒙版");
+        BinaryImage source = readReference(request);
+        BinaryImage mask = readMask(request);
         requireSameSize(source.image(), mask.image());
         BufferedImage output = new BufferedImage(mask.image().getWidth(), mask.image().getHeight(),
                 BufferedImage.TYPE_INT_RGB);
@@ -191,12 +330,12 @@ public final class ImageEditAssetSupport {
         if (!requiresResultProtection(request)) {
             throw new ServiceException("当前能力不需要像素保护");
         }
-        BinaryImage source = read(request.getReferenceImageUrl(), "原图");
+        BinaryImage source = readReference(request);
         if (isOutpainting(request)) {
             validateExpand(request, source.image(), null);
             return new PreparedProtection(request, source.image(), null, false);
         }
-        BinaryImage mask = read(request.getMaskImageUrl(), "蒙版");
+        BinaryImage mask = readMask(request);
         requireSameSize(source.image(), mask.image());
         boolean alphaEncoding = isAlpha(request.getMaskEncoding());
         validateAlphaEncoding(mask.image(), alphaEncoding);
@@ -296,7 +435,7 @@ public final class ImageEditAssetSupport {
     }
 
     public static void validateExpand(MediaImageGenerateRequest request) {
-        BinaryImage source = read(request.getReferenceImageUrl(), "原图");
+        BinaryImage source = readReference(request);
         validateExpand(request, source.image(), null);
     }
 
@@ -340,7 +479,7 @@ public final class ImageEditAssetSupport {
     private static BufferedImage decode(byte[] bytes, String label) {
         try {
             validateEncodedDimensions(bytes, label);
-            BufferedImage image = ImageIO.read(new ByteArrayInputStream(bytes));
+            BufferedImage image = ManagedImageIO.read(new ByteArrayInputStream(bytes));
             if (image == null) throw new ServiceException(label + "格式不支持");
             validatePixels(image, label);
             return image;
@@ -358,7 +497,7 @@ public final class ImageEditAssetSupport {
     }
 
     private static void validateEncodedDimensions(byte[] bytes, String label) throws Exception {
-        try (ImageInputStream input = ImageIO.createImageInputStream(new ByteArrayInputStream(bytes))) {
+        try (ImageInputStream input = ManagedImageIO.createImageInputStream(new ByteArrayInputStream(bytes))) {
             if (input == null) throw new ServiceException(label + "格式不支持");
             java.util.Iterator<ImageReader> readers = ImageIO.getImageReaders(input);
             if (!readers.hasNext()) throw new ServiceException(label + "格式不支持");
@@ -489,7 +628,7 @@ public final class ImageEditAssetSupport {
     private static byte[] png(BufferedImage image) {
         try {
             ByteArrayOutputStream output = new ByteArrayOutputStream();
-            if (!ImageIO.write(image, "png", output)) throw new ServiceException("图片编码失败");
+            if (!ManagedImageIO.write(image, "png", output)) throw new ServiceException("图片编码失败");
             return output.toByteArray();
         } catch (ServiceException ex) {
             throw ex;

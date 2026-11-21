@@ -1,0 +1,116 @@
+/* 3D-HUB composition. Materials, menus, dialogs and composer motion belong to the canvas system. */
+.pv-library-content { max-width: 1440px; padding-inline: clamp(20px, 5vw, 64px);margin:auto}
+.pv-library-header { height: 68px; border-bottom: 0; background: var(--pv-bg); }
+.pv-library-header .pv-mode-badge { display: none; }
+.pv-hero { padding: clamp(48px, 9vh, 100px) 0 30px; text-align: center; }
+.pv-hero .pv-eyebrow { font-size: 11px; letter-spacing: .14em; color: var(--pv-muted); margin-bottom: 16px; }
+.pv-hero h1 { font-size: clamp(28px, 3vw, 42px); font-weight: 550; letter-spacing: -.045em; text-wrap: balance; }
+.pv-hero-description { max-width: 42em; margin: 14px auto 0 !important; font-size: 14px; color: var(--pv-muted); }
+.pv-home-composer { max-width: 800px; margin: 0 auto 76px; }
+.pv-home-composer .canvas-assistant-composer-surface { margin: 0; --canvas-agent-glow-halo: .2; --canvas-agent-glow-wash: .12; --canvas-agent-glow-ring: .32; }
+.pv-app .pv-start-composer { position: relative; margin: 0; padding: 20px; border-radius: 20px; background: var(--pv-panel); box-shadow: 0 8px 32px -16px var(--studio-theme-shadow-strong); transition: border-color 180ms, box-shadow 180ms; }
+.pv-start-composer:focus-within { border-color: color-mix(in srgb, var(--pv-accent) 50%, var(--pv-border)); box-shadow: 0 10px 36px -18px var(--studio-theme-shadow-strong); }
+.pv-app .pv-start-composer textarea { position: relative; z-index: 2; width: 100%; min-height: 72px; max-height: 180px; border: 0; background: transparent; padding: 0; outline: none; resize: none; font-size: 15px; line-height: 1.7; }
+.pv-start-composer-footer { position: relative; z-index: 2; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-top: 14px; }
+.pv-start-composer-footer > .pv-row { flex: 1 1 200px; gap: 8px; }
+.pv-app .pv-start-composer-footer .pv-secondary,
+.pv-start-composer-footer .pv-choice { min-height: 34px; border: 0; border-radius: 10px; background: var(--pv-field); padding: 6px 10px; font-size: 12px; }
+.pv-start-composer-footer .pv-choice { max-width: min(300px, 45vw); }
+.pv-start-composer-footer .pv-choice > span:first-child { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.pv-app .pv-start-composer-footer > .pv-primary { border-radius: 12px; padding: 9px 18px; min-height: 38px; gap: 8px; }
+.pv-start-composer .pv-reference-images:not(:empty) { position: relative; z-index: 2; margin-top: 12px; }
+.pv-creation-status { margin: -52px auto 40px !important; text-align: center; font-size: 12px; color: var(--pv-muted); }
+.pv-library-footer { display: flex; justify-content: space-between; border-top: 1px solid var(--pv-border); margin-top: 64px; padding: 22px 0; gap: 16px; flex-wrap: wrap; color: var(--pv-muted); font-size: 11px; }
+
+/* Predictable field geometry and progressive disclosure. */
+.pv-inspector { padding: 14px 16px 28px; font-size: 12px; }
+.pv-inspector .pv-section-heading { margin: 2px 0 14px; font-weight: 550; }
+.pv-property-group { margin-top: 10px; border: 0; }
+.pv-property-group > summary { display: flex; align-items: center; justify-content: space-between; min-height: 40px; gap: 8px; padding: 6px 8px; border-radius: 9px; background: var(--pv-field); font-size: 12px; font-weight: 600; cursor: pointer; list-style: none; user-select: none; }
+.pv-property-group > summary::-webkit-details-marker { display: none; }
+.pv-property-group > summary:hover { background: var(--pv-hover); }
+.pv-property-group__toggle { display: grid; place-items: center; width: 24px; height: 24px; flex-shrink: 0; color: var(--pv-text); background: var(--pv-panel); border-radius: 7px; font-size: 12px; }
+.pv-property-group__toggle > .anticon { transition: rotate 160ms; }
+.pv-property-group[open] .pv-property-group__toggle > .anticon { rotate: 90deg; }
+.pv-property-group > summary:focus-visible { outline: 2px solid var(--pv-accent); outline-offset: 2px; border-radius: 6px; }
+.pv-property-group__body { padding: 12px 0 8px; min-width: 0; }
+.pv-inspector .pv-field,
+.pv-inspector .pv-number,
+.pv-labeled-choice { display: flex; flex-direction: column; gap: 7px; min-width: 0; margin: 12px 0; color: var(--pv-muted); font-size: 11px; }
+.pv-inspector :is(.pv-field, .pv-labeled-choice, .pv-property-group__body) > .studio-canvas-dropdown-popover__trigger { display: block; width: 100%; min-width: 0; }
+.pv-inspector :is(input:not([type='color']):not([type='checkbox']), .pv-choice) { width: 100%; min-width: 0; min-height: 34px; height: 34px; border-radius: 8px; padding: 6px 9px; font-size: 12px; background: var(--pv-field); border: 1px solid var(--pv-border); color: var(--pv-text); }
+.pv-inspector .pv-choice { display: flex; justify-content: space-between; gap: 8px; text-align: left; }
+.pv-inspector .pv-choice > span:first-child { white-space: nowrap; text-overflow: ellipsis; overflow: hidden; }
+.pv-inspector .pv-choice > .anticon { flex-shrink: 0; color: var(--pv-muted); font-size: 10px; }
+.pv-inspector .pv-property { margin: 0 0 14px; }
+.pv-inspector .pv-property-label { margin-bottom: 7px; font-size: 11px; }
+.pv-inspector .pv-property-label > button { font-size: 10px; padding: 3px 0; }
+.pv-inspector .pv-vector { gap: 8px; }
+.pv-inspector .pv-vector .pv-number { display: grid; grid-template-columns: 12px minmax(0, 1fr); align-items: center; gap: 2px; margin: 0; padding-left: 7px; border: 1px solid var(--pv-border); border-radius: 8px; background: var(--pv-field); }
+.pv-inspector .pv-vector .pv-number > span { display: block; font-size: 0; pointer-events: none; }
+.pv-inspector .pv-vector .pv-number > span::after { content: attr(data-axis); font-size: 10px; color: var(--pv-muted); }
+.pv-inspector .pv-vector .pv-number input { padding: 6px 2px; border: 0; border-radius: 8px; height: 32px; min-height: 32px; background: transparent; font-variant-numeric: tabular-nums; }
+.pv-inspector .pv-help,
+.pv-inspector .pv-muted { font-size: 11px; line-height: 1.65; color: var(--pv-muted); margin: 10px 0 !important; }
+.pv-inspector .pv-color-field { margin: 8px 0 12px; }
+.pv-inspector .pv-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.pv-inspector .pv-row button { min-width: 0; white-space: normal; }
+.pv-inspector .pv-text-button { display: block; text-align: left; margin-top: 6px; }
+
+/* One bottom baseline for the modeling toolbar and collapsed assistant. */
+.pv-stage-bottom { bottom: 16px; right: auto; max-width: max(44px, calc((100% - 360px) / 2 - 24px)); height: 56px; align-items: center; }
+.pv-stage-bottom > .pv-row { max-width: 100%; border-radius: 12px; padding: 6px; }
+
+/* Shared canvas dialog shell; scoped content also reaches the assistant's portaled dialogs. */
+.pv-modal { font-family: inherit; font-size: 13px; line-height: 1.65; }
+.pv-modal *, .pv-modal *::before, .pv-modal *::after { box-sizing: border-box; }
+.pv-modal :is(.ant-modal-content, .ant-modal-container) { border: 1px solid transparent; border-radius: var(--studio-theme-radius, 18px); background: var(--studio-ui-modal); color: var(--pv-text); max-height: 85dvh; overflow-y: auto; box-shadow: var(--studio-ui-popover-shadow), 0 28px 80px -24px var(--studio-theme-shadow-strong); }
+
+
+.pv-modal .ant-modal-close { color: var(--pv-muted) !important; }
+.pv-modal .ant-modal-body { font-size: 13px; }
+.pv-modal .ant-modal-body p { line-height: 1.7; margin: 10px 0; }
+.pv-modal .ant-modal-footer { margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--pv-border); }
+.pv-modal .ant-btn { min-height: 36px; height: auto; padding: 7px 14px; border-radius: 9px; font-size: 12px; white-space: normal; box-shadow: none; }
+.pv-modal .ant-btn-default { background: var(--pv-field); color: var(--pv-text); border-color: var(--pv-border); }
+.pv-modal .ant-btn-primary { background: var(--pv-accent); color: var(--pv-on-accent); }
+.pv-modal .assistant-source-import { border: 0; border-radius: 0; padding: 0; }
+.pv-modal .assistant-source-import > h3 { display: none; }
+.pv-modal .assistant-source-import > p { color: var(--pv-muted); font-size: 12px; margin: 0 0 18px; }
+.pv-modal .assistant-source-import > label { display: block; font-size: 12px; margin: 18px 0; }
+.pv-modal input[type='file'] { display: block; width: 100%; min-height: 88px; margin-top: 8px; padding: 22px 14px; border: 1px dashed var(--pv-border); border-radius: 12px; background: var(--pv-field); font-size: 12px; }
+.pv-modal input[type='file']::file-selector-button { margin-right: 12px; border: 1px solid var(--pv-border); border-radius: 8px; padding: 7px 12px; color: var(--pv-text); background: var(--pv-panel); cursor: pointer; font: inherit; }
+.pv-modal .assistant-source-import > div.flex { gap: 8px; }
+.pv-modal .assistant-source-import .ant-btn { min-height: 36px; }
+.pv-modal .pv-field { margin: 14px 0; gap: 8px; }
+.pv-modal input:not([type='checkbox']):not([type='color']):not([type='range']):not([type='file']),
+.pv-modal textarea { width: 100%; border-radius: 9px; min-height: 36px; }
+.pv-modal :is(.pv-choice, .pv-secondary) { min-height: 36px; border-radius: 9px; }
+
+@media (max-width: 700px) {
+  .pv-library-header { padding: 0 20px; }
+  .pv-library-header nav { display: none; }
+  .pv-hero { padding-top: 40px; }
+  .pv-home-composer { margin-bottom: 48px; }
+  .pv-app .pv-start-composer { padding: 16px; }
+  .pv-start-composer-footer { gap: 8px; }
+  .pv-start-composer-footer > .pv-row { flex-basis: 170px; }
+  .pv-stage-bottom { max-width: 48px; left: 10px; bottom: 12px; }
+}
+@media (max-width: 480px) {
+  .pv-start-composer-footer > .pv-row { flex-basis: 100%; }
+  .pv-start-composer-footer .pv-choice { max-width: 220px; }
+  .pv-hero-description { font-size: 13px; }
+}
+@media (max-height: 540px) { .pv-editor-body { min-height: 80px; } }
+@media (prefers-reduced-motion: reduce) {
+  .pv-app *, .pv-modal * { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}
+
+.pv-object-expand,.pv-object-indent{flex:0 0 20px;width:20px;height:28px;display:inline-flex;align-items:center;justify-content:center}
+.pv-object-expand{border:0;background:transparent;color:inherit;border-radius:4px;cursor:pointer}
+.pv-object-expand:focus-visible{outline:2px solid var(--studio-edge-pulse,#8eb7e8);outline-offset:1px}
+.pv-adoption-objects{max-height:320px;overflow:auto;display:flex;flex-direction:column;margin-top:12px;border:1px solid var(--studio-border,rgba(255,255,255,.15));border-radius:8px}
+.pv-adoption-objects label{display:flex;align-items:center;gap:10px;min-height:36px;padding:6px 12px;cursor:pointer}
+.pv-adoption-objects label:focus-within{outline:2px solid var(--studio-edge-pulse,#8eb7e8);outline-offset:-2px}
+.pv-adoption-actions{display:flex;flex-wrap:wrap;gap:10px}

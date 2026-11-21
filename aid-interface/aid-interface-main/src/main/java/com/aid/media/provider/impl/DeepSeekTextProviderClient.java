@@ -1,10 +1,13 @@
 package com.aid.media.provider.impl;
 
 import com.aid.common.exception.ServiceException;
+import cn.hutool.crypto.SecureUtil;
 import com.aid.domain.vo.AiModelConfigVo;
 import com.aid.media.dto.MediaTextGenerateRequest;
 import com.aid.media.provider.TextReasoningOptionsResolver;
 import com.aid.media.provider.StructuredOutputSupport;
+import com.aid.media.provider.TextOutputLimitResolver;
+import com.aid.media.provider.TextGenerationControl;
 import com.aid.tokendance.provider.text.TokenDanceToolMessages;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -39,6 +42,20 @@ public class DeepSeekTextProviderClient extends GenericOpenAiCompatibleTextProvi
 
     @Override
     public void validateRequest(AiModelConfigVo modelConfig, MediaTextGenerateRequest request) {
+        validateInputs(modelConfig, request);
+        Map<String, Object> normalized = request.getOptions() == null ? new LinkedHashMap<>() : new LinkedHashMap<>(request.getOptions());
+        DeepSeekToolOutputConstraint.apply(modelConfig, normalized);
+        request.setOptions(normalized);
+        TextOutputLimitResolver.normalize(request, modelConfig);
+        String prepared = prepareBody(modelConfig, request,
+                DeepSeekStructuredOutput.requested(request) || TextGenerationControl.isStreaming(request));
+        resolveApiSuffix(modelConfig, request);
+        if (DeepSeekStructuredOutput.requested(request)) {
+            DeepSeekStructuredOutput.body(prepared, request);
+        }
+    }
+
+    private void validateInputs(AiModelConfigVo modelConfig, MediaTextGenerateRequest request) {
         if (request == null) throw reject("请输入对话内容");
         TokenDanceToolMessages.validate(modelConfig, request);
         Map<String, Object> options = request.getOptions();
@@ -87,7 +104,7 @@ public class DeepSeekTextProviderClient extends GenericOpenAiCompatibleTextProvi
     @Override
     protected Map<String, Object> normalizeProviderOptions(AiModelConfigVo modelConfig,
             MediaTextGenerateRequest request, Map<String, Object> source) {
-        validateRequest(modelConfig, request);
+        validateInputs(modelConfig, request);
         Map<String, Object> options = source == null ? new LinkedHashMap<>() : new LinkedHashMap<>(source);
         options.keySet().removeIf(key -> DeepSeekRequestOptions.internal(key)
                 && !StructuredOutputSupport.ENABLED_KEY.equals(key));
@@ -95,6 +112,7 @@ public class DeepSeekTextProviderClient extends GenericOpenAiCompatibleTextProvi
             options.put("max_tokens", options.remove("max_completion_tokens"));
         options.remove("frequency_penalty");
         options.remove("presence_penalty");
+        DeepSeekToolOutputConstraint.apply(modelConfig, options);
         if (TextReasoningOptionsResolver.isDeepSeekFlash(modelConfig)) {
             boolean thinking = options.get("thinking") instanceof Map<?, ?> value && "enabled".equals(value.get("type"));
             if (thinking) {
@@ -111,15 +129,14 @@ public class DeepSeekTextProviderClient extends GenericOpenAiCompatibleTextProvi
 
     @Override
     protected String resolveApiSuffix(AiModelConfigVo modelConfig, MediaTextGenerateRequest request) {
+        if (DeepSeekStructuredOutput.requested(request)) return DeepSeekStructuredOutput.apiSuffix(modelConfig);
         boolean prefixCompletion = request != null && request.getMessages() != null
                 && request.getMessages().stream().anyMatch(message -> message != null
                 && Boolean.TRUE.equals(message.getPrefix()));
         if (prefixCompletion) {
             return "/beta/chat/completions";
         }
-        String configured = super.resolveApiSuffix(modelConfig, request);
-        return configured != null && configured.replace('\\', '/').endsWith("/beta/chat/completions")
-                ? "/chat/completions" : configured;
+        return DeepSeekToolOutputConstraint.apiSuffix(modelConfig, request, super.resolveApiSuffix(modelConfig, request));
     }
 
     @Override
@@ -140,5 +157,33 @@ public class DeepSeekTextProviderClient extends GenericOpenAiCompatibleTextProvi
     private static ServiceException reject(String message) {
         log.info("DeepSeek 请求校验拒绝: {}", message);
         return new ServiceException(message);
+    }
+
+    @Override
+    public void streamChat(AiModelConfigVo modelConfig, MediaTextGenerateRequest request,
+            com.aid.media.provider.TextStreamCallbacks callbacks) throws java.io.IOException {
+        if (!DeepSeekStructuredOutput.requested(request)) { super.streamChat(modelConfig, request, callbacks); return; }
+        validateRequest(modelConfig, request);
+        validateProviderConfiguration(modelConfig, request);
+        String body = DeepSeekStructuredOutput.body(prepareBody(modelConfig, request, true), request);
+        String url = com.aid.media.provider.OpenAiCompatiblePayloadResolver.buildApiUrl(
+                modelConfig.getBaseUrl(), resolveApiSuffix(modelConfig, request), modelConfig.getExtraQueryJson());
+        log.info("DeepSeek原生结构化提交: callId={}, modelCode={}, format=json_schema, sha256={}",
+                request.getCallId(), modelConfig.getModelCode(), SecureUtil.sha256(body));
+        com.aid.media.provider.OpenAiResponsesStream.post(url, modelConfig.getApiKey(), modelConfig.getAuthHeader(),
+                modelConfig.getAuthPrefix(), com.aid.media.provider.OpenAiCompatiblePayloadResolver.parseExtraHeaders(
+                        modelConfig.getExtraHeadersJson()), body, callbacks);
+    }
+
+    @Override
+    public boolean supportsNativeNonStream(MediaTextGenerateRequest request) {
+        return !DeepSeekStructuredOutput.requested(request);
+    }
+
+    @Override
+    public com.aid.media.provider.ProviderSubmitResult chatSync(AiModelConfigVo modelConfig,
+            MediaTextGenerateRequest request) {
+        // The default submit aggregator retains exact output and usage without persisting reasoning.
+        return DeepSeekStructuredOutput.requested(request) ? submit(modelConfig, request) : super.chatSync(modelConfig, request);
     }
 }

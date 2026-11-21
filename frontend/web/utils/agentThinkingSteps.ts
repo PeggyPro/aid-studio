@@ -7,6 +7,7 @@ export type AgentThinkingStepKind =
   | 'organize'
   | 'analyze'
   | 'generic'
+
 export type AgentThinkingStepStatus = 'active' | 'done'
 
 export interface AgentThinkingStep {
@@ -128,6 +129,33 @@ export function resolveAgentThinkingTrace(input: AgentThinkingTraceInput): Agent
   }
 }
 
+export function buildStudioAgentThinkingSteps(
+  content: string,
+  referenceCount: number,
+  generatedCount: number
+): AgentThinkingStep[] {
+  const subject = content.length > 28 ? `${content.slice(0, 28)}…` : content
+  const steps: AgentThinkingStep[] = []
+  let index = 0
+  const push = (kind: AgentThinkingStepKind, label: string, status: AgentThinkingStepStatus = 'done') => {
+    steps.push({ id: `studio-step-${index++}`, kind, label, status })
+  }
+
+  if (referenceCount > 0) {
+    push('read_document', `正在阅读 ${referenceCount} 个文档`)
+  }
+  push('read_skill', '正在读取创作规划技能')
+  push('analyze', `正在理解创作要求：“${subject}”`)
+  if (generatedCount > 0) {
+    push('brainstorm', '已完成任务拆分')
+    push('organize', `已拆分 ${generatedCount} 个生成任务`, 'active')
+  } else {
+    push('brainstorm', '已完成上下文分析')
+    push('organize', '整理中…', 'active')
+  }
+  return steps
+}
+
 export function buildFlowAgentPreflightStep(skillName: string): AgentThinkingStep {
   const label = String(skillName || '').trim() || '创作'
   return {
@@ -136,4 +164,14 @@ export function buildFlowAgentPreflightStep(skillName: string): AgentThinkingSte
     label: `正在读取 ${label} 技能`,
     status: 'active'
   }
+}
+
+export function advanceStudioAgentThinkingStep(
+  steps: AgentThinkingStep[],
+  nextIndex: number
+): AgentThinkingStep[] {
+  return steps.map((step, index) => ({
+    ...step,
+    status: index < nextIndex ? 'done' as const : index === nextIndex ? 'active' as const : step.status
+  }))
 }

@@ -16,6 +16,7 @@ export const StudioComposerChip = forwardRef<HTMLButtonElement, StudioComposerCh
       <button
         ref={ref}
         type="button"
+        aria-label={typeof label === 'string' ? label : undefined}
         className={[
           'studio-composer-chip',
           active ? 'is-active' : '',
@@ -24,8 +25,8 @@ export const StudioComposerChip = forwardRef<HTMLButtonElement, StudioComposerCh
         {...props}
       >
         {icon ? <i>{icon}</i> : null}
-        <span>{label}</span>
-        {arrow ? <DownOutlined className="studio-composer-chip__arrow" /> : null}
+        <span className="studio-composer-chip__label">{label}</span>
+        {arrow ? <DownOutlined className="studio-composer-chip__arrow" aria-hidden /> : null}
       </button>
     )
   }

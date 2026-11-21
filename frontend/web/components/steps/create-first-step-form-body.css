@@ -1,5 +1,5 @@
 /*
- * CreateFirstStepFormBody 伴随样式：由原 components/steps/CreateFirstStepFormBody.vue <style scoped> 平移。
+ * CreateFirstStepFormBody 伴随样式：由原 components/steps/CreateFirstStepFormBody.vue \3c style scoped> 平移。
  * scoped 等价处理：组件内规则统一加 .create-first-step-form 前缀（含原 :deep() 展开），选择器结构原样保留。
  */
 
@@ -20,8 +20,8 @@
 
 .create-first-step-form .left-panel,
 .create-first-step-form .right-panel {
-  border: 1px solid rgba(74, 231, 253, 0.22);
-  background: rgba(8, 12, 22, 0.72);
+  border: 1px solid var(--ui-hair, rgba(74, 231, 253, 0.22));
+  background: var(--ui-bg, rgba(8, 12, 22, 0.72));
   border-radius: 10px;
   box-sizing: border-box;
   overflow: hidden;
@@ -36,8 +36,8 @@
 
 .create-first-step-form--page .left-panel,
 .create-first-step-form--page .right-panel {
-  border-color: rgba(74, 231, 253, 0.15);
-  background: rgba(6, 10, 18, 0.55);
+  border-color: var(--ui-hair, rgba(74, 231, 253, 0.15));
+  background: var(--ui-bg, rgba(6, 10, 18, 0.55));
   height: 100%;
 }
 
@@ -54,7 +54,7 @@
   border: 1px solid rgba(250, 204, 21, 0.22);
   border-radius: 7px;
   background: rgba(250, 204, 21, 0.07);
-  color: #d8c886;
+  color: var(--ui-warning, #d8c886);
   font-size: 12px;
   line-height: 1.55;
 }
@@ -62,12 +62,12 @@
 .create-first-step-form .head_box {
   height: 40px;
   width: 100%;
-  background: rgba(32, 36, 52, 0.85);
+  background: var(--ui-raised, rgba(32, 36, 52, 0.85));
   display: flex;
   align-items: center;
   gap: 6px;
   padding-left: 16px;
-  border-bottom: 1px solid rgba(74, 231, 253, 0.2);
+  border-bottom: 1px solid var(--ui-hair, rgba(74, 231, 253, 0.2));
   flex-shrink: 0;
 }
 
@@ -75,7 +75,7 @@
   font-size: 15px;
   margin-bottom: 0;
   line-height: 22px;
-  color: var(--home-text, #e6edf3);
+  color: var(--home-text, var(--ui-text, #e6edf3));
   font-weight: 600;
 }
 
@@ -90,9 +90,9 @@
 }
 
 .create-first-step-form .field-group .chip-group .chip {
-  border: 1px solid rgba(74, 231, 253, 0.25);
-  background: rgba(255, 255, 255, 0.02);
-  color: var(--home-muted, #8e97a5) !important;
+  border: 1px solid var(--ui-hair, rgba(74, 231, 253, 0.25));
+  background: var(--ui-soft, rgba(255, 255, 255, 0.02));
+  color: var(--home-muted, var(--ui-muted, #8e97a5)) !important;
   border-radius: 6px;
   padding: 0 10px;
   cursor: pointer;
@@ -114,9 +114,9 @@
 
 .create-first-step-form .field-group .chip-group .chip.active,
 .create-first-step-form .field-group .chip-group .chip:hover {
-  color: var(--home-accent, #4ae7fd) !important;
-  border-color: var(--home-accent, #4ae7fd);
-  background: rgba(74, 231, 253, 0.08);
+  color: var(--home-accent, var(--ui-brand, #4ae7fd)) !important;
+  border-color: var(--home-accent, var(--ui-ring, #4ae7fd));
+  background: var(--ui-soft-hover, rgba(74, 231, 253, 0.08));
 }
 
 .create-first-step-form .field-group .name-input-wrap {
@@ -127,9 +127,9 @@
   width: 100%;
   height: 36px;
   border-radius: 6px;
-  border: 1px solid rgba(74, 231, 253, 0.15);
-  background: rgba(0, 0, 0, 0.35);
-  color: var(--home-text, #e6edf3) !important;
+  border: 1px solid var(--ui-hair, rgba(74, 231, 253, 0.15));
+  background: var(--ui-bg, rgba(0, 0, 0, 0.35));
+  color: var(--home-text, var(--ui-text, #e6edf3)) !important;
   padding: 0 58px 0 12px;
   font-size: 14px;
   line-height: 20px;
@@ -138,7 +138,7 @@
 }
 
 .create-first-step-form .field-group .name-input-wrap .name-input:focus {
-  border-color: rgba(74, 231, 253, 0.45);
+  border-color: var(--ui-ring, rgba(74, 231, 253, 0.45));
 }
 
 .create-first-step-form .field-group .name-input-wrap .count-text {
@@ -146,7 +146,7 @@
   right: 10px;
   top: 8px;
   font-size: 12px;
-  color: var(--home-muted, #8e97a5) !important;
+  color: var(--home-muted, var(--ui-muted, #8e97a5)) !important;
 }
 
 .create-first-step-form .field-group .ratio-grid {
@@ -160,33 +160,33 @@
 }
 
 .create-first-step-form .field-group .ratio-grid .ratio-item span {
-  color: var(--home-muted, #8e97a5) !important;
+  color: var(--home-muted, var(--ui-muted, #8e97a5)) !important;
 }
 
 .create-first-step-form .field-group .ratio-grid .ratio-item:hover,
 .create-first-step-form .field-group .ratio-grid .ratio-item.active {
-  border-color: var(--home-accent, #4ae7fd);
-  background: rgba(74, 231, 253, 0.06);
+  border-color: var(--home-accent, var(--ui-ring, #4ae7fd));
+  background: var(--ui-soft-hover, rgba(74, 231, 253, 0.06));
 }
 
 .create-first-step-form .field-group .ratio-grid .ratio-item:hover span,
 .create-first-step-form .field-group .ratio-grid .ratio-item.active span {
-  color: var(--home-accent, #4ae7fd) !important;
+  color: var(--home-accent, var(--ui-brand, #4ae7fd)) !important;
 }
 
 .create-first-step-form .field-label {
   display: block;
   font-size: 13px;
   margin-bottom: 8px;
-  color: var(--home-text, #e6edf3);
+  color: var(--home-text, var(--ui-text, #e6edf3));
   font-weight: 500;
 }
 
 .create-first-step-form .ratio-item {
-  border: 1px solid rgba(74, 231, 253, 0.25);
+  border: 1px solid var(--ui-hair, rgba(74, 231, 253, 0.25));
   border-radius: 6px;
-  background: rgba(255, 255, 255, 0.02);
-  color: #fff;
+  background: var(--ui-soft, rgba(255, 255, 255, 0.02));
+  color: var(--ui-text, #fff);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -248,20 +248,20 @@
 
 .create-first-step-form .right-panel .style-card.add-style {
   border-style: dashed;
-  border-color: rgba(74, 231, 253, 0.3);
-  background: #151724;
+  border-color: var(--ui-hair, rgba(74, 231, 253, 0.3));
+  background: var(--ui-surface, #151724);
 }
 
 .create-first-step-form .right-panel .style-card.add-style span {
-  color: #8e97a5 !important;
+  color: var(--ui-muted, #8e97a5) !important;
 }
 
 .create-first-step-form .right-panel .style-card.add-style .add-text {
-  color: #8e97a5 !important;
+  color: var(--ui-muted, #8e97a5) !important;
 }
 
 .create-first-step-form .right-panel .style-card.add-style .add-icon {
-  color: #8e97a5 !important;
+  color: var(--ui-muted, #8e97a5) !important;
 }
 
 .create-first-step-form .right-panel .style-card.add-style .add-icon svg,
@@ -272,5 +272,5 @@
 .create-first-step-form .dict-placeholder {
   margin: 0 0 8px;
   font-size: 12px;
-  color: #8e97a5;
+  color: var(--ui-muted, #8e97a5);
 }

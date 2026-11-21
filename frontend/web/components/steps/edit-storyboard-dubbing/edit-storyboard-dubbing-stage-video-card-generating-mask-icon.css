@@ -3,13 +3,13 @@
 
 .edit-storyboard-dubbing-modal .video-card-generating-mask__icon {
   font-size: calc(28px * var(--create-editor-scale, 1));
-  color: #4ae7fd;
+  color: var(--ui-brand, #4ae7fd);
 }
 
 .edit-storyboard-dubbing-modal .video-card-generating-mask__text {
   margin: 0;
   font-size: calc(12px * var(--create-editor-scale, 1));
-  color: rgba(225, 239, 255, 0.88);
+  color: var(--ui-text, rgba(225, 239, 255, 0.88));
   text-align: center;
   padding: 0 calc(12px * var(--create-editor-scale, 1));
 }
@@ -56,7 +56,7 @@
 }
 
 .edit-storyboard-dubbing-modal .scene-image-tab.active {
-  border-color: rgba(74, 231, 253, 1);
+  border-color: var(--ui-ring, rgba(74, 231, 253, 1));
   background: transparent;
   box-shadow: none;
 }
@@ -66,7 +66,7 @@
   height: calc(54px * var(--create-editor-scale, 1));
   border-radius: var(--radius-sm);
   overflow: hidden;
-  background: rgba(6, 10, 18, 0.55);
+  background: var(--ui-bg, rgba(6, 10, 18, 0.55));
   display: flex;
   align-items: center;
   justify-content: center;
@@ -96,7 +96,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--home-muted, #8e97a5);
+  color: var(--home-muted, var(--ui-muted, #8e97a5));
   font-size: calc(1.25rem * var(--create-editor-scale, 1));
 }
 
@@ -106,7 +106,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(6, 10, 18, 0.55);
+  background: var(--ui-bg, rgba(6, 10, 18, 0.55));
   color: var(--accent-600);
 }
 
@@ -116,7 +116,7 @@
 
 .edit-storyboard-dubbing-modal .scene-label {
   font-size: calc(0.75rem * var(--create-editor-scale, 1));
-  color: rgba(188, 205, 228, 0.85);
+  color: var(--ui-text, rgba(188, 205, 228, 0.85));
   max-width: 100%;
 }
 
@@ -136,8 +136,8 @@
   margin-inline: auto;
   border-radius: var(--radius-md);
   overflow: hidden;
-  border: calc(1px * var(--create-editor-scale, 1)) solid var(--gray-200, rgba(96, 124, 158, 0.22));
-  background: rgba(6, 10, 18, 0.55);
+  border: calc(1px * var(--create-editor-scale, 1)) solid var(--gray-200, var(--ui-hair, rgba(96, 124, 158, 0.22)));
+  background: var(--ui-bg, rgba(6, 10, 18, 0.55));
   aspect-ratio: 16 / 9;
   height: auto;
   flex: 0 0 auto;
@@ -170,8 +170,8 @@
 }
 
 .edit-storyboard-dubbing-modal .dubbing-hero-action {
-  color: #fff !important;
-  background: rgba(0, 0, 0, 0.45) !important;
+  color: var(--ui-text, #fff) !important;
+  background: var(--ui-bg, rgba(0, 0, 0, 0.45)) !important;
   border-radius: var(--radius-sm);
 }
 
@@ -182,30 +182,30 @@
 }
 
 .edit-storyboard-dubbing-modal .dubbing-gen-card {
-  border: calc(1px * var(--create-editor-scale, 1)) solid rgba(128, 154, 188, 0.26);
+  border: calc(1px * var(--create-editor-scale, 1)) solid var(--ui-hair, rgba(128, 154, 188, 0.26));
   border-radius: var(--radius-md);
   padding: calc(1rem * var(--create-editor-scale, 1)) calc(1.25rem * var(--create-editor-scale, 1));
-  background: rgba(18, 24, 36, 0.92);
+  background: var(--ui-surface, rgba(18, 24, 36, 0.92));
   transition: box-shadow 0.2s;
 }
 
 .edit-storyboard-dubbing-modal .dubbing-gen-card--active {
-  box-shadow: 0 0 0 calc(2px * var(--create-editor-scale, 1)) rgba(74, 231, 253, 0.45);
+  box-shadow: var(--ui-shadow, 0 0 0 calc(2px * var(--create-editor-scale, 1)) rgba(74, 231, 253, 0.45));
 }
 
 .edit-storyboard-dubbing-modal .dubbing-gen-card--loading {
   border: calc(2px * var(--create-editor-scale, 1)) solid var(--accent-500, #22c55e);
-  background: var(--gray-900, #1a1a1a);
+  background: var(--gray-900, var(--ui-surface, #1a1a1a));
 }
 
 .edit-storyboard-dubbing-modal .dubbing-gen-card--loading .dubbing-gen-card-title {
-  color: #e5e5e5;
+  color: var(--ui-text, #e5e5e5);
 }
 
 .edit-storyboard-dubbing-modal .dubbing-gen-card-title {
   font-size: calc(0.88rem * var(--create-editor-scale, 1));
   font-weight: 600;
-  color: var(--home-text, #e6edf3);
+  color: var(--home-text, var(--ui-text, #e6edf3));
   margin-bottom: calc(0.75rem * var(--create-editor-scale, 1));
 }
 

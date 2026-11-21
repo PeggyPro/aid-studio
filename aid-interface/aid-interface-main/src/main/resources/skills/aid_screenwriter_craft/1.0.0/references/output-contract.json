@@ -1,0 +1,16 @@
+{
+  "schema": "aid.screenwriter-craft-output.v1",
+  "suggestionOnly": true,
+  "artifacts": [
+    {"type": "DIRECTION_PROPOSAL", "requiredFields": ["promise", "protagonistDrive", "conflictMechanism", "stakes", "targetScope"]},
+    {"type": "STORY_BLUEPRINT", "requiredFields": ["premise", "storyProgression", "endingDirection", "episodePlan", "assumptions"]},
+    {"type": "CHARACTER_BIBLE", "requiredFields": ["entityId", "facts", "desire", "method", "risk", "relationshipChanges"]},
+    {"type": "LOCATION_BIBLE", "requiredFields": ["entityId", "storyFunction", "visibleFeatures", "continuity"]},
+    {"type": "PROP_BIBLE", "requiredFields": ["entityId", "ownership", "function", "continuity"]},
+    {"type": "EPISODE_OUTLINE", "requiredFields": ["episode", "entryState", "goal", "opposition", "turn", "result", "exitState"]},
+    {"type": "SCREENPLAY_DRAFT", "requiredFields": ["basePlanRevision", "episode", "content", "assumptions"]}
+  ],
+  "checkpoints": ["DIRECTION", "BLUEPRINT", "PILOT", "EPISODE"],
+  "runtimeOwned": ["workId", "artifactRevision", "checkpointState", "acceptance", "billing", "taskState"]
+}
+

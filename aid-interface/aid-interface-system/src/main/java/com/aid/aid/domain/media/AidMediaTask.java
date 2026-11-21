@@ -27,6 +27,12 @@ public class AidMediaTask extends BaseEntity {
     @TableId(value = "id")
     private Long id;
 
+    /** Specific execution admission; independent from task and billing terminal states. */
+    private String executionPermitToken;
+
+    /** Consecutive failed upstream queries; recognized queued/running results reset this count. */
+    private Integer queryFailureCount;
+
     // 发起用户 ID（匿名时可为空）。
     private Long userId;
 

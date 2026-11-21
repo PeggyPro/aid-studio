@@ -11,6 +11,7 @@ import lombok.Data;
  */
 @Data
 public class ScriptSplitPreviewVO {
+    private Long firstEpisodeNo;
 
     /** 共解析出多少集 */
     private Integer totalEpisodes;

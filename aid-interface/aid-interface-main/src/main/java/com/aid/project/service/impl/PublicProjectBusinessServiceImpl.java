@@ -471,7 +471,7 @@ public class PublicProjectBusinessServiceImpl implements IPublicProjectBusinessS
         if (!Objects.equals(project.getIsPublic(), IS_PUBLIC_YES))
         {
             log.info("公开项目查询失败：项目未公开, projectId={}", projectId);
-            throw new ServiceException("项目未公开");
+            throw new ServiceException("项目不存在");
         }
         // 审核中(3)放行：已公开项目重新提审期间旧成片继续展示（与列表口径一致）
         if (!Objects.equals(project.getStatus(), PROJECT_STATUS_APPROVED)

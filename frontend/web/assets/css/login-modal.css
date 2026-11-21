@@ -19,7 +19,7 @@
   box-sizing: border-box;
   width: 1440px;
   height: 1024px;
-  background: #191A1D;
+  background: var(--ui-surface, #191a1d);
 }
 
 .login-modal-fit-shell {
@@ -66,4 +66,66 @@
   .login-modal-form {
     width: 100% !important;
   }
+}
+
+/* 手机端登录与内容首页共用克制的深灰色阶。 */
+.mobile-login-overlay {
+  padding: max(18px, env(safe-area-inset-top)) 18px max(18px, env(safe-area-inset-bottom));
+  overflow-y: auto;
+  background: var(--ui-bg, rgba(0, 0, 0, .78));
+  backdrop-filter: blur(6px);
+}
+
+.mobile-login-card {
+  position: relative;
+  box-sizing: border-box;
+  width: min(100%, 420px);
+  max-height: calc(100dvh - 36px);
+  margin: auto;
+  padding: 27px 24px 28px;
+  overflow-y: auto;
+  border: 1px solid var(--ui-hair, #383838);
+  border-radius: 20px;
+  background: var(--ui-surface, #1d1d1d);
+  color: var(--ui-text, #f5f5f5);
+  box-shadow: var(--ui-no-shadow, 0 25px 80px rgba(0, 0, 0, .48));
+}
+
+.mobile-login-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ui-muted, #c8c8c8);
+  font-size: 27px;
+  cursor: pointer;
+}
+
+.mobile-login-brand { width: 56px; height: 56px; margin-bottom: 17px; }
+.mobile-login-brand img { display: block; width: 56px; height: 56px; object-fit: contain; }
+.mobile-login-card h2 { margin: 0 0 5px; font-size: 25px; line-height: 1.35; font-weight: 600; }
+.mobile-login-subtitle { margin: 0 0 22px; color: var(--ui-muted, #aaa); font-size: 13px; }
+.mobile-login-tabs { display: flex; gap: 24px; margin-bottom: 22px; border-bottom: 1px solid var(--ui-hair, #393939); }
+.mobile-login-tabs button { position: relative; min-height: 44px; padding: 0 0 10px; border: 0; background: transparent; color: var(--ui-muted, #aaa); font: inherit; font-size: 14px; cursor: pointer; }
+.mobile-login-tabs button[aria-selected='true'] { color: var(--ui-text, #f5f5f5); font-weight: 600; }
+.mobile-login-tabs button:disabled { cursor: not-allowed; opacity: .48; }
+.mobile-login-tabs button[aria-selected='true']::after { position: absolute; right: 0; bottom: -1px; left: 0; height: 2px; background: var(--ui-raised, #f5f5f5); content: ''; }
+.mobile-login-card form { width: 100%; max-width: none; gap: 18px; }
+.mobile-login-card form > div:first-child { gap: 13px; }
+.mobile-login-card .auth-dark-field-wrap { height: 53px; border-color: var(--ui-hair, #3b3b3b); border-radius: 12px; background: var(--ui-raised, #272727); }
+.mobile-login-card .auth-dark-field-wrap:focus-within { border-color: var(--ui-ring, #999); }
+.mobile-login-card .auth-dark-field-wrap input { font-size: 16px; }
+html body .mobile-login-card button.auth-dark-submit { height: 52px; margin-top: 3px; border-radius: 12px !important; background: var(--ui-raised, #f5f5f5) !important; color: var(--ui-text, #171717) !important; font-size: 16px !important; font-weight: 600; }
+.mobile-login-card form > p a, .mobile-login-card form > p span { color: var(--ui-text, #d5d5d5); }
+.mobile-login-card button:focus-visible, .mobile-login-card input:not(.auth-dark-field-input):focus-visible { outline: 2px solid var(--ui-ring, #fff); outline-offset: 3px; }
+.mobile-login-captcha { position: absolute; top: 80px; left: 50%; z-index: 20; transform: translateX(-50%); }
+
+@media (max-width: 359px) {
+  .mobile-login-card { padding-right: 18px; padding-left: 18px; }
 }

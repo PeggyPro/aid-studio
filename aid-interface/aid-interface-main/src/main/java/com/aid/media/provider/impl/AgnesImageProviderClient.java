@@ -1,8 +1,6 @@
 package com.aid.media.provider.impl;
 
 
-import cn.hutool.http.HttpRequest;
-import cn.hutool.http.HttpResponse;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -47,6 +45,14 @@ import java.util.Objects;
 public class AgnesImageProviderClient implements ImageProviderClient {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final java.net.http.HttpClient HTTP_CLIENT = java.net.http.HttpClient.newBuilder()
+            .version(java.net.http.HttpClient.Version.HTTP_1_1)
+            .connectTimeout(java.time.Duration.ofSeconds(30)).build();
+
+    @Override
+    public boolean usesSynchronousExecution(AiModelConfigVo modelConfig) {
+        return true;
+    }
 
     /** 富化引用清单在 options 中的 key（与 StoryboardImageGenerationServiceImpl 约定一致）。 */
     private static final String OPTION_REFERENCE_MANIFEST = "referenceManifest";
@@ -60,6 +66,11 @@ public class AgnesImageProviderClient implements ImageProviderClient {
 
     /** Agnes 参考图安全上限；官方未声明最大数量，运营可在 capability_json.maxReferenceImages 覆盖 */
     private static final int MAX_REFERENCE_IMAGES = 10;
+    @Override public InputDelivery inputDelivery(AiModelConfigVo config, MediaImageGenerateRequest request) {
+        return com.aid.media.provider.ReferenceImageBase64Support.isBase64Enabled(config)
+                ? InputDelivery.INLINE : InputDelivery.URL;
+    }
+
     @Override
     public String protocol() {
         return AgnesConstants.PROTOCOL_IMAGE;
@@ -88,7 +99,7 @@ public class AgnesImageProviderClient implements ImageProviderClient {
         if (StringUtils.isBlank(apiKey)) {
             log.error("Agnes 图片提交失败: apiKey 为空, modelCode={}",
                     modelConfig == null ? null : modelConfig.getModelCode());
-            return ProviderSubmitResult.builder().rawResponse(AgnesConstants.ERROR_API_KEY_EMPTY).build();
+            throw com.aid.media.provider.ProviderSubmissionFailures.notSent("Agnes 图片模型未配置 API 密钥");
         }
 
         String model = resolveEffectiveModel(modelConfig, request);
@@ -117,10 +128,13 @@ public class AgnesImageProviderClient implements ImageProviderClient {
         try {
             // 单次 HTTP 超时按模型 capability_json.submitTimeoutSeconds 取值，缺省回退本类 300s 常量。
             int timeoutMs = SubmitTimeoutResolver.resolveMs(modelConfig, IMAGE_TIMEOUT_MS);
-            respBody = doPost(url, apiKey, modelConfig.getAuthHeader(), modelConfig.getAuthPrefix(), json, timeoutMs);
+            HttpReply response = doPost(url, apiKey, modelConfig.getAuthHeader(), modelConfig.getAuthPrefix(), json, timeoutMs);
+            if (response.status() >= 300) return com.aid.media.provider.ProviderSubmissionFailures.httpResponse(
+                    response.status(), response.body(), model);
+            respBody = response.body();
         } catch (Exception e) {
             log.error("Agnes 图片提交网络异常, model={}, error={}", model, e.getMessage(), e);
-            return ProviderSubmitResult.builder().rawResponse(e.getMessage()).build();
+            return com.aid.media.provider.ProviderSubmissionFailures.unknownResponse(e.getMessage());
         }
 
         try {
@@ -172,6 +186,8 @@ public class AgnesImageProviderClient implements ImageProviderClient {
             finalPrompt = ReferencePromptSanitizer.sanitize(
                     request == null ? "" : request.getPrompt(), images.size(), 0);
         }
+        var inputScope = com.aid.media.provider.ImageInputExecutionScope.current();
+        if (inputScope != null) images = images.stream().map(inputScope::deliveredLocator).toList();
         body.put(AgnesConstants.JSON_PROMPT, finalPrompt);                          // 提示词（渲染后）
 
         if (!images.isEmpty()) {
@@ -180,7 +196,7 @@ public class AgnesImageProviderClient implements ImageProviderClient {
             // 参考图输入默认公网 URL；模型 capability 开启 base64 传图时下载转 Data URI 内联下发
             //   （官方 image 支持「公网 URL 或 Data URI Base64」），用于网关无法回源业务 CDN 的场景。
             List<String> effectiveImages = images;
-            if (com.aid.media.provider.ReferenceImageBase64Support.isBase64Enabled(modelConfig)) {
+            if (inputDelivery(modelConfig, request) == InputDelivery.INLINE) {
                 effectiveImages = com.aid.media.provider.ReferenceImageBase64Support.toDataUris(images);
                 log.info("Agnes 参考图按 base64 内联下发, model={}, count={}", model, effectiveImages.size());
             }
@@ -426,7 +442,7 @@ public class AgnesImageProviderClient implements ImageProviderClient {
     private ProviderSubmitResult parseImageResponse(String respBody, String model) throws Exception {
         if (StringUtils.isBlank(respBody)) {
             log.error("Agnes 图片响应为空, model={}", model);
-            return ProviderSubmitResult.builder().rawResponse(AgnesConstants.ERROR_NO_IMAGE).build();
+            return com.aid.media.provider.ProviderSubmissionFailures.unknownResponse(AgnesConstants.ERROR_NO_IMAGE);
         }
         JsonNode root = MAPPER.readTree(respBody);
 
@@ -435,13 +451,16 @@ public class AgnesImageProviderClient implements ImageProviderClient {
         if (errorNode.isObject() && !errorNode.isNull()) {
             String errMsg = errorNode.path("message").asText("未知错误");
             log.error("Agnes 图片上游错误, model={}, error={}", model, errMsg);
-            return ProviderSubmitResult.builder().rawResponse(StringUtils.abbreviate(respBody, AgnesConstants.LOG_RESPONSE_SNIPPET_MAX)).build();
+            JsonNode outputs = root.path("data");
+            if (outputs.isArray() && !outputs.isEmpty())
+                return com.aid.media.provider.ProviderSubmissionFailures.unknownResponse("上游同时返回错误和图片数据，需核实结果");
+            return com.aid.media.provider.ProviderSubmissionFailures.reportedFailure(respBody, model);
         }
 
         JsonNode data = root.path("data");
         if (!data.isArray() || data.isEmpty()) {
             log.error("Agnes 图片未返回 data, model={}, responseLen={}", model, respBody.length());
-            return ProviderSubmitResult.builder().rawResponse(AgnesConstants.ERROR_NO_IMAGE).build();
+            return com.aid.media.provider.ProviderSubmissionFailures.unknownResponse(AgnesConstants.ERROR_NO_IMAGE);
         }
 
         List<String> ossUrls = new ArrayList<>();   // b64 落库模式
@@ -483,7 +502,7 @@ public class AgnesImageProviderClient implements ImageProviderClient {
         }
 
         log.error("Agnes 图片生成未返回图片, model={}, responseLen={}", model, respBody.length());
-        return ProviderSubmitResult.builder().rawResponse(AgnesConstants.ERROR_NO_IMAGE).build();
+        return com.aid.media.provider.ProviderSubmissionFailures.unknownResponse(AgnesConstants.ERROR_NO_IMAGE);
     }
 
     /**
@@ -512,17 +531,20 @@ public class AgnesImageProviderClient implements ImageProviderClient {
     /**
      * 发起 Agnes Images POST 请求，返回响应正文。
      */
-    private String doPost(String url, String apiKey, String authHeader, String authPrefix, String json, int timeoutMs) {
+    private record HttpReply(int status, String body) { }
+
+    private HttpReply doPost(String url, String apiKey, String authHeader, String authPrefix, String json, int timeoutMs)
+            throws java.io.IOException, InterruptedException {
         String headerName = StringUtils.isNotBlank(authHeader) ? authHeader : HttpConstants.HEADER_AUTHORIZATION;
         String prefix = authPrefix != null ? authPrefix : HttpConstants.AUTH_BEARER_PREFIX;
-        try (HttpResponse response = HttpRequest.post(url)
+        var request = java.net.http.HttpRequest.newBuilder(java.net.URI.create(url))
                 .header(headerName, prefix + apiKey)
                 .header(HttpConstants.HEADER_CONTENT_TYPE, HttpConstants.CONTENT_TYPE_JSON)
-                .body(json)
-                .timeout(timeoutMs)
-                .execute()) {
-            return response.body();
-        }
+                .POST(java.net.http.HttpRequest.BodyPublishers.ofString(json, java.nio.charset.StandardCharsets.UTF_8))
+                .timeout(java.time.Duration.ofMillis(timeoutMs)).build();
+        var response = com.aid.media.provider.TextExecutionTransportScope.send(HTTP_CLIENT, request,
+                java.net.http.HttpResponse.BodyHandlers.ofString(java.nio.charset.StandardCharsets.UTF_8));
+        return new HttpReply(response.statusCode(), response.body());
     }
     /**
      * 解析最终下发上游的模型名：经 {@link ModelCodeResolver} 解析，兜底默认图片模型。

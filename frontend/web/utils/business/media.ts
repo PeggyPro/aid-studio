@@ -37,6 +37,16 @@ StoryboardVideoGridGenerateRequest,
 StoryboardVideoImageGenerateData,
 StoryboardVideoImageGenerateRequest,
 StoryboardVideoResumeRequest,
+StudioVideoOperationData,
+StudioVideoOperationRequest,
+StudioVideoAudioOperationData,
+StudioVideoAudioOperationRequest,
+LayerMergeData,
+LayerMergeRequest,
+LayerSplitData,
+LayerSplitRequest,
+TouchEditGenerateData,
+TouchEditGenerateRequest,
 TouchEditPointDetectData,
 TouchEditPointDetectRequest,
 UserStoryboardGenerateEditImageData,
@@ -50,6 +60,28 @@ UserTaskResumeData
 import { request } from '~/utils/api'
 import { unwrap } from '~/utils/business/shared'
 import { userTaskResume } from '~/utils/business/task'
+
+/** Studio 视频处理：高清补帧、慢放与字幕消除，统一返回 taskId 并复用任务 SSE。 */
+export async function userStudioVideoOperation(
+  body: StudioVideoOperationRequest
+): Promise<StudioVideoOperationData> {
+  const res = await request.post<ApiEnvelope<StudioVideoOperationData>>(
+    '/api/user/studio/video/operation',
+    body
+  )
+  return unwrap(res)
+}
+
+/** Studio 视频音轨处理：一个任务原子返回视频与音频两个结果。 */
+export async function userStudioVideoAudioOperation(
+  body: StudioVideoAudioOperationRequest
+): Promise<StudioVideoAudioOperationData> {
+  const res = await request.post<ApiEnvelope<StudioVideoAudioOperationData>>(
+    '/api/user/studio/video/audio-operation',
+    body
+  )
+  return unwrap(res)
+}
 
 /**
  * 分镜机位生图（v2.62）：POST /api/user/storyboard/generate/multi-view-grid-image
@@ -70,6 +102,29 @@ export async function userTouchEditPointDetect(
   body: TouchEditPointDetectRequest
 ): Promise<TouchEditPointDetectData> {
   const res = await request.post<ApiEnvelope<TouchEditPointDetectData>>('/api/user/media/touch/edit/point', body)
+  return unwrap(res)
+}
+
+/** 元素编辑生成：POST /api/user/media/touch/edit/generate（前端先行契约） */
+export async function userTouchEditGenerate(
+  body: TouchEditGenerateRequest
+): Promise<TouchEditGenerateData> {
+  const res = await request.post<ApiEnvelope<TouchEditGenerateData>>(
+    '/api/user/media/touch/edit/generate',
+    body
+  )
+  return unwrap(res)
+}
+
+/** 图层分离：拆分 POST /api/user/media/layer/split（前端先行契约） */
+export async function userLayerSplit(body: LayerSplitRequest): Promise<LayerSplitData> {
+  const res = await request.post<ApiEnvelope<LayerSplitData>>('/api/user/media/layer/split', body)
+  return unwrap(res)
+}
+
+/** 图层分离：合并 POST /api/user/media/layer/merge（不耗积分） */
+export async function userLayerMerge(body: LayerMergeRequest): Promise<LayerMergeData> {
+  const res = await request.post<ApiEnvelope<LayerMergeData>>('/api/user/media/layer/merge', body)
   return unwrap(res)
 }
 

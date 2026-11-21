@@ -6,6 +6,7 @@ import type { BackendRoute } from '@/types/common';
 
 export interface AppRoute {
   name?: string;
+  view?: string;
   path: string;
   component?: ComponentType<any> | LazyExoticComponent<any> | null;
   /** 是否是布局节点：Layout / ParentView */
@@ -57,6 +58,7 @@ function transform(raw: BackendRoute[]): AppRoute[] {
   return raw.map((item) => {
     const route: AppRoute = {
       name: item.name,
+      view: item.component,
       path: item.path,
       hidden: item.hidden,
       redirect: item.redirect,

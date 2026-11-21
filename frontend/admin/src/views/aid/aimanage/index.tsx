@@ -4,6 +4,7 @@ import { confirmModelPoolRemoval } from '../funcconfig/confirmModelPoolRemoval';
 import {
   listProvider, getProvider, addProvider, updateProvider, updateProviderStatus, delProvider,
   listModel, getModel, addModel, updateModel, getModelPoolBindings, bindModelsToPools, unbindModelsFromPools,
+  listModelReferences,
   type ModelPoolBindingSnapshot, type ModelPoolCapabilitySelection
 } from '@/api/aid/aimanage';
 import {
@@ -24,6 +25,7 @@ import SyncVoiceModal from './SyncVoiceModal';
 import RealModelOverviewDrawer from './RealModelOverviewDrawer';
 import ModelPoolBindingModal, { type ModelPoolBindingMode } from './ModelPoolBindingModal';
 import RetirementModal from '@/views/aid/orchestration/RetirementModal';
+import { ReferenceDetailsModal, showReferenceConflict, type ApiErrorDetails } from '@/utils/apiErrorDetails';
 import type { Model, Provider } from './types';
 import './style.less';
 
@@ -61,6 +63,10 @@ export default function AimanagePage() {
     row?: Model;
     impact?: OrchestrationImpact;
   }>({ open: false, loading: false, submitting: false });
+  const [referenceState, setReferenceState] = useState<{
+    open: boolean; modelId?: number; modelName?: string; page: number; pageSize: number;
+    loading: boolean; details?: ApiErrorDetails;
+  }>({ open: false, page: 1, pageSize: 20, loading: false });
 
   const modelCounts = useMemo(() => {
     const map: Record<number, number> = {};
@@ -198,32 +204,55 @@ export default function AimanagePage() {
   /** 行内开关直接启停模型：modelCode 用于通过后端更新校验 */
   const handleToggleModelStatus = async (row: Model, enabled: boolean) => {
     if (row.id == null) return;
-    const status = enabled ? '0' : '1';
-    let current = row;
-    if (current.configVersion == null) {
-      const currentResponse: any = await getModel(row.id);
-      current = currentResponse.data;
+    try {
+      const status = enabled ? '0' : '1';
+      let current = row;
+      if (current.configVersion == null) {
+        const currentResponse: any = await getModel(row.id);
+        current = currentResponse.data;
+      }
+      await updateModel({ id: row.id, modelCode: current.modelCode,
+        status, configVersion: current.configVersion }, true);
+      const refreshedResponse: any = await getModel(row.id);
+      const refreshed: Model = refreshedResponse.data;
+      message.success(enabled ? `已启用【${row.modelName}】` : `已停用【${row.modelName}】`);
+      // 权威回读包含服务端递增后的 configVersion，后续更新不得复用旧版本。
+      setAllModels((prev) => prev.map((item) => (item.id === row.id ? { ...item, ...refreshed } : item)));
+    } catch (cause: any) {
+      if (!showReferenceConflict(cause, '模型仍有有效引用')) message.error(cause?.message || '模型状态更新失败');
     }
-    await updateModel({
-      id: row.id,
-      modelCode: current.modelCode,
-      status,
-      configVersion: current.configVersion
-    });
-    const refreshedResponse: any = await getModel(row.id);
-    const refreshed: Model = refreshedResponse.data;
-    message.success(enabled ? `已启用【${row.modelName}】` : `已停用【${row.modelName}】`);
-    // 权威回读包含服务端递增后的 configVersion，后续更新不得复用旧版本。
-    setAllModels((prev) => prev.map((item) => (item.id === row.id ? { ...item, ...refreshed } : item)));
   };
   const handleDeleteModel = async (row: Model) => {
     if (row.id == null) return;
+    try {
+      const references = await listModelReferences({ modelIds: [row.id], page: 1, pageSize: 20 });
+      if ((references.data?.totalReferences || 0) > 0) {
+        setReferenceState({ open: true, modelId: row.id, modelName: row.modelName,
+          page: 1, pageSize: 20, loading: false, details: references.data });
+        return;
+      }
+    } catch (cause: any) {
+      message.error(cause?.message || '模型引用查询失败');
+      return;
+    }
     setRetireState({ open: true, loading: true, submitting: false, row });
     try {
       const res: any = await getModelRetirementImpact(row.id);
       setRetireState({ open: true, loading: false, submitting: false, row, impact: res.data });
     } catch {
       setRetireState({ open: false, loading: false, submitting: false });
+    }
+  };
+
+  const loadReferencePage = async (page: number, pageSize: number) => {
+    if (!referenceState.modelId) return;
+    setReferenceState((state) => ({ ...state, page, pageSize, loading: true }));
+    try {
+      const response = await listModelReferences({ modelIds: [referenceState.modelId], page, pageSize });
+      setReferenceState((state) => ({ ...state, details: response.data, loading: false }));
+    } catch (cause: any) {
+      message.error(cause?.message || '引用明细加载失败');
+      setReferenceState((state) => ({ ...state, loading: false }));
     }
   };
 
@@ -270,31 +299,16 @@ export default function AimanagePage() {
     return task;
   };
 
-  const replacementModelOptions = useMemo(() => {
-    const target = retireState.row;
-    if (!target) return [];
-    const enabledProviderIds = new Set(
-      providerList.filter((provider) => provider.status === '0').map((provider) => provider.id)
-    );
-    return allModels
-      .filter((model) => model.id !== target.id
-        && model.status === '0'
-        && model.modelType === target.modelType
-        && enabledProviderIds.has(model.providerId!))
-      .map((model) => ({
-        value: model.modelCode,
-        label: `${model.modelName}（${model.modelCode}）`
-      }));
-  }, [allModels, providerList, retireState.row]);
-
-  const confirmRetireModel = async (replacementCode?: string) => {
+  const confirmRetireModel = async () => {
     if (retireState.row?.id == null) return;
     setRetireState((state) => ({ ...state, submitting: true }));
     try {
-      await retireModel(retireState.row.id, replacementCode);
-      message.success(replacementCode ? '模型引用已替换并完成下线' : '模型引用已清理并完成下线');
+      await retireModel(retireState.row.id);
+      message.success('模型已下线');
       setRetireState({ open: false, loading: false, submitting: false });
       await refreshProviders();
+    } catch (cause: any) {
+      if (!showReferenceConflict(cause, '模型仍有有效引用')) message.error(cause?.message || '模型下线失败');
     } finally {
       setRetireState((state) => state.open ? { ...state, submitting: false } : state);
     }
@@ -394,10 +408,15 @@ export default function AimanagePage() {
         data={modelDlg.data}
         onCancel={() => setModelDlg({ open: false, title: '' })}
         onOk={async (values) => {
-          if (values.id) { await updateModel(values); message.success('修改成功'); }
-          else { await addModel(values); message.success('新增成功'); }
-          setModelDlg({ open: false, title: '' });
-          await refreshProviders();
+          try {
+            if (values.id) { await updateModel(values, true); message.success('修改成功'); }
+            else { await addModel(values); message.success('新增成功'); }
+            setModelDlg({ open: false, title: '' });
+            await refreshProviders();
+          } catch (cause: any) {
+            if (!showReferenceConflict(cause, '模型能力仍有有效引用'))
+              message.error(cause?.message || '模型保存失败');
+          }
         }}
       />
       <RetirementModal
@@ -405,10 +424,15 @@ export default function AimanagePage() {
         loading={retireState.loading}
         submitting={retireState.submitting}
         impact={retireState.impact}
-        replacementOptions={replacementModelOptions}
         onCancel={() => setRetireState({ open: false, loading: false, submitting: false })}
         onConfirm={confirmRetireModel}
       />
+      <ReferenceDetailsModal open={referenceState.open}
+        title={`${referenceState.modelName || '模型'} · 有效引用`}
+        details={referenceState.details} loading={referenceState.loading}
+        page={referenceState.page} pageSize={referenceState.pageSize}
+        onPage={loadReferencePage}
+        onClose={() => setReferenceState({ open: false, page: 1, pageSize: 20, loading: false })} />
       <SyncVoiceModal
         open={syncModalOpen}
         audioModels={syncAudioModels}

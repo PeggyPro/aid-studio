@@ -5,7 +5,6 @@ import { resolveStoryboardPanelCoverImage } from '~/utils/storyboardImageCover'
 import {
 isEmptyPromptAssetUrl,
 mergeReferenceImageItems,
-promptAssetToReferenceImageItem,
 splitResolvedPromptAssetsToReferenceBuckets,
 type PromptAssetItem
 } from '~/utils/storyboardPromptAssetRef'
@@ -179,20 +178,9 @@ export function createVideoModalReferenceCore(ctx: VideoModalCtx) {
     const withUrl = assets.filter((a) => !isEmptyPromptAssetUrl(a.url))
     if (!withUrl.length) return
 
-    if (mode === 'imageToVideo') {
-      const refs = withUrl
-        .slice()
-        .sort((a, b) => a.imageIndex - b.imageIndex)
-        .map(promptAssetToReferenceImageItem)
-        .filter((item): item is NonNullable<typeof item> => item != null)
-      if (!refs.length) return
-      ctx.referenceImages.set(
-        normalizeImageToVideoReferenceItems(
-          mergeReferenceImageItems(ctx.referenceImages.get(), refs)
-        )
-      )
-      return
-    }
+    // 正文中的角色/场景/道具用于引用，不可冒充或覆盖用户选定的分镜首帧。
+    // 宫格模式的附加资产由服务端按提示词及模型能力解析。
+    if (mode === 'imageToVideo') return
 
     const buckets = splitResolvedPromptAssetsToReferenceBuckets(withUrl, (item) =>
       inferMultiParamAssetType(item)

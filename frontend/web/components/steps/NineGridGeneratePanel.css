@@ -25,28 +25,28 @@
   gap: calc(8px * var(--create-editor-scale, 1));
   font-size: calc(13px * var(--create-editor-scale, 1));
   font-weight: 600;
-  color: rgba(225, 239, 255, 0.92);
+  color: var(--ui-text, rgba(225, 239, 255, 0.92));
 }
 
 .nine-grid-generate-panel .nine-grid-dot {
   width: calc(6px * var(--create-editor-scale, 1));
   height: calc(6px * var(--create-editor-scale, 1));
   border-radius: 50%;
-  background: #4ae7fd;
+  background: var(--ui-raised, #4ae7fd);
   flex-shrink: 0;
 }
 
 .nine-grid-generate-panel .nine-grid-hint {
   margin: 0;
   font-size: calc(12px * var(--create-editor-scale, 1));
-  color: rgba(188, 205, 228, 0.55);
+  color: var(--ui-muted, rgba(188, 205, 228, 0.55));
   line-height: 1.45;
 }
 
 .nine-grid-generate-panel .nine-grid-reset-btn {
   border: 0;
   background: transparent;
-  color: rgba(74, 231, 253, 0.85);
+  color: var(--ui-brand, rgba(74, 231, 253, 0.85));
   font-size: calc(12px * var(--create-editor-scale, 1));
   cursor: pointer;
   padding: calc(2px * var(--create-editor-scale, 1)) calc(6px * var(--create-editor-scale, 1));
@@ -55,14 +55,14 @@
 }
 
 .nine-grid-generate-panel .nine-grid-reset-btn:hover {
-  color: #4ae7fd;
-  background: rgba(74, 231, 253, 0.1);
+  color: var(--ui-brand, #4ae7fd);
+  background: var(--ui-soft-hover, rgba(74, 231, 253, 0.1));
 }
 
 .nine-grid-generate-panel .nine-grid-reference {
-  border: calc(1px * var(--create-editor-scale, 1)) solid rgba(128, 154, 188, 0.22);
+  border: calc(1px * var(--create-editor-scale, 1)) solid var(--ui-hair, rgba(128, 154, 188, 0.22));
   border-radius: calc(12px * var(--create-editor-scale, 1));
-  background: rgba(17, 22, 33, 0.75);
+  background: var(--ui-surface, rgba(17, 22, 33, 0.75));
   overflow: hidden;
   min-height: calc(88px * var(--create-editor-scale, 1));
   display: flex;
@@ -83,7 +83,7 @@
   align-items: center;
   gap: calc(8px * var(--create-editor-scale, 1));
   padding: calc(20px * var(--create-editor-scale, 1));
-  color: rgba(188, 205, 228, 0.45);
+  color: var(--ui-muted, rgba(188, 205, 228, 0.45));
   font-size: calc(12px * var(--create-editor-scale, 1));
 }
 
@@ -105,31 +105,31 @@
 
 .nine-grid-generate-panel .nine-grid-cell__label {
   font-size: calc(12px * var(--create-editor-scale, 1));
-  color: rgba(74, 231, 253, 0.9);
+  color: var(--ui-brand, rgba(74, 231, 253, 0.9));
   font-weight: 500;
 }
 
 /* antd(React) TextArea 的 className 直接落在 textarea 元素上（antd-vue 为内层 textarea），两种结构都命中 */
 .nine-grid-generate-panel .nine-grid-cell__input textarea,
 .nine-grid-generate-panel textarea.nine-grid-cell__input {
-  background: rgba(8, 12, 20, 0.9) !important;
-  border: calc(1px * var(--create-editor-scale, 1)) solid rgba(78, 94, 122, 0.42) !important;
+  background: var(--ui-bg, rgba(8, 12, 20, 0.9)) !important;
+  border: calc(1px * var(--create-editor-scale, 1)) solid var(--ui-hair, rgba(78, 94, 122, 0.42)) !important;
   border-radius: calc(8px * var(--create-editor-scale, 1)) !important;
-  color: rgba(225, 239, 255, 0.92) !important;
+  color: var(--ui-text, rgba(225, 239, 255, 0.92)) !important;
   font-size: calc(12px * var(--create-editor-scale, 1));
   resize: none;
 }
 
 .nine-grid-generate-panel .nine-grid-cell__input textarea::placeholder,
 .nine-grid-generate-panel textarea.nine-grid-cell__input::placeholder {
-  color: rgba(188, 205, 228, 0.35);
+  color: var(--ui-muted, rgba(188, 205, 228, 0.35));
 }
 
 .nine-grid-generate-panel .nine-grid-cell__input textarea:hover,
 .nine-grid-generate-panel .nine-grid-cell__input textarea:focus,
 .nine-grid-generate-panel textarea.nine-grid-cell__input:hover,
 .nine-grid-generate-panel textarea.nine-grid-cell__input:focus {
-  border-color: rgba(74, 231, 253, 0.45) !important;
+  border-color: var(--ui-ring, rgba(74, 231, 253, 0.45)) !important;
 }
 
 .nine-grid-generate-panel .generate-model-config-block {

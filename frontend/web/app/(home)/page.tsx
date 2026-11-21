@@ -1,202 +1,201 @@
 'use client'
+import { useCanvasPublicationChannel } from '@/hooks/useCanvasPublicationChannel'
 
 import { SearchOutlined } from '@ant-design/icons'
-import { useRouter } from 'next/navigation'
-import { useEffect, useMemo, useRef, useState } from 'react'
-import groupAvatarRaw from '~/assets/img/home/Group-avtor.svg'
-import emptyImageIconRaw from '~/assets/img/icon/empty_icon.svg'
-import iconStartRaw from '~/assets/img/icon/icon_start.svg'
-import starWhiteRaw from '~/assets/img/icon/star_white.svg'
-import { useHomeShellCreateModal } from '~/composables/useHomeShellCreateModal'
+import dynamic from 'next/dynamic'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import CasePlazaMasonry from '~/components/home/CasePlazaMasonry'
+import HomeComposer from '~/components/home/composer/HomeComposer'
+import { GallerySubmitIcon } from '~/components/home/GallerySubmitIcon'
+import { HomeSegmented } from '~/components/home/theme/HomeSegmented'
+import { useHomePointerChrome } from '~/components/home/theme/useHomePointerChrome'
+import { useHomeHeroContentReady } from '~/composables/useHomeHeroContentReady'
+import { useHomeGuestAccess } from '~/hooks/useHomeGuestAccess'
+import { useHomeSidebarExtraNav } from '~/composables/useHomeSidebarExtraNav'
+import {
+  useCasePlazaFeed,
+  type CasePlazaFeedItem,
+  type CasePlazaFilter
+} from '~/hooks/useCasePlazaFeed'
 import { useUserStore } from '~/stores/user'
-import type { UserProjectType } from '~/types/business-api'
-import { assetUrl } from '~/utils/assetUrl'
-import { requireLogin } from '~/utils/authLoginNavigation'
-import { publicProjectVideoList } from '~/utils/businessApi'
-import { normalizePublicCaseCard, type PublicCaseCardItem } from '~/utils/publicCasePlaza'
+import { CASE_PLAZA_DEFAULT_TAB } from '~/utils/casePlazaSearchCriteria'
+import {
+  consumeHomeGalleryScrollSnapshot,
+  peekHomeGalleryScrollSnapshot,
+  readHomeMainScrollTop,
+  restoreHomeGalleryScroll,
+  saveHomeGalleryScrollSnapshot
+} from '~/utils/homeGalleryScrollRestore'
+import '~/components/home/home-ui-v4.css'
 
-const starWhiteUrl = assetUrl(starWhiteRaw)
-const groupAvatarUrl = assetUrl(groupAvatarRaw)
-const emptyImageIconUrl = assetUrl(emptyImageIconRaw)
-const iconStartUrl = assetUrl(iconStartRaw)
+const CanvasProjectCollection = dynamic(
+  () => import('~/components/canvas/CanvasProjectCollection').then((mod) => mod.CanvasProjectCollection),
+  { ssr: false }
+)
+const CanvasPublicationGalleryContent = dynamic(
+  () => import('@/components/canvas/CanvasPublicationGallery').then((mod) => mod.CanvasPublicationGalleryContent),
+  { ssr: false, loading: () => <CasePlazaMasonry appearance="home-v4" items={[]} status="loadingFirst" hasMore={false} error="" /> }
+)
+const DiscoverySubmissionModal = dynamic(() => import('~/components/home/DiscoverySubmissionModal'), { ssr: false })
 
 const filterTabs = [
-  { label: '全部', value: 'all' },
-  { label: '电影/短片', value: 'movie' },
-  { label: '电视剧集', value: 'series' }
+  { label: '发现', value: 'discovery' },
+  { label: '电影/短片', value: 'movie' }
 ] as const
 
-type GalleryFilter = (typeof filterTabs)[number]['value']
-
-/** 公开版首页：平台介绍、创作入口与无需登录的案例广场。 */
 export default function HomeNewIndexPage() {
-  const router = useRouter()
-  const token = useUserStore((state) => state.token)
-  const createModal = useHomeShellCreateModal()
-  const [searchQuery, setSearchQuery] = useState('')
-  const [activeTab, setActiveTab] = useState<GalleryFilter>('all')
-  const [works, setWorks] = useState<PublicCaseCardItem[]>([])
-  const [loading, setLoading] = useState(true)
-  const [errorMessage, setErrorMessage] = useState('')
-  const requestGenerationRef = useRef(0)
+  const token = useUserStore((s) => s.token)
+  const { requireLogin } = useHomeGuestAccess()
+  const { markHomeHeroContentReady } = useHomeHeroContentReady()
+  const { openTutorial } = useHomeSidebarExtraNav()
+  const isLoggedIn = !!token
+  useHomePointerChrome()
 
-  const projectType = useMemo<UserProjectType | undefined>(
-    () => (activeTab === 'all' ? undefined : activeTab),
-    [activeTab]
-  )
+  const [searchQuery, setSearchQuery] = useState('')
+  const [activeTab, setActiveTab] = useState<CasePlazaFilter | 'canvas'>(CASE_PLAZA_DEFAULT_TAB)
+  const [submissionModalOpen, setSubmissionModalOpen] = useState(false)
+  const [submissionReady, setSubmissionReady] = useState(false)
+  const [canvasSearchQuery, setCanvasSearchQuery] = useState('')
+  const canvasEnabled = useCanvasPublicationChannel()
+  const availableTabs = canvasEnabled ? [...filterTabs, { label: '画布', value: 'canvas' } as const] : filterTabs
+
+  const rememberCasePosition = useCallback((item: CasePlazaFeedItem) => {
+    saveHomeGalleryScrollSnapshot({
+      scrollTop: readHomeMainScrollTop(),
+      workId: item.id,
+      savedAt: Date.now()
+    })
+  }, [])
 
   useEffect(() => {
-    const generation = ++requestGenerationRef.current
-    const timer = window.setTimeout(() => {
-      setLoading(true)
-      setErrorMessage('')
-      void publicProjectVideoList({
-        projectName: searchQuery.trim() || undefined,
-        projectType,
-        pageNum: 1,
-        pageSize: 24
-      })
-        .then(({ rows }) => {
-          if (generation !== requestGenerationRef.current) return
-          setWorks(rows.map(normalizePublicCaseCard))
-        })
-        .catch(() => {
-          if (generation !== requestGenerationRef.current) return
-          setWorks([])
-          setErrorMessage('案例列表加载失败，请稍后重试')
-        })
-        .finally(() => {
-          if (generation === requestGenerationRef.current) setLoading(false)
-        })
-    }, searchQuery ? 250 : 0)
+    if (submissionModalOpen) setSubmissionReady(true)
+  }, [submissionModalOpen])
 
-    return () => {
-      window.clearTimeout(timer)
-      if (requestGenerationRef.current === generation) requestGenerationRef.current += 1
-    }
-  }, [projectType, searchQuery])
+  useEffect(() => {
+    markHomeHeroContentReady(true)
+    return () => markHomeHeroContentReady(false)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
-  const startCreating = () => {
-    if (!token) {
-      requireLogin()
+  function openSubmissionModal() {
+    if (!isLoggedIn) {
+      requireLogin('投稿作品')
       return
     }
-    createModal.openCreateModal()
-  }
-
-  const openCaseDetail = (projectId: number) => {
-    router.push(`/case?id=${projectId}`)
+    setSubmissionModalOpen(true)
   }
 
   return (
-    <div className="home-new-index">
+    <div className="home-new-index home-ui-v4">
       <div className="page-content">
-        <section className="home-new-hero" aria-labelledby="aid-open-home-title">
-          <div className="home-new-hero-media">
-            <div className="home-new-hero-stage">
-              <div className="home-new-hero-ambient" aria-hidden="true" />
-              <div className="home-new-hero-fade" aria-hidden="true" />
-              <div className="home-new-open-intro">
-                <p className="home-new-open-intro__eyebrow">AID · AI 内容创作平台</p>
-                <h1 id="aid-open-home-title">从剧本到成片，完成一体化 AI 创作</h1>
-                <p>支持 AI 漫剧、AI 电影与 AI 漫画的项目化创作、资产管理和生成流程。</p>
-              </div>
-            </div>
-          </div>
-        </section>
+        <HomeComposer
+          isLoggedIn={isLoggedIn}
+          onRequireLogin={requireLogin}
+          onTutorial={() => void openTutorial()}
+        />
 
-        <div className="home-new-actions">
-          <button type="button" className="btn-primary" onClick={startCreating}>
-            <img src={starWhiteUrl} alt="" />
-            <span>我要创作</span>
-          </button>
-          <button type="button" className="btn-secondary" onClick={() => router.push('/faq')}>
-            <span className="text-gradient">使用教程</span>
-          </button>
-        </div>
-
+        <div className="home-page-wrap">
+        {isLoggedIn ? <CanvasProjectCollection variant="home" enabled /> : null}
         <section className="gallery-section" aria-labelledby="gallery-section-title">
           <header className="section-header">
             <h2 id="gallery-section-title" className="section-title">案例广场</h2>
             <div className="section-toolbar">
-              <div className="filter-tabs" role="tablist" aria-label="案例分类">
-                {filterTabs.map((tab) => (
-                  <button
-                    key={tab.value}
-                    type="button"
-                    role="tab"
-                    aria-selected={activeTab === tab.value}
-                    className={`filter-tab${activeTab === tab.value ? ' active' : ''}`}
-                    onClick={() => setActiveTab(tab.value)}
-                  >
-                    {tab.label}
-                  </button>
-                ))}
-              </div>
-              <label className="search-box">
-                <SearchOutlined className="search-icon" />
-                <input
-                  value={searchQuery}
-                  onChange={(event) => setSearchQuery(event.target.value)}
-                  type="search"
-                  placeholder="搜索作品..."
-                  className="search-input"
-                  aria-label="搜索作品"
-                />
-              </label>
+              <HomeSegmented
+                className="home-seg--sub"
+                ariaLabel="案例分类"
+                value={activeTab}
+                options={availableTabs}
+                onChange={(value) => {
+                  setActiveTab(value)
+                  if (value === 'discovery') setSearchQuery('')
+                }}
+              />
+              {activeTab === 'discovery' ? (
+                <button
+                  type="button"
+                  className="gallery-submit-btn"
+                  aria-label="投稿作品"
+                  onClick={openSubmissionModal}
+                >
+                  <span className="gallery-submit-btn__icon-wrap" aria-hidden="true">
+                    <GallerySubmitIcon />
+                  </span>
+                  <span>投稿</span>
+                </button>
+              ) : (
+                <div className="search-box">
+                  <SearchOutlined className="search-icon" />
+                  <input
+                    value={activeTab === 'canvas' ? canvasSearchQuery : searchQuery}
+                    onChange={(event) => activeTab === 'canvas' ? setCanvasSearchQuery(event.target.value) : setSearchQuery(event.target.value)}
+                    type="search"
+                    maxLength={activeTab === 'canvas' ? 100 : undefined}
+                    placeholder={activeTab === 'canvas' ? '搜索画布作品...' : '搜索作品...'}
+                    className="search-input"
+                    aria-label={activeTab === 'canvas' ? '搜索画布作品' : '搜索作品'}
+                  />
+                </div>
+              )}
             </div>
           </header>
 
-          {loading && works.length === 0 ? (
-            <div className="gallery-feedback" role="status">案例加载中...</div>
-          ) : errorMessage ? (
-            <div className="gallery-feedback gallery-feedback--error" role="alert">{errorMessage}</div>
-          ) : works.length === 0 ? (
-            <div className="gallery-feedback">暂无符合条件的公开案例</div>
-          ) : (
-            <div className={`works-grid${loading ? ' is-refreshing' : ''}`} aria-busy={loading}>
-              {works.map((work) => (
-                <a
-                  key={work.id}
-                  className="work-card work-card--gallery"
-                  data-gallery-work-id={work.id}
-                  href={`/case?id=${work.id}`}
-                  onClick={(event) => {
-                    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
-                    event.preventDefault()
-                    openCaseDetail(work.id)
-                  }}
-                >
-                  <div className="work-cover" style={{ aspectRatio: work.aspectRatio }}>
-                    <img
-                      src={work.coverUrl || emptyImageIconUrl}
-                      alt={work.title}
-                      className={`work-img${work.coverUrl ? '' : ' work-img--empty'}`}
-                      loading="lazy"
-                    />
-                    <span className="work-play-badge" aria-hidden="true">
-                      <img src={iconStartUrl} alt="" width={24} height={24} />
-                    </span>
-                  </div>
-                  <div className="work-body">
-                    <h3 className="work-title">{work.title}</h3>
-                    <div className="work-footer">
-                      <div className="work-author">
-                        <img src={groupAvatarUrl} alt="" className="work-author-avatar" width={16} height={16} />
-                        <span className="work-author-name">{work.authorName}</span>
-                      </div>
-                      <div className="work-stats">
-                        {work.episodeCount > 0 ? <span className="work-views">{work.episodeCount}集</span> : null}
-                        <span className="work-tag">{work.categoryLabel}</span>
-                      </div>
-                    </div>
-                  </div>
-                </a>
-              ))}
-            </div>
-          )}
+          {activeTab === 'canvas'
+            ? <CanvasPublicationGalleryContent enabled={canvasEnabled} embedded searchQuery={canvasSearchQuery} />
+            : <HomeCasePlazaFeed activeTab={activeTab} searchQuery={searchQuery} onOpen={rememberCasePosition} />}
         </section>
+        </div>
       </div>
+
+      {submissionReady ? (
+        <DiscoverySubmissionModal
+          open={submissionModalOpen}
+          onOpenChange={setSubmissionModalOpen}
+        />
+      ) : null}
     </div>
+  )
+}
+
+function HomeCasePlazaFeed({ activeTab, searchQuery, onOpen }: {
+  activeTab: CasePlazaFilter
+  searchQuery: string
+  onOpen: (item: CasePlazaFeedItem) => void
+}) {
+  const casePlazaFeed = useCasePlazaFeed({ activeTab, searchQuery })
+  const pendingGalleryScrollRestoreRef = useRef(false)
+
+  useEffect(() => {
+    if (peekHomeGalleryScrollSnapshot()) {
+      pendingGalleryScrollRestoreRef.current = true
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!pendingGalleryScrollRestoreRef.current) return
+    if (casePlazaFeed.status === 'loadingFirst') return
+    if (!casePlazaFeed.items.length && casePlazaFeed.status !== 'ready') return
+
+    const snapshot = consumeHomeGalleryScrollSnapshot()
+    pendingGalleryScrollRestoreRef.current = false
+    if (!snapshot) return
+
+    requestAnimationFrame(() => {
+      restoreHomeGalleryScroll(snapshot)
+      requestAnimationFrame(() => {
+        restoreHomeGalleryScroll(snapshot)
+      })
+    })
+  }, [casePlazaFeed.items.length, casePlazaFeed.status])
+  return (
+    <CasePlazaMasonry
+      appearance="home-v4"
+      items={casePlazaFeed.items}
+      status={casePlazaFeed.status}
+      hasMore={casePlazaFeed.hasMore}
+      error={casePlazaFeed.error}
+      onLoadMore={casePlazaFeed.loadMore}
+      onReload={casePlazaFeed.reload}
+      onOpen={onOpen}
+    />
   )
 }

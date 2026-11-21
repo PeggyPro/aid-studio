@@ -15,13 +15,16 @@ export function fetchUserStoryboardDetailOnce(
     return Promise.reject(new Error('分镜ID无效'))
   }
 
+  const inflight = inflightByStoryboardId.get(id)
+  if (inflight) return inflight
+
   if (!options?.force) {
     const hit = resultCache.get(id)
     if (hit && Date.now() - hit.at < CACHE_MS) {
       return Promise.resolve(hit.row)
     }
-    const inflight = inflightByStoryboardId.get(id)
-    if (inflight) return inflight
+  } else {
+    resultCache.delete(id)
   }
 
   const promise = userStoryboardDetail({ id })

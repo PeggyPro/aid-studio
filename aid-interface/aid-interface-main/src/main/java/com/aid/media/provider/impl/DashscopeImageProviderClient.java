@@ -20,7 +20,6 @@ import com.aid.media.provider.ReferencePromptSanitizer;
 import com.aid.media.provider.ProviderResponseHelper;
 import com.aid.media.provider.ProviderSubmitResult;
 import com.aid.media.provider.ProviderTaskResult;
-import com.aid.media.service.ModelImageUrlProxyProcessor;
 import com.aid.media.service.ModelResourceUrlSigner;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -40,18 +39,15 @@ import java.util.Map;
 @Component
 public class DashscopeImageProviderClient implements ImageProviderClient {
 
-    private final ModelImageUrlProxyProcessor imageUrlProxyProcessor;
     private final ModelResourceUrlSigner resourceUrlSigner;
 
     /** 保留协议纯单测的源兼容；Spring 运行时使用下面的依赖构造器。 */
     DashscopeImageProviderClient() {
-        this(null, null);
+        this(null);
     }
 
     @org.springframework.beans.factory.annotation.Autowired
-    public DashscopeImageProviderClient(ModelImageUrlProxyProcessor imageUrlProxyProcessor,
-                                         ModelResourceUrlSigner resourceUrlSigner) {
-        this.imageUrlProxyProcessor = imageUrlProxyProcessor;
+    public DashscopeImageProviderClient(ModelResourceUrlSigner resourceUrlSigner) {
         this.resourceUrlSigner = resourceUrlSigner;
     }
 
@@ -84,11 +80,10 @@ public class DashscopeImageProviderClient implements ImageProviderClient {
         ImageDialect dialect = resolveDialect(effectiveModel);
         if (dialect == WanxImageEditAsyncDialect.INSTANCE
                 && ImageEditAssetSupport.isInpainting(request)) {
-            if (imageUrlProxyProcessor == null || resourceUrlSigner == null) {
+            if (resourceUrlSigner == null) {
                 throw new ServiceException("模型资源处理器未配置");
             }
             String normalizedMask = ImageEditAssetSupport.toWanMaskUrl(request);
-            normalizedMask = imageUrlProxyProcessor.processImageUrl(modelConfig, normalizedMask);
             request.setMaskImageUrl(resourceUrlSigner.signImageUrl(normalizedMask));
         }
         String submitUrl = buildSubmitUrl(modelConfig);
@@ -979,8 +974,8 @@ public class DashscopeImageProviderClient implements ImageProviderClient {
         }
 
         private void addExpandParameters(Map<String, Object> parameters, MediaImageGenerateRequest request) {
-            ImageEditAssetSupport.Dimensions dimensions = ImageEditAssetSupport.dimensions(
-                    request.getReferenceImageUrl(), "原图");
+            ImageEditAssetSupport.Dimensions dimensions =
+                    ImageEditAssetSupport.verifiedDimensions(request, "原图");
             ImageEditAssetSupport.validateExpand(request, dimensions);
             int sourceWidth = dimensions.width();
             int sourceHeight = dimensions.height();

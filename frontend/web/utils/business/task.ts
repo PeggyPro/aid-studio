@@ -156,13 +156,15 @@ export async function userTaskDetailCached(
 ): Promise<UserTaskDetailData | null> {
   const id = Number(taskId)
   if (!Number.isFinite(id) || id <= 0) return null
+
+  const inflight = userTaskDetailInflight.get(id)
+  if (inflight) return inflight.catch(() => null)
+
   if (!options?.force) {
     const burst = userTaskDetailBurst.get(id)
     if (burst && Date.now() - burst.at < USER_TASK_DETAIL_BURST_MS) {
       return burst.data
     }
-    const inflight = userTaskDetailInflight.get(id)
-    if (inflight) return inflight
   } else {
     userTaskDetailBurst.delete(id)
   }

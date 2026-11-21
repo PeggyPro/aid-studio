@@ -22,7 +22,8 @@ function mapRowsToOptions(rows: OfficialPromptItem[]): SettingSelectOption[] {
     .map((row) => ({
       key: String(row.id),
       value: (row.itemName ?? '').trim() || `项${row.id}`,
-      image: (row.coverUrl ?? '').trim() || ''
+      image: (row.coverUrl ?? '').trim() || '',
+      ...(row.promptText?.trim() ? { description: row.promptText.trim() } : {})
     }))
 }
 

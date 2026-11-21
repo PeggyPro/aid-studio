@@ -1,13 +1,7 @@
 'use client'
 
-/* eslint-disable @next/next/no-img-element -- 发送态图标由运行时资源映射器解析，需保留原生 img。 */
-
 import { Tooltip } from 'antd'
 import type { ReactNode } from 'react'
-import btnSendDisabledRaw from '~/assets/img/home/btn-send-h.svg'
-import groupIconRaw from '~/assets/img/home/group-icon.svg'
-import btnSendRaw from '~/assets/img/home/btn-send.svg'
-import { assetUrl } from '~/utils/assetUrl'
 import {
   COMPOSER_SEND_EMPTY_TOOLTIP,
   isComposerSendClickDisabled,
@@ -16,9 +10,18 @@ import {
 } from '~/utils/composerSendButton'
 import './composer-send-button.css'
 
-const sendIconUrl = assetUrl(btnSendRaw)
-const sendDisabledIconUrl = assetUrl(btnSendDisabledRaw)
-const sendStopIconUrl = assetUrl(groupIconRaw)
+/** 保留原资源的几何；颜色由消费方主题提供，不对整张图标做滤镜。 */
+export function ComposerSendGlyph({ empty = false, stop = false }: { empty?: boolean; stop?: boolean }) {
+  const foreground = empty ? 'var(--studio-ui-muted, #8E97A5)' : 'var(--studio-ui-inverse, #1C1E22)'
+  return (
+    <svg className={`composer-send-button__glyph${empty ? ' is-empty' : ''}`} width={32} height={32} viewBox="0 0 32 32" aria-hidden="true">
+      <rect className="composer-send-button__disc" width="32" height="32" rx="16" opacity={empty ? 0.2 : 1} fill={empty ? 'var(--studio-ui-muted, #8E97A5)' : 'var(--studio-ui-accent, #4AE7FD)'} />
+      {stop ? <rect className="composer-send-button__mark" x="11" y="11" width="10" height="10" rx="2" fill={foreground} /> : (
+        <path className="composer-send-button__mark" d="M16.7168 8.74512L22.9951 15.2441L22.2754 15.9385L21.5566 16.6338L17.0332 11.9502V23.998H14.9619V11.9492L10.4395 16.6338L9.71973 15.9385L9 15.2441L15.2783 8.74512L15.9971 8L16.7168 8.74512Z" fill={foreground} />
+      )}
+    </svg>
+  )
+}
 
 export interface ComposerSendButtonProps {
   hasContent: boolean
@@ -122,10 +125,10 @@ export function ComposerSendButton({
         <span className="composer-send-button__spinner" aria-hidden="true" />
       ) : null}
       {visualState === 'pause' ? (
-        <img src={sendStopIconUrl} alt="" width={32} height={32} />
+        <ComposerSendGlyph stop />
       ) : null}
       {visualState === 'resume' ? (
-        <img src={sendIconUrl} alt="" width={32} height={32} />
+        <ComposerSendGlyph />
       ) : null}
       {visualState === 'empty' || visualState === 'active' ? (
         <>
@@ -135,7 +138,7 @@ export function ComposerSendButton({
             }`}
             aria-hidden="true"
           >
-            <img src={sendDisabledIconUrl} alt="" width={32} height={32} />
+            <ComposerSendGlyph empty />
           </span>
           <span
             className={`composer-send-button__icon-layer ${
@@ -143,7 +146,7 @@ export function ComposerSendButton({
             }`}
             aria-hidden="true"
           >
-            <img src={sendIconUrl} alt="" width={32} height={32} />
+            <ComposerSendGlyph />
           </span>
         </>
       ) : null}

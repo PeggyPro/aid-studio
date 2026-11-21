@@ -1,0 +1,76 @@
+.pv-agent-action {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  background: var(--pv-accent);
+  color: var(--pv-on-accent);
+  box-shadow: inset 0 1px color-mix(in srgb, white 30%, transparent);
+  font-size: 15px;
+  transition: background-color 160ms ease, color 160ms ease, box-shadow 160ms ease;
+}
+.pv-agent-action--stop {
+  background: color-mix(in srgb, var(--pv-accent) 15%, var(--pv-field));
+  color: var(--pv-accent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--pv-accent) 30%, transparent);
+}
+.pv-agent-action__stop-mark { width: 10px; height: 10px; border-radius: 2px; background: currentColor; }
+button:hover:not(:disabled) .pv-agent-action {
+  background: color-mix(in srgb, var(--pv-accent) 88%, white);
+}
+button:hover:not(:disabled) .pv-agent-action--stop {
+  background: color-mix(in srgb, var(--pv-accent) 24%, var(--pv-field));
+}
+button:disabled .pv-agent-action {
+  background: color-mix(in srgb, var(--pv-accent) 8%, var(--pv-field));
+  color: var(--pv-muted);
+  box-shadow: none;
+}
+
+.pv-modeling-mark { display: block; flex: 0 0 auto; width: 38px; height: 38px; color: var(--pv-accent); }
+.pv-modeling-mark__grid { fill: none; stroke: currentColor; stroke-width: .8; opacity: .32; }
+.pv-modeling-mark__top { fill: currentColor; opacity: .32; }
+.pv-modeling-mark__left { fill: currentColor; opacity: .16; }
+.pv-modeling-mark__right { fill: currentColor; opacity: .06; }
+.pv-modeling-mark__outline,
+.pv-modeling-mark__scan { fill: none; stroke: currentColor; stroke-width: 1.35; stroke-linecap: round; stroke-linejoin: round; }
+.pv-modeling-mark__scan { opacity: 0; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .pv-modeling-mark[data-build-animation] .pv-modeling-mark__outline {
+    stroke-dasharray: 1;
+    animation: pv-model-trace 900ms cubic-bezier(.25, .72, .26, 1) both;
+  }
+  .pv-modeling-mark[data-build-animation] .pv-modeling-mark__faces {
+    animation: pv-model-shade 650ms 250ms ease-out both;
+  }
+  .pv-modeling-mark[data-build-animation] .pv-modeling-mark__scan {
+    animation: pv-model-scan 770ms 200ms ease-out both;
+  }
+}
+@keyframes pv-model-trace { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+@keyframes pv-model-shade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes pv-model-scan {
+  0% { opacity: 0; transform: translateY(-3px); }
+  26% { opacity: .7; }
+  100% { opacity: 0; transform: translateY(14px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pv-agent-action { transition: none; }
+}
+.pv-assistant-mark { display: block; flex: 0 0 auto; width: 28px; height: 28px; color: var(--director-accent, var(--pv-accent)); overflow: visible; }
+.pv-assistant-mark__ring { fill: none; stroke: currentColor; stroke-width: 1.1; opacity: .5; }
+.pv-assistant-mark__satellite, .pv-assistant-mark__eye { fill: currentColor; }
+.pv-assistant-mark__satellite.is-secondary { opacity: .55; }
+.pv-assistant-mark__head { fill: color-mix(in srgb, currentColor 12%, transparent); stroke: currentColor; stroke-width: 1.7; }
+.pv-assistant-mark__antenna, .pv-assistant-mark__smile { fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; }
+.pv-assistant-mark__orbit, .pv-assistant-mark__face { transform-box: view-box; transform-origin: 50% 50%; }
+@media (prefers-reduced-motion: no-preference) {
+  .pv-assistant-mark__orbit { animation: pv-assistant-orbit 9s linear infinite; }
+  .pv-assistant-mark__face { animation: pv-assistant-breathe 3.6s ease-in-out infinite; }
+}
+.pv-agent-dock.is-expanded .pv-assistant-mark :is(.pv-assistant-mark__orbit,.pv-assistant-mark__face) { animation-play-state: paused; }
+@keyframes pv-assistant-orbit { to { transform: rotate(360deg); } }
+@keyframes pv-assistant-breathe { 0%,100% { opacity: .78; transform: translateY(0); } 50% { opacity: 1; transform: translateY(-1px); } }

@@ -300,7 +300,7 @@ public class TokenDanceAudioRecoveryStore {
         if (profileName == null) {
             throw new IOException("profile invalid");
         }
-        Path privateRoot = profile.resolveSibling(profileName + "-private").normalize();
+        Path privateRoot = Path.of(AidAppConfig.getPrivateProfile()).toAbsolutePath().normalize();
         Path directory = privateRoot.resolve(SUB_PATH).normalize();
         if (!directory.startsWith(privateRoot)) {
             throw new IOException("recovery directory invalid");

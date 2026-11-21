@@ -3,19 +3,22 @@ package com.aid.skill.service;
 import java.util.Map;
 import java.util.Set;
 
-/** Entrypoints implemented by the current Runtime orchestrator. */
+/** New-call entrypoints implemented by the current legacy Skill Runtime orchestrator. */
 public final class SkillRuntimeCapabilities {
     public static final String SCREENPLAY = "screenplay";
-    public static final String SCREENPLAY_WRITE = "screenplay-write";
-    public static final String SCREENPLAY_REVIEW = "screenplay-review";
+    public static final String SCREENPLAY_WRITE = "screenplay_write";
+    public static final String SCREENPLAY_REVIEW = "screenplay_review";
     public static final String RETIRED_SCREENPLAY_CHAT = "screenplay_writer";
     public static final String OWNER_PLATFORM = "PLATFORM";
     public static final String VISIBILITY_PUBLIC = "PUBLIC";
     public static final String SCOPE_ENTRYPOINT = "ENTRYPOINT";
     public static final String CAPABILITY_SCRIPT_WRITING = "SCRIPT_WRITING";
     public static final String OUTPUT_SCREENPLAY = "SCREENPLAY";
-    private static final Map<String, Descriptor> DESCRIPTORS = Map.of(
-            SCREENPLAY, new Descriptor(CAPABILITY_SCRIPT_WRITING, OUTPUT_SCREENPLAY));
+    // Canvas screenplay creation now runs through the SCREENWRITER main Agent and its three fixed
+    // aid_screenwriter_* method packages. The old public trio is no longer admitted or catalogued
+    // by the generic public entrypoint. Its names remain for existing-run recovery and the separately
+    // trusted LEGACY_PLAN published-Agent/draft-trial admission in SkillInvocationServiceImpl.
+    private static final Map<String, Descriptor> DESCRIPTORS = Map.of();
     public static final Set<String> CALLABLE_ENTRYPOINTS = DESCRIPTORS.keySet();
 
     private SkillRuntimeCapabilities() { }

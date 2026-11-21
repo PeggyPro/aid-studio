@@ -95,6 +95,7 @@ public class AidAiProviderServiceImpl extends ServiceImpl<AidAiProviderMapper, A
         normalizeIntegration(aidAiProvider, null);
         validateAndNormalizeBaseUrl(aidAiProvider);
         validateAndNormalizeTaskQuerySuffix(aidAiProvider);
+        validateAccountOperations(aidAiProvider);
         validateKlingConfiguration(aidAiProvider);
         aidAiProvider.setCreateTime(DateUtils.getNowDate());
         return this.save(aidAiProvider) ? 1 : 0;
@@ -113,6 +114,7 @@ public class AidAiProviderServiceImpl extends ServiceImpl<AidAiProviderMapper, A
         validateAndNormalizeBaseUrl(aidAiProvider);
         validateAndNormalizeTaskQuerySuffix(aidAiProvider);
         AidAiProvider before = aidAiModelSafeLoad(aidAiProvider == null ? null : aidAiProvider.getId());
+        validateAccountOperations(aidAiProvider);
         if (before != null && aidAiProvider.getIntegrationType() != null
                 && !Objects.equals(before.getIntegrationType(), aidAiProvider.getIntegrationType())
                 && modelMapper.selectCount(Wrappers.<AidAiModel>lambdaQuery()
@@ -276,6 +278,20 @@ public class AidAiProviderServiceImpl extends ServiceImpl<AidAiProviderMapper, A
             provider.setAuthHeader("Authorization");
             provider.setAuthPrefix("Bearer ");
         }
+    }
+
+    private void validateAccountOperations(AidAiProvider provider) {
+        if(provider==null||provider.getAccountOperationsJson()==null)return;
+        try {
+            if(provider.getAccountOperationsJson().length()>4000)throw new IllegalArgumentException();
+            com.alibaba.fastjson2.JSONObject paths=com.alibaba.fastjson2.JSON.parseObject(provider.getAccountOperationsJson());
+            if(paths==null)throw new IllegalArgumentException();
+            for(String key:paths.keySet()) {
+                if(!java.util.Set.of("balancePath","servicesPath","usagePath").contains(key)||!(paths.get(key) instanceof String value))throw new IllegalArgumentException();
+                paths.put(key,ProviderEndpointUtils.normalizeSubmitPath(value));
+            }
+            provider.setAccountOperationsJson(paths.toJSONString());
+        }catch(Exception invalid){throw new ServiceException("官方账户查询路径配置无效");}
     }
 
     private void normalizePresentation(AidAiProvider provider, boolean creating)

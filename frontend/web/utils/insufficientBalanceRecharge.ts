@@ -5,16 +5,22 @@
 export function isInsufficientBalanceMessage(msg: string): boolean {
   const text = String(msg ?? '')
   // 模型/供应商/商户额度：不应对用户弹充值中心（与 rechargeOwner=MERCHANT 一致）
-  if (/模型额度|模型免费额度|服务额度不足|商户.*额度|平台.*额度/.test(text)) return false
-  return /余额不足|算力不足|额度不足|请先充值/.test(text)
+  if (/模型.*(?:额度|余额)|服务额度不足|(?:供应商|上游|商户|平台).*(?:额度|余额)|(?:预算|授权).*(?:不足|耗尽|超出|余额)/.test(text)) return false
+  return /余额不足|积分不足|算力不足|额度不足|请先充值/.test(text)
 }
 
 export type SseRechargeErrorData = {
+  errorCode?: string
+  data?: unknown
   needRecharge?: boolean
   rechargeOwner?: string
   userMessage?: string
   errorMessage?: string
 } | null
+
+export function isUserBalanceErrorCode(code: unknown): boolean {
+  return code === 'USER_PREHOLD_BALANCE_NOT_ENOUGH' || code === 'USER_BALANCE_NOT_ENOUGH'
+}
 
 /**
  * 是否应唤起用户充值中心（纯判断，无副作用）。
@@ -26,11 +32,18 @@ export function shouldOpenUserRechargeFromSseError(
   errorData?: SseRechargeErrorData,
   fallbackMessage?: string
 ): boolean {
-  const owner = String(errorData?.rechargeOwner || '')
+  // Assistant HTTP errors put their machine code in data; media SSE uses top-level fields.
+  const nested = errorData?.data
+  const detail = nested && typeof nested === 'object' && !Array.isArray(nested)
+    ? { ...errorData, ...nested } as NonNullable<SseRechargeErrorData> : errorData
+  const owner = String(detail?.rechargeOwner || '')
     .trim()
     .toUpperCase()
-  if (owner === 'MERCHANT') return false
-  if (errorData?.needRecharge && owner === 'USER') return true
-  const msg = errorData?.userMessage || errorData?.errorMessage || fallbackMessage || ''
+  if (owner && owner !== 'USER') return false
+  if (detail?.needRecharge != null && typeof detail.needRecharge !== 'boolean') return false
+  if (detail?.needRecharge === false) return false
+  if (detail?.errorCode) return isUserBalanceErrorCode(detail.errorCode)
+  if (typeof detail?.needRecharge === 'boolean') return detail.needRecharge && owner === 'USER'
+  const msg = detail?.userMessage || detail?.errorMessage || fallbackMessage || ''
   return isInsufficientBalanceMessage(msg)
 }

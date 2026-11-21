@@ -1,6 +1,10 @@
 package com.aid.media.provider;
 
 import com.aid.common.constant.HttpConstants;
+import com.aid.common.error.TaskErrorCode;
+import com.aid.common.error.TaskErrorResult;
+import com.aid.common.error.TaskErrorSnapshot;
+import com.aid.common.exception.ServiceException;
 import com.aid.tokendance.provider.text.TokenDanceToolMessages;
 import com.aid.tokendance.provider.common.TokenDanceProtocols;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -8,10 +12,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -36,7 +37,7 @@ public final class OpenAiStyleChatStream {
     /**
      * SSE/同步响应体字节上限，防止上游异常返回超长内容导致 OOM；超过即强制终止读取。
      */
-    private static final long MAX_STREAM_BODY_BYTES = 50L * 1024L * 1024L;
+    private static final int MAX_STREAM_BODY_BYTES = 50 * 1024 * 1024;
     /**
      * 错误响应体专用上限：64KB，足以读完任何 HTTP 错误 JSON/HTML，防止错误页面拖累内存。
      */
@@ -44,7 +45,6 @@ public final class OpenAiStyleChatStream {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    /** Validate URL/auth/custom headers without opening a connection. */
     public static void validateRequestConfiguration(String url, String apiKey,
             String authHeader, String authPrefix, Map<String, String> extraHeaders) {
         buildJsonRequest(url, apiKey, authHeader, authPrefix, extraHeaders, "{}", false);
@@ -58,6 +58,19 @@ public final class OpenAiStyleChatStream {
             .build();
 
     private OpenAiStyleChatStream() {
+    }
+
+    /** Shared authenticated transport for native semantic event protocols. Never retries a POST. */
+    static HttpResponse<Object> openEventResponse(String url, String apiKey, String authHeader,
+            String authPrefix, Map<String, String> extraHeaders, String body) throws IOException {
+        try {
+            return SHARED_HTTP_CLIENT.send(buildJsonRequest(url, apiKey, authHeader, authPrefix,
+                    extraHeaders, body, true),
+                    BoundedResponseBody.inputStreamOrError(MAX_ERROR_BODY_BYTES));
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            throw new java.io.InterruptedIOException("文本请求已中断");
+        }
     }
 
     /**
@@ -92,14 +105,12 @@ public final class OpenAiStyleChatStream {
             req = buildJsonRequest(url, apiKey, authHeader, authPrefix, extraHeaders, jsonBody, false);
         } catch (IllegalArgumentException badConfig) {
             log.error("非流式文本请求构造失败（鉴权或 URL 非法）, url={}, err={}", url, badConfig.getMessage());
-            return ProviderSubmitResult.builder()
-                    .rawResponse("配置错误")
-                    .errorDetailJson(TextFailureBillingPolicy.notSentSnapshot("配置错误"))
-                    .build();
+            return TextFailureBillingPolicy.notSentEvidence("配置错误").toSubmitResult();
         }
-        HttpResponse<String> resp;
+        HttpResponse<BoundedResponseBody.Utf8Read> resp;
         try {
-            resp = com.aid.diagnostics.DiagnosticHttp.send(client, req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+            resp = com.aid.media.provider.TextExecutionTransportScope.send(client, req,
+                    BoundedResponseBody.utf8(MAX_STREAM_BODY_BYTES, MAX_ERROR_BODY_BYTES));
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             log.error("非流式文本请求被中断, url={}", url, e);
@@ -108,23 +119,21 @@ public final class OpenAiStyleChatStream {
             log.error("非流式文本请求IO异常, url={}", url, e);
             return ProviderSubmitResult.builder().rawResponse(e.getMessage()).build();
         }
-        String body = resp.body() != null ? resp.body() : "";
-        // 同步响应字节上限校验，防止上游异常返回超大 body 导致 OOM。
-        if (body.length() > MAX_STREAM_BODY_BYTES) {
+        BoundedResponseBody.Utf8Read responseBody = resp.body();
+        String body = responseBody.body();
+        if (resp.statusCode() < 200 || resp.statusCode() >= 300) {
+            log.error("非流式文本上游HTTP失败, url={}, status={}, bodyLen={}", url, resp.statusCode(), body.length());
+            String safeMessage = responseBody.complete()
+                    ? ProviderErrorSanitizer.fromHttp(resp.statusCode(), body)
+                    : "上游错误响应过大";
+            Map<String, Object> usage = responseBody.complete() ? parseUsageSafely(body) : null;
+            return TextFailureBillingPolicy.httpFailureEvidence(
+                    resp.statusCode(), safeMessage, usage, responseBody.complete()).withResponseMetadata(resp).toSubmitResult();
+        }
+        if (!responseBody.complete()) {
             log.error("非流式文本响应超过大小上限, url={}, bodyLen={}, limit={}", url, body.length(), MAX_STREAM_BODY_BYTES);
             return ProviderSubmitResult.builder()
                     .rawResponse("响应超限")
-                    .build();
-        }
-        if (resp.statusCode() < 200 || resp.statusCode() >= 300) {
-            log.error("非流式文本上游HTTP失败, url={}, status={}, bodyLen={}", url, resp.statusCode(), body.length());
-            String safeMessage = ProviderErrorSanitizer.fromHttp(resp.statusCode(), body);
-            Map<String, Object> usage = parseUsageSafely(body);
-            return ProviderSubmitResult.builder()
-                    .rawResponse(safeMessage)
-                    .errorDetailJson(TextFailureBillingPolicy.httpFailureSnapshot(
-                            resp.statusCode(), safeMessage, usage))
-                    .usage(usage)
                     .build();
         }
         // 解析非流式 JSON 响应：choices[0].message.content + usage
@@ -147,10 +156,13 @@ public final class OpenAiStyleChatStream {
                 if (finishError != null) {
                     log.info("非流式文本未完整终止: url={}, finishReason={}, usage={}",
                             url, finishReason, usage);
-                    return ProviderSubmitResult.builder()
-                            .rawResponse(finishError)
-                            .usage(usage.isEmpty() ? null : usage)
-                            .build();
+                    if (TextFinishReasonSupport.isRecognizedOpenAiFinish(finishReason)) {
+                        var failure = TextFinishReasonSupport.isRecoverableOpenAiOutputFailure(finishReason)
+                                ? TextFailureBillingPolicy.completedInvalidResponse(finishError, null, usage)
+                                : TextFailureBillingPolicy.completedResponseFailure(finishError, usage);
+                        return failure.withResponseMetadata(resp).toSubmitResult();
+                    }
+                    return ProviderSubmitResult.builder().rawResponse(finishError).usage(usage).build();
                 }
                 String text = textOrNull(message.get("content"));
                 if (completions && message.isMissingNode()) text = textOrNull(choice.get("text"));
@@ -158,6 +170,8 @@ public final class OpenAiStyleChatStream {
                 log.info("非流式文本响应解析: url={}, hasText={}, hasReasoning={}, usage={}", url,
                         StringUtils.isNotBlank(text), StringUtils.isNotBlank(reasoning), usage);
                 if (StringUtils.isBlank(text) && !(allowTools && hasToolCall(message))) {
+                    if ("stop".equalsIgnoreCase(StringUtils.trimToEmpty(finishReason))) return TextFailureBillingPolicy.completedEmptyResponse(usage)
+                            .withResponseMetadata(resp).toSubmitResult();
                     return ProviderSubmitResult.builder()
                             .rawResponse("响应内容为空")
                             .usage(usage.isEmpty() ? null : usage)
@@ -176,6 +190,9 @@ public final class OpenAiStyleChatStream {
                 .rawResponse("上游终止异常")
                 .usage(usage.isEmpty() ? null : usage)
                 .build();
+        } catch (TextResponseValidationException invalid) {
+            return TextFailureBillingPolicy.completedInvalidResponse(invalid.getMessage(),
+                    invalid.getTaskErrorJson(), observedUsage).withResponseMetadata(resp).toSubmitResult();
         } catch (Exception e) {
             log.error("非流式文本响应解析失败, url={}, bodyLen={}, errorType={}",
                     url, body.length(), e.getClass().getSimpleName());
@@ -356,7 +373,7 @@ public final class OpenAiStyleChatStream {
     }
 
     /**
-     * POST 流式 Chat Completions，按行解析 SSE，将正文与思考链增量回调给编排层。
+     * POST 流式 Chat Completions，按行解析 SSE，将正文与工具增量回调给编排层。
      *
      * @param url          完整请求 URL
      * @param apiKey       鉴权 token
@@ -391,90 +408,118 @@ public final class OpenAiStyleChatStream {
             req = buildJsonRequest(url, apiKey, authHeader, authPrefix, extraHeaders, jsonBody, true);
         } catch (IllegalArgumentException badConfig) {
             log.error("文本流式请求构造失败（鉴权或 URL 非法）, url={}, err={}", url, badConfig.getMessage());
-            callbacks.onError("配置错误", TextFailureBillingPolicy.notSent("配置错误"));
+            callbacks.onFailure(TextFailureBillingPolicy.notSentEvidence("配置错误"));
             return;
         }
-        HttpResponse<InputStream> resp;
+        HttpResponse<Object> resp;
         try {
-            resp = com.aid.diagnostics.DiagnosticHttp.send(client, req, HttpResponse.BodyHandlers.ofInputStream());
+            resp = com.aid.media.provider.TextExecutionTransportScope.send(client, req, BoundedResponseBody.inputStreamOrError(MAX_ERROR_BODY_BYTES));
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             callbacks.onError("请求被中断", e);
             return;
+        } catch (IOException transport) {
+            throw TextTransportFailure.capture(transport, "RESPONSE_HEADERS", null);
         }
-        callbacks.onResponseBody(resp.body());
         if (resp.statusCode() < 200 || resp.statusCode() >= 300) {
-            ErrorBodyRead errorBody = readAllAndClose(resp.body());
+            BoundedResponseBody.Utf8Read errorBody = BoundedResponseBody.requireRead(resp.body());
             String errBody = errorBody.body();
             log.error("文本流式上游 HTTP 失败, url={}, status={}, bodyLen={}",
                     url, resp.statusCode(), StringUtils.length(errBody));
-            if (!errorBody.complete()) {
-                callbacks.onError("上游错误响应过大", null);
-                return;
-            }
-            String safeMessage = ProviderErrorSanitizer.fromHttp(resp.statusCode(), errBody);
-            Map<String, Object> usage = parseUsageSafely(errBody);
-            if (ProviderUsageSupport.hasAnyProviderUsage(usage)) {
-                callbacks.onUsage(usage);
-            }
-            callbacks.onError(safeMessage,
-                    TextFailureBillingPolicy.httpFailure(resp.statusCode(), safeMessage, usage));
+            String safeMessage = errorBody.complete()
+                    ? ProviderErrorSanitizer.fromHttp(resp.statusCode(), errBody)
+                    : "上游错误响应过大";
+            Map<String, Object> usage = errorBody.complete() ? parseUsageSafely(errBody) : null;
+            callbacks.onFailure(TextFailureBillingPolicy.httpFailureEvidence(
+                    resp.statusCode(), safeMessage, usage, errorBody.complete()).withResponseMetadata(resp));
             return;
         }
-        AtomicBoolean sawDone = new AtomicBoolean(false);
-        AtomicBoolean sawNormalFinish = new AtomicBoolean(false);
-        AtomicReference<String> terminalFailure = new AtomicReference<>();
-        AtomicBoolean fatal = new AtomicBoolean(false);
-        // 累计字节数，超过上限立即终止并抛错
-        long totalBytes = 0;
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(resp.body(), StandardCharsets.UTF_8))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                totalBytes += (long) line.length() + 1L; // +1 换行符
-                if (totalBytes > MAX_STREAM_BODY_BYTES) {
-                    log.error("文本流式响应超过大小上限, url={}, totalBytes={}, limit={}",
-                            url, totalBytes, MAX_STREAM_BODY_BYTES);
-                    callbacks.onError("响应超限", null);
-                    fatal.set(true);
-                    break;
+        try (var responseBody = new TextResponseDeadline(
+                BoundedResponseBody.requireInputStream(resp.body()),
+                Duration.ofMinutes(HTTP_STREAM_TIMEOUT_MINUTES).toMillis())) {
+            callbacks.onResponseBody(responseBody);
+            AtomicBoolean sawDone = new AtomicBoolean(false);
+            AtomicBoolean sawNormalFinish = new AtomicBoolean(false);
+            AtomicReference<String> terminalFailure = new AtomicReference<>();
+            AtomicReference<String> terminalFinishReason = new AtomicReference<>();
+            AtomicReference<Map<String, Object>> observedUsage = new AtomicReference<>();
+            AtomicBoolean fatal = new AtomicBoolean(false);
+            try (BoundedResponseBody.Utf8LineReader reader =
+                         new BoundedResponseBody.Utf8LineReader(responseBody,
+                                 MAX_STREAM_BODY_BYTES, MAX_STREAM_BODY_BYTES)) {
+                String data;
+                while ((data = readDataEvent(reader)) != null) {
+                    callbacks.onSseDataLine(ReasoningContentSanitizer.sanitizeJson(data));
+                    if ("[DONE]".equals(data)) {
+                        callbacks.onProtocolEndMarker();
+                        sawDone.set(true);
+                        break;
+                    }
+                    if (fatal.get()) {
+                        Map<String, Object> usage = parseUsageSafely(data);
+                        if (usage != null && !usage.isEmpty()) {
+                            observedUsage.updateAndGet(previous -> ProviderUsageSupport.merge(previous, usage));
+                            callbacks.onUsage(usage);
+                        }
+                        continue;
+                    }
+                    if (!emitDeltasFromChunk(data, callbacks, sawNormalFinish, terminalFailure, tools, completions, observedUsage, terminalFinishReason)) {
+                        fatal.set(true);
+                    }
                 }
-                if (!line.startsWith("data:")) {
-                    continue;
-                }
-                String data = line.substring("data:".length()).trim();
-                callbacks.onSseDataLine(ReasoningContentSanitizer.sanitizeJson(data));
-                if ("[DONE]".equals(data)) {
-                    sawDone.set(true);
-                    break;
-                }
-                if (!emitDeltasFromChunk(data, callbacks, sawNormalFinish, terminalFailure, tools, completions)) {
-                    fatal.set(true);
-                    break;
-                }
+            } catch (BoundedResponseBody.LimitExceededException limit) {
+                log.error("文本流式响应超过大小上限, url={}, limit={}, message={}",
+                        url, MAX_STREAM_BODY_BYTES, limit.getMessage());
+                callbacks.onError("响应超限", null);
+                fatal.set(true);
             }
-        }
-        if (!fatal.get() && terminalFailure.get() != null) {
-            callbacks.onError(terminalFailure.get(), null);
-            fatal.set(true);
-        }
-        if (!fatal.get() && !sawNormalFinish.get()) {
-            log.warn("文本流式上游缺少正常终止原因, url={}, sawDone={}", url, sawDone.get());
-            callbacks.onError("上游终止异常", null);
-            fatal.set(true);
-        }
-        if (!fatal.get()) {
-            if (!sawDone.get()) {
-                log.info("文本流式上游未显式返回[DONE]，按连接结束处理");
-            }
-            if (tools != null) {
-                var toolMessage = tools.finishChatTurn();
-                if (!TokenDanceToolMessages.hasCalls(toolMessage) && StringUtils.isBlank(toolMessage.getContent())) {
-                    callbacks.onError("响应内容为空", null);
-                    return;
+            if (!fatal.get() && terminalFailure.get() != null) {
+                if (sawNormalFinish.get() || TextFinishReasonSupport.isRecognizedOpenAiFinish(terminalFinishReason.get())) {
+                    var failure = TextFinishReasonSupport.isRecoverableOpenAiOutputFailure(terminalFinishReason.get())
+                            ? TextFailureBillingPolicy.completedInvalidResponse(terminalFailure.get(), null, observedUsage.get())
+                            : TextFailureBillingPolicy.completedResponseFailure(terminalFailure.get(), observedUsage.get());
+                    callbacks.onFailure(failure);
                 }
-                if (toolMessage != null) callbacks.onToolMessage(toolMessage);
+                else callbacks.onError(terminalFailure.get(), null);
+                fatal.set(true);
             }
-            callbacks.onComplete();
+            if (!fatal.get() && !sawNormalFinish.get()) {
+                log.warn("文本流式上游缺少正常终止原因, url={}, sawDone={}", url, sawDone.get());
+                ServiceException interrupted = new ServiceException("模型回复中断");
+                interrupted.setTaskErrorJson(TaskErrorSnapshot.write(
+                        TaskErrorResult.of(TaskErrorCode.UPSTREAM_STREAM_INTERRUPTED)));
+                callbacks.onError(interrupted.getMessage(), interrupted);
+                fatal.set(true);
+            }
+            if (!fatal.get()) {
+                if (!sawDone.get()) {
+                    log.info("文本流式上游未显式返回[DONE]，按连接结束处理");
+                }
+                if (tools != null) {
+                    com.aid.media.dto.MediaTextGenerateRequest.TextMessageItem toolMessage;
+                    try {
+                        toolMessage = tools.finishChatTurn();
+                    } catch (TextResponseValidationException invalid) {
+                        callbacks.onFailure(TextFailureBillingPolicy.completedInvalidResponse(
+                                invalid.getMessage(), invalid.getTaskErrorJson(), observedUsage.get()));
+                        return;
+                    } catch (com.aid.common.exception.ServiceException invalid) {
+                        var failure = new TextResponseValidationException(
+                                TextResponseValidationException.Reason.TOOL_RECEIPT_INVALID, -1, -1);
+                        callbacks.onFailure(TextFailureBillingPolicy.completedInvalidResponse(
+                                failure.getMessage(), failure.getTaskErrorJson(), observedUsage.get()));
+                        return;
+                    }
+                    if (!TokenDanceToolMessages.hasCalls(toolMessage) && StringUtils.isBlank(toolMessage.getContent())) {
+                        callbacks.onFailure(TextFailureBillingPolicy.completedEmptyResponse(observedUsage.get()));
+                        return;
+                    }
+                    if (toolMessage != null) callbacks.onToolMessage(toolMessage);
+                }
+                callbacks.onComplete();
+            }
+        } catch (IOException transport) {
+            throw TextTransportFailure.capture(transport, "RESPONSE_BODY", resp);
         }
     }
 
@@ -490,27 +535,56 @@ public final class OpenAiStyleChatStream {
         }
     }
 
+    private static String readDataEvent(BoundedResponseBody.Utf8LineReader reader) throws IOException {
+        String first = null;
+        StringBuilder multiple = null;
+        String line;
+        while ((line = reader.readLine()) != null) {
+            if (line.startsWith("\uFEFF")) line = line.substring(1);
+            if (line.isEmpty() && first != null) break;
+            if (!line.startsWith("data:")) continue;
+            String value = line.substring(5).stripLeading();
+            if (first == null) first = value;
+            else {
+                if (multiple == null) multiple = new StringBuilder(first);
+                if ((long) multiple.length() + 1 + value.length() > MAX_STREAM_BODY_BYTES)
+                    throw new BoundedResponseBody.LimitExceededException("文本事件超限");
+                multiple.append('\n').append(value);
+            }
+        }
+        return first == null ? null : (multiple == null ? first : multiple.toString()).trim();
+    }
+
     /**
      * @return false 表示解析致命错误，应终止流且不再 onComplete。
      */
     private static boolean emitDeltasFromChunk(String dataJson, TextStreamCallbacks callbacks,
                                                AtomicBoolean sawNormalFinish,
                                                AtomicReference<String> terminalFailure,
-                                               TokenDanceToolMessages.Accumulator tools, boolean completions) {
+                                               TokenDanceToolMessages.Accumulator tools, boolean completions,
+                                               AtomicReference<Map<String, Object>> observedUsage,
+                                               AtomicReference<String> terminalFinishReason) {
         if (StringUtils.isBlank(dataJson)) {
             return true;
         }
         try {
             JsonNode root = MAPPER.readTree(dataJson);
+            callbacks.onProtocolFrame(root);
             // 先提取 usage（Qwen 等模型的最终 usage chunk 中 choices 为空，
             // 必须在工具、终止原因和正文校验之前解析，否则异常路径会丢失真实用量）。
             JsonNode usageNode = root.path("usage");
             if (!usageNode.isMissingNode() && !usageNode.isNull()) {
                 Map<String, Object> usage = parseUsageFromRoot(root);
                 if (!usage.isEmpty()) {
+                    observedUsage.updateAndGet(previous -> ProviderUsageSupport.merge(previous, usage));
                     callbacks.onUsage(usage);
                 }
             }
+            JsonNode terminalDelta = root.path("choices").path(0).path("delta");
+            if (sawNormalFinish.get() && (StringUtils.isNotEmpty(textOrNull(terminalDelta.get("content")))
+                    || StringUtils.isNotEmpty(textOrNull(terminalDelta.get("reasoning_content")))
+                    || hasToolCall(terminalDelta)))
+                throw new TextResponseValidationException(TextResponseValidationException.Reason.SSE_EVENT_AFTER_FINISH, -1, -1);
             if (tools != null) tools.accept(root);
 
             // 再提取 delta 文本（choices 为空时跳过 delta，但 usage 已处理）。
@@ -530,6 +604,7 @@ public final class OpenAiStyleChatStream {
                         if (finishError != null) {
                             log.info("文本流式上游未完整终止: finishReason={}", finishReason);
                             terminalFailure.compareAndSet(null, finishError);
+                            terminalFinishReason.set(finishReason);
                         } else {
                             sawNormalFinish.set(true);
                         }
@@ -544,16 +619,17 @@ public final class OpenAiStyleChatStream {
                     callbacks.onDelta(content);
                 }
                 String reasoning = textOrNull(delta.get("reasoning_content"));
-                if (StringUtils.isNotEmpty(reasoning)) {
-                    callbacks.onReasoningDelta(reasoning);
-                }
+                if (StringUtils.isNotEmpty(reasoning)) callbacks.onProviderReasoningDelta(reasoning);
             }
 
             return true;
         } catch (Exception e) {
             log.warn("解析 SSE data 片段失败, dataLen={}, errorType={}",
                     dataJson.length(), e.getClass().getSimpleName());
-            callbacks.onError("解析流数据失败", null);
+            var failure = e instanceof TextResponseValidationException known ? known
+                    : new TextResponseValidationException(
+                            TextResponseValidationException.Reason.SSE_EVENT_INVALID, -1, -1);
+            callbacks.onError(failure.getMessage(), failure.asException());
             return false;
         }
     }
@@ -575,8 +651,8 @@ public final class OpenAiStyleChatStream {
             message = new com.aid.media.dto.MediaTextGenerateRequest.TextMessageItem();
             message.setRole("assistant");
             message.setContent(content);
-            message.setReasoningContent(reasoning == null ? "" : reasoning);
         }
+        message.setReasoningContent(reasoning == null ? "" : reasoning);
         return message;
     }
 
@@ -588,32 +664,6 @@ public final class OpenAiStyleChatStream {
         JsonNode functionCall = messageOrDelta.get("function_call");
         return toolCalls != null && !toolCalls.isNull() && !toolCalls.isEmpty()
                 || functionCall != null && !functionCall.isNull() && !functionCall.isEmpty();
-    }
-
-    private static ErrorBodyRead readAllAndClose(InputStream in) throws IOException {
-        if (in == null) {
-            return new ErrorBodyRead("", true);
-        }
-        // 错误响应读取上限 64KB，防止上游返回大 HTML 错误页拖累内存。
-        try (InputStream closeable = in;
-             BufferedReader br = new BufferedReader(new InputStreamReader(closeable, StandardCharsets.UTF_8))) {
-            StringBuilder sb = new StringBuilder();
-            int totalLen = 0;
-            String line;
-            while ((line = br.readLine()) != null) {
-                if (totalLen + line.length() + 1 > MAX_ERROR_BODY_BYTES) {
-                    sb.append(line, 0, Math.min(line.length(), MAX_ERROR_BODY_BYTES - totalLen));
-                    sb.append("\n...[error body truncated]");
-                    return new ErrorBodyRead(sb.toString(), false);
-                }
-                sb.append(line).append('\n');
-                totalLen += line.length() + 1;
-            }
-            return new ErrorBodyRead(sb.toString(), true);
-        }
-    }
-
-    private record ErrorBodyRead(String body, boolean complete) {
     }
 
     /**
@@ -664,6 +714,6 @@ public final class OpenAiStyleChatStream {
                 builder.header(name, value);
             }
         }
-        return builder.POST(HttpRequest.BodyPublishers.ofString(com.aid.diagnostics.DiagnosticCapture.outboundBody(jsonBody), StandardCharsets.UTF_8)).build();
+        return builder.POST(HttpRequest.BodyPublishers.ofString(jsonBody, StandardCharsets.UTF_8)).build();
     }
 }

@@ -15,6 +15,56 @@ public final class ProviderUsageSupport {
     private ProviderUsageSupport() {
     }
 
+    /** 失败结算只接受供应商实际计数，丢弃估算值及无效、溢出的计数。 */
+    public static Map<String, Object> actualUsage(Map<String, Object> source) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        if (source == null) return result;
+        for (String key : TOKEN_KEYS) {
+            Object value = source.get(key);
+            if (value == null) continue;
+            try {
+                int count = new java.math.BigDecimal(String.valueOf(value)).intValueExact();
+                if (count >= 0) result.put(key, count);
+            } catch (NumberFormatException | ArithmeticException ignored) {
+                // 不把无效计数、估算值或上限当作真实用量。
+            }
+        }
+        for (String key : Set.of("provider_usage_captured", "input_usage_complete",
+                "output_usage_complete", "input_token_buckets_complete", "output_token_buckets_complete")) {
+            if (source.get(key) instanceof Boolean flag) result.put(key, flag);
+        }
+        if (result.containsKey("input_tokens")) result.remove("prompt_tokens");
+        if (result.containsKey("output_tokens")) result.remove("completion_tokens");
+        if (!result.containsKey("input_tokens") && !result.containsKey("prompt_tokens")
+                && (result.containsKey("uncached_input_tokens") || result.containsKey("cached_input_tokens")
+                || result.containsKey("cache_read_input_tokens") || result.containsKey("cache_write_input_tokens"))) {
+            long sum = count(result, "uncached_input_tokens") + count(result,
+                    result.containsKey("cached_input_tokens") ? "cached_input_tokens" : "cache_read_input_tokens")
+                    + count(result, "cache_write_input_tokens");
+            if (sum <= Integer.MAX_VALUE) {
+                result.put("input_tokens", (int) sum);
+                result.put("input_usage_complete", false);
+                result.put("input_token_buckets_complete", true);
+                result.put("provider_usage_captured", false);
+            }
+        }
+        if (!result.containsKey("output_tokens") && !result.containsKey("completion_tokens")
+                && (result.containsKey("visible_output_tokens") || result.containsKey("reasoning_tokens"))) {
+            long sum = count(result, "visible_output_tokens") + count(result, "reasoning_tokens");
+            if (sum <= Integer.MAX_VALUE) {
+                result.put("output_tokens", (int) sum);
+                result.put("output_usage_complete", false);
+                result.put("output_token_buckets_complete", true);
+                result.put("provider_usage_captured", false);
+            }
+        }
+        return result;
+    }
+
+    private static long count(Map<String, Object> values, String key) {
+        return values.get(key) instanceof Number number ? number.longValue() : 0L;
+    }
+
     /**
      * 任一真实 token 字段出现即说明上游已返回用量；数值为零仍是可信回执。
      * 估算字段和仅为 false 的完整性标记不代表真实调用。

@@ -1,12 +1,12 @@
 {
   "formatVersion": "1",
   "code": "screenplay",
-  "name": "Screenplay",
+  "name": "剧本创作",
   "version": "1.1.0",
   "invocationScope": "ENTRYPOINT",
   "executorType": "ORCHESTRATOR",
   "systemPrompt": "你是AID剧本工作流调度器。只做确定性校验、动态澄清、可信上下文装配和固定版本子Skill编排，不直接生成正文。只询问会改变故事方向、审核范围或目标集的缺失决定；已知事实不重复问，可安全回退的细节允许模型决定。REVIEW_ONLY只审核不改稿，高质量模式仅对有正文证据且无需审美选择的客观硬伤执行一次修复。",
-  "children": ["screenplay-write@1.1.0", "screenplay-review@1.1.0"],
+  "children": ["screenplay_write@1.1.0", "screenplay_review@1.1.0"],
   "resources": [
     {
       "key": "runtime-contract",

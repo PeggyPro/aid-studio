@@ -15,6 +15,7 @@ export interface ModelParameter {
   choices?: ConfigValue[];
   properties?: ModelParameter[];
   items?: ModelParameter;
+  alternatives?: ModelParameter[];
   materialRole?: string;
   formats?: string[];
   minDurationSeconds?: number;
@@ -81,8 +82,9 @@ export const CAPABILITY_OPTIONS = [
   ['image_upscale', '图片高清'], ['text_to_video', '文生视频'],
   ['image_to_video', '首帧图生视频'], ['start_end_to_video', '首尾帧'], ['reference_to_video', '多参考'],
   ['last_frame_to_video', '尾帧图生视频'],
-  ['feature_video', '视频特征参考'], ['video_edit', '视频编辑'], ['video_extend', '视频延长'],
-  ['video_to_video', '视频转换'], ['lip_sync', '对口型'], ['audio', '语音合成'], ['voice_clone', '音色复刻']
+  ['feature_video', '视频特征参考'], ['video_edit', '视频编辑'], ['video_extend', '视频延长'], ['video_enhance', '视频高清'],
+  ['video_to_video', '视频转换'], ['lip_sync', '对口型'], ['audio', '语音合成'], ['voice_clone', '音色复刻'],
+  ['text_to_music', '文本或歌词生成音乐'], ['video_to_music', '视频或图片配乐'], ['audio_stem_separation', '音频分轨'], ['lyrics', '歌词生成与编辑'], ['audio_resource', '音频资源与作曲计划']
 ].map(([value, label]) => ({ value, label }));
 
 export const parameterPaths = (fields: ModelParameter[], prefix = ''): string[] => fields.flatMap((field) => [

@@ -22,7 +22,6 @@ import { getRouteLikeSnapshot } from '~/composables/useRouteLike'
 import { assetUrl } from '~/utils/assetUrl'
 import { buildAssetExtractSubmitBody } from '~/utils/assetExtractSubmitBody'
 import subtractIconRaw from '~/assets/img/icon/Subtract.svg'
-import starWhiteIconRaw from '~/assets/img/icon/star_white.svg'
 import {
   EXTRACT_PARALLEL_AGENT_BIZ_CATEGORY,
   agentOptionsFromGenConfigVo,
@@ -38,8 +37,6 @@ import {
 import './ExtractAgentModal.css'
 
 const subtractIconUrl = assetUrl(subtractIconRaw)
-const starWhiteIconUrl = assetUrl(starWhiteIconRaw)
-
 // 原 ExtractAgents / ExtractAgentOption 定义在本组件文件，现平移到 stores/creation/types；
 // 此处 re-export 保持原导入路径兼容
 export type { ExtractAgents, ExtractAgentOption }
@@ -671,34 +668,24 @@ export function ExtractAgentModal({
         </div>
 
         <div className="extract-footer">
-          <div className="extract-footer__quotes">
-            <div className="extract-footer__quote-row">
-              <span className="extract-footer__quote-label">
-                {actionMode === 'continueOrReextract' ? '继续提取' : '开始提取'}
-              </span>
-              <BillingQuoteHint
-                quote={continueQuote.quote}
-                loading={continueQuote.loading}
-                error={continueQuote.error}
-                active={open && genConfigReady}
-                idleText={activeContinueQuoteRequest ? '' : '正在准备预计费用…'}
-                className="extract-footer__quote"
-              />
-            </div>
-            {actionMode === 'continueOrReextract' ? (
-              <div className="extract-footer__quote-row">
-                <span className="extract-footer__quote-label">重新提取</span>
-                <BillingQuoteHint
-                  quote={reextractQuote.quote}
-                  loading={reextractQuote.loading}
-                  error={reextractQuote.error}
-                  active={open && genConfigReady}
-                  idleText={activeReextractQuoteRequest ? '' : '正在准备预计费用…'}
-                  className="extract-footer__quote"
-                />
-              </div>
-            ) : null}
-          </div>
+          <BillingQuoteHint
+            quote={continueQuote.quote}
+            loading={continueQuote.loading}
+            error={continueQuote.error}
+            active={open && genConfigReady}
+            idleText={activeContinueQuoteRequest ? '' : '正在准备预计费用…'}
+            className="billing-quote-hint--submit"
+          />
+          {actionMode === 'continueOrReextract' ? (
+            <BillingQuoteHint
+              quote={reextractQuote.quote}
+              loading={reextractQuote.loading}
+              error={reextractQuote.error}
+              active={open && genConfigReady}
+              idleText={activeReextractQuoteRequest ? '' : '正在准备预计费用…'}
+              className="billing-quote-hint--submit"
+            />
+          ) : null}
           <Button className="extract-btn-cancel" size="large" onClick={handleCancel}>
             <div className="text-gradient">取消</div>
           </Button>
@@ -714,8 +701,8 @@ export function ExtractAgentModal({
                   type="primary"
                   size="large"
                   className="extract-btn-ok"
+                  data-onboarding="extract-agent-start"
                   disabled={isExtracting || !genConfigReady}
-                  icon={<img src={starWhiteIconUrl} alt="" />}
                 >
                   继续提取
                 </Button>
@@ -750,8 +737,8 @@ export function ExtractAgentModal({
                 type="primary"
                 size="large"
                 className="extract-btn-ok"
+                data-onboarding="extract-agent-start"
                 disabled={isExtracting || !genConfigReady}
-                icon={<img src={starWhiteIconUrl} alt="" />}
               >
                 开始提取
               </Button>

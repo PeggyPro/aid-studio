@@ -10,6 +10,8 @@ import java.util.Objects;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import com.aid.aid.service.support.GenerationBindingGuard;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
@@ -49,6 +51,8 @@ import lombok.extern.slf4j.Slf4j;
 @Service
 public class AidAgentServiceImpl extends ServiceImpl<AidAgentMapper, AidAgent> implements IAidAgentService
 {
+    @Autowired
+    private GenerationBindingGuard bindingGuard;
     /** 启用状态 */
     private static final int STATUS_ENABLED = 1;
 
@@ -372,8 +376,10 @@ public class AidAgentServiceImpl extends ServiceImpl<AidAgentMapper, AidAgent> i
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public int insertAgent(AidAgent agent)
     {
+        bindingGuard.lock(java.util.Collections.singletonList(agent.getModelCode()), List.of());
         // 创建：必须填写创建时间和创建者
         String currentUser = currentUserName();
         agent.setCreateBy(currentUser);
@@ -393,12 +399,14 @@ public class AidAgentServiceImpl extends ServiceImpl<AidAgentMapper, AidAgent> i
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public int updateAgent(AidAgent agent)
     {
         if (Objects.isNull(agent) || Objects.isNull(agent.getId()))
         {
             throw new ServiceException("智能体ID不能为空");
         }
+        bindingGuard.lock(java.util.Collections.singletonList(agent.getModelCode()), List.of());
         validateAgentDefinition(agent, agent.getId());
         // 更新：必须填写更新时间和更新者
         agent.setUpdateBy(currentUserName());

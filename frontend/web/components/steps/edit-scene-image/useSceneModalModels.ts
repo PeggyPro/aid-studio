@@ -1,6 +1,7 @@
 'use client'
 
 import { message } from 'antd'
+import { useRef } from 'react'
 import type { ModelOption } from '~/components/steps/ModelSelectDropdown'
 import { useModelList } from '~/composables/useModelList'
 import { useModelGenerateSettings } from '~/composables/useModelGenerateSettings'
@@ -10,7 +11,7 @@ import {
   fetchAgentDefaultModelCodes,
   getAgentDefaultModelCacheKey,
   FORM_IMAGE_AGENT_BIZ_CATEGORY,
-  resolvePreferredModelId,
+  resolvePreferredModelIdFromAgentCodes,
   resolveSelectedModelOption,
   IMAGE_MULTI_VIEW_AGENT_BIZ_CATEGORY,
   IMAGE_MULTI_VIEW_AGENT_CODE
@@ -71,6 +72,7 @@ const mapSceneModalModelItem = (item: Parameters<typeof mapUserModelListItemToMo
   mapUserModelListItemToModelOption(item, { iconBg: '#10B981' })
 
 export function useSceneModalModels(ctx: EditSceneImageModalCtx): SceneModalModelsApi {
+  const modelLoadVersion = useRef(0)
   /** 右侧「对话作图」的模型与出图参数（须在 selectedDialogueModel / useModelGenerateSettings 之前声明） */
   const dialogueSettings = useMirrored<SceneModalGenerationSettings>({
     model: '',
@@ -147,6 +149,7 @@ export function useSceneModalModels(ctx: EditSceneImageModalCtx): SceneModalMode
   }
 
   async function initImageModelOptions() {
+    const version = ++modelLoadVersion.current
     const assetType = ctx.resolveSceneModalAssetType()
     const agentCode = String(ctx.store().extractAgents[assetType]?.id || '').trim()
     const formImageBiz = FORM_IMAGE_AGENT_BIZ_CATEGORY[assetType]
@@ -165,10 +168,20 @@ export function useSceneModalModels(ctx: EditSceneImageModalCtx): SceneModalMode
       }
     ]
 
-    const [agentCodes, modelGroups] = await Promise.all([
+    const [agentResult, modelResult] = await Promise.allSettled([
       fetchAgentDefaultModelCodes(agentPayloads),
       userModelListByFuncCodes(funcCodes, listScope)
     ])
+    if (version !== modelLoadVersion.current || !ctx.props().open
+      || JSON.stringify(buildAidAgentListScopeParams(ctx.store())) !== JSON.stringify(listScope)
+      || ctx.resolveSceneModalAssetType() !== assetType) return
+    if (modelResult.status === 'rejected') {
+      message.warning('模型列表加载失败，请重新打开弹窗或稍后重试')
+      return
+    }
+    const modelGroups = modelResult.value
+    const agentCodes = agentResult.status === 'fulfilled' ? agentResult.value : {}
+
 
     // 批量 listByFunc 已请求过各池；空结果不再用不同入参单码重打
     if (!applySceneModalDialogueModelPool(modelGroups)) {
@@ -194,14 +207,16 @@ export function useSceneModalModels(ctx: EditSceneImageModalCtx): SceneModalMode
 
     dialogueSettings.set({
       ...dialogueSettings.get(),
-      model: resolvePreferredModelId(getDialogueModelOptions(), {
-        agentDefaultCode: agentDefaultModelCode
+      model: resolvePreferredModelIdFromAgentCodes(getDialogueModelOptions(), {
+        savedId: dialogueSettings.get().model,
+        agentDefaultCodes: [modelGroups.find(group => group.funcCode === AI_MODEL_FUNC_CODE.IMAGE_EDIT)?.defaultModelCode, agentDefaultModelCode]
       })
     })
     syncDialogueSettingsToModel()
     multiViewSettings.set({
-      model: resolvePreferredModelId(getMultiViewModelOptions(), {
-        agentDefaultCode: multiViewAgentDefault
+      model: resolvePreferredModelIdFromAgentCodes(getMultiViewModelOptions(), {
+        savedId: multiViewSettings.get().model,
+        agentDefaultCodes: [modelGroups.find(group => group.funcCode === AI_MODEL_FUNC_CODE.IMAGE_MULTI_VIEW)?.defaultModelCode, multiViewAgentDefault]
       })
     })
   }

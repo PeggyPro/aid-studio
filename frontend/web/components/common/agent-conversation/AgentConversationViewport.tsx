@@ -10,6 +10,7 @@ import {
   type ReactNode,
   type UIEvent
 } from 'react'
+import { conversationRevealDuration, conversationRevealOffset } from './agentConversationReveal'
 import './agent-conversation-viewport.css'
 
 const STICK_TO_LATEST_DISTANCE_PX = 72
@@ -30,6 +31,9 @@ interface AgentConversationViewportProps {
   loadingOlder?: boolean
   onLoadOlder?: () => Promise<unknown> | void
   ariaLive?: 'off' | 'polite' | 'assertive'
+  /** Opt in for dialogue cards whose asynchronous content changes without a message event. */
+  followContentResize?: boolean
+  revealHistory?: boolean
 }
 
 /** 对话区统一滚动行为：默认跟随最新消息，用户上翻后停止抢夺滚动位置。 */
@@ -47,39 +51,90 @@ export const AgentConversationViewport = forwardRef<
     hasOlder = false,
     loadingOlder = false,
     onLoadOlder,
-    ariaLive = 'off'
+    ariaLive = 'off',
+    followContentResize = false,
+    revealHistory = true
   },
   forwardedRef
 ) {
   const rootRef = useRef<HTMLDivElement | null>(null)
+  const contentRef = useRef<HTMLDivElement | null>(null)
   const initializedRef = useRef(false)
   const stickToLatestRef = useRef(true)
   const loadingOlderRef = useRef(false)
   const loadRequestVersionRef = useRef(0)
   const activeScopeKeyRef = useRef<string | number>(scopeKey)
+  const revealGenerationRef = useRef(0)
+  const revealingRef = useRef(false)
+
+  const cancelReveal = useCallback(() => {
+    revealGenerationRef.current += 1
+    revealingRef.current = false
+  }, [])
+
+  const startReveal = useCallback((root: HTMLDivElement) => {
+    revealGenerationRef.current += 1
+    const generation = revealGenerationRef.current
+    const maxScroll = () => Math.max(0, root.scrollHeight - root.clientHeight)
+    const reducedMotion = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    const duration = conversationRevealDuration(maxScroll(), reducedMotion)
+    if (duration === 0) {
+      revealingRef.current = false
+      root.scrollTop = root.scrollHeight
+      return
+    }
+    revealingRef.current = true
+    root.scrollTop = 0
+    const started = performance.now()
+    const tick = (now: number) => {
+      if (revealGenerationRef.current !== generation || rootRef.current !== root) return
+      const offset = conversationRevealOffset(now - started, duration, maxScroll())
+      root.scrollTop = offset
+      if (now - started < duration) window.requestAnimationFrame(tick)
+      else revealingRef.current = false
+    }
+    window.requestAnimationFrame(tick)
+  }, [])
 
   const scrollToLatest = useCallback((behavior: ScrollBehavior = 'auto') => {
+    cancelReveal()
     stickToLatestRef.current = true
     window.requestAnimationFrame(() => {
       const root = rootRef.current
       if (!root) return
       root.scrollTo({ top: root.scrollHeight, behavior })
     })
-  }, [])
+  }, [cancelReveal])
 
   useImperativeHandle(forwardedRef, () => ({ scrollToLatest }), [scrollToLatest])
 
   useEffect(() => {
     if (open) return
+    cancelReveal()
     initializedRef.current = false
     stickToLatestRef.current = true
     loadingOlderRef.current = false
     loadRequestVersionRef.current += 1
-  }, [open])
+  }, [cancelReveal, open])
+
+  useEffect(() => {
+    const root = rootRef.current
+    if (!root) return
+    const interrupt = () => { if (revealingRef.current) cancelReveal() }
+    root.addEventListener('wheel', interrupt, { passive: true })
+    root.addEventListener('touchstart', interrupt, { passive: true })
+    root.addEventListener('pointerdown', interrupt)
+    return () => {
+      root.removeEventListener('wheel', interrupt)
+      root.removeEventListener('touchstart', interrupt)
+      root.removeEventListener('pointerdown', interrupt)
+    }
+  }, [cancelReveal])
 
   useLayoutEffect(() => {
     if (!Object.is(activeScopeKeyRef.current, scopeKey)) {
       activeScopeKeyRef.current = scopeKey
+      cancelReveal()
       initializedRef.current = false
       stickToLatestRef.current = true
       loadingOlderRef.current = false
@@ -91,13 +146,28 @@ export const AgentConversationViewport = forwardRef<
     if (!initializedRef.current) {
       initializedRef.current = true
       stickToLatestRef.current = true
-      root.scrollTop = root.scrollHeight
+      if (revealHistory) startReveal(root)
+      else root.scrollTop = root.scrollHeight
       return
     }
+    if (revealingRef.current) return
     if (stickToLatestRef.current && !loadingOlderRef.current) {
       root.scrollTop = root.scrollHeight
     }
-  }, [initialLoading, open, scopeKey, updateToken])
+  }, [cancelReveal, initialLoading, open, revealHistory, scopeKey, startReveal, updateToken])
+
+  useLayoutEffect(() => {
+    const root = rootRef.current, content = contentRef.current
+    if (!followContentResize || !open || !root || !content) return
+    const observer = new ResizeObserver(() => {
+      if (!revealingRef.current && !initialLoading && initializedRef.current && stickToLatestRef.current && !loadingOlderRef.current) {
+        root.scrollTop = root.scrollHeight
+      }
+    })
+    observer.observe(content)
+    observer.observe(root)
+    return () => observer.disconnect()
+  }, [followContentResize, initialLoading, open, scopeKey])
 
   const loadOlder = useCallback(async () => {
     const root = rootRef.current
@@ -129,6 +199,7 @@ export const AgentConversationViewport = forwardRef<
   }, [hasOlder, loadingOlder, onLoadOlder, scopeKey])
 
   function handleScroll(event: UIEvent<HTMLDivElement>) {
+    if (revealingRef.current) return
     const root = event.currentTarget
     const distanceToLatest = root.scrollHeight - root.scrollTop - root.clientHeight
     stickToLatestRef.current = distanceToLatest <= STICK_TO_LATEST_DISTANCE_PX
@@ -147,7 +218,7 @@ export const AgentConversationViewport = forwardRef<
           {loadingOlder ? '正在读取更早对话…' : '继续上拉查看更早对话'}
         </div>
       ) : null}
-      {children}
+      {followContentResize ? <div ref={contentRef} className="agent-conversation-viewport__content">{children}</div> : children}
     </div>
   )
 })

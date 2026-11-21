@@ -1,0 +1,23 @@
+/* 画布控件按屏幕像素定标，与 JS 按屏幕像素定位的输入面板保持一致。
+ * 此文件单独排除站点 px→rem 转换，不改变全站根字号或节点标题层级。 */
+html[data-studio-free-theme],
+[data-studio-free-theme-scope] {
+  --studio-ui-font-control: 14px;
+  --studio-ui-font-caption: 12px;
+  --studio-ui-icon-control: 16px;
+  --studio-ui-menu-min-width: 180px;
+  --studio-ui-model-menu-width: 360px;
+}
+
+/* Media loading is measured in screen pixels, like the reference surface. */
+:root[data-studio-free-theme='soft-mist'],
+[data-studio-free-theme-scope='soft-mist'],
+.studio-free-theme-scope--soft-mist {
+  --studio-theme-placeholder-font-size: 12px;
+  --studio-theme-placeholder-icon-size: 40px;
+  --studio-theme-placeholder-icon-radius: 11px;
+  --studio-theme-placeholder-icon-font-size: 18px;
+  --studio-theme-placeholder-border-width: 1px;
+  --studio-theme-placeholder-ring-width: 1.5px;
+  --studio-theme-placeholder-ring-offset: -5px;
+}

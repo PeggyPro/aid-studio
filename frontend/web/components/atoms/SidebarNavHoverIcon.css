@@ -28,6 +28,12 @@
   transform-origin: 4px 11px;
 }
 
+.sidebar-nav-hover-icon--previz .sidebar-nav-hover-icon__draw-flap,
+.sidebar-nav-hover-icon--open-source .sidebar-nav-hover-icon__draw-flap,
+.sidebar-nav-hover-icon--discussion .sidebar-nav-hover-icon__draw-flap {
+  transform-origin: 12px 12px;
+}
+
 /* 填充图标：静态层始终可见，与原版 al-new / work-new 一致 */
 .sidebar-nav-hover-icon__fill {
   fill: currentColor;
@@ -49,4 +55,5 @@
   stroke: currentColor;
   stroke-width: 1;
   vector-effect: non-scaling-stroke;
+  transition: stroke-width 0.2s ease;
 }

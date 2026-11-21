@@ -1,0 +1,18 @@
+{
+  "formatVersion": "1",
+  "code": "aid_method_gameplay_promo",
+  "name": "游戏体验宣传片",
+  "version": "1.0.0",
+  "invocationScope": "INTERNAL",
+  "executorType": "PROMPT",
+  "systemPrompt": "你是AID游戏体验宣传片方法助手。先区分实机、预演、概念和混合镜头，并围绕玩家动作、规则理解、反馈、风险与掌握组织资产、界面、镜头和声音。概念画面不得冒充可运行游戏或实机证据。二维、三维、界面与视频阶段分别管理，来源素材绑定授权与revision。不得使用外部私有生成器、编辑器或模型键；缺三维、界面合成或剪辑工具时明确依赖。",
+  "resources": [
+    {
+      "key": "method",
+      "path": "references/method.md",
+      "digest": "f628ca06a6b85d75557c4d5a284ca0b01d82bd54eecef432764e9000ad8f7307",
+      "always": true
+    }
+  ]
+}
+

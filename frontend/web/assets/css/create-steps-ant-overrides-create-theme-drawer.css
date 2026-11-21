@@ -1,89 +1,92 @@
+/* 旧创作页皮肤只负责非自由画布；自由画布由页面 ConfigProvider 与公共材料负责配色，尺寸规则仍共用。 */
+
+
 /* Tailwind/PostCSS component styles for create-steps-ant-overrides. */
 
 
-.create-theme-drawer .ant-drawer-title {
-  color: #fff !important;
+:where(html:not([data-studio-free-theme])) .create-theme-drawer .ant-drawer-title {
+  color: var(--ui-text, #fff) !important;
 }
 
-.create-theme-drawer .ant-drawer-close {
-  color: #ffffff !important;
+:where(html:not([data-studio-free-theme])) .create-theme-drawer .ant-drawer-close {
+  color: var(--ui-text, #ffffff) !important;
 }
 
-.create-theme-drawer .ant-drawer-close:hover {
-  color: #4ae7fd !important;
+:where(html:not([data-studio-free-theme])) .create-theme-drawer .ant-drawer-close:hover {
+  color: var(--ui-brand, #4ae7fd) !important;
 }
 
-.create-theme-drawer .ant-drawer-body {
-  background: var(--create-surface-modal, #1c2638) !important;
-  color: #e6edf3 !important;
+:where(html:not([data-studio-free-theme])) .create-theme-drawer .ant-drawer-body {
+  background: var(--create-surface-modal, var(--ui-raised, #1c2638)) !important;
+  color: var(--ui-text, #e6edf3) !important;
 }
 
-.create-theme-drawer .ant-drawer-body *:not(img):not(video):not(canvas):not(input):not(textarea):not(select) {
-  color: #e6edf3 !important;
+:where(html:not([data-studio-free-theme])) .create-theme-drawer .ant-drawer-body *:not(img):not(video):not(canvas):not(input):not(textarea):not(select) {
+  color: var(--ui-text, #e6edf3) !important;
 }
 
-.create-theme-drawer .ant-drawer-body input,
-.create-theme-drawer .ant-drawer-body textarea {
-  color: #e6edf3 !important;
+:where(html:not([data-studio-free-theme])) .create-theme-drawer .ant-drawer-body input,
+:where(html:not([data-studio-free-theme])) .create-theme-drawer .ant-drawer-body textarea {
+  color: var(--ui-text, #e6edf3) !important;
 }
 
-.create-theme-drawer .ant-drawer-body *::placeholder {
-  color: #8e97a5 !important;
+:where(html:not([data-studio-free-theme])) .create-theme-drawer .ant-drawer-body *::placeholder {
+  color: var(--ui-muted, #8e97a5) !important;
 }
 
-.create-theme-drawer .ant-drawer-body .ant-btn-primary,
-.create-theme-drawer .ant-drawer-body .ant-btn-primary * {
-  color: #fff !important;
+:where(html:not([data-studio-free-theme])) .create-theme-drawer .ant-drawer-body .ant-btn-primary,
+:where(html:not([data-studio-free-theme])) .create-theme-drawer .ant-drawer-body .ant-btn-primary * {
+  color: var(--ui-on-primary, #fff) !important;
 }
 
 /* 未加 root-class 的 Drawer 仍走创作页主题 */
-html.app-shell-create .ant-drawer .ant-drawer-content {
-  background: var(--create-surface-modal, #1c2638) !important;
+html:where(:not([data-studio-free-theme])).app-shell-create .ant-drawer .ant-drawer-content {
+  background: var(--create-surface-modal, var(--ui-raised, #1c2638)) !important;
 }
 
-html.app-shell-create .ant-drawer .ant-drawer-header {
-  background: var(--create-surface-panel, rgba(38, 50, 72, 0.95)) !important;
-  border-bottom: 1px solid rgba(74, 231, 253, 0.08) !important;
+html:where(:not([data-studio-free-theme])).app-shell-create .ant-drawer .ant-drawer-header {
+  background: var(--create-surface-panel, var(--ui-hover, rgba(38, 50, 72, 0.95))) !important;
+  border-bottom: 1px solid var(--ui-hair, rgba(74, 231, 253, 0.08)) !important;
 }
 
-html.app-shell-create .ant-drawer .ant-drawer-title {
-  color: #fff !important;
+html:where(:not([data-studio-free-theme])).app-shell-create .ant-drawer .ant-drawer-title {
+  color: var(--ui-text, #fff) !important;
 }
 
-html.app-shell-create .ant-drawer .ant-drawer-close {
-  color: #ffffff !important;
+html:where(:not([data-studio-free-theme])).app-shell-create .ant-drawer .ant-drawer-close {
+  color: var(--ui-text, #ffffff) !important;
 }
 
-html.app-shell-create .ant-drawer .ant-drawer-close:hover {
-  color: #4ae7fd !important;
+html:where(:not([data-studio-free-theme])).app-shell-create .ant-drawer .ant-drawer-close:hover {
+  color: var(--ui-brand, #4ae7fd) !important;
 }
 
-html.app-shell-create .ant-drawer .ant-drawer-close .anticon {
+html:where(:not([data-studio-free-theme])).app-shell-create .ant-drawer .ant-drawer-close .anticon {
   color: inherit !important;
 }
 
-html.app-shell-create .ant-drawer .ant-drawer-body {
-  color: #e6edf3 !important;
+html:where(:not([data-studio-free-theme])).app-shell-create .ant-drawer .ant-drawer-body {
+  color: var(--ui-text, #e6edf3) !important;
 }
 
-html.app-shell-create .ant-drawer .ant-drawer-body *:not(img):not(video):not(canvas):not(input):not(textarea):not(select) {
-  color: #e6edf3 !important;
+html:where(:not([data-studio-free-theme])).app-shell-create .ant-drawer .ant-drawer-body *:not(img):not(video):not(canvas):not(input):not(textarea):not(select) {
+  color: var(--ui-text, #e6edf3) !important;
 }
 
-html.app-shell-create .ant-drawer .ant-drawer-body input,
-html.app-shell-create .ant-drawer .ant-drawer-body textarea {
-  color: #e6edf3 !important;
+html:where(:not([data-studio-free-theme])).app-shell-create .ant-drawer .ant-drawer-body input,
+html:where(:not([data-studio-free-theme])).app-shell-create .ant-drawer .ant-drawer-body textarea {
+  color: var(--ui-text, #e6edf3) !important;
 }
 
-html.app-shell-create .ant-drawer .ant-drawer-body *::placeholder {
-  color: #8e97a5 !important;
+html:where(:not([data-studio-free-theme])).app-shell-create .ant-drawer .ant-drawer-body *::placeholder {
+  color: var(--ui-muted, #8e97a5) !important;
 }
 
-html.app-shell-create .ant-drawer .ant-drawer-body .ant-btn-primary,
-html.app-shell-create .ant-drawer .ant-drawer-body .ant-btn-primary * {
-  color: #fff !important;
+html:where(:not([data-studio-free-theme])).app-shell-create .ant-drawer .ant-drawer-body .ant-btn-primary,
+html:where(:not([data-studio-free-theme])).app-shell-create .ant-drawer .ant-drawer-body .ant-btn-primary * {
+  color: var(--ui-on-primary, #fff) !important;
 }
-.ql-container.ql-snow{
+:where(html:not([data-studio-free-theme])) .ql-container.ql-snow{
   border: none !important;
 }
 
@@ -125,9 +128,12 @@ html.app-shell-create .create-modal-prompt-shell {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  border: none;
   border-radius: calc(10px * var(--create-editor-scale, 1));
-  background: #121212 !important;
+}
+
+html:where(:not([data-studio-free-theme])).app-shell-create .create-modal-prompt-shell {
+  border: none;
+  background: var(--ui-bg, #121212) !important;
 }
 
 html.app-shell-create .create-modal-prompt-shell > .rich-text-editor {
@@ -136,12 +142,18 @@ html.app-shell-create .create-modal-prompt-shell > .rich-text-editor {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: #121212 !important;
+}
+
+html:where(:not([data-studio-free-theme])).app-shell-create .create-modal-prompt-shell > .rich-text-editor {
+  background: var(--ui-bg, #121212) !important;
 }
 
 html.app-shell-create .create-modal-prompt-shell > .prompt-footer {
   flex-shrink: 0;
-  background: #121212;
+}
+
+html:where(:not([data-studio-free-theme])).app-shell-create .create-modal-prompt-shell > .prompt-footer {
+  background: var(--ui-bg, #121212);
 }
 
 html.app-shell-create .create-modal-prompt-shell .rich-text-editor__host,
@@ -153,8 +165,12 @@ html.app-shell-create .create-modal-prompt-shell .ql-container.ql-snow {
   display: flex;
   flex-direction: column;
   overflow-y: auto;
+}
+
+html:where(:not([data-studio-free-theme])).app-shell-create .create-modal-prompt-shell .rich-text-editor__host,
+html:where(:not([data-studio-free-theme])).app-shell-create .create-modal-prompt-shell .ql-container.ql-snow {
   border: none !important;
-  background: #121212 !important;
+  background: var(--ui-bg, #121212) !important;
 }
 
 html.app-shell-create .create-modal-prompt-shell .ql-editor {
@@ -164,18 +180,21 @@ html.app-shell-create .create-modal-prompt-shell .ql-editor {
   max-height: none !important;
   resize: none !important;
   overflow: visible !important;
-  color: #d7e8ff;
   font-size: calc(13px * var(--create-editor-scale, 1));
   line-height: calc(22px * var(--create-editor-scale, 1));
-  background: #121212 !important;
-  background-color: #121212 !important;
+}
+
+html:where(:not([data-studio-free-theme])).app-shell-create .create-modal-prompt-shell .ql-editor {
+  color: var(--ui-text, #d7e8ff);
+  background: var(--ui-bg, #121212) !important;
+  background-color: var(--ui-bg, #121212) !important;
   border: none !important;
 }
 
 /* 清粘贴残留底色；勿盖住 @资产 / @参数 chip（否则与编辑器同色 #121212，看起来像没背景） */
-html.app-shell-create .create-modal-prompt-shell .ql-editor *:not(.scp-prompt-asset-ref):not(.scp-prompt-param-ref):not(.scp-prompt-asset-ref__label):not(.scp-prompt-param-ref__label):not(.scp-prompt-asset-ref__thumb) {
-  background: #121212 !important;
-  background-color: #121212 !important;
+html:where(:not([data-studio-free-theme])).app-shell-create .create-modal-prompt-shell .ql-editor *:not(.scp-prompt-asset-ref):not(.scp-prompt-param-ref):not(.scp-prompt-asset-ref__label):not(.scp-prompt-param-ref__label):not(.scp-prompt-asset-ref__thumb) {
+  background: var(--ui-bg, #121212) !important;
+  background-color: var(--ui-bg, #121212) !important;
 }
 
 /*
@@ -193,15 +212,18 @@ html.app-shell-create .create-modal-prompt-shell .ql-editor .scp-prompt-param-re
   vertical-align: baseline !important;
 }
 
-html.app-shell-create .create-modal-prompt-shell .ql-editor .scp-prompt-asset-ref__label,
-html.app-shell-create .create-modal-prompt-shell .ql-editor .scp-prompt-param-ref__label {
+html:where(:not([data-studio-free-theme])).app-shell-create .create-modal-prompt-shell .ql-editor .scp-prompt-asset-ref__label,
+html:where(:not([data-studio-free-theme])).app-shell-create .create-modal-prompt-shell .ql-editor .scp-prompt-param-ref__label {
   background: transparent !important;
   background-color: transparent !important;
 }
 
 html.app-shell-create .create-modal-prompt-shell .ql-editor.ql-blank::before {
-  color: rgba(188, 205, 228, 0.5);
   font-style: normal;
+}
+
+html:where(:not([data-studio-free-theme])).app-shell-create .create-modal-prompt-shell .ql-editor.ql-blank::before {
+  color: var(--ui-muted, rgba(188, 205, 228, 0.5));
 }
 
 html.app-shell-create .create-modal-config-body > .create-modal-tab-panel,

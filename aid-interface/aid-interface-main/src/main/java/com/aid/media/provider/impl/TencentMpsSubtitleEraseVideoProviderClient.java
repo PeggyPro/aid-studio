@@ -1,6 +1,7 @@
 package com.aid.media.provider.impl;
 
 import cn.hutool.core.util.StrUtil;
+import cn.hutool.crypto.digest.DigestUtil;
 import cn.hutool.http.HttpRequest;
 import cn.hutool.http.HttpResponse;
 import com.aid.common.exception.ServiceException;
@@ -55,6 +56,14 @@ public class TencentMpsSubtitleEraseVideoProviderClient implements VideoProvider
     @Override public boolean requiresVerifiedMetadataForQuote() { return true; }
 
     @Override
+    public boolean hasTrustedMetadataForQuote(MediaVideoGenerateRequest request) {
+        ReferenceVideoInput input = source(request);
+        return input != null && input.getDurationMs() != null && input.getDurationMs() > 0
+                && input.getWidth() != null && input.getWidth() > 0
+                && input.getHeight() != null && input.getHeight() > 0;
+    }
+
+    @Override
     public void normalizeRequest(AiModelConfigVo model, MediaVideoGenerateRequest request) {
         if (request == null) return;
         Map<String, Object> options = request.getOptions() == null
@@ -82,11 +91,13 @@ public class TencentMpsSubtitleEraseVideoProviderClient implements VideoProvider
 
     @Override
     public ProviderSubmitResult submit(AiModelConfigVo model, MediaVideoGenerateRequest request) {
-        JSONObject payload = buildPayload(model, request);
-        String session = request.getProviderIdempotencyKey();
-        if (StrUtil.isBlank(session) || session.length() > 50) {
+        String session = request == null ? null : request.getProviderIdempotencyKey();
+        if (session == null || !session.matches("[A-Za-z0-9_-]{1,50}")) {
             throw new ServiceException("腾讯云去字幕任务缺少合法的服务端幂等键");
         }
+        JSONObject payload = buildPayload(model, request);
+        // MPS derives the filename from the source, so isolate outputs by the frozen task key.
+        payload.put("OutputDir", "/aid-mps/subtitle/" + DigestUtil.sha256Hex(session) + "/");
         payload.put("SessionId", session);
         String raw;
         try {
@@ -252,7 +263,6 @@ public class TencentMpsSubtitleEraseVideoProviderClient implements VideoProvider
         JSONObject payload = new JSONObject();
         payload.put("InputInfo", input);
         payload.put("OutputStorage", storage);
-        payload.put("OutputDir", "/aid-mps/subtitle/");
         payload.put("SmartEraseTask", eraseTask);
         return payload;
     }

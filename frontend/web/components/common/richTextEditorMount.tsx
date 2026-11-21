@@ -71,8 +71,6 @@ export interface RichTextEditorMountDeps {
   /** 用户选区变化版本，用于阻止异步内容回填覆盖用户刚刚移动的新选区。 */
   selectionRevisionRef: MutableRef<number>
   setIsComposing: (v: boolean) => void
-  setIsInputting: (v: boolean) => void
-  isQuillTextEmpty: (q: QuillInstance) => boolean
   getPlainLen: (q: QuillInstance) => number
   getEmittedHtml: (q: QuillInstance) => string
   warnMaxLengthReached: () => void
@@ -231,32 +229,17 @@ export async function mountRichTextEditorQuill(deps: RichTextEditorMountDeps): P
 
     let composing = false
 
-    const markInputting = () => {
-      if (!deps.getProps().disabled) deps.setIsInputting(true)
+    const setComposition = (value: boolean) => {
+      composing = value
+      editorRoot.toggleAttribute('data-rte-composing', value)
+      deps.setIsComposing(value)
     }
-    const clearInputting = () => {
-      if (!composing && deps.isQuillTextEmpty(quill)) deps.setIsInputting(false)
-    }
-    const onCompositionStart = () => {
-      composing = true
-      deps.setIsComposing(true)
-      markInputting()
-    }
-    const onCompositionEnd = () => {
-      composing = false
-      deps.setIsComposing(false)
-      if (!deps.isQuillTextEmpty(quill)) deps.setIsInputting(false)
-      else clearInputting()
-    }
+    const onCompositionStart = () => setComposition(true)
+    const onCompositionEnd = () => setComposition(false)
     const onBlur = () => {
-      if (composing) {
-        composing = false
-        deps.setIsComposing(false)
-      }
-      deps.setIsInputting(false)
+      if (composing) setComposition(false)
     }
 
-    editorRoot.addEventListener('beforeinput', markInputting)
     editorRoot.addEventListener('compositionstart', onCompositionStart)
     editorRoot.addEventListener('compositionend', onCompositionEnd)
     editorRoot.addEventListener('blur', onBlur)
@@ -343,7 +326,6 @@ export async function mountRichTextEditorQuill(deps: RichTextEditorMountDeps): P
 
     deps.cleanupEditorInputListenersRef.current = () => {
       if (selectionAnchorFrame) window.cancelAnimationFrame(selectionAnchorFrame)
-      editorRoot.removeEventListener('beforeinput', markInputting)
       editorRoot.removeEventListener('compositionstart', onCompositionStart)
       editorRoot.removeEventListener('compositionend', onCompositionEnd)
       editorRoot.removeEventListener('blur', onBlur)
@@ -438,9 +420,6 @@ export async function mountRichTextEditorQuill(deps: RichTextEditorMountDeps): P
       }
 
       const html = deps.getEmittedHtml(q)
-      if (!deps.isQuillTextEmpty(q)) {
-        deps.setIsInputting(false)
-      }
       if (p.lockCharacterSettingKeys) {
         deps.lastEmittedFromLockModeRef.current = html
       }

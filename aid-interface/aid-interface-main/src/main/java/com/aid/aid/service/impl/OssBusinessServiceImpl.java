@@ -106,19 +106,41 @@ public class OssBusinessServiceImpl implements IOssBusinessService
 
         // 第二阶段：全部通过校验与审查后再上传，内部按 uploadMode 分发。
         List<OssUploadResponse> responses = new ArrayList<>(files.size());
-        for (MultipartFile file : files)
-        {
-            String originalFileName = file.getOriginalFilename();
-            long fileSize = file.getSize();
-            String url = ossTemplate.upload(file, customDir);
-            String fullUrl = mediaUrlResolver.toFullUrl(url);
-            responses.add(new OssUploadResponse(
-                    fullUrl,
-                    extractFileName(url),
-                    originalFileName,
-                    fileSize));
+        try {
+            for (MultipartFile file : files)
+            {
+                String originalFileName = file.getOriginalFilename();
+                long fileSize = file.getSize();
+                String url = ossTemplate.upload(file, customDir);
+                String fullUrl = mediaUrlResolver.toFullUrl(url);
+                responses.add(new OssUploadResponse(
+                        fullUrl,
+                        extractFileName(url),
+                        originalFileName,
+                        fileSize));
+            }
+        } catch (RuntimeException error) {
+            deleteListByUrl(responses.stream().map(OssUploadResponse::getUrl).toList());
+            throw error;
         }
         return responses;
+    }
+
+    @Override
+    public void deleteListByUrl(List<String> fileUrls)
+    {
+        if (CollectionUtil.isEmpty(fileUrls)) return;
+        for (String fileUrl : fileUrls)
+        {
+            try
+            {
+                if (!ossTemplate.deleteByUrl(fileUrl)) log.warn("上传补偿清理失败");
+            }
+            catch (RuntimeException error)
+            {
+                log.warn("上传补偿清理异常, errorType={}", error.getClass().getSimpleName());
+            }
+        }
     }
 
     /**

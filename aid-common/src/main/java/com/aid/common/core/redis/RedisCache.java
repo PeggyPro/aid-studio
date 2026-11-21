@@ -27,6 +27,46 @@ public class RedisCache
             "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end",
             Long.class);
 
+    private static final DefaultRedisScript<Long> COMPARE_AND_EXPIRE_SCRIPT = new DefaultRedisScript<>(
+            "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('expire', KEYS[1], ARGV[2]) else return 0 end",
+            Long.class);
+
+    private static final DefaultRedisScript<Long> COMPARE_AND_SET_SCRIPT = new DefaultRedisScript<>(
+            "if redis.call('get', KEYS[1]) == ARGV[1] then redis.call('set', KEYS[1], ARGV[2], 'EX', ARGV[3]); return 1 else return 0 end",
+            Long.class);
+    private static final DefaultRedisScript<Long> VERIFY_CODE_SCRIPT = new DefaultRedisScript<>("""
+            local ipAttempts = tonumber(redis.call('get', KEYS[3]) or '0')
+            if ipAttempts >= 60 then return -3 end
+            if redis.call('incr', KEYS[3]) == 1 then redis.call('expire', KEYS[3], 60) end
+            local attempts = tonumber(redis.call('get', KEYS[2]) or '0')
+            if attempts >= 5 then return -2 end
+            local code = redis.call('get', KEYS[1])
+            if not code then return -1 end
+            if code ~= ARGV[1] then
+                if redis.call('incr', KEYS[2]) == 1 then redis.call('expire', KEYS[2], 600) end
+                return 0
+            end
+            if ARGV[2] == ARGV[3] then
+                redis.call('del', KEYS[1], KEYS[2])
+            end
+            return 1
+            """, Long.class);
+
+    /**
+     * 原子校验验证码并记录错码次数。同一目标重发时保留当前尝试预算。
+     * @return 1=匹配，0=错误，-1=过期，-2=目标超限，-3=请求频率超限
+     */
+    public long verifyCode(String codeKey, String attemptKey, String ipKey, String code, boolean consume)
+    {
+        Long result = (Long) redisTemplate.execute(VERIFY_CODE_SCRIPT, List.of(codeKey, attemptKey, ipKey),
+                code, consume, true);
+        if (result == null)
+        {
+            throw new IllegalStateException("验证码校验未完成");
+        }
+        return result;
+    }
+
     @Autowired
     public RedisTemplate redisTemplate;
 
@@ -187,6 +227,34 @@ public class RedisCache
     {
         Long deleted = (Long) redisTemplate.execute(COMPARE_AND_DELETE_SCRIPT, List.of(key), expectedValue);
         return deleted != null && deleted > 0;
+    }
+
+    /** 发布不经对象序列化包装的 UTF-8 消息，供跨实例实时广播使用。 */
+    public void publishString(final String channel, final String payload)
+    {
+        redisTemplate.execute((org.springframework.data.redis.core.RedisCallback<Object>) connection -> {
+            connection.publish(channel.getBytes(java.nio.charset.StandardCharsets.UTF_8),
+                    payload.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            return null;
+        });
+    }
+
+    /** 仅在值仍属于调用者时原子续期，防止旧会话续租新持有者的锁。 */
+    public boolean expireIfValueEquals(final String key, final Object expectedValue, final long timeoutSeconds)
+    {
+        int redisTimeout = Math.toIntExact(timeoutSeconds);
+        Long updated = (Long) redisTemplate.execute(COMPARE_AND_EXPIRE_SCRIPT, List.of(key), expectedValue, redisTimeout);
+        return updated != null && updated > 0;
+    }
+
+    /** 仅在旧值匹配时原子替换并设置有效期，用于编辑租约切换为权威任务占用。 */
+    public boolean compareAndSetCacheObject(final String key, final Object expectedValue, final Object newValue,
+                                            final long timeoutSeconds)
+    {
+        int redisTimeout = Math.toIntExact(timeoutSeconds);
+        Long updated = (Long) redisTemplate.execute(COMPARE_AND_SET_SCRIPT, List.of(key), expectedValue, newValue,
+                redisTimeout);
+        return updated != null && updated > 0;
     }
 
     /**
@@ -351,6 +419,23 @@ public class RedisCache
         try (org.springframework.data.redis.core.Cursor<String> cursor = redisTemplate.scan(options))
         {
             while (cursor.hasNext())
+            {
+                result.add(cursor.next());
+            }
+        }
+        return result;
+    }
+
+    /** 有界 SCAN，供管理查询与异常清理使用，避免单次把超大键空间装入内存。 */
+    public Collection<String> scanKeys(final String pattern, final int limit)
+    {
+        java.util.Set<String> result = new java.util.LinkedHashSet<>();
+        int safeLimit = Math.max(1, limit);
+        org.springframework.data.redis.core.ScanOptions options = org.springframework.data.redis.core.ScanOptions
+                .scanOptions().match(pattern).count(Math.min(500, safeLimit)).build();
+        try (org.springframework.data.redis.core.Cursor<String> cursor = redisTemplate.scan(options))
+        {
+            while (cursor.hasNext() && result.size() < safeLimit)
             {
                 result.add(cursor.next());
             }

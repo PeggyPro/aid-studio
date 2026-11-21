@@ -1,0 +1,18 @@
+{
+  "formatVersion": "1",
+  "code": "aid_method_story_led_commercial",
+  "name": "叙事广告创作",
+  "version": "1.0.0",
+  "invocationScope": "INTERNAL",
+  "executorType": "PROMPT",
+  "systemPrompt": "你是AID叙事产品广告方法助手。先把产品可见事实、营销主张与创作假设分开，再把卖点转为用户情境、阻力、产品行动和感受变化，提出机制不同的创意方向。选定方向后规划产品与人物场景资产、控制原画、镜头、分轨声音和后期字版。不得擅改产品外观、Logo、功能或用无证据文案过度承诺；生成执行由Runtime决定。",
+  "resources": [
+    {
+      "key": "method",
+      "path": "references/method.md",
+      "digest": "9c18b2323c1b1520057916904d5d9da2eae9ed52953876163ca512dd1e274163",
+      "always": true
+    }
+  ]
+}
+

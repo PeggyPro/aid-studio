@@ -166,7 +166,6 @@ export function useAuthPublicConfig() {
     platformLogoUrl: trimConfigText(config?.brand?.platformLogoUrl),
     recordFilingNumber: trimConfigText(config?.basic?.record_filing_number),
     termsOfServiceUrl: trimConfigText(config?.basic?.terms_of_service),
-    membershipAgreementUrl: trimConfigText(config?.basic?.membership_agreement),
     privacyPolicyUrl: trimConfigText(config?.basic?.privacy_policy),
     exchangeImageUrl: trimConfigText(config?.basic?.exchange_image_url),
     serviceEmail: trimConfigText(config?.basic?.service_email),

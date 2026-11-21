@@ -1,14 +1,14 @@
-/* FaqPanel 伴随样式：由原 components/home/FaqPanel.vue <style scoped> 平移，:deep() 已展开，颜色逐字保留 */
+/* FaqPanel 伴随样式：由原 components/home/FaqPanel.vue \3c style scoped> 平移，:deep() 已展开，颜色逐字保留 */
 .help-center-page {
-  --help-accent: #4ae7fd;
-  --help-muted: #8e97a5;
-  --help-bg-main: #121212;
-  --help-category-active: #202839;
-  --help-category-default: #161c28;
-  --help-panel: #202839;
-  --help-border: rgba(74, 231, 253, 0.08);
-  --help-search-bg: #0a121e;
-  --help-search-border: #073f56;
+  --help-accent: var(--ui-brand, #4ae7fd);
+  --help-muted: var(--ui-muted, #8e97a5);
+  --help-bg-main: var(--ui-bg, #121212);
+  --help-category-active: var(--ui-raised, #202839);
+  --help-category-default: var(--ui-raised, #161c28);
+  --help-panel: var(--ui-raised, #202839);
+  --help-border: var(--ui-hair, rgba(74, 231, 253, 0.08));
+  --help-search-bg: var(--ui-bg, #0a121e);
+  --help-search-border: var(--ui-hair, #073f56);
   width: 100%;
   flex: 1 0 auto;
   min-width: 0;
@@ -34,7 +34,7 @@
   margin: 0;
   font-size: 18px;
   font-weight: 600;
-  color: #fff;
+  color: var(--ui-text, #fff);
   line-height: 24px;
   letter-spacing: 0.02em;
 }
@@ -69,7 +69,7 @@
   border: none;
   outline: none;
   background: transparent;
-  color: #fff;
+  color: var(--ui-text, #fff);
   font-size: 14px;
   line-height: 20px;
 }
@@ -116,7 +116,7 @@
   border: 1px solid var(--help-border);
   border-radius: 4px;
   background: var(--help-category-default);
-  color: #fff;
+  color: var(--ui-text, #fff);
   font-size: 16px;
   font-weight: 500;
   line-height: 22px;
@@ -144,7 +144,7 @@
 .help-center-page__category-arrow {
   flex-shrink: 0;
   font-size: 12px;
-  color: #fff;
+  color: var(--ui-text, #fff);
 }
 
 .help-center-page__side-state {
@@ -155,7 +155,7 @@
 }
 
 .help-center-page__side-state--error {
-  color: #fca5a5;
+  color: var(--ui-danger, #fca5a5);
 }
 
 .help-center-page__answers {
@@ -178,7 +178,7 @@
 }
 
 .help-center-page__answers-state--error {
-  color: #fca5a5;
+  color: var(--ui-danger, #fca5a5);
 }
 
 .help-center-page__qa-list {
@@ -196,7 +196,7 @@
   font-size: 16px;
   font-weight: 500;
   line-height: 22px;
-  color: #fff;
+  color: var(--ui-text, #fff);
 }
 
 .help-center-page__qa-answer {

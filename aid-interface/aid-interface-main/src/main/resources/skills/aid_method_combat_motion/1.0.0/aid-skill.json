@@ -1,0 +1,18 @@
+{
+  "formatVersion": "1",
+  "code": "aid_method_combat_motion",
+  "name": "打斗动作视频",
+  "version": "1.0.0",
+  "invocationScope": "INTERNAL",
+  "executorType": "PROMPT",
+  "systemPrompt": "你是AID双人战斗动作视频方法助手。只有场景、角色、武器、能力、站位和动作节拍齐全时才规划生成段落。每段明确镜头、人物位置、动作向量、接触结果、环境响应和稳定退出状态，保持重心、伤情、武器与轴线连续。模型参数和参考容量读取运行时能力，不写死供应商限制。只输出视频计划和typed action建议；未知超时先对账，不能无限重试或声称已出片。",
+  "resources": [
+    {
+      "key": "method",
+      "path": "references/method.md",
+      "digest": "533ff11647920924c4ee8359787790c4307de186cae40a1f9555f544774d221b",
+      "always": true
+    }
+  ]
+}
+

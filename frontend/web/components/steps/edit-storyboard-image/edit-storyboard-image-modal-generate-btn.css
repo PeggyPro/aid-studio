@@ -3,20 +3,18 @@
 
 .edit-storyboard-image-modal .storyboard-config-footer .generate-btn {
   margin: 0;
+  flex: 1 1 auto;
+  width: auto !important;
+  min-width: calc(140px * var(--create-editor-scale, 1));
   height: calc(46px * var(--create-editor-scale, 1));
   border-radius: calc(8px * var(--create-editor-scale, 1)) !important;
   font-size: calc(16px * var(--create-editor-scale, 1));
-  box-shadow: 0 calc(8px * var(--create-editor-scale, 1)) calc(20px * var(--create-editor-scale, 1)) rgba(37, 99, 235, 0.35);
+  box-shadow: var(--ui-shadow, 0 calc(8px * var(--create-editor-scale, 1)) calc(20px * var(--create-editor-scale, 1)) rgba(37, 99, 235, 0.35));
   border: none !important;
   outline: none !important;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: calc(10px * var(--create-editor-scale, 1));
-}
-.edit-storyboard-image-modal .storyboard-config-footer .generate-btn img {
-  width: calc(18px * var(--create-editor-scale, 1));
-  height: calc(18px * var(--create-editor-scale, 1));
 }
 
 .edit-storyboard-image-modal .storyboard-config-footer .generate-btn:hover,
@@ -25,7 +23,7 @@
   border: none !important;
   outline: none !important;
   filter: brightness(1.06);
-  box-shadow: 0 calc(8px * var(--create-editor-scale, 1)) calc(20px * var(--create-editor-scale, 1)) rgba(37, 99, 235, 0.35) !important;
+  box-shadow: var(--ui-shadow, 0 calc(8px * var(--create-editor-scale, 1)) calc(20px * var(--create-editor-scale, 1)) rgba(37, 99, 235, 0.35)) !important;
 }
 
 .edit-storyboard-image-modal .storyboard-config-body {
@@ -87,7 +85,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: rgba(188, 205, 228, 0.55);
+  color: var(--ui-muted, rgba(188, 205, 228, 0.55));
   font-size: calc(0.875rem * var(--create-editor-scale, 1));
 }
 
@@ -109,7 +107,7 @@
   min-height: calc(64px * var(--create-editor-scale, 1));
   padding: calc(10px * var(--create-editor-scale, 1));
   border-radius: calc(12px * var(--create-editor-scale, 1));
-  background: #121212;
+  background: var(--ui-bg, #121212);
 }
 
 .edit-storyboard-image-modal .dialogue-upload-thumb {
@@ -118,8 +116,8 @@
   height: calc(48px * var(--create-editor-scale, 1));
   border-radius: 50%;
   overflow: hidden;
-  border: calc(2px * var(--create-editor-scale, 1)) solid rgba(128, 154, 188, 0.28);
-  background: rgba(8, 12, 20, 0.9);
+  border: calc(2px * var(--create-editor-scale, 1)) solid var(--ui-hair, rgba(128, 154, 188, 0.28));
+  background: var(--ui-bg, rgba(8, 12, 20, 0.9));
   flex-shrink: 0;
 }
 
@@ -141,7 +139,7 @@
   align-items: center;
   justify-content: center;
   background: rgba(255, 77, 79, 0.95);
-  color: #fff;
+  color: var(--ui-text, #fff);
   cursor: pointer;
   font-size: calc(10px * var(--create-editor-scale, 1));
   line-height: 1;
@@ -157,9 +155,9 @@
 }
 
 .edit-storyboard-image-modal .dialogue-upload-thumb--adder {
-  border: calc(1px * var(--create-editor-scale, 1)) dashed rgba(188, 205, 228, 0.6);
+  border: calc(1px * var(--create-editor-scale, 1)) dashed var(--ui-hair, rgba(188, 205, 228, 0.6));
   background: transparent;
-  color: rgba(225, 239, 255, 0.85);
+  color: var(--ui-text, rgba(225, 239, 255, 0.85));
   display: flex;
   align-items: center;
   justify-content: center;
@@ -167,13 +165,13 @@
 }
 
 .edit-storyboard-image-modal .dialogue-upload-thumb--adder:hover {
-  border-color: rgba(74, 231, 253, 0.85);
-  color: rgb(74, 231, 253);
+  border-color: var(--ui-ring, rgba(74, 231, 253, 0.85));
+  color: var(--ui-brand, rgb(74, 231, 253));
 }
 
 .edit-storyboard-image-modal .dialogue-upload-empty-hint {
   margin-left: calc(4px * var(--create-editor-scale, 1));
-  color: rgba(188, 205, 228, 0.62);
+  color: var(--ui-muted, rgba(188, 205, 228, 0.62));
   font-size: calc(12px * var(--create-editor-scale, 1));
 }
 
@@ -203,9 +201,9 @@
   align-items: center;
   justify-content: space-between;
   padding: calc(1rem * var(--create-editor-scale, 1)) calc(1.5rem * var(--create-editor-scale, 1));
-  border-bottom: calc(1px * var(--create-editor-scale, 1)) solid rgba(128, 154, 188, 0.22);
+  border-bottom: calc(1px * var(--create-editor-scale, 1)) solid var(--ui-hair, rgba(128, 154, 188, 0.22));
   flex-shrink: 0;
-  background: rgba(17, 22, 33, 0.85);
+  background: var(--ui-surface, rgba(17, 22, 33, 0.85));
 }
 
 /* 左右面板切换分镜 Tab 时的独立骨架屏 */
@@ -219,7 +217,7 @@
 
 .edit-storyboard-image-modal .panel-skeleton .ant-skeleton-content .ant-skeleton-title,
 .edit-storyboard-image-modal .panel-skeleton .ant-skeleton-content .ant-skeleton-paragraph > li {
-  background: linear-gradient(90deg, #2b2b2b 20%, #444444 50%, #2b2b2b 80%) !important;
+  background: var(--ui-surface, linear-gradient(90deg, #2b2b2b 20%, #444444 50%, #2b2b2b 80%)) !important;
   background-size: 300% 100% !important;
   animation: storyboard-skeleton-shimmer 1.4s linear infinite !important;
 }

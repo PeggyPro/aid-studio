@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Alert, Checkbox, Descriptions, Modal, Select, Skeleton, Space, Table, Tag, Typography } from 'antd';
+import { Alert, Checkbox, Descriptions, Modal, Skeleton, Space, Table, Tag, Typography } from 'antd';
 import type { OrchestrationImpact } from '@/api/aid/orchestration';
 
 const { Text, Paragraph } = Typography;
@@ -14,22 +14,20 @@ interface Props {
   onConfirm: (replacementCode?: string) => Promise<void> | void;
 }
 
-/** 通用“影响预览 → 替换/清理引用 → 明确确认”下线弹窗。 */
+/** 有效引用存在时只展示影响，不执行自动解绑或替换。 */
 export default function RetirementModal({
   open,
   loading,
   submitting,
   impact,
-  replacementOptions = [],
+  replacementOptions: _replacementOptions = [],
   onCancel,
   onConfirm
 }: Props) {
-  const [replacementCode, setReplacementCode] = useState<string>();
   const [confirmed, setConfirmed] = useState(false);
 
   useEffect(() => {
     if (open) {
-      setReplacementCode(undefined);
       setConfirmed(false);
     }
   }, [open, impact?.resourceId]);
@@ -42,11 +40,11 @@ export default function RetirementModal({
       open={open}
       width={760}
       title={`${typeName}受控下线`}
-      okText={replacementCode ? '替换引用并下线' : '清理引用并下线'}
-      okButtonProps={{ danger: true, disabled: !impact || !confirmed }}
+      okText="确认下线"
+      okButtonProps={{ danger: true, disabled: !impact || hasReferences || !confirmed }}
       confirmLoading={submitting}
       onCancel={onCancel}
-      onOk={() => onConfirm(replacementCode)}
+      onOk={() => onConfirm()}
       destroyOnClose
     >
       {loading || !impact ? <Skeleton active paragraph={{ rows: 6 }} /> : (
@@ -55,9 +53,10 @@ export default function RetirementModal({
             type={hasReferences ? 'warning' : 'info'}
             showIcon
             message={hasReferences
-              ? `检测到 ${impact.activeReferenceCount} 条活动引用，系统不会静默级联删除`
-              : '未检测到活动引用，可直接软下线'}
-            description="下线操作在一个事务内完成；任一步失败都会整体回滚。"
+              ? `检测到 ${impact.activeReferenceCount} 条有效引用，当前不能下线`
+              : '未检测到有效引用，可确认软下线'}
+            description={hasReferences ? '请先逐项处理引用；系统不会自动解绑或替换。'
+              : '下线前服务端会再次核对引用状态。'}
           />
 
           <Descriptions size="small" column={2} bordered>
@@ -77,33 +76,16 @@ export default function RetirementModal({
             columns={[
               { title: '引用位置', dataIndex: 'label', width: 180 },
               { title: '数量', dataIndex: 'count', width: 80, render: (count: number) => <Tag color="orange">{count}</Tag> },
-              { title: '下线处理', dataIndex: 'action' }
+              { title: '引用说明', dataIndex: 'action' }
             ]}
           />
 
-          {impact.replacementSupported && hasReferences && (
-            <div>
-              <Text strong>替代{typeName}（推荐）</Text>
-              <Select
-                allowClear
-                showSearch
-                optionFilterProp="label"
-                value={replacementCode}
-                options={replacementOptions}
-                onChange={setReplacementCode}
-                placeholder={`不选择则清理活动引用并回退上层默认配置`}
-                style={{ width: '100%', marginTop: 8 }}
-                notFoundContent={`没有可用的同类替代${typeName}`}
-              />
-            </div>
-          )}
-
           <Alert type="success" showIcon message="历史数据策略" description={impact.historyPolicy} />
-          <Checkbox checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)}>
+          {!hasReferences && <Checkbox checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)}>
             <Paragraph style={{ display: 'inline', margin: 0 }}>
-              我已核对以上影响，确认执行{replacementCode ? '替换引用并' : '清理活动引用后'}下线。
+              我已核对以上影响，确认下线。
             </Paragraph>
-          </Checkbox>
+          </Checkbox>}
         </Space>
       )}
     </Modal>

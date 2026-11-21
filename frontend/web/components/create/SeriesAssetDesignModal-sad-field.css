@@ -11,7 +11,7 @@
 .sad-shell .sad-label {
   font-size: 14px;
   line-height: 20px;
-  color: rgba(220, 231, 245, 0.85);
+  color: var(--ui-text, rgba(220, 231, 245, 0.85));
 }
 
 /* 与 AssetsLibraryPanel「新增资产」输入框一致（原 :deep()） */
@@ -19,9 +19,9 @@
 .sad-shell .sad-form .ant-input-affix-wrapper,
 .sad-shell .sad-form .ant-input-textarea textarea,
 .sad-shell .sad-form .ant-select-selector {
-  background: rgba(8, 11, 18, 0.96) !important;
+  background: var(--ui-bg, rgba(8, 11, 18, 0.96)) !important;
   border: none !important;
-  color: #e6edf3 !important;
+  color: var(--ui-text, #e6edf3) !important;
   border-radius: 8px !important;
   box-shadow: none !important;
 }
@@ -41,7 +41,7 @@
 .sad-shell .sad-form .ant-select-selection-item,
 .sad-shell .sad-form .ant-select-selection-placeholder {
   line-height: 40px !important;
-  color: #e6edf3 !important;
+  color: var(--ui-text, #e6edf3) !important;
 }
 
 .sad-shell .sad-form .ant-input-textarea textarea {
@@ -64,11 +64,11 @@
 .sad-shell .sad-form .ant-input::placeholder,
 .sad-shell .sad-form .ant-input-textarea textarea::placeholder,
 .sad-shell .sad-form .ant-select-selection-placeholder {
-  color: #7f8ba0 !important;
+  color: var(--ui-muted, #7f8ba0) !important;
 }
 
 .sad-shell .sad-form .ant-select-arrow {
-  color: #8fa3c0;
+  color: var(--ui-brand, #8fa3c0);
 }
 
 .sad-shell .sad-footer {
@@ -86,13 +86,13 @@
 }
 
 .sad-shell .sad-footer-btn--ghost {
-  background: #121212;
-  border-color: rgba(74, 231, 253, 0.3);
-  color: #fff;
+  background: var(--ui-bg, #121212);
+  border-color: var(--ui-hair, rgba(74, 231, 253, 0.3));
+  color: var(--ui-text, #fff);
 }
 
 .sad-shell .sad-footer-btn--ok {
-  background: linear-gradient(270deg, #0e59fa 0%, #00abd8 100%);
+  background: var(--ui-surface, linear-gradient(270deg, #0e59fa 0%, #00abd8 100%));
   border: none;
 }
 

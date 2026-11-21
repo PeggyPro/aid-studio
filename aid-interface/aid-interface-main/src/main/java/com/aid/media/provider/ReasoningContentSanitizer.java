@@ -42,6 +42,7 @@ public final class ReasoningContentSanitizer {
                 objectNode.put("thoughtOmitted", true);
             }
             if ("thinking_delta".equals(type) || "signature_delta".equals(type)
+                    || "reasoning_text".equals(type) || "reasoning_summary_text".equals(type)
                     || type.startsWith("response.reasoning")) {
                 objectNode.remove(List.of("thinking", "signature", "delta", "text"));
                 objectNode.put("thoughtOmitted", true);

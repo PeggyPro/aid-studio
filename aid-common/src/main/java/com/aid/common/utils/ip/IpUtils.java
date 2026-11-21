@@ -2,6 +2,9 @@ package com.aid.common.utils.ip;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.util.Arrays;
+import java.util.List;
+import org.springframework.security.web.util.matcher.IpAddressMatcher;
 import jakarta.servlet.http.HttpServletRequest;
 import com.aid.common.utils.ServletUtils;
 import com.aid.common.utils.StringUtils;
@@ -30,54 +33,68 @@ public class IpUtils
         return getIpAddr(ServletUtils.getRequest());
     }
 
-    /**
-     * 是否信任 HTTP 代理请求头（X-Forwarded-For 等）。
-     * 可通过 JVM 参数 -Daid.trust.xff=false 关闭，避免客户端伪造 XFF 绕过频控/审计；
-     * 默认 true 兼容 nginx 反代部署形态，由网关层负责重写 XFF。
-     */
     private static final boolean TRUST_XFF = !"false".equalsIgnoreCase(
             System.getProperty("aid.trust.xff", "true"));
+    private static final int MAX_FORWARD_HEADER_LENGTH = 2048;
+    private static final List<IpAddressMatcher> TRUSTED_PROXIES = Arrays.stream(
+            System.getProperty("aid.trusted.proxies", "127.0.0.1,::1").split(","))
+            .map(String::trim).filter(value -> !value.isEmpty())
+            .map(IpAddressMatcher::new).toList();
 
     /**
-     * 获取客户端IP
-     *
-     * @param request 请求对象
-     * @return IP地址
+     * 仅在直接上游可信时，从右向左查找第一个非可信代理地址。
      */
     public static String getIpAddr(HttpServletRequest request)
     {
-        if (request == null)
-        {
+        if (request == null) {
             return "unknown";
         }
-        String ip = null;
-        if (TRUST_XFF)
-        {
-            ip = request.getHeader("x-forwarded-for");
-            if (ip == null || ip.length() == 0 || "unknown".equalsIgnoreCase(ip))
-            {
-                ip = request.getHeader("Proxy-Client-IP");
+        String peer = normalizeIp(request.getRemoteAddr());
+        if (peer == null) {
+            return "unknown";
+        }
+        if (!TRUST_XFF || !isTrustedProxy(peer)) {
+            return peer;
+        }
+        String forwarded = request.getHeader("X-Forwarded-For");
+        if (forwarded == null || forwarded.length() > MAX_FORWARD_HEADER_LENGTH) {
+            return peer;
+        }
+        String[] chain = forwarded.split(",", -1);
+        for (int index = chain.length - 1; index >= 0; index--) {
+            String address = normalizeIp(chain[index].trim());
+            if (address == null) {
+                return peer;
             }
-            if (ip == null || ip.length() == 0 || "unknown".equalsIgnoreCase(ip))
-            {
-                ip = request.getHeader("X-Forwarded-For");
-            }
-            if (ip == null || ip.length() == 0 || "unknown".equalsIgnoreCase(ip))
-            {
-                ip = request.getHeader("WL-Proxy-Client-IP");
-            }
-            if (ip == null || ip.length() == 0 || "unknown".equalsIgnoreCase(ip))
-            {
-                ip = request.getHeader("X-Real-IP");
+            if (!isTrustedProxy(address)) {
+                return address;
             }
         }
+        return peer;
+    }
 
-        if (ip == null || ip.length() == 0 || "unknown".equalsIgnoreCase(ip))
-        {
-            ip = request.getRemoteAddr();
+    private static boolean isTrustedProxy(String address)
+    {
+        return TRUSTED_PROXIES.stream().anyMatch(proxy -> proxy.matches(address));
+    }
+
+    private static String normalizeIp(String address)
+    {
+        if (address == null || address.isBlank()) {
+            return null;
         }
-
-        return "0:0:0:0:0:0:0:1".equals(ip) ? "127.0.0.1" : getMultistageReverseProxyIp(ip);
+        if (address.matches(REGX_IP)) {
+            return address;
+        }
+        if (!address.contains(":") || !address.matches("[0-9a-fA-F:.]+")) {
+            return null;
+        }
+        try {
+            InetAddress parsed = InetAddress.getByName(address);
+            return parsed.isLoopbackAddress() ? "127.0.0.1" : parsed.getHostAddress();
+        } catch (UnknownHostException ex) {
+            return null;
+        }
     }
 
     /**

@@ -21,7 +21,7 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/** 按后台 {@code capability_json.klingScenario} 严格组装可灵 3.0 请求体。 */
+/** 按后台 {@code capability_json.klingScenario} 组装可灵视频请求体。 */
 @Slf4j
 public final class KlingVideoRequestBuilder {
 
@@ -75,10 +75,14 @@ public final class KlingVideoRequestBuilder {
             return fail("null model or request", "模型配置无效");
         }
         String scenario = resolveScenario(config);
+        String upstream = ModelCodeResolver.resolveUpstreamModel(config, request.getModelName());
+        boolean kling4 = isKling4(upstream);
         ResolvedInputs inputs = resolveAndValidateInputs(config, request, scenario);
         Map<String, Object> options = inputs.options();
         String firstFrame = inputs.firstFrame();
         String lastFrame = inputs.lastFrame();
+        reject("kling-4.0-flash".equalsIgnoreCase(upstream) && StrUtil.isNotBlank(lastFrame),
+            "可灵 4.0 Flash 不支持尾帧");
         List<String> referenceImages = inputs.referenceImages();
         String featureVideo = inputs.featureVideo();
         String baseVideo = inputs.baseVideo();
@@ -141,7 +145,8 @@ public final class KlingVideoRequestBuilder {
         String prompt = rehydratePrompt(StrUtil.trim(request.getPrompt()), placeholderImageIds);
         prompt = retainOnlyDispatchedReferences(prompt, allowedReferenceIds);
         int promptMax = isOmni(scenario) ? 3072 : 2500;
-        if ((!promptPending && StrUtil.isBlank(prompt)) || StrUtil.length(prompt) > promptMax) {
+        boolean promptTooLong = kling4 ? exceedsKling4PromptLimit(prompt) : StrUtil.length(prompt) > promptMax;
+        if ((!promptPending && StrUtil.isBlank(prompt)) || promptTooLong) {
             fail("prompt length=" + StrUtil.length(prompt), "提示词无效");
         }
         if (StrUtil.isNotBlank(prompt)) {
@@ -152,13 +157,63 @@ public final class KlingVideoRequestBuilder {
         }
 
         Map<String, Object> body = new LinkedHashMap<>();
-        body.put("contents", contents);
-        body.put("settings", buildSettings(scenario, request, options, firstFrame, featureVideo, baseVideo));
+        String suffix = StrUtil.blankToDefault(config.getApiSuffix(), "");
+        boolean textEndpoint = kling4 && suffix.startsWith("/text-to-video/");
+        boolean imageEndpoint = kling4 && suffix.startsWith("/image-to-video/");
+        if (textEndpoint) {
+            reject(contents.stream().anyMatch(item -> !"prompt".equals(item.get("type"))), "文生视频接口不接受参考素材");
+            body.put("prompt", prompt);
+        } else {
+            body.put("contents", contents);
+        }
+        Map<String, Object> settings = kling4
+            ? buildKling4Settings(upstream, request, options, featureVideo, baseVideo)
+            : buildSettings(scenario, request, options, firstFrame, featureVideo, baseVideo);
+        if (textEndpoint || imageEndpoint) settings.remove("audio");
+        if (imageEndpoint) settings.remove("aspect_ratio");
+        if (textEndpoint && "adaptive".equals(settings.get("aspect_ratio"))) settings.put("aspect_ratio", "16:9");
+        body.put("settings", settings);
         Map<String, Object> commonOptions = buildCommonOptions(config, options);
         if (!commonOptions.isEmpty()) {
             body.put("options", commonOptions);
         }
         return body;
+    }
+
+    private static boolean isKling4(String model) {
+        return "kling-4.0".equalsIgnoreCase(model) || "kling-4.0-flash".equalsIgnoreCase(model);
+    }
+
+    private static boolean exceedsKling4PromptLimit(String prompt) {
+        if (StrUtil.isBlank(prompt)) {
+            return false;
+        }
+        long ascii = prompt.codePoints().filter(codePoint -> codePoint < 128).count();
+        long other = prompt.codePointCount(0, prompt.length()) - ascii;
+        return ascii * 11_000 + other * 26_000 > 26_000L * 11_000;
+    }
+
+    private static Map<String, Object> buildKling4Settings(String model, MediaVideoGenerateRequest request,
+                                                           Map<String, Object> options, String feature, String base) {
+        boolean flash = "kling-4.0-flash".equalsIgnoreCase(model);
+        Map<String, Object> settings = new LinkedHashMap<>();
+        String resolution = StrUtil.blankToDefault(firstNonBlank(options, "resolution", "size"), flash ? "720p" : "1080p")
+            .toLowerCase(Locale.ROOT);
+        reject(!"720p".equals(resolution) && (flash || !"1080p".equals(resolution)), "分辨率无效");
+        settings.put("resolution", resolution);
+        int duration = request.getDurationSeconds() == null ? intOption(options, "duration", 10) : request.getDurationSeconds();
+        reject(duration < 3 || duration > (flash ? 20 : 30), "时长参数无效");
+        settings.put("duration", duration);
+        String audio = options.containsKey("audioMode") || options.containsKey("audio") || request.getAudio() != null
+            ? resolveAudio(request, options) : "native";
+        reject(!Set.of("native", "original").contains(audio), "可灵 4.0 音频模式仅支持生成声音或保留原声");
+        reject("original".equals(audio) && StrUtil.isAllBlank(feature, base), "保留原声需要参考视频");
+        settings.put("audio", audio);
+        String aspect = firstNonBlank(options, "aspect_ratio", "aspectRatio");
+        aspect = StrUtil.blankToDefault(aspect, StrUtil.blankToDefault(request.getAspectRatio(), "adaptive"));
+        reject(!Set.of("21:9", "16:9", "9:16", "1:1", "adaptive").contains(aspect), "画幅比例无效");
+        settings.put("aspect_ratio", aspect);
+        return settings;
     }
 
     /**
@@ -231,7 +286,9 @@ public final class KlingVideoRequestBuilder {
             featureVideo = sharedVideo;
         }
         List<ElementInput> elements = readElements(options.get("elements"));
-        validateScenarioInputs(scenario, firstFrame, lastFrame, referenceImages, featureVideo, baseVideo, elements);
+        boolean kling4 = isKling4(StrUtil.blankToDefault(config.getRealModelCode(), config.getModelCode()));
+        reject(kling4 && !elements.isEmpty(), "当前可灵 4.0 业务入口暂不支持主体库引用，请使用图片或视频参考");
+        validateScenarioInputs(scenario, firstFrame, lastFrame, referenceImages, featureVideo, baseVideo, elements, kling4);
 
         int dispatchedImageCount = countDispatchedImages(
             scenario, firstFrame, lastFrame, referenceImages);
@@ -259,7 +316,7 @@ public final class KlingVideoRequestBuilder {
     }
 
     private static void validateScenarioInputs(String scenario, String first, String last, List<String> refs,
-                                               String featureVideo, String baseVideo, List<ElementInput> elements) {
+                                               String featureVideo, String baseVideo, List<ElementInput> elements, boolean kling4) {
         boolean hasFirst = StrUtil.isNotBlank(first);
         boolean hasLast = StrUtil.isNotBlank(last);
         boolean hasRefs = !refs.isEmpty();
@@ -291,17 +348,20 @@ public final class KlingVideoRequestBuilder {
                 reject(hasFeature || hasBase, "参考生成模型不接受视频输入");
                 reject(hasFirst && elements.size() > 3, "首帧场景主体超过3个");
                 int dispatchedImageCount = refs.size() + (hasFirst ? 1 : 0) + (hasLast ? 1 : 0);
-                validateReferenceCombination(dispatchedImageCount, elements);
+                if (kling4) reject(dispatchedImageCount > 15, "参考素材不能超过 15 个");
+                else validateReferenceCombination(dispatchedImageCount, elements);
             }
             case KlingConstants.SCENARIO_OMNI_FEATURE_VIDEO -> {
                 require(hasFeature, "视频特征参考模型必须提供参考视频");
                 reject(hasFirst || hasLast || hasBase, "视频特征场景不接受首尾帧或待编辑视频");
-                validateFeatureVideoCombination(refs.size(), elements);
+                if (kling4) reject(refs.size() > 14, "视频与参考图合计不能超过 15 个");
+                else validateFeatureVideoCombination(refs.size(), elements);
             }
             case KlingConstants.SCENARIO_OMNI_EDIT -> {
                 require(hasBase, "视频编辑模型必须提供待编辑视频");
                 reject(hasFirst || hasLast || hasFeature, "视频编辑场景不接受首尾帧或特征参考视频");
-                validateFeatureVideoCombination(refs.size(), elements);
+                if (kling4) reject(refs.size() > 14, "视频与参考图合计不能超过 15 个");
+                else validateFeatureVideoCombination(refs.size(), elements);
             }
             default -> fail("unknown scenario=" + scenario, "模型配置无效");
         }

@@ -165,41 +165,7 @@ FROM aid_ai_provider p
 WHERE p.provider_code='openai' AND p.del_flag='0'
   AND NOT EXISTS (SELECT 1 FROM aid_ai_model m WHERE m.provider_id=p.id AND m.model_code='gpt-5.6-luna' AND m.del_flag='0');
 
-INSERT INTO aid_ai_model
-  (provider_id,model_code,real_model_code,model_name,model_type,generate_mode,
-   api_suffix,protocol,status,del_flag,create_time,create_by,remark,billing_mode,
-   billing_rule_json,billing_version,supports_text_input,supports_system_prompt,
-   supports_image_input,supports_multi_image_input,max_output_count,default_output_count,
-   capability_json,capability_inited,extra_body,official_price_url,is_free,config_version)
-SELECT p.id,'gpt-5.6','gpt-5.6','GPT-5.6','text','text',
-       '/v1/chat/completions','openai-compatible-text','1','0',NOW(),'system',
-       'Official alias of GPT-5.6 Sol; enable after access verification.',
-       'SKU','{"mode":"SKU","meterType":"TOKEN","chargeType":"TEXT","preHold":true,"matchStrategy":"FIRST_HIT","params":[],"skus":[{"match":{"inputTokensMin":0,"inputTokensMax":272000},"enabled":true,"skuCode":"OPENAI_GPT_56_STD","skuName":"gpt-5.6 std context","priority":1,"inputPricePerMillion":28,"cachedInputPricePerMillion":2.8,"cacheWritePricePerMillion":35,"outputPricePerMillion":140,"reasoningPricePerMillion":140},{"match":{"inputTokensMin":272001,"inputTokensMax":100000000},"enabled":true,"skuCode":"OPENAI_GPT_56_LONG","skuName":"gpt-5.6 long context","priority":2,"inputPricePerMillion":56,"cachedInputPricePerMillion":5.6,"cacheWritePricePerMillion":70,"outputPricePerMillion":210.0,"reasoningPricePerMillion":210.0}],"settleRule":{"settleMode":"REFUND_ONLY","allowRefund":true,"allowExtraCharge":false,"usageSource":"PROVIDER_USAGE","charToTokenRatio":2,"usagePricingMode":"BUCKETED"}}',1,1,1,1,1,1,1,'{"sceneRules":{"textOnly":{"supportsDuration":false,"supportsSizePreset":false,"supportsAspectRatio":false}},"inputModalities":["TEXT","IMAGE"],"outputModalities":["TEXT"],"maxInputImages":10,"maxInputAudios":0,"maxInputVideos":0,"maxInputDocuments":0,"inputImageFormats":["jpeg","jpg","png","webp","gif"],"supportsImageInput":true,"supportsAudioInput":false,"supportsVideoInput":false,"supportsDocumentInput":false,"supportsJsonObject":true,"supportsReasoning":true,"supportsReasoningDisable":true,"reasoningApiStyle":"OPENAI","outputTokenApiField":"max_completion_tokens","allowedReasoningLevels":["none","low","medium","high","xhigh","max"],"defaultReasoningLevel":"medium","contextWindowTokens":1050000,"maxOutputTokens":128000,"capabilitySourceUrls":["https://developers.openai.com/api/docs/models/gpt-5.6-sol"],"capabilityVerifiedAt":"2026-09-29"}',1,JSON_OBJECT(),
-       'https://developers.openai.com/api/docs/models/gpt-5.6-sol',0,1
-FROM aid_ai_provider p
-WHERE p.provider_code='openai' AND p.del_flag='0'
-  AND NOT EXISTS (SELECT 1 FROM aid_ai_model m WHERE m.provider_id=p.id AND m.model_code='gpt-5.6' AND m.del_flag='0');
-
-
--- Preserve every existing valid operator SKU. Official alias and missing-price
--- repairs are separate; a custom upstream name is never changed.
-UPDATE aid_ai_model m
-JOIN aid_ai_provider p ON p.id=m.provider_id AND p.provider_code='openai'
-SET m.real_model_code='gpt-5.6',
-    m.config_version=COALESCE(m.config_version,0)+1,m.update_time=NOW(),m.update_by='system'
-WHERE m.model_code='gpt-5.6' AND m.del_flag='0'
-  AND m.real_model_code='gpt-5.6-sol';
-
-UPDATE aid_ai_model m
-JOIN aid_ai_provider p ON p.id=m.provider_id AND p.provider_code='openai'
-SET m.billing_rule_json='{"mode":"SKU","meterType":"TOKEN","chargeType":"TEXT","preHold":true,"matchStrategy":"FIRST_HIT","params":[],"skus":[{"match":{"inputTokensMin":0,"inputTokensMax":272000},"enabled":true,"skuCode":"OPENAI_GPT_56_STD","skuName":"gpt-5.6 std context","priority":1,"inputPricePerMillion":28,"cachedInputPricePerMillion":2.8,"cacheWritePricePerMillion":35,"outputPricePerMillion":140,"reasoningPricePerMillion":140},{"match":{"inputTokensMin":272001,"inputTokensMax":100000000},"enabled":true,"skuCode":"OPENAI_GPT_56_LONG","skuName":"gpt-5.6 long context","priority":2,"inputPricePerMillion":56,"cachedInputPricePerMillion":5.6,"cacheWritePricePerMillion":70,"outputPricePerMillion":210.0,"reasoningPricePerMillion":210.0}],"settleRule":{"settleMode":"REFUND_ONLY","allowRefund":true,"allowExtraCharge":false,"usageSource":"PROVIDER_USAGE","charToTokenRatio":2,"usagePricingMode":"BUCKETED"}}',
-    m.billing_mode='SKU',m.billing_version=COALESCE(m.billing_version,0)+1,
-    m.config_version=COALESCE(m.config_version,0)+1,
-    m.update_time=NOW(),m.update_by='system'
-WHERE m.model_code='gpt-5.6' AND m.del_flag='0'
-  AND (m.billing_rule_json IS NULL OR JSON_VALID(m.billing_rule_json)=0
-       OR COALESCE(JSON_LENGTH(JSON_EXTRACT(IF(JSON_VALID(m.billing_rule_json),
-          m.billing_rule_json,'{}'),'$.skus')),0)=0);
+-- 无 gpt-5.6 真实型号；不创建该模型或改写已有 Sol 型号。
 
 INSERT INTO aid_ai_model_capability
   (model_id,capability_code,generate_mode,definition_json,sort_order,create_time,create_by)
@@ -210,7 +176,7 @@ SELECT m.id,'text','text',JSON_OBJECT(
       'supportsMultiImageInput',TRUE,'supportsSystemPrompt',TRUE,'maxOutputCount',1,
       'defaultOutputCount',1)),0,NOW(),'system'
 FROM aid_ai_model m JOIN aid_ai_provider p ON p.id=m.provider_id AND p.provider_code='openai'
-WHERE m.model_code IN ('gpt-6-astra','gpt-6-sol','gpt-6-luna','gpt-5.6-sol','gpt-5.6-terra','gpt-5.6-luna','gpt-5.6') AND m.del_flag='0'
+WHERE m.model_code IN ('gpt-6-astra','gpt-6-sol','gpt-6-luna','gpt-5.6-sol','gpt-5.6-terra','gpt-5.6-luna') AND m.del_flag='0'
   AND NOT EXISTS (SELECT 1 FROM aid_ai_model_capability c WHERE c.model_id=m.id AND c.capability_code='text');
 
 INSERT INTO aid_ai_model_protocol_binding
@@ -227,17 +193,10 @@ SELECT m.id,'text',CONCAT('route_',m.id),'openai-compatible-text',JSON_OBJECT(
     'fixedParameters',JSON_OBJECT(),'parameterMapping',JSON_OBJECT()),
     0,NOW(),'system'
 FROM aid_ai_model m JOIN aid_ai_provider p ON p.id=m.provider_id AND p.provider_code='openai'
-WHERE m.model_code IN ('gpt-6-astra','gpt-6-sol','gpt-6-luna','gpt-5.6-sol','gpt-5.6-terra','gpt-5.6-luna','gpt-5.6') AND m.del_flag='0'
+WHERE m.model_code IN ('gpt-6-astra','gpt-6-sol','gpt-6-luna','gpt-5.6-sol','gpt-5.6-terra','gpt-5.6-luna') AND m.del_flag='0'
   AND NOT EXISTS (SELECT 1 FROM aid_ai_model_protocol_binding b WHERE b.model_id=m.id AND b.capability_code='text');
 
-UPDATE aid_ai_model_protocol_binding b
-JOIN aid_ai_model m ON m.id=b.model_id AND m.model_code='gpt-5.6' AND m.del_flag='0'
-JOIN aid_ai_provider p ON p.id=m.provider_id AND p.provider_code='openai'
-SET b.definition_json=JSON_SET(b.definition_json,'$.upstreamModel','gpt-5.6'),
-    b.update_time=NOW(),b.update_by='system'
-WHERE b.capability_code='text' AND JSON_VALID(b.definition_json)=1
-  AND m.real_model_code='gpt-5.6'
-  AND JSON_UNQUOTE(JSON_EXTRACT(b.definition_json,'$.upstreamModel'))='gpt-5.6-sol';
+
 
 -- An absent override continues inheriting the model price. Never turn a custom
 -- route's valid SKU rule into the official catalog price.

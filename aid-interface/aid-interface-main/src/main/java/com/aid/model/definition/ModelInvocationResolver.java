@@ -6,9 +6,9 @@ import com.aid.aid.domain.AidAiModel;
 import com.aid.aid.domain.model.ModelCapabilityDefinition;
 import com.aid.aid.domain.model.ModelParameter;
 import com.aid.aid.domain.model.ModelProtocolBinding;
-import com.aid.common.exception.ServiceException;
 import com.aid.domain.vo.AiModelConfigVo;
 import com.aid.media.dto.MediaVideoGenerateRequest;
+import com.aid.media.service.MediaPreparationErrorCode;
 import com.alibaba.fastjson2.JSON;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -56,13 +56,16 @@ public class ModelInvocationResolver {
         List<ModelCapabilityDefinition> candidates = ModelCapabilitySelection.candidates(all, requested);
         if (candidates.size() != 1) fail("模型能力不可用");
         ModelCapabilityDefinition definition = candidates.get(0);
-        config.setResolvedDefinition(definition);
         String requestedBinding = nonblank(bindingCode) ? bindingCode
                 : Objects.equals(config.getCapabilityCode(), definition.getCode()) ? config.getBindingCode() : null;
         List<ModelProtocolBinding> routes = definition.getBindings().stream().filter(r -> Boolean.TRUE.equals(r.getEnabled()))
                 .filter(r -> nonblank(requestedBinding) ? Objects.equals(r.getCode(), requestedBinding) : Boolean.TRUE.equals(r.getDefaultBinding())).toList();
         if (routes.size() != 1) fail("模型协议不可用");
         ModelProtocolBinding route = routes.get(0);
+        definition=ModelEffectiveParameterConstraints.resolve(definition,route);
+        String effectiveRouteCode=route.getCode();
+        route=definition.getBindings().stream().filter(item->Objects.equals(item.getCode(),effectiveRouteCode)).findFirst().orElseThrow();
+        config.setResolvedDefinition(definition);
         if (config.getInvocationBaseline() != null) config.getInvocationBaseline().forEach((field, value) -> BeanUtil.setProperty(config, field, value));
         config.setCapabilityCode(definition.getCode());
         config.setBindingCode(route.getCode());
@@ -168,5 +171,8 @@ public class ModelInvocationResolver {
     }
 
     private static boolean nonblank(String value) { return value != null && !value.isBlank(); }
-    private static void fail(String message) { log.info("模型调用解析失败: {}", message); throw new ServiceException(message); }
+    private static void fail(String message) {
+        log.info("模型调用解析失败: {}", message);
+        throw MediaPreparationErrorCode.MODEL_CAPABILITY_INVALID.reject(message);
+    }
 }

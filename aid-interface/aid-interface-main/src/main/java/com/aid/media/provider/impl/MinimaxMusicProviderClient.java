@@ -30,6 +30,18 @@ import java.util.Set;
 @Component
 public class MinimaxMusicProviderClient implements AudioProviderClient {
 
+    @Override public boolean usesSynchronousExecution(AiModelConfigVo config,MediaAudioGenerateRequest request){return com.aid.media.provider.audio.OfficialAudioContractRegistry.hasExplicitOperation(config);}
+
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.aid.media.provider.audio.OfficialAudioProtocolSupport officialAudio;
+
+    @Override
+    public void validate(AiModelConfigVo config, MediaAudioGenerateRequest request, boolean metadata) {
+        if (com.aid.media.provider.audio.OfficialAudioContractRegistry.hasExplicitOperation(config))
+            officialAudio.validate("minimax", config, request, metadata);
+        else buildBody(config, request);
+    }
+
     public static final String PROTOCOL = "minimax-music";
     private static final Set<String> MODELS = Set.of("music-3.0", "music-2.6", "music-cover");
     private static final int MAX_AUDIO_BYTES = 50 * 1024 * 1024;
@@ -51,9 +63,11 @@ public class MinimaxMusicProviderClient implements AudioProviderClient {
 
     @Override
     public ProviderSubmitResult submit(AiModelConfigVo config, MediaAudioGenerateRequest request) {
+        if (com.aid.media.provider.audio.OfficialAudioContractRegistry.hasExplicitOperation(config))
+            return officialAudio.submit("minimax", config, request);
         Map<String, Object> body = buildBody(config, request);
         if (StrUtil.isBlank(config.getApiKey())) {
-            throw new ServiceException("MiniMax密钥未配置");
+            throw com.aid.media.provider.ProviderSubmissionFailures.notSent("MiniMax密钥未配置");
         }
         final String url;
         try {
@@ -79,15 +93,18 @@ public class MinimaxMusicProviderClient implements AudioProviderClient {
                     config.getModelCode(), ex.getClass().getSimpleName());
             throw new ServiceException("上游提交状态未知");
         }
-        if (status == 410) {
-            return ProviderSubmitResult.builder().rawResponse("上游音乐接口已停用").build();
-        }
         if (status < 200 || status >= 300) {
-            return ProviderSubmitResult.builder()
-                    .rawResponse(ProviderErrorSanitizer.fromHttp(status, raw)).build();
+            return com.aid.media.provider.ProviderSubmissionFailures.httpResponse(status, raw, config.getModelCode());
         }
         JsonNode root = ProviderResponseHelper.readTree(raw);
         JsonNode base = root == null ? null : root.path("base_resp");
+        if (base != null && base.path("status_code").canConvertToInt()
+                && base.path("status_code").asInt() > 0
+                && StrUtil.isBlank(ProviderResponseHelper.findFirstUrl(root))
+                && StrUtil.isBlank(ProviderResponseHelper.readText(root, "task_id", "data.task_id", "data.id"))) {
+            return com.aid.media.provider.ProviderSubmissionFailures.reportedFailure(
+                    base.path("status_msg").asText("上游明确拒绝音乐生成"), config.getModelCode());
+        }
         if (base == null || base.path("status_code").asInt(-1) != 0) {
             return ProviderSubmitResult.builder()
                     .rawResponse(ProviderErrorSanitizer.safeMessage(raw, "上游音乐生成失败")).build();

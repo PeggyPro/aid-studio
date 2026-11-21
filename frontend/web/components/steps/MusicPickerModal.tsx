@@ -2,8 +2,9 @@
 
 import { useEffect, useRef, useState } from 'react'
 import type { ChangeEvent } from 'react'
-import { Modal, Slider, message } from 'antd'
-import { CloseOutlined, CloudUploadOutlined, AudioMutedOutlined } from '@ant-design/icons'
+import { Slider, message } from 'antd'
+import { AudioPickerModal } from './AudioPickerModal'
+import { CloudUploadOutlined, AudioMutedOutlined } from '@ant-design/icons'
 import iconStartRaw from '~/assets/img/icon/icon_start.svg'
 import musicIconRaw from '~/assets/img/icon/music-nor.svg'
 import { assetUrl } from '~/utils/assetUrl'
@@ -230,21 +231,14 @@ export function MusicPickerModal({
   }, [])
 
   return (
-    <Modal
+    <AudioPickerModal
       open={open}
-      width={860}
-      footer={null}
-      destroyOnHidden
-      wrapClassName="create-flow-modal music-picker-wrap"
+      title="背景音乐"
+      wrapClassName="music-picker-wrap"
       className="music-picker-modal"
-      centered
-      zIndex={11000}
       onCancel={onCancel}
-      closeIcon={<CloseOutlined className="music-picker-close" />}
     >
       <div className="music-picker-shell">
-        <h2 className="music-picker-title">背景音乐</h2>
-
         <div className="music-picker-list">
           <div
             className={`music-card music-card-none${selectedId === NO_MUSIC_ID ? ' is-selected' : ''}`}
@@ -324,6 +318,8 @@ export function MusicPickerModal({
               max={100}
               step={1}
               className="music-picker-volume-slider"
+              ariaLabelForHandle="背景音乐音量"
+              tooltip={{ formatter: (value) => `${value}%` }}
             />
             <span className="music-picker-volume-value">{volumePercent}%</span>
           </div>
@@ -348,7 +344,7 @@ export function MusicPickerModal({
       </div>
 
       <audio ref={audioRef} className="music-picker-audio" onEnded={onAudioEnded} />
-    </Modal>
+    </AudioPickerModal>
   )
 }
 

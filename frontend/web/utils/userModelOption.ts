@@ -4,7 +4,7 @@ import { resolveModelSupportsAudio } from '~/utils/modelCapability'
 
 export type UserModelOptionSource = Pick<
   UserModelListItem,
-  'id' | 'modelCode' | 'modelName' | 'providerName' | 'providerLogo' | 'capability' | 'isFree' | 'billing' | 'legacyModelCodes' | 'legacyModelIds' | 'capabilityCode'
+  'id' | 'modelCode' | 'modelName' | 'modelLogo' | 'providerName' | 'providerLogo' | 'capability' | 'isFree' | 'billing' | 'legacyModelCodes' | 'legacyModelIds' | 'capabilityCode'
 >
 
 export interface MapUserModelOptionConfig {
@@ -21,7 +21,7 @@ export function mapUserModelListItemToModelOption(
 ): ModelOption {
   const code = String(item.modelCode || '').trim()
   const sid = Number(item.id)
-  const logo = String(item.providerLogo || '').trim()
+  const logo = resolveUserModelProviderLogo(item)
   return {
     id: code || String(item.id),
     serverModelId: Number.isFinite(sid) && sid > 0 ? sid : undefined,
@@ -42,7 +42,7 @@ export function mapUserModelListItemToModelOption(
 /** 智能体选择弹窗等场景的轻量模型项 */
 export function mapUserModelListItemToPickerOption(item: UserModelListItem) {
   const modelCode = String(item.modelCode || '').trim()
-  const logo = String(item.providerLogo || '').trim()
+  const logo = resolveUserModelProviderLogo(item)
   return {
     modelCode,
     name: String(item.modelName || modelCode || '未命名模型'),
@@ -54,5 +54,5 @@ export function mapUserModelListItemToPickerOption(item: UserModelListItem) {
 }
 
 export function resolveUserModelProviderLogo(item?: UserModelOptionSource | null): string {
-  return String(item?.providerLogo || '').trim()
+  return String(item?.modelLogo || item?.providerLogo || '').trim()
 }

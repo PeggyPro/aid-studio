@@ -163,7 +163,7 @@ export default function ProviderDialog({ open, title, data, onCancel, onOk }: Pr
 
       // 校验 JSON 字段：JsonObjectEditor 输出的已是合法 JSON 字符串或 null
       // 这里只做空值兜底（为防御性兼容外部传入异常值，仍保留 try）
-      for (const k of ['extraHeaders', 'extraBody', 'extraQuery'] as const) {
+      for (const k of ['extraHeaders', 'extraBody', 'extraQuery', 'accountOperationsJson'] as const) {
         const v = values[k];
         if (!v || !String(v).trim()) {
           values[k] = null;
@@ -437,9 +437,14 @@ export default function ProviderDialog({ open, title, data, onCancel, onOk }: Pr
                       </Form.Item>
                     </Col>
                     <Col span={6}>
+                      <Form.Item label="连续查询失败上限" tooltip="成功读取排队、处理中或终态会清零；连续访问失败达到此次数后结束任务并退还原冻结积分，不计算正常轮询次数。">
+                        <InputNumber value={strategy.maxConsecutiveQueryFailures ?? 3} onChange={(v) => S('maxConsecutiveQueryFailures', v)} min={1} max={100} precision={0} style={{ width: '100%' }} />
+                      </Form.Item>
+                    </Col>
+                    <Col span={6}>
                       <Form.Item
                         label="最大存活(秒)"
-                        tooltip="绝对天花板，从上游受理该任务那一刻起算，只用于防止上游永远回报处理中而长期占用并发坑位，不是预期出片耗时。配小了会在上游正常出片时把任务掐掉、积分照扣成片丢弃，建议 3600 起。"
+                        tooltip="从上游受理起算的存活复查阈值。达到后主动查询上游；仍为排队或处理中则继续等待，不因等待时长判失败。"
                       >
                         <InputNumber value={strategy.maxLifeSeconds} onChange={(v) => S('maxLifeSeconds', v)} min={60} max={7200} style={{ width: '100%' }} />
                       </Form.Item>
@@ -447,7 +452,7 @@ export default function ProviderDialog({ open, title, data, onCancel, onOk }: Pr
                     <Col span={6}>
                       <Form.Item
                         label="无进展超时(秒)"
-                        tooltip="判定上游生死的依据：从最近一次观测到上游推进（轮询拿到处理中、回调带回非终态）起算，连续这么久观测不到推进才判失败并退款。应大于最大轮询间隔的数倍，留空 = 回落最大存活。"
+                        tooltip="从最近一次有效进展起算的复查阈值；超时后查询上游，不单凭时间退款。连续查询失败达到独立上限才按本地失败结束。"
                       >
                         <InputNumber
                           value={strategy.progressTimeoutSeconds ?? undefined}
@@ -547,6 +552,11 @@ export default function ProviderDialog({ open, title, data, onCancel, onOk }: Pr
                           stringOnly
                           emptyText="未配置 Query 参数"
                         />
+                      </Form.Item>
+                    </Col>
+                    <Col span={24}>
+                      <Form.Item name="accountOperationsJson" label="官方账户查询路径" extra="仅用于后台账户额度查询。balancePath、servicesPath、usagePath 均填写相对路径，不填写密钥。">
+                        <JsonObjectEditor stringOnly emptyText="未配置官方账户查询" />
                       </Form.Item>
                     </Col>
                   </Row>

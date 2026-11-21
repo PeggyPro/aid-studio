@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
-import { Alert, Button, Card, Col, Input, InputNumber, Row, Select, Space, Switch, Tag, Typography, message } from 'antd';
+import { Alert, Button, Card, Col, Collapse, Input, InputNumber, Row, Select, Space, Switch, Tag, Typography, message } from 'antd';
 import { DeleteOutlined, PlusOutlined } from '@ant-design/icons';
+import StructuredValueEditor from './StructuredValueEditor';
 
 type JsonObject = Record<string, unknown>;
 
@@ -20,9 +21,8 @@ function isObject(value: unknown): value is JsonObject {
 }
 
 function parseSchema(value?: string): { root?: JsonObject; error?: string } {
-  if (!value?.trim()) return { error: 'Schema 不能为空' };
   try {
-    const parsed = JSON.parse(value) as unknown;
+    const parsed = JSON.parse(value?.trim() || '{}') as unknown;
     if (!isObject(parsed)) return { error: 'Schema 根节点必须是对象' };
     if (parsed.properties != null && !isObject(parsed.properties)) {
       return { error: 'Schema properties 必须是对象' };
@@ -100,10 +100,26 @@ function ManagedValue({ label, fieldType, schema, propertyName, disabled, update
     {present && compatible && fieldType === 'boolean' && <Select disabled={disabled} value={current as boolean}
       style={{ width: '100%' }} options={[{ label: 'true', value: true }, { label: 'false', value: false }]}
       onChange={setValue} />}
-    {present && compatible && (fieldType === 'object' || fieldType === 'array') && <Typography.Text code>
-      {JSON.stringify(current)}（复杂值只读保留）
-    </Typography.Text>}
+    {present && compatible && (fieldType === 'object' || fieldType === 'array') && <StructuredValueEditor
+      objectOnly={fieldType === 'object'} arrayOnly={fieldType === 'array'} disabled={disabled}
+      value={JSON.stringify(current)} onChange={(next) => setValue(JSON.parse(next))} />}
   </Space>;
+}
+
+function AdditionalConstraints({ schema, protectedKeys, disabled, onChange }: {
+  schema: JsonObject; protectedKeys: readonly string[]; disabled?: boolean; onChange: (value: JsonObject) => void;
+}) {
+  const additional = Object.fromEntries(Object.entries(schema).filter(([key]) => !protectedKeys.includes(key)));
+  return <Collapse size="small" items={[{ key: 'additional', label: '枚举、范围及其他约束',
+    children: <StructuredValueEditor objectOnly value={JSON.stringify(additional)} disabled={disabled}
+      onChange={(value) => {
+        const updated = JSON.parse(value) as JsonObject;
+        const entries = Object.entries(updated).filter(([key]) => !protectedKeys.includes(key));
+        onChange(Object.fromEntries([
+          ...Object.entries(schema).filter(([key]) => protectedKeys.includes(key)), ...entries
+        ]));
+      }} />
+  }]} />;
 }
 
 /** JSON Schema 字段化编辑器，未受管属性按原对象无损回写。 */
@@ -218,13 +234,19 @@ export default function SchemaFieldEditor({ value, onChange, disabled }: SchemaF
           </Col>
           <Col span={12}><ManagedValue label="default" fieldType={fieldType} schema={rawField}
             propertyName={name} disabled={disabled || !supportedType} updateField={updateField} /></Col>
-          <Col span={12}><ManagedValue label="example" fieldType={fieldType} schema={rawField}
-            propertyName={name} disabled={disabled || !supportedType} updateField={updateField} /></Col>
+          {Object.prototype.hasOwnProperty.call(rawField, 'example') && <Col span={12}>
+            <ManagedValue label="example" fieldType={fieldType} schema={rawField}
+              propertyName={name} disabled updateField={updateField} />
+          </Col>}
+          <Col span={24}><AdditionalConstraints schema={rawField}
+            protectedKeys={['type', 'description', 'default', 'example']} disabled={disabled}
+            onChange={(value) => commit((draftRoot) => { schemaProperties(draftRoot)[name] = value; })} /></Col>
         </Row>
       </Card>;
     })}
-    {Object.keys(properties).length === 0 && <Alert type="info" showIcon message="当前 Schema 没有字段" />}
+    {Object.keys(properties).length === 0 && <Alert type="info" showIcon message="当前未声明自定义字段" />}
     {!disabled && <Button block type="dashed" icon={<PlusOutlined />} onClick={addField}>添加字段</Button>}
-    <Typography.Text type="secondary">根级约束与字段中的其他 JSON Schema 属性会原样保留。</Typography.Text>
+    <AdditionalConstraints schema={root} protectedKeys={['properties', 'required', 'examples', 'x-aid-input-mode']}
+      disabled={disabled} onChange={(value) => onChange?.(JSON.stringify(value))} />
   </Space>;
 }

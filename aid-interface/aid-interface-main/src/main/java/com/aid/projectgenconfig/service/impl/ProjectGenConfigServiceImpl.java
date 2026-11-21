@@ -28,6 +28,7 @@ import com.aid.aid.service.IAidComicProjectService;
 import com.aid.common.utils.DateUtils;
 import com.aid.common.utils.SecurityUtils;
 import com.aid.common.exception.ServiceException;
+import com.aid.aid.service.support.GenerationBindingGuard;
 import com.aid.domain.vo.AiModelConfigVo;
 import com.aid.media.util.ModelCapabilityResolver;
 import com.aid.model.service.IAiModelBusinessService;
@@ -86,6 +87,9 @@ public class ProjectGenConfigServiceImpl implements IProjectGenConfigService
     private AidProjectGenConfigMapper projectGenConfigMapper;
 
     @Autowired
+    private GenerationBindingGuard bindingGuard;
+
+    @Autowired
     private IAidComicProjectService projectService;
 
     @Autowired
@@ -126,6 +130,8 @@ public class ProjectGenConfigServiceImpl implements IProjectGenConfigService
         }
 
         String operator = currentOperator(userId);
+        bindingGuard.lock(toPersist.stream().map(AidProjectGenConfig::getModelCode).toList(),
+                toPersist.stream().map(AidProjectGenConfig::getAgentCode).toList());
         List<ProjectGenConfigVO> result = new ArrayList<>();
         for (AidProjectGenConfig entity : toPersist)
         {

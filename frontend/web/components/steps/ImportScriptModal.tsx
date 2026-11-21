@@ -55,6 +55,9 @@ export function ImportScriptModal({
   initialTab = null,
   initialMaterialCategory = null,
   beforeScriptImport,
+  currentScriptMaxChars,
+  currentProjectAssets,
+  onLocalFileSelect,
   onOpenChange,
   onImport,
   onImportMultiple
@@ -62,7 +65,7 @@ export function ImportScriptModal({
   const modalZIndex = useStackedModalZIndex(open, zIndex)
   const modalTitle =
     title ||
-    (acceptAssetType === 'image'
+    (acceptAssetType === 'mixed' ? '导入素材' : acceptAssetType === 'image'
       ? '导入图片'
       : acceptAssetType === 'video'
         ? '导入视频'
@@ -70,7 +73,7 @@ export function ImportScriptModal({
           ? '导入图片或视频'
         : '导入剧本')
   const sidebarTitle =
-    acceptAssetType === 'image'
+    acceptAssetType === 'mixed' ? '导入素材' : acceptAssetType === 'image'
       ? '导入图片'
       : acceptAssetType === 'video'
         ? '导入视频'
@@ -109,7 +112,7 @@ export function ImportScriptModal({
       ? Number(selectedCategory.episodeId)
       : importModalEpisodeId
 
-  const { currentProject, displayProjectId, currentEpisodeCategories } =
+  const originalProjectState =
     resolveImportModalProjectState({
       projects,
       selectedProjectId: currentProjectId,
@@ -119,6 +122,12 @@ export function ImportScriptModal({
       assetCenterTree,
       treeLoading: assetCenterTreeLoading
     })
+
+
+  const scopedCurrent = activeTab === 'current' ? currentProjectAssets : undefined
+  const currentProject = scopedCurrent ? { id: scopedCurrent.projectId, name: scopedCurrent.projectName } : originalProjectState.currentProject
+  const displayProjectId = scopedCurrent?.projectId || originalProjectState.displayProjectId
+  const currentEpisodeCategories = scopedCurrent ? [...new Map(scopedCurrent.assets.map(asset => [asset.categoryCode, asset.categoryName])).entries()].map(([code, name]) => ({ projectId: 0, projectName: scopedCurrent.projectName, categoryCode: String(code), categoryName: String(name), assetCount: scopedCurrent.assets.filter(asset => asset.categoryCode === code).length })) : originalProjectState.currentEpisodeCategories
 
   async function loadAssetCenterTree() {
     if (assetCenterTreeLoadingRef.current) return
@@ -135,7 +144,7 @@ export function ImportScriptModal({
   }
 
   async function loadProjectsForModal() {
-    const cid = useCreationStore.getState().currentProjectId
+    const cid = currentProjectAssets ? null : useCreationStore.getState().currentProjectId
     const workTitle = useCreationStore.getState().workTitle
     try {
       const { rows } = await userProjectList({ pageNum: 1, pageSize: 200 })
@@ -285,7 +294,7 @@ export function ImportScriptModal({
     } else if (newTab === 'history') {
       setExpandedNodes((m) => ({ ...m, 'my-works': true }))
     } else if (newTab === 'current') {
-      const pid = currentProjectId || String(useCreationStore.getState().currentProjectId ?? '')
+      const pid = currentProjectAssets?.projectId || currentProjectId || String(useCreationStore.getState().currentProjectId ?? '')
       if (pid) {
         setExpandedNodes((m) => ({ ...m, [`project-${pid}`]: true }))
         selectNode(`project-${pid}`, null, currentProject)
@@ -328,7 +337,7 @@ export function ImportScriptModal({
 
   // 原 onMounted：与 Store 当前作品对齐并默认选中
   useEffect(() => {
-    const cid = useCreationStore.getState().currentProjectId
+    const cid = currentProjectAssets?.projectId || useCreationStore.getState().currentProjectId
     if (cid) {
       const pid = String(cid)
       setCurrentProjectId(pid)
@@ -354,6 +363,13 @@ export function ImportScriptModal({
   }
 
   function selectCurrentCategory(cat: AssetCenterCategoryTreeVO) {
+    if (scopedCurrent) {
+      const code = cat.categoryCode || ''
+      setSelectedNode(`${scopedCurrent.projectId}-${code}`)
+      setSelectedCategory({ key: code, label: cat.categoryName || code })
+      setSelectedAsset(null); setSelectedAssets([]); setCurrentPath([])
+      return
+    }
     const pid = Number(displayProjectId)
     if (!Number.isFinite(pid) || pid <= 0) return
     const epId = importModalEpisodeId
@@ -519,10 +535,14 @@ export function ImportScriptModal({
 
   // 选择文件（逻辑拆分至 import-script/importScriptFileSelect.ts）
   function handleSelectFile() {
+    if (onLocalFileSelect) { onLocalFileSelect(); return }
+    if (acceptAssetType === 'mixed') { message.warning('本地混合素材上传入口尚未配置'); return }
     openImportScriptFilePicker({
       acceptAssetType,
       multiple,
-      getProjectId,
+      getProjectId: currentScriptMaxChars === undefined ? getProjectId
+        : () => String(useCreationStore.getState().currentProjectId ?? '') || null,
+      currentScriptMaxChars,
       getImportEpisodeId: () => {
         const e = useCreationStore.getState().currentEpisodeId
         if (e != null && e >= 0) return e
@@ -708,6 +728,10 @@ export function ImportScriptModal({
         )
         return
       }
+      if (acceptAssetType === 'mixed') {
+        if (!(await runImportCallback(onImport, selectedAsset))) return
+        onOpenChange(false); setSelectedAsset(null); message.success('素材已导入'); return
+      }
       if (isVideoAsset(selectedAsset)) {
         if (!(await runImportCallback(onImport, selectedAsset))) return
         onOpenChange(false)
@@ -865,6 +889,7 @@ export function ImportScriptModal({
                 selectedAssetIds={multiple ? selectedAssetIds : []}
                 acceptAssetType={acceptAssetType}
                 modalOpen={open}
+                sourceAssets={activeTab === 'current' ? currentProjectAssets?.assets : undefined}
                 onSelect={handleAssetSelect}
                 onNavigate={handleNavigate}
               />

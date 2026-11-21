@@ -131,6 +131,9 @@ services:
       REDIS_DATABASE: ${REDIS_DATABASE:-0}
       TOKEN_SECRET: ${TOKEN_SECRET:?请在 .env 中设置 TOKEN_SECRET}
       AID_PROFILE: /data/uploadPath
+      SERVER_FORWARD_HEADERS_STRATEGY: native
+      SERVER_TOMCAT_REMOTEIP_PORT_HEADER: X-Forwarded-Port
+      CANVAS_PUBLICATION_STORAGE_ROOT: /data/uploadPath-private/canvas-publication
       LOG_PATH: /home/aid/logs
       # 与手动部署使用完全相同的 AID 受管固定路径；后台自定义绝对路径时仍以后台配置为准。
       AID_FFMPEG_PATH: /opt/aid-ffmpeg/current/ffmpeg

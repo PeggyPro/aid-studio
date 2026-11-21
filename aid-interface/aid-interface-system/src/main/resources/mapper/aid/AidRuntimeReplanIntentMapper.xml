@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.aid.runtime.mapper.AidRuntimeReplanIntentMapper">
+
+    <sql id="replanIntentColumns">
+        id, run_id, session_id, command_id, actor_id, client_request_id,
+        command_payload_digest, intent_type, status, active_slot,
+        base_run_revision, base_plan_revision, base_context_digest, base_request_digest,
+        pending_payload_json, pending_payload_digest, state_revision, next_retry_at,
+        last_error_code, applied_at, del_flag, create_by, create_time, update_by,
+        update_time, remark
+    </sql>
+
+    <select id="selectActiveByRunIdForUpdate" resultType="com.aid.runtime.domain.AidRuntimeReplanIntent">
+        SELECT <include refid="replanIntentColumns"/>
+        FROM aid_runtime_replan_intent
+        WHERE run_id = #{runId}
+          AND active_slot = 1
+          AND del_flag = '0'
+        FOR UPDATE
+    </select>
+
+    <select id="selectByCommandIdForUpdate" resultType="com.aid.runtime.domain.AidRuntimeReplanIntent">
+        SELECT <include refid="replanIntentColumns"/>
+        FROM aid_runtime_replan_intent
+        WHERE command_id = #{commandId}
+          AND del_flag = '0'
+        FOR UPDATE
+    </select>
+
+</mapper>

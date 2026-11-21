@@ -1,6 +1,6 @@
 'use client'
 
-import { forwardRef, useCallback, useContext, useEffect, useImperativeHandle, useRef, useState } from 'react'
+import { forwardRef, useContext, useEffect, useImperativeHandle, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import {
   CommentOutlined,
@@ -17,6 +17,7 @@ import agentIconRaw from '~/assets/img/home/agent-icon.svg'
 import RichTextEditor, { type RichTextEditorHandle } from '~/components/common/RichTextEditor'
 import { getRouteLikeSnapshot } from '~/hooks/useRouteLike'
 import { useStoryScriptAutoSave } from '~/hooks/useStoryScriptAutoSave'
+import { useScriptLimits } from '~/hooks/useScriptLimits'
 import { useCreationStore } from '~/stores/creation'
 import type { ScriptDetailRow } from '~/types/business-api'
 import { assetUrl } from '~/utils/assetUrl'
@@ -26,10 +27,7 @@ import {
   htmlToPlainText,
   htmlPureTextCharCount,
   isHtmlContentEmpty,
-  resolveStoryScriptEditorHtmlAfterApiLoad,
-  storyScriptOriginalTextForApi,
-  STORY_SCRIPT_MAX_CHARS_MOVIE,
-  STORY_SCRIPT_MAX_CHARS_SERIES
+  resolveStoryScriptEditorHtmlAfterApiLoad
 } from '~/utils/htmlPlain'
 import {
   formatEditorSelectionLocation,
@@ -38,11 +36,6 @@ import {
   type EditorTextSelectionChange
 } from '~/utils/quill/editorTextSelection'
 import { resolveStoryScriptSaveContext } from '~/utils/storyScriptSaveContext'
-import {
-  flushStoryScriptAutoSave,
-  queueStoryScriptAutoSave,
-  type StoryScriptFlushResult
-} from '~/utils/storyScriptPersistence'
 import { saveStoryScriptAsNewVersion } from '~/utils/storyScriptVersionSave'
 import { formatStoryScriptAutosaveHint } from '~/utils/storyScriptAutosaveHint'
 import { createFlowShellContext } from '~/utils/createFlowInjection'
@@ -56,11 +49,14 @@ interface Props {
   description?: string
   onChange: (value: string) => void
   agentOpen?: boolean
+  agentPanelId?: string
+  agentTriggerId?: string
   onAgentToggle?: () => void
   onAgentReference?: (selection: EditorTextSelection) => void
 }
 
 export interface StoryScriptHandle {
+  focusEditor: () => boolean
   applyAgentSelectionEdit: (
     selection: EditorTextSelection,
     replacement: string
@@ -101,6 +97,8 @@ export const StoryScript = forwardRef<StoryScriptHandle, Props>(function StorySc
     description: _description = '撰写或导入剧本内容',
     onChange,
     agentOpen = false,
+    agentPanelId,
+    agentTriggerId,
     onAgentToggle,
     onAgentReference
   },
@@ -110,9 +108,9 @@ export const StoryScript = forwardRef<StoryScriptHandle, Props>(function StorySc
   const createFlowShell = useContext(createFlowShellContext)
   const editorRef = useRef<RichTextEditorHandle | null>(null)
 
-  /** 电影 1 万字 / 剧集 10 万字（纯文字，不含空格与标点） */
-  const scriptMaxLength =
-    currentProjectType === 'series' ? STORY_SCRIPT_MAX_CHARS_SERIES : STORY_SCRIPT_MAX_CHARS_MOVIE
+  const scriptLimits = useScriptLimits()
+  const scriptMaxLength = currentProjectType === 'series'
+    ? scriptLimits?.episodeMaxChars : scriptLimits?.movieMaxChars
 
   const [localContent, setLocalContent] = useState(value)
   const [lastExternalValue, setLastExternalValue] = useState(value)
@@ -123,6 +121,11 @@ export const StoryScript = forwardRef<StoryScriptHandle, Props>(function StorySc
   useImperativeHandle(
     forwardedRef,
     () => ({
+      focusEditor: () => {
+        if (!editorRef.current) return false
+        editorRef.current.focus()
+        return true
+      },
       applyAgentSelectionEdit: (selection, replacement) =>
         editorRef.current?.replaceTextSelection(selection, replacement) ?? 'unavailable',
       applyAgentSelectionEdits: (replacements) =>
@@ -173,16 +176,8 @@ export const StoryScript = forwardRef<StoryScriptHandle, Props>(function StorySc
     saveToHistory(html)
   }
 
-  const { saveState } = useStoryScriptAutoSave(localContent, applyEditorContent)
-  const flushLatestEditorContent = useCallback(async (): Promise<StoryScriptFlushResult> => {
-    const ctx = await resolveStoryScriptSaveContext(
-      useCreationStore.getState(),
-      getRouteLikeSnapshot()
-    )
-    if (!ctx) return 'error'
-    queueStoryScriptAutoSave(ctx, storyScriptOriginalTextForApi(localContent))
-    return flushStoryScriptAutoSave(ctx)
-  }, [localContent])
+  const { queueEdit, flushAutoSave: flushLatestEditorContent, saveState } =
+    useStoryScriptAutoSave(applyEditorContent)
 
   useEffect(() => {
     if (!createFlowShell?.registerStoryScriptFlush) return
@@ -191,11 +186,8 @@ export const StoryScript = forwardRef<StoryScriptHandle, Props>(function StorySc
   }, [createFlowShell, flushLatestEditorContent])
 
   const handleContentChange = (html: string) => {
-    setLocalContent(html)
-    onChange(html)
-    if (history.stack.length === 0 || history.stack[history.index] !== html) {
-      saveToHistory(html)
-    }
+    applyEditorContent(html)
+    queueEdit(html)
   }
 
   const handleUndo = () => {
@@ -205,6 +197,7 @@ export const StoryScript = forwardRef<StoryScriptHandle, Props>(function StorySc
     setHistory({ stack: history.stack, index: newIndex })
     setLocalContent(content)
     onChange(content)
+    queueEdit(content)
   }
 
   const handleRedo = () => {
@@ -214,6 +207,7 @@ export const StoryScript = forwardRef<StoryScriptHandle, Props>(function StorySc
     setHistory({ stack: history.stack, index: newIndex })
     setLocalContent(content)
     onChange(content)
+    queueEdit(content)
   }
 
   const handleCopy = async () => {
@@ -237,6 +231,7 @@ export const StoryScript = forwardRef<StoryScriptHandle, Props>(function StorySc
       onOk: () => {
         setLocalContent('')
         onChange('')
+        queueEdit('')
         setHistory({ stack: [''], index: 0 })
         message.success('已清空')
       }
@@ -244,19 +239,23 @@ export const StoryScript = forwardRef<StoryScriptHandle, Props>(function StorySc
   }
 
   function beforeScriptImport(): Promise<boolean> {
+    if (scriptMaxLength === undefined) {
+      message.warning('剧本字数配置暂未获取，请刷新后再导入')
+      return Promise.resolve(false)
+    }
     if (isHtmlContentEmpty(localContent)) return Promise.resolve(true)
     return confirmAction('覆盖确认', '确定要覆盖当前剧本内容吗？', '确定')
   }
 
   const handleImport = (content: string) => {
     const pureLen = htmlPureTextCharCount(content)
-    if (pureLen > scriptMaxLength) {
+    if (scriptMaxLength !== undefined && pureLen > scriptMaxLength) {
       message.warning(
         `导入内容已超过字数上限（${scriptMaxLength.toLocaleString('zh-CN')}字），请删减后再导入`
       )
       return
     }
-    applyEditorContent(content)
+    handleContentChange(content)
     message.success('导入成功')
     setShowImportModal(false)
   }
@@ -391,7 +390,7 @@ export const StoryScript = forwardRef<StoryScriptHandle, Props>(function StorySc
         ? ' is-conflict'
         : ''
   const scriptCharCount = htmlPureTextCharCount(localContent)
-  const scriptCharCountAtLimit = scriptCharCount >= scriptMaxLength
+  const scriptCharCountAtLimit = scriptMaxLength !== undefined && scriptCharCount >= scriptMaxLength
 
   return (
     <div className="story-script create-step-story-script">
@@ -418,10 +417,12 @@ export const StoryScript = forwardRef<StoryScriptHandle, Props>(function StorySc
           {onAgentToggle ? (
             <div className={`agent-btn-slot${agentOpen ? ' is-collapsed' : ''}`}>
               <Button
+                id={agentTriggerId}
                 onClick={onAgentToggle}
                 className="agent-btn"
                 aria-label="打开 AI写剧本"
                 aria-expanded={agentOpen}
+                aria-controls={agentPanelId}
                 aria-hidden={agentOpen}
                 tabIndex={agentOpen ? -1 : 0}
                 icon={<img src={agentIconUrl} alt="" className="agent-btn__icon" />}
@@ -484,8 +485,8 @@ export const StoryScript = forwardRef<StoryScriptHandle, Props>(function StorySc
           className="script-editor"
           placeholder={`请输入本集剧本内容，或点击右上角「导入剧本(单集)」
 
-提示:若为全集/多集内容,请按集拆分后分别创建作品导入`}
-          minHeight="500px"
+整部剧本请在「剧集管理」中导入并自动分集。`}
+          minHeight="0px"
           maxLength={scriptMaxLength}
           countPureTextOnly
           showCount={false}
@@ -500,7 +501,7 @@ export const StoryScript = forwardRef<StoryScriptHandle, Props>(function StorySc
           <span
             className={`story-script-char-count${scriptCharCountAtLimit ? ' is-limit' : ''}`}
           >
-            {scriptCharCount}/{scriptMaxLength}
+            {scriptCharCount}{scriptMaxLength !== undefined ? `/${scriptMaxLength}` : ''}
           </span>
         </div>
       </div>
@@ -599,6 +600,7 @@ export const StoryScript = forwardRef<StoryScriptHandle, Props>(function StorySc
         acceptAssetType="script"
         onOpenChange={setShowImportModal}
         beforeScriptImport={beforeScriptImport}
+        currentScriptMaxChars={scriptMaxLength}
         onImport={handleImport}
       />
     </div>

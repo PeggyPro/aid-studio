@@ -13,6 +13,7 @@ import deleteWhiteIconRaw from '~/assets/img/home/delete-white.svg'
 import { assetUrl } from '~/utils/assetUrl'
 import { PreviewableImageThumb } from '~/components/common/PreviewableImageThumb'
 import { userProjectUpdate } from '~/utils/businessApi'
+import { canvasProjectDetail, canvasProjectUpdate } from '~/utils/business/canvas'
 import { isProjectPublicLockError, projectPublicLockUserHint } from '~/utils/projectAudit'
 import { uploadImageToOssWithToast } from '~/utils/ossUpload'
 import {
@@ -29,17 +30,23 @@ const MODAL_WIDTH = 680
 export interface PublishCasePlazaModalProps {
   open: boolean
   projectId: number | null
+  /**
+   * 自由画布项目。传入后走画布更新接口，不要求成片，并展示「公开画布」。
+   * 画布项目不能写入流程项目的发布接口。
+   */
+  canvasProjectId?: string | null
   /** 打开时优先回显，避免多余 detail 请求 */
   initialCoverUrl?: string | null
   initialProjectDesc?: string | null
   okText?: string
   onOpenChange: (value: boolean) => void
-  onSuccess?: (payload: { projectId: number; coverUrl: string; projectDesc: string }) => void
+  onSuccess?: (payload: { projectId: number; coverUrl: string; projectDesc: string; publicCanvas?: boolean }) => void
 }
 
 export function PublishCasePlazaModal({
   open,
   projectId,
+  canvasProjectId = '',
   initialCoverUrl = '',
   initialProjectDesc = '',
   okText = '确认发布',
@@ -52,6 +59,7 @@ export function PublishCasePlazaModal({
   const [projectDesc, setProjectDesc] = useState('')
   const [allowPreview, setAllowPreview] = useState(false)
   const [allowCopy, setAllowCopy] = useState(false)
+  const [publicCanvas, setPublicCanvas] = useState(false)
   const [isMovieProject, setIsMovieProject] = useState(false)
   const [hydrating, setHydrating] = useState(false)
   const [uploading, setUploading] = useState(false)
@@ -73,6 +81,7 @@ export function PublishCasePlazaModal({
     setProjectDesc('')
     setAllowPreview(false)
     setAllowCopy(false)
+    setPublicCanvas(false)
     setIsMovieProject(false)
     setHydrating(false)
     setUploading(false)
@@ -83,8 +92,9 @@ export function PublishCasePlazaModal({
   async function hydrateForm() {
     const hydrateSeq = hydrateSeqRef.current + 1
     hydrateSeqRef.current = hydrateSeq
+    const canvasId = String(canvasProjectId || '').trim()
     const pid = Number(projectId)
-    if (!Number.isFinite(pid) || pid <= 0) {
+    if (!canvasId && (!Number.isFinite(pid) || pid <= 0)) {
       message.error('缺少项目信息')
       onOpenChange(false)
       return
@@ -95,6 +105,7 @@ export function PublishCasePlazaModal({
     setProjectDesc('')
     setAllowPreview(false)
     setAllowCopy(false)
+    setPublicCanvas(false)
     setIsMovieProject(false)
 
     const initialCover = String(initialCoverUrl || '').trim()
@@ -110,6 +121,16 @@ export function PublishCasePlazaModal({
 
     setHydrating(true)
     try {
+      if (canvasId) {
+        const detail = await canvasProjectDetail(canvasId)
+        if (hydrateSeq !== hydrateSeqRef.current) return
+        const detailCover = String(detail.coverUrl || '').trim()
+        const detailDesc = String(detail.projectDesc || '').trim().slice(0, DESC_MAX)
+        if (detailCover) setCoverUrl(detailCover)
+        setProjectDesc(detailDesc)
+        setPublicCanvas(String(detail.isPublic || '') === '1')
+        return
+      }
       const detail = await fetchUserProjectDetailOnce(pid)
       if (hydrateSeq !== hydrateSeqRef.current) return
       const detailCover = String(detail.coverUrl || '').trim()
@@ -145,7 +166,7 @@ export function PublishCasePlazaModal({
     }
     void hydrateForm()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, projectId])
+  }, [open, projectId, canvasProjectId])
 
   function triggerPickCover() {
     if (busyRef.current) return
@@ -188,8 +209,9 @@ export function PublishCasePlazaModal({
     e?.preventDefault?.()
     if (busyRef.current) return
 
+    const canvasId = String(canvasProjectId || '').trim()
     const pid = Number(projectId)
-    if (!Number.isFinite(pid) || pid <= 0) {
+    if (!canvasId && (!Number.isFinite(pid) || pid <= 0)) {
       message.error('缺少项目信息')
       return
     }
@@ -212,6 +234,18 @@ export function PublishCasePlazaModal({
     busyRef.current = true
     setSubmitting(true)
     try {
+      if (canvasId) {
+        await canvasProjectUpdate({
+          projectId: canvasId,
+          coverUrl: nextCover,
+          projectDesc: nextDesc,
+          publicCanvas
+        })
+        onOpenChange(false)
+        message.success(publicCanvas ? '画布已公开' : '发布信息已保存，画布未公开')
+        onSuccess?.({ projectId: Number(canvasId) || 0, coverUrl: nextCover, projectDesc: nextDesc, publicCanvas })
+        return
+      }
       await userProjectUpdate({
         id: pid,
         coverUrl: nextCover,
@@ -343,35 +377,52 @@ export function PublishCasePlazaModal({
           </div>
 
           <div className="publish-case-plaza__permission-panel">
-            <div className="publish-case-plaza__permission-row">
-              <div>
-                <div className="publish-case-plaza__permission-title">允许预览项目流程</div>
-                <div className="publish-case-plaza__permission-desc">访客可读取审核通过的流程快照；之后编辑草稿不会改变该版本。</div>
-              </div>
-              <Switch
-                checked={allowPreview}
-                disabled={busy}
-                onChange={(checked) => {
-                  setAllowPreview(checked)
-                  if (!checked) setAllowCopy(false)
-                }}
-              />
-            </div>
-            <div className="publish-case-plaza__permission-row">
-              <div>
-                <div className="publish-case-plaza__permission-title">允许复制电影工程</div>
-                <div className="publish-case-plaza__permission-desc">
-                  {isMovieProject
-                    ? '只复制到预览时间线，不包含最终成片；复制者需自行合成导出。'
-                    : '剧集项目不支持复制。'}
+            {canvasProjectId ? (
+              <div className="publish-case-plaza__permission-row">
+                <div>
+                  <div className="publish-case-plaza__permission-title">公开画布</div>
+                  <div className="publish-case-plaza__permission-desc">打开后，其他创作者可以查看这个画布。</div>
                 </div>
+                <Switch
+                  checked={publicCanvas}
+                  disabled={busy}
+                  aria-label="公开画布"
+                  onChange={setPublicCanvas}
+                />
               </div>
-              <Switch
-                checked={allowCopy}
-                disabled={busy || !allowPreview || !isMovieProject}
-                onChange={setAllowCopy}
-              />
-            </div>
+            ) : (
+              <>
+                <div className="publish-case-plaza__permission-row">
+                  <div>
+                    <div className="publish-case-plaza__permission-title">允许预览项目流程</div>
+                    <div className="publish-case-plaza__permission-desc">访客可读取审核通过的流程快照；之后编辑草稿不会改变该版本。</div>
+                  </div>
+                  <Switch
+                    checked={allowPreview}
+                    disabled={busy}
+                    onChange={(checked) => {
+                      setAllowPreview(checked)
+                      if (!checked) setAllowCopy(false)
+                    }}
+                  />
+                </div>
+                <div className="publish-case-plaza__permission-row">
+                  <div>
+                    <div className="publish-case-plaza__permission-title">允许复制电影工程</div>
+                    <div className="publish-case-plaza__permission-desc">
+                      {isMovieProject
+                        ? '只复制到预览时间线，不包含最终成片；复制者需自行合成导出。'
+                        : '剧集项目不支持复制。'}
+                    </div>
+                  </div>
+                  <Switch
+                    checked={allowCopy}
+                    disabled={busy || !allowPreview || !isMovieProject}
+                    onChange={setAllowCopy}
+                  />
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

@@ -1,0 +1,140 @@
+/* A single cashier palette, mapped to the current Web or canvas theme. */
+.recharge-modal {
+  --recharge-surface: var(--ui-surface, #191a1d);
+  --recharge-control: var(--ui-raised, #23252a);
+  --recharge-text: var(--ui-text, #f1f2f4);
+  --recharge-muted: var(--ui-muted, #a8abb3);
+  --recharge-line: var(--ui-hair, #35373e);
+  --recharge-accent: var(--ui-brand, #4ae7fd);
+  --recharge-action: var(--ui-primary, #f1f2f4);
+  --recharge-action-ink: var(--ui-on-primary, #111215);
+  --recharge-shadow: var(--ui-shadow, 0 22px 64px #0008);
+  --recharge-radius: 20px;
+  --recharge-inset: clamp(16px, 3vw, 26px);
+  --recharge-viewport: var(--vps-comp-dvh, var(--viewport-compensated-dvh, 100dvh));
+}
+
+html:is([data-aid-ui='v10'], [data-aid-ui='home']) .recharge-modal {
+  --recharge-surface: var(--v10-s1);
+  --recharge-control: var(--v10-s2);
+  --recharge-text: var(--v10-text);
+  --recharge-muted: var(--v10-muted);
+  --recharge-line: var(--v10-hair);
+  --recharge-accent: var(--v10-brand);
+  --recharge-action: var(--v10-primary);
+  --recharge-action-ink: var(--v10-on-primary);
+  --recharge-shadow: var(--v10-shadow);
+  --recharge-radius: 16px;
+}
+
+html[data-studio-free-theme] .recharge-modal {
+  --recharge-surface: var(--studio-ui-modal);
+  --recharge-control: var(--studio-ui-control);
+  --recharge-text: var(--studio-ui-text);
+  --recharge-muted: var(--studio-ui-muted);
+  --recharge-line: var(--studio-ui-border);
+  --recharge-accent: var(--studio-ui-accent);
+  --recharge-action: var(--studio-ui-primary);
+  --recharge-action-ink: var(--studio-ui-primary-ink);
+  --recharge-shadow: var(--studio-ui-shadow);
+}
+
+.ant-modal.recharge-modal {
+  max-width: calc(100% - 24px);
+  padding-bottom: 0;
+}
+
+.recharge-modal .recharge-dialog__panel {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(var(--recharge-viewport) - 32px);
+  overflow: hidden;
+  padding: 0;
+  border: 1px solid var(--recharge-line);
+  border-radius: var(--recharge-radius);
+  background: var(--recharge-surface);
+  box-shadow: var(--recharge-shadow);
+  color: var(--recharge-text);
+}
+
+.recharge-modal .recharge-dialog__header {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 20px var(--recharge-inset) 16px;
+  padding-inline-end: 68px;
+  background: var(--recharge-surface);
+}
+
+.recharge-dialog__heading {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  color: var(--recharge-text);
+  font-size: clamp(20px, 3vw, 24px);
+  font-weight: 650;
+  line-height: 1.3;
+}
+
+.recharge-dialog__emblem,
+.recharge-package__point-icon {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  color: var(--recharge-accent);
+  background: color-mix(in srgb, var(--recharge-accent) 12%, var(--recharge-control));
+}
+
+.recharge-dialog__emblem {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  font-size: 19px;
+}
+
+.recharge-modal .recharge-dialog__close {
+  inset-block-start: 20px;
+  inset-inline-end: var(--recharge-inset);
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  color: var(--recharge-muted);
+}
+
+.recharge-modal .recharge-dialog__close:hover {
+  color: var(--recharge-text);
+  background: var(--recharge-control);
+}
+
+.recharge-modal .recharge-dialog__body {
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 0 var(--recharge-inset);
+}
+
+.ant-modal.recharge-modal :is(button, a):focus-visible {
+  outline: 2px solid var(--recharge-accent);
+  outline-offset: 2px;
+}
+
+.recharge-amount {
+  min-width: 0;
+  color: var(--recharge-text);
+  font-size: clamp(32px, 4.4vw, 44px);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums lining-nums;
+  line-height: 1.08;
+  letter-spacing: -.045em;
+  overflow-wrap: anywhere;
+}
+
+.recharge-amount__currency {
+  margin-inline-end: .18em;
+  font-size: .48em;
+  letter-spacing: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .recharge-modal :is(.recharge-package, button) { transition: none; }
+  .recharge-modal .recharge-modal__scan-line { animation: none; opacity: 0; }
+}

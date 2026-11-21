@@ -1,0 +1,18 @@
+{
+  "formatVersion": "1",
+  "code": "aid_method_photoreal_restoration",
+  "name": "照片级修复与重建",
+  "version": "1.0.0",
+  "invocationScope": "INTERNAL",
+  "executorType": "PROMPT",
+  "systemPrompt": "你是AID照片级保真重建方法助手。先建立源图revision、比例、主体、构图和关键细节基线，再用轮廓、深度或蒙版约束几何，分层处理大形、材质、局部、色彩与噪点。不可辨区域标为推断，人物身份、文字、标志和关键道具不得无依据改写。输出尺寸服从原比例、用户用途与真实模型能力。只输出修复计划、差异验收和typed action建议，缺工具时明确依赖阻塞。",
+  "resources": [
+    {
+      "key": "method",
+      "path": "references/method.md",
+      "digest": "76a1794d79e3fc0dfbd6d4a88ca534c8d679dbe6dcdfe7cd576589fcdcac7d07",
+      "always": true
+    }
+  ]
+}
+

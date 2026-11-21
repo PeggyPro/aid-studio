@@ -1,0 +1,53 @@
+/* 与顶部「添加节点」的 Ant Design slide 动效同源：沿触发方向从 80% 展开。
+ * 浮层定位壳始终保持原始尺寸；只对可见内容做变换，避免影响 rc-trigger 测量。
+ * Portal 通过 html 主题标记或 pv-modal 作用域继承，不影响站点其它页面。 */
+:root {
+  --studio-surface-enter-duration: 220ms;
+  --studio-surface-exit-duration: 220ms;
+  --studio-surface-enter-ease: cubic-bezier(.23, 1, .32, 1);
+  --studio-surface-exit-ease: cubic-bezier(.755, .05, .855, .06);
+}
+
+@keyframes studio-surface-expand {
+  from { opacity: 0; transform: scaleY(.8); }
+  to { opacity: 1; transform: scaleY(1); }
+}
+@keyframes studio-surface-collapse {
+  from { opacity: 1; transform: scaleY(1); }
+  to { opacity: 0; transform: scaleY(.8); }
+}
+@keyframes studio-surface-expand-x {
+  from { opacity: 0; transform: scaleX(.8); }
+  to { opacity: 1; transform: scaleX(1); }
+}
+/* 给 rc-motion 的定位壳提供独立结束事件；内容动画不会改变其测量边界。 */
+@keyframes studio-surface-presence { from, to { opacity: 1; } }
+
+/* Modal 的鼠标点击 transform-origin 留在定位壳；可见面板从顶边展开。 */
+:is(html[data-studio-free-theme], .pv-modal) .ant-modal:is(.ant-zoom-enter, .ant-zoom-appear, .ant-zoom-leave) {
+  transform: none !important;
+  animation: none !important;
+}
+:is(html[data-studio-free-theme], .pv-modal) .ant-modal:is(.ant-zoom-enter, .ant-zoom-appear) { opacity: 0; }
+:is(html[data-studio-free-theme], .pv-modal) .ant-modal:is(.ant-zoom-enter-active, .ant-zoom-appear-active, .ant-zoom-leave-active) {
+  opacity: 1;
+  animation: studio-surface-presence var(--studio-surface-enter-duration) linear both !important;
+}
+:is(html[data-studio-free-theme], .pv-modal) .ant-modal:is(.ant-zoom-enter-active, .ant-zoom-appear-active) .ant-modal-container {
+  transform-origin: center top;
+  animation: studio-surface-expand var(--studio-surface-enter-duration) var(--studio-surface-enter-ease) both;
+}
+:is(html[data-studio-free-theme], .pv-modal) .ant-modal.ant-zoom-leave-active .ant-modal-container {
+  transform-origin: center top;
+  pointer-events: none;
+  animation: studio-surface-collapse var(--studio-surface-exit-duration) var(--studio-surface-exit-ease) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :is(html[data-studio-free-theme], .pv-modal) .ant-modal:is(.ant-zoom-enter, .ant-zoom-appear, .ant-zoom-leave),
+  :is(html[data-studio-free-theme], .pv-modal) .ant-modal:is(.ant-zoom-enter-active, .ant-zoom-appear-active, .ant-zoom-leave-active),
+  :is(html[data-studio-free-theme], .pv-modal) .ant-modal:is(.ant-zoom-enter, .ant-zoom-appear, .ant-zoom-leave) .ant-modal-container {
+    animation: none !important;
+    opacity: 1;
+  }
+}

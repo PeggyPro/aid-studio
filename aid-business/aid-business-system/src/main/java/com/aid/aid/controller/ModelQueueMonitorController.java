@@ -3,11 +3,13 @@ package com.aid.aid.controller;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.aid.aid.monitor.ModelQueueMonitorService;
 import com.aid.common.core.controller.BaseController;
 import com.aid.common.core.domain.AjaxResult;
+import com.aid.media.service.MediaProviderRouteHealth;
 
 import lombok.RequiredArgsConstructor;
 
@@ -25,6 +27,7 @@ import lombok.RequiredArgsConstructor;
 public class ModelQueueMonitorController extends BaseController
 {
     private final ModelQueueMonitorService modelQueueMonitorService;
+    private final MediaProviderRouteHealth routeHealth;
 
     /**
      * 获取模型排队 / 并发实时监控快照。
@@ -35,5 +38,13 @@ public class ModelQueueMonitorController extends BaseController
     public AjaxResult snapshot()
     {
         return success(modelQueueMonitorService.getSnapshot());
+    }
+
+    @PreAuthorize("@ss.hasPermi('aid:modelmonitor:list')")
+    @GetMapping("/route-health")
+    public AjaxResult routeHealth(@RequestParam String modelCode)
+    {
+        if (modelCode.isBlank() || modelCode.length() > 160) return error("模型编码无效");
+        return success(routeHealth.monitor(modelCode));
     }
 }

@@ -1,5 +1,8 @@
 'use client'
 
+import { HomeSegmented } from '~/components/home/theme/HomeSegmented'
+import { FlowActionIcon } from '~/components/common/FlowActionIcon'
+
 /**
  * 分镜脚本/分镜图步骤主面板（原 aid-pc/components/steps/StoryboardScript.vue，3157 行拆分迁移）。
  *
@@ -40,6 +43,7 @@ import { GENERATING_CENTER_ICON_URL as generatingCenterIcon } from '~/utils/gene
 import { useCreationStore } from '~/stores/creation'
 import { buildTaskResumeBillingRequest } from '~/utils/taskPartialFailed'
 import { createFlowShellContext } from '~/utils/createFlowInjection'
+import { useOnboardingPrepareFlags } from '~/utils/onboardingPrepareAnchor'
 import { getRouteLikeSnapshot } from '~/composables/useRouteLike'
 import {
   resolveStoryboardDesignProgressCounts,
@@ -140,6 +144,7 @@ export function StoryboardScript({
   const creationMode = useCreationStore((s) => s.formData.globalSetting?.creationMode)
   const storyboardAgent = useCreationStore((s) => s.storyboardAgent)
   const storyboardGenerateSettings = useCreationStore((s) => s.storyboardGenerateSettings)
+  const sbsOnboardingShowToolbar = useOnboardingPrepareFlags((s) => s.sbsOnboardingShowToolbar)
 
   /** 专业版 / 多参数：分镜步骤仅脚本，无分镜图 / 批量图操作 */
   const isProMode = skipsStoryboardImageGeneration(creationMode)
@@ -253,7 +258,8 @@ export function StoryboardScript({
     !showStoryboardScriptGeneratingView &&
     !isGeneratingImageBatch &&
     !showStoryboardBootstrapMask &&
-    persistedPanels.length === 0
+    persistedPanels.length === 0 &&
+    !generationError
 
   const isPartialStoryboardError = (() => {
     const msg = String(generationError || '')
@@ -261,8 +267,7 @@ export function StoryboardScript({
     if (msg.includes('部分') || msg.includes('续生')) return true
     return !!storyboardScriptPartialFailedData?.failedItems?.length
   })()
-  const showStoryboardPartialBanner =
-    isPartialStoryboardError && !!generationError && persistedPanels.length > 0
+  const showStoryboardErrorBanner = !!generationError
 
   const storyboardScriptProgressMessage = formatTaskSseLiveText(
     progress,
@@ -321,11 +326,13 @@ export function StoryboardScript({
       key: 'auto-script',
       label: scriptAutoGenerateLabel,
       icon: ThunderboltOutlined,
+      onboardingAnchor: 'btn-auto-storyboard'
     },
     {
       key: 'batch-image',
       label: '批量生成分镜图',
       icon: PictureOutlined,
+      onboardingAnchor: 'sbs-batch-image',
       disabled: panels.length === 0 || isGeneratingImageBatch || isGenerating,
       disabledTooltip: panels.length === 0 ? '暂无分镜，请先添加或自动生成分镜' : undefined
     },
@@ -361,6 +368,7 @@ export function StoryboardScript({
   }, [generationError, storyboardScriptPartialFailedData, sceneCharacterScenes])
 
   const canResumePartialFailed =
+    isPartialStoryboardError &&
     !!generationError &&
     Number.isFinite(Number(storyboardScriptActiveTaskId)) &&
     Number(storyboardScriptActiveTaskId) > 0
@@ -556,7 +564,7 @@ export function StoryboardScript({
     onPreviewStoryboardImage: ops.handlePreviewStoryboardImage,
     onDownloadStoryboardImage: ops.handleDownloadStoryboardImage,
     onDeleteStoryboardImage: ops.handleDeleteStoryboardImage,
-    showStoryboardPartialBanner,
+    showStoryboardErrorBanner,
     generationError,
     canResumePartialFailed,
     isResumingPartialFailed: gen.isResumingPartialFailed,
@@ -569,39 +577,14 @@ export function StoryboardScript({
     <div
       ref={stepRootRef}
       className="storyboard-script create-step-storyboard-script storyboard-step"
+      data-onboarding="storyboard-panel-list"
     >
       <div className="storyboard-toolbar">
         <div className="storyboard-toolbar-left">
-          <div className="storyboard-view-toggle">
-            <Button
-              size="small"
-              type={viewMode === 'list' ? 'primary' : 'default'}
-              onClick={() => setViewMode('list')}
-              icon={
-                <img
-                  src={viewMode === 'list' ? listSelIcon : listNorIcon}
-                  alt=""
-                  className="storyboard-view-icon"
-                />
-              }
-            >
-              列表
-            </Button>
-            <Button
-              size="small"
-              type={viewMode === 'card' ? 'primary' : 'default'}
-              onClick={() => setViewMode('card')}
-              icon={
-                <img
-                  src={viewMode === 'card' ? cardSelIcon : cardNorIcon}
-                  alt=""
-                  className="storyboard-view-icon"
-                />
-              }
-            >
-              卡片
-            </Button>
-          </div>
+          <HomeSegmented value={viewMode} onChange={setViewMode} ariaLabel="展示方式" className="flow-segmented flow-segmented--dim storyboard-view-toggle" options={[
+  {value:'list',label:<><FlowActionIcon src={viewMode === 'list' ? listSelIcon : listNorIcon} /><span>列表</span></>},
+  {value:'card',label:<><FlowActionIcon src={viewMode === 'card' ? cardSelIcon : cardNorIcon} /><span>卡片</span></>}
+]} />
           <div className="storyboard-progress">
             <span>分镜完成进度：{progressText}</span>
             {isGenerating || isGeneratingImageBatch ? (
@@ -619,17 +602,18 @@ export function StoryboardScript({
             添加分镜
           </Button>
           {/* 专业版 / 多参数：隐藏批量操作，仅保留「自动生成分镜」入口 */}
-          {isProMode && !isGenerating && !isGeneratingImageBatch ? (
+          {isProMode && ((!isGenerating && !isGeneratingImageBatch) || sbsOnboardingShowToolbar) ? (
             <Button
               size="small"
               className="storyboard-action-btn"
+              data-onboarding="btn-auto-storyboard"
               onClick={openAutoGenerateModal}
               icon={<ThunderboltOutlined />}
             >
               {scriptAutoGenerateLabel}
             </Button>
           ) : !isProMode &&
-            !isGenerating && !isGeneratingImageBatch ? (
+            ((!isGenerating && !isGeneratingImageBatch) || sbsOnboardingShowToolbar) ? (
             <StoryboardToolbarOpsDropdown
               open={toolbarOpsOpen}
               onOpenChange={setToolbarOpsOpen}
@@ -675,14 +659,14 @@ export function StoryboardScript({
             aria-live="polite"
             aria-busy="true"
           >
-            <LoadingOutlined spin className="storyboard-list-bootstrap-mask__icon" />
+            <LoadingOutlined spin className="storyboard-list-bootstrap-mask__icon flow-generation-spinner" />
             <p className="storyboard-list-bootstrap-mask__text">正在同步分镜列表…</p>
           </div>
         ) : null}
         {/* 生成中：骨架屏 + 执行任务中 */}
         {showStoryboardScriptGeneratingView ? (
           <div className="storyboard-generating-view">
-            <div className="storyboard-generating-center">
+            <div className="storyboard-generating-center" role="status">
               <img src={generatingCenterIcon} alt="" className="storyboard-generating-center-icon" />
               <div className="storyboard-generating-center-title">
                 {storyboardScriptProgressMessage || '正在按场次生成分镜脚本…'}

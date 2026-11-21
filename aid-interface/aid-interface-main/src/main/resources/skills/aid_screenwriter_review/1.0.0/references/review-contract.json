@@ -1,0 +1,17 @@
+{
+  "schema": "aid.screenwriter-review.v1",
+  "readOnly": true,
+  "required": ["artifactRevision", "scope", "conclusion", "issues", "coverage"],
+  "conclusions": ["APPROVE", "APPROVE_WITH_NOTES", "REVISE", "PROVISIONAL"],
+  "issue": {
+    "required": ["location", "evidence", "impact", "revisionGoal", "severity", "kind"],
+    "severity": ["BLOCKER", "MAJOR", "MINOR", "NOTE"],
+    "kind": ["STRUCTURAL", "OBJECTIVE", "CRAFT", "AESTHETIC"]
+  },
+  "coverage": {
+    "required": ["reviewedRanges", "missingRanges", "sourceRevision", "complete"]
+  },
+  "repairSuggestionAllowedWhen": "kind in [STRUCTURAL, OBJECTIVE] and severity in [BLOCKER, MAJOR] and no user choice is required",
+  "runtimeOwned": ["reviewAttempt", "repairExecution", "artifactAcceptance", "nextEpisodeGate"]
+}
+

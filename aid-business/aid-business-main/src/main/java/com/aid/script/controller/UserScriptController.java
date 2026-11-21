@@ -134,7 +134,7 @@ public class UserScriptController extends BaseController
      * 剧本分集确认入库。
      * 用户确认预览无误后调用：按与预览完全相同的解析规则切分（须传相同文本与分集词），
      * 逐集自动创建剧集（标题/描述来自解析结果，集号在项目已有集数上顺延）并写入该集剧本
-     * （版本1、使用中）。重复调用会继续顺延追加新集，误导入的集可用剧集删除接口清理。
+     * （版本1、使用中）。相同内容与分集规则重复提交时，返回原有入库结果。
      *
      * @param request 确认入参（与预览同构）
      * @return 入库结果（每集的 episodeId/episodeNo/title/scriptId）

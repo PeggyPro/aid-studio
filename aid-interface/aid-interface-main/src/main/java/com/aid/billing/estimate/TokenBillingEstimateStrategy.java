@@ -38,7 +38,8 @@ public class TokenBillingEstimateStrategy implements BillingEstimateStrategy {
 
         // 图片模型走 TOKEN 计费：按模型族子分发估算
         if ("IMAGE".equalsIgnoreCase(mediaType)) {
-            enrichForImageToken(params, modelCode);
+            enrichForImageToken(params, modelConfig != null && CharSequenceUtil.isNotBlank(modelConfig.getRealModelCode())
+                    ? modelConfig.getRealModelCode() : modelCode);
             return;
         }
         if ("VIDEO".equalsIgnoreCase(mediaType)) {
@@ -199,7 +200,18 @@ public class TokenBillingEstimateStrategy implements BillingEstimateStrategy {
         String orientation = resolveOrientation(params);
         int expectedImageCount = Math.max(1, safeGetInt(params, "expectedImageCount",
                 safeGetInt(params, "imageCount", 1)));
-        int tokensPerImage = BillingConstants.gptImage2OutputTokens(quality, orientation);
+        int tokensPerImage;
+        if ("gpt-image-2.6-flare".equalsIgnoreCase(modelCode)
+                || "gpt-image-2.6-sunburst".equalsIgnoreCase(modelCode)) {
+            String size = strParam(params, "rawSize");
+            String[] dimensions = size == null ? new String[0] : size.toLowerCase().split("x");
+            // Auto dimensions reserve the largest supported square; actual usage settles the result.
+            int width = dimensions.length == 2 ? Integer.parseInt(dimensions[0]) : 2880;
+            int height = dimensions.length == 2 ? Integer.parseInt(dimensions[1]) : 2880;
+            tokensPerImage = BillingConstants.gptImage26OutputTokens(quality, width, height);
+        } else {
+            tokensPerImage = BillingConstants.gptImage2OutputTokens(quality, orientation);
+        }
         int estimatedOutputTokens = tokensPerImage * expectedImageCount;
         params.put("outputTokens", estimatedOutputTokens);
         params.put("estimatedOutputChars", 0);

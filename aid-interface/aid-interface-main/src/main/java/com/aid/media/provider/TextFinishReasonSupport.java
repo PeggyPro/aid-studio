@@ -17,6 +17,31 @@ public final class TextFinishReasonSupport {
     private TextFinishReasonSupport() {
     }
 
+    public static boolean isRecognizedOpenAiFinish(String finishReason) {
+        return switch (StringUtils.trimToEmpty(finishReason).toLowerCase(Locale.ROOT)) {
+            case "stop", "length", "content_filter", "insufficient_system_resource", "tool_calls", "function_call" -> true;
+            default -> false;
+        };
+    }
+
+    public static boolean isRecognizedGeminiFinish(String finishReason) {
+        String reason = StringUtils.trimToEmpty(finishReason).toUpperCase(Locale.ROOT);
+        return "STOP".equals(reason) || "MAX_TOKENS".equals(reason)
+                || GEMINI_SAFETY_REASONS.contains(reason) || GEMINI_TOOL_REASONS.contains(reason);
+    }
+
+    public static boolean isRecoverableOpenAiOutputFailure(String finishReason) {
+        return switch (StringUtils.trimToEmpty(finishReason).toLowerCase(Locale.ROOT)) {
+            case "length", "tool_calls", "function_call" -> true;
+            default -> false;
+        };
+    }
+
+    public static boolean isRecoverableGeminiOutputFailure(String finishReason) {
+        String reason = StringUtils.trimToEmpty(finishReason).toUpperCase(Locale.ROOT);
+        return "MAX_TOKENS".equals(reason) || GEMINI_TOOL_REASONS.contains(reason);
+    }
+
     /** OpenAI 兼容协议仅将 stop 视为完整文本结果。 */
     public static String openAiFailureMessage(String finishReason) {
         String reason = StringUtils.trimToEmpty(finishReason).toLowerCase(Locale.ROOT);

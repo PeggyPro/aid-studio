@@ -20,7 +20,13 @@ Do not invent capabilities that are missing from the official docs. Evidence sta
 | Async image or video that returns `task_id` / `id` then query | `ConfigurableAsyncImageProviderClient` / `ConfigurableAsyncVideoProviderClient` |
 | A vendor already in `impl/` (Dashscope, Vidu, Kling, MiniMax, Gemini, DeepSeek, …) | That client; add capability fields or official evidence only |
 
+`openai-compatible-text` carries standard Chat Completions `tools`, `tool_choice`, assistant `tool_calls`, tool results, and streamed `delta.tool_calls`. The supported `tool_choice` forms are `none`, `auto`, `required`, and the standard function selector `{type:"function",function:{name}}`; unsupported choice types such as `allowed_tools` are rejected. Native streaming tools are accepted only when the model explicitly declares `supportsStreaming=true` and `supportsToolCalling=true` and the protocol resolves to one unique adapter. Tool definitions, supported function choices, and call/result pairing are validated before task creation and billing freeze; a tool continuation is never queued when concurrency is full. FIM is outside this transport, and there is no JSON-tool fallback.
+
 Add a new `*ProviderClient` only when request fields, auth or the status machine do not fit. Register it as a Spring `@Component`. The orchestrator injects `List<TextProviderClient>` / `ImageProviderClient` / `VideoProviderClient` / `AudioProviderClient` and routes by protocol or `provider_code`.
+
+Seedream 5.0 Pro layer decomposition uses the [official synchronous image generation API](https://docs.volcengine.com/docs/ark/image-generation-api?lang=en). Send the configured upstream model ID, one source in `image`, `layer_decomposition: true`, the requested `size` tier, URL response format, PNG base format, watermark setting and optional prompt. Do not send stream, sequential generation or general image extensions. The result must include the base and ordered layer metadata; a flat image is not a layer result.
+
+Kling video creation uses the configured provider endpoint and the official video body. HTTP submission failures use the shared receipt classifier. Explicit client rejections can close the task and release its hold. Timeouts, conflicts and server errors retain the uncertain state. The gateway request identifier is logged without the request body.
 
 ## Entry points
 
@@ -80,7 +86,7 @@ Use `ReferenceImageLimiter` (and the video/audio siblings). Fallback enums are i
 3. **Callbacks** reuse existing webhook helpers and `supportsCallback`. Not every webhook is wake-only:
    - **Wake-only** (generic `CallbackController`, MiniMax H3): the payload is not a trusted official status contract, so the handler only schedules a poll (`scheduleImmediatePoll` / `scheduleImmediatePollIfWaitingCallback`). Terminal state then comes from `query()`.
    - **Validated terminal** (`ViduCallbackServiceImpl`, `KlingCallbackServiceImpl`): after signature and payload checks, a known terminal status may build a `ProviderTaskResult` and call `taskCompletionService.completeTask(...)` directly. Non-terminal callbacks only mark upstream progress. Incomplete success payloads (for example no result URL) stay on polling.
-4. **Compensation**: `compensateProcessingTasks` (5/10/20/30s backoff), `drainQueuedCompensate` after restart, `mediaTask.billingCompensate()` for stuck freeze/settle/refund, `ossCompensate` when success has no stored URL. If `querySuccessful` is false, keep reconciling — do not fail the generation.
+4. **Compensation**: `compensateProcessingTasks` (5/10/20/30s backoff), `drainQueuedCompensate` after restart, `mediaTask.billingCompensate()` for stuck freeze/settle/refund, `ossCompensate` when success has no stored URL. A false `querySuccessful` increments the independent consecutive-query-failure count. At the configured `maxConsecutiveQueryFailures` limit (default 3), the task ends through the local-failure/refund path. Recognized queued/running states reset the count and never fail because of age. Adapters must not fabricate upstream terminal states.
 
 `TextFailureBillingPolicy` decides text refund vs settle from whether the request was sent, whether HTTP was a final rejection, and whether token usage was observed.
 
@@ -110,3 +116,8 @@ Use `TaskErrorCode` / `TaskErrorPresentation` for users. Sanitize logs with `Pro
 - [ ] Official protocol, capability and public price links; no keys, gateways, proxies, operational prices or private prompts
 - [ ] Chinese and English limits and links match
 - [ ] `git diff --check` and an honest validation section
+
+
+## Submission phases and local failures
+
+A failed, timed-out or interrupted synchronous text/image/audio call ends with a refund of its original hold; a saved successful receipt takes priority. Asynchronous creation uses a renewable `SUBMITTING` permit, promoted to `ASYNC` after the upstream task ID is saved. Browser disconnection alone does not end healthy server execution. The `query_failure_count` is independent of normal poll `retry_count`. Callbacks, polls and local failure use the same terminal CAS and original billing ledger, so duplicate notifications cannot refund twice.

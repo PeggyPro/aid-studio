@@ -732,6 +732,15 @@ export function parseBillingRuleJson(json: string): {
         if (item.remark != null && typeof item.remark !== 'string') return true;
         if (item.enabled != null && typeof item.enabled !== 'boolean') return true;
         if (isMalformedInputPricing(item.inputPricing)) return true;
+        if (item.compositeVideoTokens != null) {
+          if (typeof item.compositeVideoTokens !== 'object' || Array.isArray(item.compositeVideoTokens)) return true;
+          const composite = item.compositeVideoTokens as Record<string, unknown>;
+          if (['inputPricePerMillion', 'textOutputPricePerMillion', 'reasoningPricePerMillion', 'videoOutputPricePerMillion', 'videoTokensPerSecond',
+            'estimatedTextOutputTokens', 'estimatedReasoningTokens'].some((field) => composite[field] != null &&
+              (composite[field] === '' || !['number', 'string'].includes(typeof composite[field]) || !Number.isFinite(Number(composite[field])) || Number(composite[field]) < 0
+                || (field === 'videoTokensPerSecond' && Number(composite[field]) === 0)
+                || (field.startsWith('estimated') && !Number.isInteger(Number(composite[field])))))) return true;
+        }
         return numericFields.some((field) => {
           if (item[field] == null) return false;
           const validScalar = ['number', 'string'].includes(typeof item[field]);
@@ -761,6 +770,7 @@ export function parseBillingRuleJson(json: string): {
         cachedInputPricePerMillion: s.cachedInputPricePerMillion != null ? s.cachedInputPricePerMillion : null,
         cacheWritePricePerMillion: s.cacheWritePricePerMillion != null ? s.cacheWritePricePerMillion : null,
         reasoningPricePerMillion: s.reasoningPricePerMillion != null ? s.reasoningPricePerMillion : null,
+        compositeVideoTokens: normalizeCompositeVideoTokens(s.compositeVideoTokens),
         inputPricing: normalizeInputPricing(s.inputPricing),
         remark: typeof s.remark === 'string' ? s.remark : ''
       }));
@@ -779,6 +789,17 @@ function cloneJsonRecord(raw: unknown): Record<string, any> | undefined {
   } catch {
     return undefined;
   }
+}
+
+function normalizeCompositeVideoTokens(raw: unknown): Sku['compositeVideoTokens'] {
+  if (raw == null) return null;
+  const result = cloneJsonRecord(raw);
+  if (!result) return null;
+  for (const key of ['inputPricePerMillion', 'textOutputPricePerMillion', 'reasoningPricePerMillion',
+    'videoOutputPricePerMillion', 'videoTokensPerSecond', 'estimatedTextOutputTokens', 'estimatedReasoningTokens']) {
+    if (result[key] != null) result[key] = Number(result[key]);
+  }
+  return result as Sku['compositeVideoTokens'];
 }
 
 function isMalformedInputPricing(raw: unknown): boolean {
@@ -924,6 +945,7 @@ export function buildBillingRuleJson(
     }
     // SKU 级输入媒体计费覆盖（如视频输入单价随分辨率变化）
     const skuInput = mergeInputPricing(sku.inputPricing, s.inputPricing);
+    if (s.compositeVideoTokens !== undefined) sku.compositeVideoTokens = s.compositeVideoTokens;
     if (skuInput) sku.inputPricing = skuInput;
     else if (Object.prototype.hasOwnProperty.call(sku, 'inputPricing')) sku.inputPricing = null;
     return sku;

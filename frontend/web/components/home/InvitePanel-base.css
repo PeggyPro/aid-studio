@@ -1,10 +1,10 @@
 /* Tailwind/PostCSS component styles for InvitePanel. */
 /* InvitePanel 伴随样式：由原 components/home/InvitePanel.vue \3c style scoped> 平移，颜色/间距逐字保留 */
 .invite-page {
-  --invite-cyan: #4ae7fd;
-  --invite-muted: #8e97a5;
-  --invite-card-bg: #111621;
-  --invite-row-bg: #202434;
+  --invite-cyan: var(--ui-brand, #4ae7fd);
+  --invite-muted: var(--ui-muted, #8e97a5);
+  --invite-card-bg: var(--ui-surface, #111621);
+  --invite-row-bg: var(--ui-raised, #202434);
   --invite-title-size: 32px;
   --invite-subtitle-size: 14px;
   --invite-section-title: 18px;
@@ -58,7 +58,7 @@
   font-weight: 600;
   letter-spacing: 0.06em;
   line-height: 1.25;
-  background-image: linear-gradient(to right, #ffffff 0%, #7ef0ff 7%, var(--invite-cyan) 100%);
+  background-image: var(--ui-text-gradient, linear-gradient(to right, #ffffff 0%, #7ef0ff 7%, var(--invite-cyan) 100%));
   background-color: transparent;
   -webkit-background-clip: text;
   background-clip: text;
@@ -96,7 +96,7 @@
   width: 100%;
   max-width: 100%;
   padding: var(--invite-card-pad-y) var(--invite-card-pad-x);
-  border: 1px solid #131622;
+  border: 1px solid var(--ui-hair, #131622);
   border-radius: 12px;
   background: var(--invite-card-bg);
 }
@@ -109,12 +109,12 @@
 }
 
 .invite-page__card--error {
-  color: #ff7b7b;
+  color: var(--ui-danger, #ff7b7b);
 }
 
 .invite-page__card-label {
   margin-bottom: 12px;
-  color: #fff;
+  color: var(--ui-text, #fff);
   font-size: var(--invite-label-size);
   font-weight: 500;
   line-height: 1.3;
@@ -137,9 +137,9 @@
   min-width: 0;
   height: var(--invite-code-h);
   padding: 0 16px;
-  border: 1px solid rgba(74, 231, 253, 0.3);
+  border: 1px solid var(--ui-hair, rgba(74, 231, 253, 0.3));
   border-radius: 8px;
-  background: rgba(17, 22, 33, 1);
+  background: var(--ui-surface, rgba(17, 22, 33, 1));
 }
 
 .invite-page__code {
@@ -166,7 +166,7 @@
   border: none;
   border-radius: 4px;
   background: transparent;
-  color: #878895;
+  color: var(--ui-muted, #878895);
   font-size: 16px;
   cursor: pointer;
   transition: color 0.15s ease, background 0.15s ease;
@@ -174,7 +174,7 @@
 
 .invite-page__code-copy:hover:not(:disabled) {
   color: var(--invite-cyan);
-  background: rgba(74, 231, 253, 0.08);
+  background: var(--ui-soft-hover, rgba(74, 231, 253, 0.08));
 }
 
 .invite-page__code-copy:disabled {
@@ -191,9 +191,9 @@
   width: var(--invite-btn-w);
   height: var(--invite-code-h);
   padding: 0 12px;
-  border: 1px solid rgba(74, 231, 253, 0.55);
+  border: 1px solid var(--ui-hair, rgba(74, 231, 253, 0.55));
   border-radius: 8px;
-  background: #121212;
+  background: var(--ui-bg, #121212);
   cursor: pointer;
   transition: border-color 0.15s ease, background 0.15s ease;
 }
@@ -202,7 +202,7 @@
   font-size: 16px;
   line-height: 1;
   white-space: nowrap;
-  background: linear-gradient(90deg, #ffffff 0%, var(--invite-cyan) 100%);
+  background: var(--ui-text-gradient, linear-gradient(90deg, #ffffff 0%, var(--invite-cyan) 100%));
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -210,7 +210,7 @@
 
 .invite-page__link-btn:hover:not(:disabled) {
   border-color: var(--invite-cyan);
-  background: rgba(74, 231, 253, 0.06);
+  background: var(--ui-soft-hover, rgba(74, 231, 253, 0.06));
 }
 
 .invite-page__link-btn:disabled {

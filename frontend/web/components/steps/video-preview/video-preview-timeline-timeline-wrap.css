@@ -5,8 +5,8 @@
 .video-preview-step .timeline-wrap {
   flex: 0 0 auto;
   position: relative;
-  background: linear-gradient(180deg, rgba(18, 24, 38, 0.98) 0%, rgba(12, 16, 26, 0.98) 100%);
-  border: 1px solid rgba(74, 231, 253, 0.12);
+  background: var(--ui-surface, linear-gradient(180deg, rgba(18, 24, 38, 0.98) 0%, rgba(12, 16, 26, 0.98) 100%));
+  border: 1px solid var(--ui-hair, rgba(74, 231, 253, 0.12));
   border-radius: var(--radius-md);
   overflow-x: auto;
   overflow-y: hidden;
@@ -31,8 +31,8 @@
   z-index: 4;
   height: 34px;
   flex-shrink: 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(10, 14, 24, 0.96);
+  border-bottom: 1px solid var(--ui-hair, rgba(255, 255, 255, 0.08));
+  background: var(--ui-bg, rgba(10, 14, 24, 0.96));
   isolation: isolate;
 }
 
@@ -54,15 +54,15 @@
 }
 
 .video-preview-step .ruler-grid-line-major {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--ui-soft, rgba(255, 255, 255, 0.1));
 }
 
 .video-preview-step .ruler-grid-line-medium {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--ui-soft, rgba(255, 255, 255, 0.05));
 }
 
 .video-preview-step .ruler-grid-line-minor {
-  background: rgba(255, 255, 255, 0.025);
+  background: var(--ui-soft, rgba(255, 255, 255, 0.025));
 }
 
 .video-preview-step .ruler-tick {
@@ -74,17 +74,17 @@
 
 .video-preview-step .ruler-tick-major {
   height: 16px;
-  background: rgba(255, 255, 255, 0.55);
+  background: var(--ui-raised, rgba(255, 255, 255, 0.55));
 }
 
 .video-preview-step .ruler-tick-medium {
   height: 10px;
-  background: rgba(255, 255, 255, 0.28);
+  background: var(--ui-raised, rgba(255, 255, 255, 0.28));
 }
 
 .video-preview-step .ruler-tick-minor {
   height: 6px;
-  background: rgba(255, 255, 255, 0.14);
+  background: var(--ui-soft, rgba(255, 255, 255, 0.14));
 }
 
 .video-preview-step .ruler-label {
@@ -93,7 +93,7 @@
   left: 4px;
   font-size: 12px;
   font-variant-numeric: tabular-nums;
-  color: rgba(255, 255, 255, 0.72);
+  color: var(--ui-text, rgba(255, 255, 255, 0.72));
   white-space: nowrap;
 }
 
@@ -141,7 +141,7 @@
   display: flex;
   align-items: center;
   min-height: var(--vp-track-row-aux-min);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid var(--ui-hair, rgba(255, 255, 255, 0.06));
   position: relative;
   overflow: visible;
 }

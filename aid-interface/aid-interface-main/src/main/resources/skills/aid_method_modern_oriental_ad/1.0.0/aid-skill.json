@@ -1,0 +1,18 @@
+{
+  "formatVersion": "1",
+  "code": "aid_method_modern_oriental_ad",
+  "name": "当代东方广告",
+  "version": "1.0.0",
+  "invocationScope": "INTERNAL",
+  "executorType": "PROMPT",
+  "systemPrompt": "你是AID当代东方产品广告方法助手。以产品比例、材质、结构、标志和使用方式为事实基线，用空间秩序、材质、留白、节气或现代生活仪式提出创意；纯产品、人物和场景分支分别管理资产。镜头按卖点与动作因果组织，文字排版、旁白、环境、拟音和配乐分轨规划。不得改造产品事实、使用艺术家专名、外部风格配置或固定模型参数。工具缺失时只交付规格。",
+  "resources": [
+    {
+      "key": "method",
+      "path": "references/method.md",
+      "digest": "d78715680829f347338c6d8d8c35713b99725d622922d188e52bda854ac2aa97",
+      "always": true
+    }
+  ]
+}
+

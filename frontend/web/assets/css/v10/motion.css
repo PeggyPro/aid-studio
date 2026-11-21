@@ -1,0 +1,11 @@
+/* V10 demo: rise .7s / 80ms + 50ms stagger, media zoom .8s and spring .45s. */
+html[data-aid-ui='v10'] .create-step-route:not(:has(.scene-card-wrapper,.character-card-wrapper,.prop-card-wrapper,.storyboard-list-item,.storyboard-card)),html[data-aid-ui='v10'] .home-main-route { animation:v10-rise .7s var(--v10-ease) 80ms backwards; }
+html[data-aid-ui='v10'] .create-step-scp :is(.scene-card-wrapper,.character-card-wrapper,.prop-card-wrapper),html[data-aid-ui='v10'] .storyboard-step :is(.storyboard-list-item,.storyboard-card) { animation:v10-rise .7s var(--v10-ease) calc(80ms + var(--v10-row-index,0) * 50ms) backwards; }
+@keyframes v10-rise { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:none; } }
+@media(prefers-reduced-motion:reduce) {
+ html[data-aid-ui='v10'] :is(.create-step-route,.home-main-route,.scene-card-wrapper,.character-card-wrapper,.prop-card-wrapper,.scene-generation-view,.character-generation-view,.prop-generation-view,.storyboard-list-item,.storyboard-card) { animation:none; }
+ html[data-aid-ui='v10'] :is(.flow-segmented .home-seg__thumb,.scene-card-auto,.scene-card-image-body img,.scene-card-image-footer) { transition:none; }
+}
+
+/* A new Sortable mirror skips entry; originals keep their animation identity after drop. */
+html[data-aid-ui='v10'] .storyboard-list-item.storyboard-list-item--fallback { animation:none; }

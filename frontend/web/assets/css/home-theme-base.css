@@ -3,30 +3,44 @@
    首页 / 侧栏布局统一主题（与 pages/index.vue、layouts/home.vue 视觉一致）
    修改主色、边框、圆角等请优先改此处 CSS 变量，便于全局替换。
    页面根节点使用 class="home-theme-page"（关于/用户等 home 布局内页）。
-   首页主体见 home-new-page.css（.home-new-index）。
+   旧版首页见 home-legacy-page.css（.home-legacy-page）；新版首页见 home-new-page.css（.home-new-index）。
    ============================================================================= */
 
-:root {
+/* 账号抽屉复用首页变量，避免继承画布根节点的同名覆盖。 */
+:root,
+.account-settings-drawer {
   /* 深蓝青主视觉 */
-  --home-bg-solid: #060a12;
-  --home-bg-gradient: linear-gradient(165deg, #001731 0%, #0d0d0f 42%, #121212 100%);
-  --home-main-wrap-bg: linear-gradient(180deg, rgba(6, 10, 18, 0.4) 0%, rgba(8, 10, 14, 0.95) 100%);
-  --home-cyan: #4ae7fd;
-  --home-muted: #8E97A5;
-  --home-white: #ffffff;
-  --home-text: #e6edf3;
-  --home-surface: rgba(18, 22, 30, 0.92);
-  --home-surface-soft: rgba(18, 22, 30, 0.6);
-  --home-border: rgba(74, 231, 253, 0.28);
-  --home-border-subtle: rgba(74, 231, 253, 0.1);
-  --home-border-input: rgba(7, 63, 86, 1);
-  --home-border-strong: #006c8f;
-  --home-grad: linear-gradient(270deg, #0e59fa 0%, #00abd8 100%);
-  --home-grad-tab: linear-gradient(90deg, rgba(14, 89, 250, 0.3) 0%, rgba(0, 171, 216, 0.1) 100%);
-  --home-shadow-card: 0 20px 40px rgba(0, 0, 0, 0.3);
+  --home-bg-solid: var(--ui-bg, #060a12);
+  --home-bg-gradient: var(--ui-surface, linear-gradient(165deg, #001731 0%, #0d0d0f 42%, #121212 100%));
+  --home-main-wrap-bg: var(--ui-surface, linear-gradient(180deg, rgba(6, 10, 18, 0.4) 0%, rgba(8, 10, 14, 0.95) 100%));
+  --home-cyan: var(--ui-brand, #4ae7fd);
+  --home-muted: var(--ui-muted, #8E97A5);
+  --home-white: var(--ui-text, #ffffff);
+  --home-text: var(--ui-text, #e6edf3);
+  --home-surface: var(--ui-surface, rgba(18, 22, 30, 0.92));
+  --home-surface-soft: var(--ui-surface, rgba(18, 22, 30, 0.6));
+  --home-border: var(--ui-hair, rgba(74, 231, 253, 0.28));
+  --home-border-subtle: var(--ui-hair, rgba(74, 231, 253, 0.1));
+  --home-border-input: var(--ui-hair, rgba(7, 63, 86, 1));
+  --home-border-strong: var(--ui-hair, #006c8f);
+  --home-grad: var(--ui-primary, linear-gradient(270deg, #0e59fa 0%, #00abd8 100%));
+  /* 实心渐变按钮专用：水平渐变 + 与 border:none 搭配，避免右侧 1px 亮缝 */
+  --home-grad-btn: var(--ui-primary, linear-gradient(90deg, #0e59fa 0%, #00abd8 100%));
+  --home-grad-tab: var(--ui-surface, linear-gradient(90deg, rgba(14, 89, 250, 0.3) 0%, rgba(0, 171, 216, 0.1) 100%));
+  --home-shadow-card: 0 20px 40px var(--ui-bg, rgba(0, 0, 0, 0.3));
   --home-radius-panel: 12px;
   --home-radius-input: 10px;
   --home-radius-btn: 8px;
+
+  /* 登录弹窗（蓝湖 登录-密码登录 1440×1024 @1920） */
+  --login-modal-overlay: var(--ui-bg, rgba(18, 18, 18, 0.8));
+  --login-modal-bg: var(--ui-surface, #191a1d);
+  --login-modal-input-fill: var(--ui-soft, rgba(18, 18, 18, 0.1));
+  --login-modal-input-border: var(--ui-hair, #8e97a5);
+  --login-modal-input-hover: var(--ui-raised, #ffffff);
+  --login-modal-muted: var(--ui-muted, #8e97a5);
+  --login-modal-divider: var(--ui-raised, rgba(142, 151, 165, 0.5));
+  --login-modal-btn-text: var(--ui-text, #121212);
 }
 
 /* 独立全屏页（登录 / 创作）：避免露出浅色 body */
@@ -46,14 +60,14 @@ html.app-shell-login body {
 html.app-shell-login .ant-message-notice,
 html.app-shell-login .ant-message-notice-content,
 html.app-shell-login .ant-notification-notice {
-  background: rgba(34, 44, 64, 0.96) !important;
-  border: 1px solid rgba(74, 231, 253, 0.09) !important;
-  color: #e6edf3 !important;
-  box-shadow: 0 12px 40px rgba(8, 12, 24, 0.4) !important;
+  background: var(--ui-raised, rgba(34, 44, 64, 0.96)) !important;
+  border: 1px solid var(--ui-hair, rgba(74, 231, 253, 0.09)) !important;
+  color: var(--ui-text, #e6edf3) !important;
+  box-shadow: var(--ui-no-shadow, 0 12px 40px rgba(8, 12, 24, 0.4)) !important;
 }
 
 html.app-shell-login .ant-message .anticon {
-  color: #4ae7fd !important;
+  color: var(--ui-brand, #4ae7fd) !important;
 }
 
 /* ---------------------------------------------------------------------------
@@ -65,7 +79,7 @@ html.app-shell-login .ant-message .anticon {
   padding: 2% 24px 0 34px;
   min-height: 100%;
   color: var(--home-cyan);
-  --home-muted: #8e97a5;
+  --home-muted: var(--ui-muted, #8e97a5);
 }
 
 .home-theme-page .page-header {
@@ -83,7 +97,7 @@ html.app-shell-login .ant-message .anticon {
 .home-theme-page .page-title {
   font-size: 24px;
   font-weight: 700;
-  color: #fff;
+  color: var(--ui-text, #fff);
   margin: 0 0 8px 0;
   display: flex;
   align-items: center;
@@ -110,7 +124,7 @@ html.app-shell-login .ant-message .anticon {
   gap: 8px;
   padding: 12px 24px;
   background: var(--home-grad);
-  color: #fff;
+  color: var(--ui-on-primary, #fff);
   border: none;
   border-radius: var(--home-radius-btn);
   font-size: 14px;
@@ -165,13 +179,13 @@ html.app-shell-login .ant-message .anticon {
 }
 
 .home-theme-page .status-btn:hover {
-  color: #c9d1d9;
-  border-color: rgba(74, 231, 253, 0.4);
+  color: var(--ui-text, #c9d1d9);
+  border-color: var(--ui-ring, rgba(74, 231, 253, 0.4));
 }
 
 .home-theme-page .status-btn.active {
   background: var(--home-grad-tab);
-  border-color: rgba(0, 171, 216, 0.5);
+  border-color: var(--ui-ring, rgba(0, 171, 216, 0.5));
   color: var(--home-cyan);
 }
 
@@ -225,7 +239,9 @@ html.app-shell-login .ant-message .anticon {
 
 .home-theme-page .progress-bar {
   height: 6px;
-  background: rgba(74, 231, 253, 0.1);
+  background: var(--ui-soft, rgba(74, 231, 253, 0.1));
   border-radius: 3px;
   overflow: hidden;
 }
+
+/* 认证暗色输入边框改由 auth-dark-field.css 的 .auth-dark-field-wrap 绘制 */

@@ -1,0 +1,18 @@
+{
+  "formatVersion": "1",
+  "code": "aid_method_automotive_sensory_ad",
+  "name": "汽车感官广告",
+  "version": "1.0.0",
+  "invocationScope": "INTERNAL",
+  "executorType": "PROMPT",
+  "systemPrompt": "你是AID高动势汽车广告方法助手。用产品、光线、场景和构图四类锚保持身份与空间一致，按识别、接近、启动、释放、余韵等功能组织感官结构，并根据实际卖点调整。是否提问和何时设置检查点由主Agent结合歧义、风险、费用和结果动态决定，不执行固定问卷。模型、分辨率、并发、重试和价格读取运行时，变化时重新预检。",
+  "resources": [
+    {
+      "key": "method",
+      "path": "references/method.md",
+      "digest": "957000f9e050cdb2464c3a39d93e94dbb121d82dc17ae75b4ca4ed219f975667",
+      "always": true
+    }
+  ]
+}
+

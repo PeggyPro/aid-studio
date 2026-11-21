@@ -63,7 +63,7 @@ import com.aid.billing.service.BillingPreHoldCalculationService;
 import com.aid.billing.service.BillingQuoteAssembler;
 import com.aid.billing.vo.BillingQuoteVO;
 import com.aid.common.utils.DateUtils;
-import com.aid.common.utils.image.ImageUrlValidator;
+import com.aid.common.aid.image.ManagedImageResourceValidator;
 import com.aid.domain.vo.AiModelConfigVo;
 import com.aid.enums.CreationModeEnum;
 import com.aid.enums.GenTypeEnum;
@@ -369,6 +369,9 @@ public class StoryboardVideoGenerationServiceImpl implements IStoryboardVideoGen
     @Autowired
     private com.aid.common.aid.oss.util.MediaUrlResolver mediaUrlResolver;
 
+    @Autowired
+    private ManagedImageResourceValidator managedImageResourceValidator;
+
     /** 引用即启用：生视频前把"已存在但未启用"的被引用资产自动设为 is_use=1 */
     @Autowired
     private com.aid.rps.service.IRpsFormImageBusinessService rpsFormImageBusinessService;
@@ -538,7 +541,7 @@ public class StoryboardVideoGenerationServiceImpl implements IStoryboardVideoGen
             throw new ServiceException("仅宫格模式可用");
         }
         AiModelConfigVo modelConfig = requireVideoModel(
-                request.getModelName(), FUNC_CODE_STORYBOARD_VIDEO_GRID, "image_to_video");
+                request.getModelName(), FUNC_CODE_STORYBOARD_VIDEO_GRID);
         if (!Boolean.TRUE.equals(modelConfig.getSupportsImageInput()))
         {
             throw new ServiceException("该模型不支持图片");
@@ -573,7 +576,7 @@ public class StoryboardVideoGenerationServiceImpl implements IStoryboardVideoGen
             throw new ServiceException("仅宫格模式可用");
         }
         AiModelConfigVo modelConfig = requireVideoModel(
-                request.getModelName(), FUNC_CODE_STORYBOARD_VIDEO_GRID, "image_to_video");
+                request.getModelName(), FUNC_CODE_STORYBOARD_VIDEO_GRID);
         if (!Boolean.TRUE.equals(modelConfig.getSupportsImageInput()))
         {
             throw new ServiceException("该模型不支持图片");
@@ -620,6 +623,61 @@ public class StoryboardVideoGenerationServiceImpl implements IStoryboardVideoGen
     private AiModelConfigVo requireVideoModel(String requestedModelCode, String funcCode)
     {
         return requireVideoModel(requestedModelCode, funcCode, null);
+    }
+
+    /** 宫格旧快照曾固定为首帧；按当前宫格绑定重试，其余方向保留快照能力。 */
+    private AiModelConfigVo requireResumeVideoModel(String modelCode, String funcCode,
+            String direction, String capability)
+    {
+        if (DIRECTION_GRID.equals(direction) && (StrUtil.isBlank(capability) || "image_to_video".equals(capability)))
+        {
+            return requireVideoModel(modelCode, funcCode);
+        }
+        return requireVideoModel(modelCode, funcCode, capability);
+    }
+
+    /** 自动角色音色只能用于所选能力允许的音频输入，不能改变首帧/首尾帧语义。 */
+    static boolean allowsImplicitRoleAudio(AiModelConfigVo model, Boolean generateAudio)
+    {
+        if (Boolean.FALSE.equals(generateAudio)) return false;
+        JsonNode capability = ModelCapabilityResolver.parseCapability(model.getCapabilityJson());
+        if (capability == null || !com.aid.media.provider.ReferenceAudioLimiter.readCapability(model).isSupported()) return false;
+        if (capability.has("supportsReferenceAudio") && !capability.path("supportsReferenceAudio").asBoolean()) return false;
+        if (capability.has("maxReferenceAudios") && capability.path("maxReferenceAudios").asInt(-1) == 0) return false;
+        String scene = com.aid.media.util.ModelInputCapabilityValidator.videoScene(model, new MediaVideoGenerateRequest());
+        for (JsonNode rule : List.of(capability, capability.path("sceneRules").path(scene)))
+        {
+            JsonNode allowed = rule.path("allowedInputs");
+            if (allowed.isArray())
+            {
+                boolean audioAllowed = false;
+                for (JsonNode value : allowed)
+                {
+                    if (Set.of("audio", "referenceaudio", "reference_audio").contains(value.asText().toLowerCase(java.util.Locale.ROOT))) audioAllowed = true;
+                }
+                if (!audioAllowed) return false;
+            }
+        }
+        return true;
+    }
+
+    /** 富文本编辑器的空格与换行编码不代表用户改写了正文或主动移除了音频引用。 */
+    static boolean sameEditorPrompt(String submitted, String stored)
+    {
+        return Objects.equals(normalizeEditorWhitespace(submitted), normalizeEditorWhitespace(stored));
+    }
+
+    private static String normalizeEditorWhitespace(String prompt)
+    {
+        return prompt == null ? null : prompt.replace('\u00a0', ' ').replace("\r\n", "\n");
+    }
+
+    private String normalizeStoredPromptForModel(String prompt, AidStoryboard storyboard,
+            AiModelConfigVo model, Boolean generateAudio)
+    {
+        return allowsImplicitRoleAudio(model, generateAudio)
+                ? roleAudioReferenceResolver.normalizeStoredVideoPrompt(prompt, storyboard.getDialogueText())
+                : roleAudioReferenceResolver.alignPromptToResolvedRoleReferences(prompt, storyboard.getDialogueText(), List.of());
     }
 
     private static String multiCapability(StoryboardVideoGenerateRequest request) {
@@ -936,7 +994,7 @@ public class StoryboardVideoGenerationServiceImpl implements IStoryboardVideoGen
         }
 
         AiModelConfigVo modelConfig = requireVideoModel(
-                request.getModelName(), FUNC_CODE_STORYBOARD_VIDEO_GRID, "image_to_video");
+                request.getModelName(), FUNC_CODE_STORYBOARD_VIDEO_GRID);
         String modelCode = modelConfig.getModelCode();
         if (!Boolean.TRUE.equals(modelConfig.getSupportsImageInput()))
         {
@@ -1354,9 +1412,9 @@ public class StoryboardVideoGenerationServiceImpl implements IStoryboardVideoGen
             log.info("首尾帧上传图非本站资源: storyboardId={}, url={}", sb.getId(), u);
             throw new ServiceException("图片不可用");
         }
-        // 相对路径拼完整URL，并据此做远程可达性 + Content-Type 校验
+        // 本站资源通过标准存储读取校验，白名单外链仍走公网校验
         String full = mediaUrlResolver.toFullUrl(u);
-        if (validateRemoteUrl && !ImageUrlValidator.isValidRemoteImageUrl(full))
+        if (validateRemoteUrl && !managedImageResourceValidator.isReadableImage(full))
         {
             log.info("首尾帧上传图非法(格式/不可达/非图片): storyboardId={}, url={}", sb.getId(), full);
             throw new ServiceException("图片不可用");
@@ -1774,9 +1832,9 @@ public class StoryboardVideoGenerationServiceImpl implements IStoryboardVideoGen
                             storyboard.getId(), formName, ovUrl);
                     throw new ServiceException("图片不可用");
                 }
-                // 相对路径拼完整URL后再做远程可达性 + Content-Type 校验
+                // 本站资源通过标准存储读取校验，支持私有桶与存储内网地址
                 String ovFull = mediaUrlResolver.toFullUrl(ovUrl);
-                if (validateRemoteUrls && !ImageUrlValidator.isValidRemoteImageUrl(ovFull))
+                if (validateRemoteUrls && !managedImageResourceValidator.isReadableImage(ovFull))
                 {
                     log.info("多参图生视频临时参考图非法(格式/不可达/非图片): storyboardId={}, name={}, url={}",
                             storyboard.getId(), formName, ovFull);
@@ -2219,10 +2277,9 @@ public class StoryboardVideoGenerationServiceImpl implements IStoryboardVideoGen
         StoryboardVideoAdvancedOptions.merge(Map.of(), request, modelConfig);
         String overridePrompt = single ? request.getVideoPrompt() : null;
         String videoPrompt = resolveVideoPrompt(overridePrompt, sb);
-        if (StrUtil.isBlank(overridePrompt))
+        if (StrUtil.isBlank(overridePrompt) || sameEditorPrompt(videoPrompt, sb.getVideoPrompt()))
         {
-            videoPrompt = roleAudioReferenceResolver.normalizeStoredVideoPrompt(
-                    videoPrompt, sb.getDialogueText());
+            videoPrompt = normalizeStoredPromptForModel(videoPrompt, sb, modelConfig, request.getGenerateAudio());
         }
         List<ReferenceAudioInput> referenceAudios = resolveAndValidateReferenceAudios(videoPrompt, sb, userId,
                 resolveShotAudioSelection(single, new ExplicitAudioSelection(
@@ -2482,10 +2539,9 @@ public class StoryboardVideoGenerationServiceImpl implements IStoryboardVideoGen
             log.info("图生视频提示词过长(含库回落): storyboardId={}, len={}", sb.getId(), videoPrompt.length());
             throw TaskErrorPresentation.fromCode(TaskErrorCode.USER_INPUT_TOO_LONG, "提示词过长，请精简");
         }
-        if (!useFrontPrompt)
+        if (!useFrontPrompt || sameEditorPrompt(videoPrompt, sb.getVideoPromptImage()))
         {
-            videoPrompt = roleAudioReferenceResolver.normalizeStoredVideoPrompt(
-                    videoPrompt, sb.getDialogueText());
+            videoPrompt = normalizeStoredPromptForModel(videoPrompt, sb, modelConfig, request.getGenerateAudio());
         }
         List<ReferenceAudioInput> referenceAudios = resolveAndValidateReferenceAudios(videoPrompt, sb, userId,
                 resolveShotAudioSelection(single, new ExplicitAudioSelection(
@@ -2510,10 +2566,21 @@ public class StoryboardVideoGenerationServiceImpl implements IStoryboardVideoGen
             persistVideoPromptImage(sb.getId(), userId, videoPrompt);
         }
         List<ResolvedReference> references = new ArrayList<>();
-        references.add(new ResolvedReference(1, "参考图1", "参考图1", null, false, refImageUrl));
+        String planningPrompt = videoPrompt;
         String resolvedBaseImageUrl = (single && Objects.nonNull(request.getBaseImageRecordId()))
-                ? resolveBaseImageUrl(request.getBaseImageRecordId(), sb, userId) : null;
-        VideoReferenceContext ctx = new VideoReferenceContext(videoPrompt, request.getUserInputText(),
+                ? resolveBaseImageUrl(request.getBaseImageRecordId(), sb, userId) : refImageUrl;
+        if (FUNC_CODE_STORYBOARD_VIDEO_GRID.equals(modelConfig.getBusinessFuncCode())
+                && "reference_to_video".equals(modelConfig.getCapabilityCode()))
+        {
+            ReferenceResolution resolution = resolveReferences(videoPrompt, sb, userId,
+                    null, applyMutations, validateRemoteUrls);
+            references.add(new ResolvedReference(0, "分镜宫格图", "分镜宫格图", null, false, refImageUrl));
+            references.addAll(resolution.references);
+            planningPrompt = "@图片0[分镜宫格图]为参考分镜图，按格子顺序切换为连续全画幅。\n" + resolution.prompt;
+            resolvedBaseImageUrl = null;
+        }
+        // 首帧不是资产图数组的第1项，不能把资产图片1误绑到整张分镜图。
+        VideoReferenceContext ctx = new VideoReferenceContext(planningPrompt, request.getUserInputText(),
                 references, resolvedBaseImageUrl, modelConfig, request.getGenerateAudio(), maxRef);
         VideoReferencePlan plan = videoReferencePlanner.plan(ctx);
         String finalPrompt = plan.getFinalPrompt();
@@ -2531,6 +2598,11 @@ public class StoryboardVideoGenerationServiceImpl implements IStoryboardVideoGen
             StoryboardVideoFromImageGenerateRequest request, AiModelConfigVo modelConfig,
             Long userId, int takeCount)
     {
+        if (StrUtil.isNotBlank(storyboard.getVideoPromptImage()))
+        {
+            return prepareImageShot(storyboard, single, request, modelConfig, userId,
+                    takeCount, null, false, false);
+        }
         int maxReferences = ReferenceImageLimiter.resolveMax(modelConfig, MAX_REFERENCE_IMAGES);
         if (maxReferences == ReferenceImageLimiter.FORBID)
         {
@@ -2589,7 +2661,7 @@ public class StoryboardVideoGenerationServiceImpl implements IStoryboardVideoGen
             throw new ServiceException("图片不可用");
         }
         String fullUrl = mediaUrlResolver.toFullUrl(referenceImageUrl);
-        if (validateRemoteUrl && !ImageUrlValidator.isValidRemoteImageUrl(fullUrl))
+        if (validateRemoteUrl && !managedImageResourceValidator.isReadableImage(fullUrl))
         {
             throw new ServiceException("图片不可用");
         }
@@ -2625,10 +2697,9 @@ public class StoryboardVideoGenerationServiceImpl implements IStoryboardVideoGen
         Long lastRecId = lastFromUpload ? null : (er != null ? er.lastImageRecordId : null);
         String overridePrompt = single ? request.getVideoPrompt() : null;
         String videoPrompt = resolveVideoPrompt(overridePrompt, sb);
-        if (StrUtil.isBlank(overridePrompt))
+        if (StrUtil.isBlank(overridePrompt) || sameEditorPrompt(videoPrompt, sb.getVideoPrompt()))
         {
-            videoPrompt = roleAudioReferenceResolver.normalizeStoredVideoPrompt(
-                    videoPrompt, sb.getDialogueText());
+            videoPrompt = normalizeStoredPromptForModel(videoPrompt, sb, modelConfig, request.getGenerateAudio());
         }
         List<ReferenceAudioInput> referenceAudios = resolveAndValidateReferenceAudios(videoPrompt, sb, userId,
                 er == null ? null : er.audioSelection, modelConfig, request.getGenerateAudio());
@@ -3568,7 +3639,7 @@ public class StoryboardVideoGenerationServiceImpl implements IStoryboardVideoGen
             funcCode = resolveFuncCodeByDirection(direction);
         }
         String resolvedModelCode = resolveModelCode(modelCode, funcCode);
-        AiModelConfigVo modelConfig = aiModelConfigService.selectForBusiness(resolvedModelCode, funcCode, input.path("capabilityCode").asText(null));
+        AiModelConfigVo modelConfig = requireResumeVideoModel(resolvedModelCode, funcCode, direction, input.path("capabilityCode").asText(null));
         if (modelConfig == null)
         {
             throw new ServiceException("模型不存在");
@@ -3970,7 +4041,7 @@ public class StoryboardVideoGenerationServiceImpl implements IStoryboardVideoGen
         boolean imageLike = DIRECTION_IMAGE.equals(direction) || DIRECTION_GRID.equals(direction);
         boolean edge = DIRECTION_EDGE.equals(direction);
         String resolvedModelCode = resolveModelCode(modelCode, funcCode);
-        AiModelConfigVo modelConfig = aiModelConfigService.selectForBusiness(resolvedModelCode, funcCode, input.path("capabilityCode").asText(null));
+        AiModelConfigVo modelConfig = requireResumeVideoModel(resolvedModelCode, funcCode, direction, input.path("capabilityCode").asText(null));
         if (Objects.isNull(modelConfig)) { throw new ServiceException("模型不存在"); }
         if (imageLike && !Boolean.TRUE.equals(modelConfig.getSupportsImageInput())) { throw new ServiceException("该模型不支持图片"); }
         if (edge && !Boolean.TRUE.equals(modelConfig.getSupportsLastFrame())) { throw new ServiceException("不支持尾帧"); }

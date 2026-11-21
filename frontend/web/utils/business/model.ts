@@ -1,5 +1,7 @@
 /** AI 模型与智能体域：模型列表、按功能编码查询可用模型、智能体分组列表。 */
 import { request } from '~/utils/api'
+import { canvasApiPost } from '~/utils/canvas/canvasApiClient'
+import { CANVAS_QUOTE_TIMEOUT_MS, canvasQuoteIdentity } from '@/utils/canvas/canvasQuote'
 import { normalizeListByFuncGroups } from '~/utils/modelListByFuncBatch'
 import {
   unwrap,
@@ -19,8 +21,12 @@ import type {
 
 const modelListByFuncInflight = new Map<string, Promise<UserModelListByFuncGroupVO[]>>()
 const modelListByFuncBurst: ListBurstSlot<UserModelListByFuncGroupVO[]> = { current: null }
+
 const modelListInflight = new Map<string, Promise<UserModelListItem[]>>()
 const modelListBurst: ListBurstSlot<UserModelListItem[]> = { current: null }
+
+/** Composer 会因节点切换重新挂载；模型目录按请求键做必要的短时复用。 */
+const MODEL_CATALOG_BURST_MS = 30_000
 
 const aidAgentListInflight = new Map<string, Promise<AgentListGroupVO[]>>()
 const aidAgentListBurst: ListBurstSlot<AgentListGroupVO[]> = { current: null }
@@ -40,11 +46,24 @@ function modelRequestKey(body: unknown): string {
 
 /** AI 模型列表：POST /api/user/model/list */
 export async function userModelList(body: UserModelListRequest = {}): Promise<UserModelListItem[]> {
-  return runListDedupe(modelRequestKey(body), modelListInflight, modelListBurst, async () => {
+  const key = modelRequestKey(body)
+  return runListDedupe(key, modelListInflight, modelListBurst, async () => {
     const res = await request.post<ApiEnvelope<UserModelListItem[]>>('/api/user/model/list', body)
     const data = unwrap(res)
     return Array.isArray(data) ? data : []
-  })
+  }, MODEL_CATALOG_BURST_MS)
+}
+
+/** 自由画布模型必须与画布服务的能力配置同源，不能混用主站模型目录。 */
+export async function canvasUserModelList(body: UserModelListRequest = {}, force = false): Promise<UserModelListItem[]> {
+  const identity = canvasQuoteIdentity()
+  const key = `${identity}:${modelRequestKey(body)}`
+  return runListDedupe(key, modelListInflight, modelListBurst, async () => {
+    const response = await canvasApiPost<UserModelListItem[]>('/api/user/model/list', body, { requestTimeoutMs: CANVAS_QUOTE_TIMEOUT_MS })
+    if (canvasQuoteIdentity() !== identity) throw new Error('画布账号或连接已变化，请重新读取模型')
+    const data = unwrap(response)
+    return Array.isArray(data) ? data : []
+  }, force ? 0 : MODEL_CATALOG_BURST_MS)
 }
 
 /** 按多个功能编码批量查询模型列表：POST /api/user/model/listByFunc */
@@ -62,14 +81,29 @@ export async function userModelListByFuncCodes(
       body.episodeId = Number(scope.episodeId)
     }
   }
-  const key = modelRequestKey(body)
+  // 请求体保留业务优先级；仅请求键归一化 funcCodes 顺序以合并同集合并发调用。
+  const key = modelRequestKey({ ...body, funcCodes: [...codes].sort() })
   return runListDedupe(key, modelListByFuncInflight, modelListByFuncBurst, async () => {
     const res = await request.post<ApiEnvelope<UserModelListByFuncGroupVO[] | UserModelListItem[]>>(
       '/api/user/model/listByFunc',
       body
     )
     return normalizeListByFuncGroups(unwrap(res), codes)
-  })
+  }, MODEL_CATALOG_BURST_MS)
+}
+
+/** Canvas gateway business pool; project IDs remain strings to preserve Long precision. */
+export async function canvasUserModelListByFuncCodes(funcCodes: readonly string[], projectId?: string): Promise<UserModelListByFuncGroupVO[]> {
+  const codes = [...new Set(funcCodes.map((code) => code.trim()).filter(Boolean))]
+  if (!codes.length) return []
+  const body = { funcCodes: codes, ...(projectId ? { projectId } : {}) }
+  const identity = canvasQuoteIdentity()
+  const key = `${identity}:${modelRequestKey({ ...body, funcCodes: [...codes].sort() })}`
+  return runListDedupe(key, modelListByFuncInflight, modelListByFuncBurst, async () => {
+    const response = await canvasApiPost<UserModelListByFuncGroupVO[] | UserModelListItem[]>('/api/user/model/listByFunc', body, { requestTimeoutMs: CANVAS_QUOTE_TIMEOUT_MS })
+    if (canvasQuoteIdentity() !== identity) throw new Error('画布账号或连接已变化，请重新读取模型')
+    return normalizeListByFuncGroups(unwrap(response), codes)
+  }, MODEL_CATALOG_BURST_MS)
 }
 
 /** 按功能编码查询可用模型列表：POST /api/user/model/listByFunc（v2.34.0） */

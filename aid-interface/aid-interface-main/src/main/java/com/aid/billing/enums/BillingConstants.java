@@ -168,6 +168,27 @@ public final class BillingConstants {
         };
     }
 
+    /** Official GPT Image 2.6 calculator; auto quality reserves the maximum tier. */
+    public static int gptImage26OutputTokens(String quality, int width, int height) {
+        if (width <= 0 || height <= 0 || width > 3840 || height > 3840
+                || (long) width * height > 8_294_400L) {
+            throw new com.aid.common.exception.ServiceException("图片尺寸无效");
+        }
+        String tier = quality == null ? "max" : quality.trim().toLowerCase(java.util.Locale.ROOT);
+        int longestGrid = switch (tier) {
+            case "low" -> 16;
+            case "medium" -> 24;
+            case "high" -> 48;
+            case "xhigh" -> 64;
+            default -> 96;
+        };
+        double ratio = (double) Math.max(width, height) / Math.min(width, height);
+        long shortestGrid = (long) Math.rint(longestGrid / ratio);
+        double base = Math.ceil(longestGrid * shortestGrid * (2_000_000D + (long) width * height) / 4_000_000D);
+        double factor = "low".equals(tier) ? 4.2D : "medium".equals(tier) ? 3.3D : 1D;
+        return Math.toIntExact(Math.round(base * factor));
+    }
+
     // 结算策略（与SettleMode枚举对应）
     public static final String SETTLE_DIRECT = "DIRECT_SETTLE";
     public static final String SETTLE_REFUND_ONLY = "REFUND_ONLY";

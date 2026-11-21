@@ -132,31 +132,29 @@ public class AgnesVideoReferenceStrategy extends AbstractVideoReferenceStrategy
     {
         int max = ctx.getMaxReferenceImages();
         List<ResolvedReference> available = validReferences(ctx);
-        int requestedCount = available.size() + (StrUtil.isNotBlank(ctx.getBaseImageUrl()) ? 1 : 0);
-        if (max >= 0 && requestedCount > max)
-        {
-            throw new com.aid.common.exception.ServiceException("参考图片数量超限");
-        }
         List<String> urls = new ArrayList<>();
+        List<ResolvedReference> legendRefs = new ArrayList<>();
+        Map<Integer, Integer> actualIndexes = new LinkedHashMap<>();
         if (StrUtil.isNotBlank(ctx.getBaseImageUrl()))
         {
             urls.add(ctx.getBaseImageUrl());
+            legendRefs.add(new ResolvedReference(0, "垫图", "垫图", null, false, ctx.getBaseImageUrl()));
         }
-        int remaining = max < 0 ? -1 : Math.max(0, max - urls.size());
-        List<ResolvedReference> picked = takeRefs(available, remaining);
-        for (ResolvedReference reference : picked)
+        for (ResolvedReference reference : available)
         {
             if (!urls.contains(reference.getUrl()))
             {
                 urls.add(reference.getUrl());
+                legendRefs.add(reference);
             }
+            actualIndexes.put(reference.getOriginalN(), urls.indexOf(reference.getUrl()) + 1);
         }
         if (max >= 0 && urls.size() > max)
         {
             throw new com.aid.common.exception.ServiceException("参考图片数量超限");
         }
-        String prompt = composePrompt(remapPromptForPicked(ctx.getVideoPrompt(), picked),
-                buildReferenceLegend(picked), ctx.getUserInputText());
+        String prompt = composePrompt(remapPromptForIndexes(ctx.getVideoPrompt(), actualIndexes),
+                buildReferenceLegend(legendRefs), ctx.getUserInputText());
         return VideoReferencePlan.of(prompt, urls, null);
     }
 

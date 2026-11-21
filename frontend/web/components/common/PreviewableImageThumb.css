@@ -29,7 +29,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.42);
+  background: var(--ui-bg, rgba(0, 0, 0, 0.42));
   opacity: 0;
   transition: opacity 0.2s ease;
   pointer-events: none;
@@ -41,5 +41,5 @@
 
 .previewable-image-thumb__zoom {
   font-size: 28px;
-  color: #fff;
+  color: var(--ui-text, #fff);
 }

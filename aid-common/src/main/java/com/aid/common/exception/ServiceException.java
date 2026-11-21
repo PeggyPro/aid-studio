@@ -1,5 +1,7 @@
 package com.aid.common.exception;
 
+import com.aid.common.core.domain.ApiErrorDetails;
+
 /**
  * 业务异常
  *
@@ -28,6 +30,20 @@ public final class ServiceException extends RuntimeException
 
     /** 任务的安全结构化错误快照。 */
     private String taskErrorJson;
+
+    /** 已经过业务层筛选、允许向调用方展示的错误信息。 */
+    private ApiErrorDetails clientErrorData;
+
+    public ApiErrorDetails getClientErrorData()
+    {
+        return clientErrorData;
+    }
+
+    public ServiceException setClientErrorData(ApiErrorDetails clientErrorData)
+    {
+        this.clientErrorData = clientErrorData;
+        return this;
+    }
 
     public String getTaskErrorJson()
     {

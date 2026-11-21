@@ -2,16 +2,13 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Modal, Button, InputNumber, Slider, message } from 'antd'
-import { UploadOutlined, CloseOutlined } from '@ant-design/icons'
-import { EllipsisTooltip } from '~/components/common/EllipsisTooltip'
+import { UploadOutlined, CloseOutlined, ReloadOutlined, CameraOutlined } from '@ant-design/icons'
 import { BillingQuoteHint } from '~/components/common/BillingQuoteHint'
 import { useBillingQuote } from '~/hooks/useBillingQuote'
+import { ossRemoteUploadSingle } from '~/utils/businessApi'
 import { ModelSelectDropdown, type ModelOption } from './ModelSelectDropdown'
-import { useMultiAngleThreeScene } from './multi-angle-camera/useMultiAngleThreeScene'
-import {
-  buildMultiAnglePromptParts,
-  type MultiAngleGeneratePayload
-} from '~/utils/multiAngleCameraPrompt'
+import { MultiAngleCameraPreview, normalizeCameraYaw, type CameraPose } from './multi-angle-camera/MultiAngleCameraPreview'
+import { buildMultiAnglePromptParts, type MultiAngleGeneratePayload } from '~/utils/multiAngleCameraPrompt'
 import { DEFAULT_NINE_GRID_ANGLE_PROMPTS } from '~/utils/nineGridCameraAngles'
 import { createTrackedObjectUrl, revokeObjectUrl } from '~/utils/objectUrl'
 import './MultiAngleCameraModal.css'
@@ -33,472 +30,132 @@ interface Props {
     | { kind: 'form'; formId: number; aspectRatio?: string }
 }
 
-const DEFAULT_MODEL_VALUE: ModelOption = {
-  id: '',
-  name: '请选择模型',
-  iconBg: '#10B981',
-  prices: []
+const DEFAULT_MODEL_VALUE: ModelOption = {id:'',name:'请选择模型',iconBg:'#60A5FA',prices:[]}
+
+export function MultiAngleCameraModal(props: Props) {
+  return <Modal open={props.open} width={1000} footer={null} title={null} closable={false}
+    destroyOnHidden wrapClassName="create-flow-modal ma-camera-modal-wrap" className="ma-camera-modal"
+    onCancel={() => props.onOpenChange(false)}>
+    <MultiAngleCameraContent key={`${props.imageUrl || ''}:${Boolean(props.fixedNineGrid)}`} {...props} />
+  </Modal>
 }
 
-export function MultiAngleCameraModal({
-  open,
-  imageUrl = '',
-  fixedNineGrid = false,
-  modelValue = DEFAULT_MODEL_VALUE,
-  modelOptions = [],
-  modelExpanded = false,
-  onOpenChange,
-  onModelExpandedChange,
-  onSelectModel,
-  onGenerate,
-  billingTarget
+function MultiAngleCameraContent({
+  open, imageUrl = '', fixedNineGrid = false, modelValue = DEFAULT_MODEL_VALUE, modelOptions = [],
+  modelExpanded = false, onOpenChange, onModelExpandedChange, onSelectModel, onGenerate, billingTarget
 }: Props) {
-  const showModelSelect = modelOptions.length > 0
-
-  /** 原 ref：逻辑读写走 ref，再镜像到 state 触发渲染 */
-  const horizontalRotationRef = useRef(0)
-  const [horizontalRotation, setHorizontalRotationState] = useState(0)
-  const setHorizontalRotation = (v: number) => {
-    horizontalRotationRef.current = v
-    setHorizontalRotationState(v)
-  }
-  const verticalAngleRef = useRef(0)
-  const [verticalAngle, setVerticalAngleState] = useState(0)
-  const setVerticalAngle = (v: number) => {
-    verticalAngleRef.current = v
-    setVerticalAngleState(v)
-  }
-  const focalLengthRef = useRef(0)
-  const [focalLength, setFocalLengthState] = useState(0)
-  const setFocalLength = (v: number) => {
-    focalLengthRef.current = v
-    setFocalLengthState(v)
-  }
-  const activeImageUrlRef = useRef(imageUrl || '')
-  const [activeImageUrl, setActiveImageUrlState] = useState(imageUrl || '')
-  const setActiveImageUrl = (v: string) => {
-    activeImageUrlRef.current = v
-    setActiveImageUrlState(v)
-  }
-  const canvasRootRef = useRef<HTMLDivElement | null>(null)
-  const hasInteractedRef = useRef(false)
-  const [, setHasInteractedState] = useState(false)
-  const setHasInteracted = (v: boolean) => {
-    hasInteractedRef.current = v
-    setHasInteractedState(v)
-  }
-  const textureReadyRef = useRef(false)
-  const [textureReady, setTextureReadyState] = useState(false)
-  const setTextureReady = (v: boolean) => {
-    textureReadyRef.current = v
-    setTextureReadyState(v)
-  }
-
-  const fixedNineGridRef = useRef(fixedNineGrid)
-  fixedNineGridRef.current = fixedNineGrid
-  const propsRef = useRef({ open, imageUrl })
-  propsRef.current = { open, imageUrl }
-
-  const isFlatPreviewState =
-    !fixedNineGrid &&
-    !hasInteractedRef.current &&
-    Math.abs(horizontalRotation) < 0.1 &&
-    Math.abs(verticalAngle) < 0.1
-  const showFlatOverlay =
-    !!activeImageUrl &&
-    // 初始机位用 HTML 图层完整展示图片，避免球体压扁后只显示一条
-    (!textureReady || isFlatPreviewState)
-
+  const [pose, setPose] = useState<CameraPose>({yaw: 0, pitch: 0})
+  const [focalLength, setFocalLength] = useState(0)
+  const [sourceUrl, setSourceUrl] = useState(imageUrl)
+  const [previewUrl, setPreviewUrl] = useState('')
+  const [failedUrl, setFailedUrl] = useState('')
+  const [uploading, setUploading] = useState(false)
+  const input = useRef<HTMLInputElement>(null)
+  const uploadVersion = useRef(0)
+  useEffect(() => {
+    if (!open) uploadVersion.current += 1
+    return () => { uploadVersion.current += 1 }
+  }, [open])
+  useEffect(() => () => { if (previewUrl) revokeObjectUrl(previewUrl) }, [previewUrl])
+  const displayUrl = previewUrl || sourceUrl
+  const imageFailed = Boolean(displayUrl && failedUrl === displayUrl)
+  const promptParts = buildMultiAnglePromptParts(pose.yaw, pose.pitch, focalLength)
   const quoteRequest = useMemo(() => {
-    // 真实提交优先使用当前画布记录 URL，上传预览仅在记录 URL 为空时兜底。
-    const source = String(imageUrl || activeImageUrl || '').trim()
-    const modelCode = String(modelValue?.id || '').trim()
-    if (!open || !billingTarget || !source || !modelCode) return null
-    if (billingTarget.kind === 'storyboard') {
-      const angles = fixedNineGrid
-        ? [...DEFAULT_NINE_GRID_ANGLE_PROMPTS]
-        : [buildMultiAnglePromptParts(horizontalRotation, verticalAngle, focalLength).concat]
-      return {
-        quoteType: fixedNineGrid ? 'STORYBOARD_MULTI_GRID_IMAGE' : 'STORYBOARD_MULTI_VIEW_IMAGE',
-        payload: {
-          storyboardId: billingTarget.storyboardId,
-          imageUrl: source,
-          angles,
-          modelCode,
-          aspectRatio: billingTarget.aspectRatio || '1:1'
-        }
-      }
-    }
-    return {
-      quoteType: 'FORM_MULTI_VIEW_IMAGE',
-      payload: {
-        formId: billingTarget.formId,
-        imageUrl: source,
-        anglePrompt: buildMultiAnglePromptParts(horizontalRotation, verticalAngle, focalLength).concat,
-        modelCode,
-        ...(billingTarget.aspectRatio ? { aspectRatio: billingTarget.aspectRatio } : {})
-      }
-    }
-  }, [
-    activeImageUrl,
-    billingTarget,
-    fixedNineGrid,
-    focalLength,
-    horizontalRotation,
-    imageUrl,
-    modelValue,
-    open,
-    verticalAngle
-  ])
+    if (!open || uploading || imageFailed || !billingTarget || !sourceUrl || !modelValue.id) return null
+    const common = {imageUrl: sourceUrl, modelCode: modelValue.id, ...(billingTarget.aspectRatio ? {aspectRatio: billingTarget.aspectRatio} : {})}
+    return billingTarget.kind === 'storyboard'
+      ? {quoteType: fixedNineGrid ? 'STORYBOARD_MULTI_GRID_IMAGE' : 'STORYBOARD_MULTI_VIEW_IMAGE',
+        payload: {...common, storyboardId: billingTarget.storyboardId, aspectRatio: billingTarget.aspectRatio || '1:1',
+          angles: fixedNineGrid ? [...DEFAULT_NINE_GRID_ANGLE_PROMPTS] : [promptParts.concat]}}
+      : {quoteType:'FORM_MULTI_VIEW_IMAGE', payload: {...common, formId: billingTarget.formId, anglePrompt: promptParts.concat}}
+  }, [open, uploading, imageFailed, billingTarget, sourceUrl, modelValue.id, fixedNineGrid, promptParts.concat])
   const generationQuote = useBillingQuote(quoteRequest)
 
-  const {
-    varsRef,
-    applyTexture,
-    updateCameraRig,
-    resizeRenderer,
-    initThreeScene,
-    destroyThreeScene
-  } = useMultiAngleThreeScene({
-    canvasRootRef,
-    fixedNineGridRef,
-    horizontalRotationRef,
-    verticalAngleRef,
-    focalLengthRef,
-    hasInteractedRef,
-    activeImageUrlRef,
-    setHasInteracted,
-    setTextureReady
-  })
-
-  const handleUploadImage = () => {
-    const input = document.createElement('input')
-    input.type = 'file'
-    input.accept = 'image/*'
-    input.onchange = (event: Event) => {
-      const target = event.target as HTMLInputElement
-      const file = target.files?.[0]
-      if (!file) return
-      const vars = varsRef.current
-      if (vars.objectUrlToRevoke) revokeObjectUrl(vars.objectUrlToRevoke)
-      vars.objectUrlToRevoke = createTrackedObjectUrl(file)
-      setActiveImageUrl(vars.objectUrlToRevoke)
+  async function upload(file: File) {
+    if (!file.type.startsWith('image/')) { message.warning('请选择图片文件'); return }
+    const version = ++uploadVersion.current
+    setPreviewUrl(createTrackedObjectUrl(file))
+    setUploading(true)
+    try {
+      const result = await ossRemoteUploadSingle(file, 'images')
+      if (uploadVersion.current !== version) return
+      if (!result.url) throw new Error('上传未返回图片地址')
+      setSourceUrl(result.url)
+    } catch (error) {
+      if (uploadVersion.current !== version) return
+      setPreviewUrl('')
+      message.error(error instanceof Error ? error.message : '图片上传失败，请重试')
+    } finally {
+      if (uploadVersion.current === version) setUploading(false)
     }
-    input.click()
   }
 
-  const handleGenerateAngles = () => {
-    const source = activeImageUrlRef.current || propsRef.current.imageUrl || ''
-    if (!source) {
-      message.warning('请先选择或加载一张参考图后再开始生图')
-      return
-    }
-
-    if (fixedNineGridRef.current) {
-      const nineGridAngles = [...DEFAULT_NINE_GRID_ANGLE_PROMPTS]
-      onGenerate?.({
-        mode: 'nineGridFixed',
-        horizontalRotation: 0,
-        verticalAngle: 0,
-        focalLength: 0,
-        imageUrl: source,
-        angles: nineGridAngles.map((angle, idx) => ({
-          angle: `格${idx + 1}`,
-          url: source
-        })),
-        multiAnglePromptConcat: nineGridAngles.join(' | '),
-        multiAnglePromptParts: {
-          yawTags: '',
-          pitchTags: '',
-          focalTags: '',
-          concat: nineGridAngles.join(' | ')
-        },
-        nineGridAngles
-      })
-      onOpenChange(false)
-      return
-    }
-
-    const base = horizontalRotationRef.current
-    const angleLabels = ['主视角', '左视角', '右视角', '俯视角']
-    const angles = angleLabels.map((angle, idx) => ({
-      angle: `${angle}(${(base + idx * 45) % 360}°)`,
-      url: source
-    }))
-    const multiAnglePromptParts = buildMultiAnglePromptParts(
-      horizontalRotationRef.current,
-      verticalAngleRef.current,
-      focalLengthRef.current
-    )
+  function generate() {
+    if (!sourceUrl || !modelValue.id || uploading || imageFailed) return
+    const nineGridAngles = fixedNineGrid ? [...DEFAULT_NINE_GRID_ANGLE_PROMPTS] : undefined
+    const parts = nineGridAngles ? {yawTags:'', pitchTags:'', focalTags:'', concat:nineGridAngles.join(' | ')} : promptParts
     onGenerate?.({
-      mode: 'single',
-      horizontalRotation: horizontalRotationRef.current,
-      verticalAngle: verticalAngleRef.current,
-      focalLength: focalLengthRef.current,
-      imageUrl: source,
-      angles,
-      multiAnglePromptConcat: multiAnglePromptParts.concat,
-      multiAnglePromptParts
+      mode: fixedNineGrid ? 'nineGridFixed' : 'single',
+      horizontalRotation: pose.yaw, verticalAngle: pose.pitch, focalLength, imageUrl:sourceUrl,
+      angles: nineGridAngles ? nineGridAngles.map((_, index) => ({angle:`格${index + 1}`,url:sourceUrl}))
+        : [{angle:`水平 ${pose.yaw}°，垂直 ${pose.pitch}°`,url:sourceUrl}],
+      multiAnglePromptConcat:parts.concat, multiAnglePromptParts:parts,
+      ...(nineGridAngles ? {nineGridAngles} : {})
     })
     onOpenChange(false)
   }
 
-  // 原 watch(() => props.open)：打开时重置并初始化 3D 场景，关闭时销毁
-  const prevOpenRef = useRef(false)
-  useEffect(() => {
-    if (prevOpenRef.current === open) return
-    prevOpenRef.current = open
-    if (open) {
-      void (async () => {
-        setHasInteracted(false)
-        setHorizontalRotation(0)
-        setVerticalAngle(0)
-        setFocalLength(0)
-        setActiveImageUrl(propsRef.current.imageUrl || activeImageUrlRef.current)
-        setTextureReady(false)
-        await initThreeScene()
-        requestAnimationFrame(() => {
-          resizeRenderer()
-        })
-        if (activeImageUrlRef.current) applyTexture(activeImageUrlRef.current)
-        const vars = varsRef.current
-        if (vars.orbitControls) {
-          vars.orbitControls.enableRotate = !fixedNineGridRef.current
-          vars.orbitControls.enableZoom = !fixedNineGridRef.current
-        }
-      })()
-      return
-    }
-    destroyThreeScene()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open])
-
-  // 原 watch(fixedNineGrid)：机位模式切换时重建场景
-  const prevFixedNineGridRef = useRef(fixedNineGrid)
-  useEffect(() => {
-    if (prevFixedNineGridRef.current === fixedNineGrid) return
-    prevFixedNineGridRef.current = fixedNineGrid
-    if (!propsRef.current.open) return
-    void (async () => {
-      destroyThreeScene()
-      setHasInteracted(false)
-      await initThreeScene()
-      if (activeImageUrlRef.current) applyTexture(activeImageUrlRef.current)
-      const vars = varsRef.current
-      if (vars.orbitControls) {
-        vars.orbitControls.enableRotate = !fixedNineGrid
-        vars.orbitControls.enableZoom = !fixedNineGrid
-      }
-    })()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fixedNineGrid])
-
-  // 原 watch(() => props.imageUrl)
-  const prevImageUrlRef = useRef(imageUrl)
-  useEffect(() => {
-    if (prevImageUrlRef.current === imageUrl) return
-    prevImageUrlRef.current = imageUrl
-    if (!imageUrl) return
-    setActiveImageUrl(imageUrl)
-     
-  }, [imageUrl])
-
-  // 原 watch(activeImageUrl)
-  const prevActiveImageUrlRef = useRef(activeImageUrl)
-  useEffect(() => {
-    if (prevActiveImageUrlRef.current === activeImageUrl) return
-    prevActiveImageUrlRef.current = activeImageUrl
-    applyTexture(activeImageUrl)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeImageUrl])
-
-  // 原 watch([horizontalRotation, verticalAngle, focalLength])
-  const prevSlidersRef = useRef<[number, number, number]>([0, 0, 0])
-  useEffect(() => {
-    const [ph, pv, pf] = prevSlidersRef.current
-    if (ph === horizontalRotation && pv === verticalAngle && pf === focalLength) return
-    prevSlidersRef.current = [horizontalRotation, verticalAngle, focalLength]
-    if (fixedNineGridRef.current) return
-    setHasInteracted(true)
-    const vars = varsRef.current
-    if (vars.orbitControls) vars.orbitControls.enabled = true
-    updateCameraRig()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [horizontalRotation, verticalAngle, focalLength])
-
-  // 原 onBeforeUnmount
-  useEffect(() => {
-    const vars = varsRef.current
-    return () => {
-      destroyThreeScene()
-      if (vars.objectUrlToRevoke) revokeObjectUrl(vars.objectUrlToRevoke)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  return (
-    <Modal
-      open={open}
-      width={1000}
-      footer={null}
-      title={null}
-      closable={false}
-      wrapClassName="create-flow-modal multi-angle-modal-wrap"
-      className="multi-angle-modal"
-      onCancel={() => onOpenChange(false)}
-    >
-      <div className="ma-shell">
-        <header className="ma-header">
-          <h2 className="ma-title">多机位</h2>
-          <button type="button" className="ma-close" aria-label="关闭" onClick={() => onOpenChange(false)}>
-            <CloseOutlined />
-          </button>
-        </header>
-
-        <div className="multi-angle-layout">
-          <section className="viewport-panel">
-            <div className="three-canvas-stage">
-              <div ref={canvasRootRef} className="three-canvas-root" />
-              {showFlatOverlay && (
-                <div className="image-overlay">
-                  {activeImageUrl ? (
-                    <img src={activeImageUrl} alt="" className="center-image-overlay" />
-                  ) : null}
-                </div>
-              )}
-            </div>
-            {fixedNineGrid && (
-              <p className="nine-grid-fixed-hint">
-                <span className="nine-grid-fixed-hint__icon" aria-hidden="true">✓</span>
-                固定九宫格机位
-              </p>
-            )}
-          </section>
-
-          <aside className={`control-panel${fixedNineGrid ? ' control-panel--disabled' : ''}`}>
-            <h4 className="panel-title">调整摄像机机位</h4>
-            <div className="slider-block">
-              <div className="label-row">
-                <span className="label">水平旋转</span>
-                <InputNumber
-                  value={horizontalRotation}
-                  onChange={(v) => setHorizontalRotation(Number(v ?? 0))}
-                  min={0}
-                  max={315}
-                  controls={false}
-                  disabled={fixedNineGrid}
-                  size="small"
-                  className="value-input"
-                />
-              </div>
-              <Slider
-                value={horizontalRotation}
-                onChange={(v: number) => setHorizontalRotation(v)}
-                min={0}
-                max={315}
-                disabled={fixedNineGrid}
-              />
-            </div>
-
-            <div className="slider-block">
-              <div className="label-row">
-                <span className="label">垂直角度</span>
-                <InputNumber
-                  value={verticalAngle}
-                  onChange={(v) => setVerticalAngle(Number(v ?? 0))}
-                  min={-30}
-                  max={60}
-                  controls={false}
-                  disabled={fixedNineGrid}
-                  size="small"
-                  className="value-input"
-                />
-              </div>
-              <Slider
-                value={verticalAngle}
-                onChange={(v: number) => setVerticalAngle(v)}
-                min={-30}
-                max={60}
-                disabled={fixedNineGrid}
-              />
-            </div>
-
-            <div className="slider-block">
-              <div className="label">焦距</div>
-              <Slider
-                value={focalLength}
-                onChange={(v: number) => setFocalLength(v)}
-                min={0}
-                max={10}
-                className="focal-slider"
-                disabled={fixedNineGrid}
-              />
-              <div className="focal-presets">
-                <button
-                  type="button"
-                  className="focal-preset"
-                  disabled={fixedNineGrid}
-                  onClick={() => setFocalLength(0)}
-                >
-                  0(远景)
-                </button>
-                <button
-                  type="button"
-                  className="focal-preset"
-                  disabled={fixedNineGrid}
-                  onClick={() => setFocalLength(5)}
-                >
-                  5(中景)
-                </button>
-                <button
-                  type="button"
-                  className="focal-preset"
-                  disabled={fixedNineGrid}
-                  onClick={() => setFocalLength(10)}
-                >
-                  10(特写)
-                </button>
-              </div>
-            </div>
-          </aside>
-        </div>
-
-        <div className="footer-actions">
-          <div className="footer-left">
-            {!fixedNineGrid && (
-              <Button className="import-btn-dashed" icon={<UploadOutlined />} onClick={handleUploadImage}>
-                <EllipsisTooltip title="选择本地文件" />
-              </Button>
-            )}
-            {showModelSelect && (
-              <div className="footer-model-select">
-                <ModelSelectDropdown
-                  value={modelValue}
-                  options={modelOptions}
-                  expanded={modelExpanded}
-                  onToggle={() => onModelExpandedChange?.(!modelExpanded)}
-                  onClose={() => onModelExpandedChange?.(false)}
-                  onSelect={(model) => onSelectModel?.(model)}
-                />
-              </div>
-            )}
+  return <div className="ma-dialog">
+    <header className="ma-header"><div><h2 className="ma-title">多机位</h2><p>围绕同一主体，探索不同拍摄角度</p></div>
+      <button type="button" className="ma-close" aria-label="关闭多机位" onClick={() => onOpenChange(false)}><CloseOutlined /></button>
+    </header>
+    <div className="ma-layout">
+      <section className="ma-viewport">
+        <div className="ma-preview-heading"><span>{fixedNineGrid ? '九宫格机位' : '拍摄机位'}</span><small>{fixedNineGrid ? '固定 9 个角度' : '拖动相机或背景调整机位'}</small></div>
+        <MultiAngleCameraPreview imageUrl={displayUrl} pose={pose} fixed={fixedNineGrid} onChange={setPose}
+          onImageError={() => setFailedUrl(displayUrl)} />
+        <p className={imageFailed ? 'ma-preview-note is-error' : 'ma-preview-note'} role={imageFailed ? 'alert' : undefined}>
+          {uploading ? '正在上传参考图…' : imageFailed ? '参考图加载失败，请重新选择图片' : '机位示意用于选择角度，实际画面在生成后查看'}
+        </p>
+      </section>
+      <aside className="ma-controls">
+        <div className="ma-controls-heading"><h3>机位设置</h3><button type="button" disabled={fixedNineGrid} onClick={() => {setPose({yaw:0,pitch:0});setFocalLength(0)}}><ReloadOutlined /> 重置</button></div>
+        <fieldset disabled={fixedNineGrid}>
+          <legend className="sr-only">拍摄角度</legend>
+          <div className="ma-angle-presets" aria-label="快捷机位">
+            {[['正面',0],['右侧',90],['背面',180],['左侧',270]].map(([label,yaw]) => <button type="button" key={label}
+              aria-pressed={pose.yaw === yaw} onClick={() => setPose({...pose,yaw:Number(yaw)})}>{label}</button>)}
           </div>
-          <div className="right-actions">
-            <BillingQuoteHint
-              quote={generationQuote.quote}
-              loading={generationQuote.loading}
-              error={generationQuote.error}
-              active={Boolean(quoteRequest)}
-            />
-            <Button className="cancel-btn" onClick={() => onOpenChange(false)}>取消</Button>
-            <Button type="primary" className="gen-btn" onClick={handleGenerateAngles}>
-              开始生图
-            </Button>
+          <div className="ma-control"><label htmlFor="ma-yaw">水平角度</label><InputNumber id="ma-yaw" aria-label="水平角度" value={pose.yaw}
+            min={0} max={359} controls={false} suffix="°" onChange={value => setPose({...pose,yaw:normalizeCameraYaw(Number(value ?? 0))})} />
+            <Slider aria-label="水平角度" value={pose.yaw} min={0} max={359} disabled={fixedNineGrid} onChange={yaw => setPose({...pose,yaw})} />
           </div>
-        </div>
+          <div className="ma-control"><label htmlFor="ma-pitch">垂直角度</label><InputNumber id="ma-pitch" aria-label="垂直角度" value={pose.pitch}
+            min={-30} max={60} controls={false} suffix="°" onChange={value => setPose({...pose,pitch:Math.max(-30, Math.min(60, Number(value ?? 0)))})} />
+            <Slider aria-label="垂直角度" value={pose.pitch} min={-30} max={60} disabled={fixedNineGrid} onChange={pitch => setPose({...pose,pitch})} />
+          </div>
+          <div className="ma-control"><span>拍摄景别</span><b>{focalLength < 3 ? '远景' : focalLength < 6 ? '中景' : focalLength < 9 ? '近景' : '特写'}</b>
+            <Slider aria-label="拍摄景别" value={focalLength} min={0} max={10} disabled={fixedNineGrid} onChange={setFocalLength} />
+            <div className="ma-focal-presets">{[['远景',0],['中景',5],['特写',10]].map(([label,value]) => <button type="button" key={label}
+              aria-pressed={focalLength === value} onClick={() => setFocalLength(Number(value))}>{label}</button>)}</div>
+          </div>
+        </fieldset>
+        <div className="ma-selection-summary"><CameraOutlined /><span>{fixedNineGrid ? '一次生成固定九宫格' : `水平 ${pose.yaw}° · 垂直 ${pose.pitch}°`}</span></div>
+      </aside>
+    </div>
+    <footer className="ma-footer">
+      <div className="ma-footer-source">
+        {!fixedNineGrid ? <><input ref={input} type="file" hidden accept="image/*" onChange={event => { const file=event.target.files?.[0];event.target.value='';if(file)void upload(file) }} />
+          <Button icon={<UploadOutlined />} loading={uploading} onClick={() => input.current?.click()}>更换参考图</Button></> : null}
+        <div className="ma-model-select"><ModelSelectDropdown value={modelValue} options={modelOptions} expanded={modelExpanded}
+          onToggle={() => onModelExpandedChange?.(!modelExpanded)} onClose={() => onModelExpandedChange?.(false)} onSelect={onSelectModel} /></div>
       </div>
-    </Modal>
-  )
+      <div className="ma-footer-actions"><BillingQuoteHint quote={generationQuote.quote} loading={generationQuote.loading} error={generationQuote.error} active={Boolean(quoteRequest)} />
+        <Button onClick={() => onOpenChange(false)}>取消</Button>
+        <Button type="primary" disabled={!sourceUrl || !modelValue.id || uploading || imageFailed} onClick={generate}>开始生图</Button>
+      </div>
+    </footer>
+  </div>
 }
 
 export default MultiAngleCameraModal

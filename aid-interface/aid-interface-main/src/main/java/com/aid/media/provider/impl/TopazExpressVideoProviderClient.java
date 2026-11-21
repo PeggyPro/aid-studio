@@ -64,6 +64,16 @@ public class TopazExpressVideoProviderClient implements VideoProviderClient {
     @Override public boolean requiresVerifiedMetadataForQuote() { return true; }
 
     @Override
+    public boolean hasTrustedMetadataForQuote(MediaVideoGenerateRequest request) {
+        ReferenceVideoInput input = source(request);
+        return input != null && input.getDurationMs() != null && input.getDurationMs() > 0
+                && input.getWidth() != null && input.getWidth() > 0
+                && input.getHeight() != null && input.getHeight() > 0
+                && input.getFps() != null && input.getFps().signum() > 0
+                && StrUtil.isNotBlank(input.getFormat());
+    }
+
+    @Override
     public void normalizeRequest(AiModelConfigVo model, MediaVideoGenerateRequest request) {
         if (request == null || source(request) == null || source(request).getDurationMs() == null) return;
         long seconds = (source(request).getDurationMs() + 999L) / 1000L;
@@ -174,10 +184,11 @@ public class TopazExpressVideoProviderClient implements VideoProviderClient {
         String url = ProviderEndpointUtils.buildSubmitUrl(model.getBaseUrl(), model.getApiSuffix());
         try (HttpResponse response = HttpRequest.post(url)
                 .header("X-API-Key", requireKey(model)).header("Content-Type", "application/json")
+                .header("User-Agent", "AIDStudio").header("Accept", "application/json")
                 .body(com.alibaba.fastjson2.JSON.toJSONString(body)).timeout(TIMEOUT_MS).execute()) {
-            if (response.getStatus() >= 500) throw new ProviderSubmissionOutcomeUnknownException();
             if (response.getStatus() < 200 || response.getStatus() >= 300) {
-                throw new ServiceException(ProviderErrorSanitizer.fromHttp(response.getStatus(), response.body()));
+                return com.aid.media.provider.ProviderSubmissionFailures.httpResponse(
+                        response.getStatus(), response.body(), model.getModelCode());
             }
             JsonNode root = ProviderResponseHelper.readTree(response.body());
             String taskId = ProviderResponseHelper.readText(root, "requestId");
@@ -199,14 +210,24 @@ public class TopazExpressVideoProviderClient implements VideoProviderClient {
         try {
             String url = ProviderEndpointUtils.buildTaskQueryUrl(model.getBaseUrl(), model.getTaskQuerySuffix(), taskId);
             try (HttpResponse response = HttpRequest.get(url).header("X-API-Key", requireKey(model))
+                    .header("User-Agent", "AIDStudio").header("Accept", "application/json")
                     .timeout(TIMEOUT_MS).execute()) {
+                if (response.getStatus() != 200) {
+                    log.warn("Topaz 视频状态查询HTTP异常, modelCode={}, taskId={}, httpStatus={}",
+                            model.getModelCode(), taskId, response.getStatus());
+                }
                 ProviderTaskResult status = parseQuery(response.getStatus(), response.body());
                 if (!"SUCCEEDED".equals(status.getStatus())) return status;
                 // Status exposes a cost *estimate*, not the account debit. The request record
                 // has committed credit transactions; settlement must use that authority.
                 String detailUrl = ProviderEndpointUtils.buildTaskQueryUrl(model.getBaseUrl(), "/video/%s", taskId);
                 try (HttpResponse detail = HttpRequest.get(detailUrl).header("X-API-Key", requireKey(model))
+                        .header("User-Agent", "AIDStudio").header("Accept", "application/json")
                         .timeout(TIMEOUT_MS).execute()) {
+                    if (detail.getStatus() != 200) {
+                        log.warn("Topaz 视频结算查询HTTP异常, modelCode={}, taskId={}, httpStatus={}",
+                                model.getModelCode(), taskId, detail.getStatus());
+                    }
                     BigDecimal committed = committedCredits(detail.getStatus(), detail.body(), taskId);
                     if (committed == null) return unknown("供应商积分结算记录尚未就绪", "complete");
                     return ProviderTaskResult.builder().status("SUCCEEDED")
@@ -216,7 +237,8 @@ public class TopazExpressVideoProviderClient implements VideoProviderClient {
                 }
             }
         } catch (Exception ex) {
-            log.warn("Topaz 视频查询暂不可用, taskId={}, error={}", taskId, ex.getClass().getSimpleName());
+            log.warn("Topaz 视频查询暂不可用, modelCode={}, taskId={}, error={}",
+                    model == null ? null : model.getModelCode(), taskId, ex.getClass().getSimpleName());
             return unknown("上游查询暂不可用", null);
         }
     }
@@ -363,7 +385,7 @@ public class TopazExpressVideoProviderClient implements VideoProviderClient {
     }
 
     private static String requireKey(AiModelConfigVo model) {
-        if (model == null || StrUtil.isBlank(model.getApiKey())) throw new ServiceException("Topaz API 密钥未配置");
+        if (model == null || StrUtil.isBlank(model.getApiKey())) throw com.aid.media.provider.ProviderSubmissionFailures.notSent("Topaz API 密钥未配置");
         return model.getApiKey().trim();
     }
 

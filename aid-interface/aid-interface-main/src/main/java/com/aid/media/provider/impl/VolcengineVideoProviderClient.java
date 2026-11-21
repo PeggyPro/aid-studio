@@ -124,17 +124,30 @@ public class VolcengineVideoProviderClient implements VideoProviderClient {
             if (response.statusCode() < 200 || response.statusCode() >= 300) {
                 log.error("Volcengine 视频生成提交失败, model={}, httpStatus={}, responseLength={}",
                         effectiveModel, response.statusCode(), StringUtils.length(response.body()));
-                return ProviderSubmitResult.builder().rawResponse(response.body()).build();
+                return com.aid.media.provider.ProviderSubmissionFailures.httpResponse(
+                        response.statusCode(), response.body(), effectiveModel);
+            }
+            com.fasterxml.jackson.databind.JsonNode envelope = OBJECT_MAPPER.readTree(response.body());
+            if (envelope != null && envelope.path("error").isObject()) {
+                if (StringUtils.isNotBlank(envelope.path("id").asText(null))) {
+                    ProviderSubmitResult accepted = com.aid.media.provider.ProviderSubmissionFailures.unknownResponse(
+                            "上游同时返回错误和任务标识，继续按任务标识核实结果");
+                    accepted.setProviderTaskId(envelope.path("id").asText());
+                    return accepted;
+                }
+                return com.aid.media.provider.ProviderSubmissionFailures.reportedFailure(
+                        response.body(), effectiveModel);
             }
             result = OBJECT_MAPPER.readValue(response.body(), CreateContentGenerationTaskResult.class);
         } catch (Exception e) {
             log.error("Volcengine 视频生成提交失败, model={}", effectiveModel, e);
-            return ProviderSubmitResult.builder()
-                    .rawResponse(e.getMessage())
-                    .build();
+            return com.aid.media.provider.ProviderSubmissionFailures.unknownResponse(e.getMessage());
         }
 
-        String taskId = result.getId();
+        String taskId = result == null ? null : result.getId();
+        if (StringUtils.isBlank(taskId))
+            return com.aid.media.provider.ProviderSubmissionFailures.unknownResponse(
+                    "上游提交响应未返回任务标识，无法按任务号核对结果");
         log.info("Volcengine 视频生成任务已创建, taskId={}", taskId);
 
         return ProviderSubmitResult.builder()
@@ -486,7 +499,7 @@ public class VolcengineVideoProviderClient implements VideoProviderClient {
     }
 
     /**
-     * 按开关把单张图片 URL 转 data URI；未启用或转换失败时原样返回 URL。
+     * 按开关把单张图片转data URI；启用时转换失败立即拒绝，不回退URL。
      */
     private String toBase64IfEnabled(String imageUrl, boolean useBase64) {
         if (!useBase64 || StringUtils.isBlank(imageUrl)) {
@@ -494,7 +507,7 @@ public class VolcengineVideoProviderClient implements VideoProviderClient {
         }
         List<String> converted = ReferenceImageBase64Support
                 .toDataUris(Collections.singletonList(imageUrl));
-        return converted.isEmpty() ? imageUrl : converted.get(0);
+        return converted.get(0);
     }
 
     CreateContentGenerationTaskRequest buildCreateRequest(
@@ -996,7 +1009,8 @@ public class VolcengineVideoProviderClient implements VideoProviderClient {
         return VolcengineConstants.VENDOR_STATUS_SUCCEEDED.equals(lower)
                 || VolcengineConstants.VENDOR_STATUS_FAILED.equals(lower)
                 || "queued".equals(lower)
-                || "running".equals(lower);
+                || "running".equals(lower)
+                || "processing".equals(lower);
     }
 
     private boolean isTerminalStatus(String status) {
@@ -1097,7 +1111,7 @@ public class VolcengineVideoProviderClient implements VideoProviderClient {
 
     private void requireApiKey(String apiKey) {
         if (StringUtils.isBlank(apiKey)) {
-            throw new IllegalArgumentException("方舟密钥未配置");
+            throw com.aid.media.provider.ProviderSubmissionFailures.notSent("方舟密钥未配置");
         }
     }
 

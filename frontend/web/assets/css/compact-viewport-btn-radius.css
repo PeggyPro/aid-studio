@@ -13,9 +13,6 @@
     --compact-btn-radius-from-10: 6px;
   }
 
-  /* —— 首页壳侧栏 —— */
-  :is(html.layout-home-new, html.app-shell-create) .home-new-nav-item,
-  :is(html.layout-home-new, html.app-shell-create) .home-new-login,
   /* —— 创作首步弹窗 —— */
   html.app-shell-create .create-first-step-wrap .btn,
   /* —— 生图 / 骨架主按钮 —— */
@@ -43,7 +40,9 @@
       .speaker-picker-btn-cancel,
       .speaker-picker-btn-ok,
       .pgc-btn-cancel,
-      .pgc-btn-ok
+      .pgc-btn-ok,
+      .publish-case-plaza__btn-cancel,
+      .publish-case-plaza__btn-ok
     ),
   /* —— 弹窗底部：通用 footer ant-btn（组件内写死 10px）—— */
   html.app-shell-create .import-script-modal .footer-right .ant-btn,
@@ -54,7 +53,6 @@
   html.app-shell-create .prompt-script-file-header--scene-modal .prompt-row-actions .ant-btn,
   html.app-shell-create .asset-generate-card__action.ant-btn,
   html.app-shell-create .create-step-scp .scp-asset-empty .scp-actions .ant-btn.btn-primary,
-  html.app-shell-create .create-step-scp .extracting-actions .ant-btn.scp-stop-extract-btn,
   html.app-shell-create .enhance-mode-item,
   /* —— 分镜左侧面板 —— */
   html.app-shell-create .sb-generate-prompt,

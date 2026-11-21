@@ -123,7 +123,9 @@ public class GlobalExceptionHandler
     {
         log.error(e.getMessage(), e);
         Integer code = e.getCode();
-        return StringUtils.isNotNull(code) ? AjaxResult.error(code, e.getMessage()) : AjaxResult.error(e.getMessage());
+        AjaxResult result = StringUtils.isNotNull(code) ? AjaxResult.error(code, e.getMessage()) : AjaxResult.error(e.getMessage());
+        if (e.getClientErrorData() != null) result.put(AjaxResult.DATA_TAG, e.getClientErrorData());
+        return result;
     }
 
     /**

@@ -2,7 +2,7 @@
 
 [简体中文](README.md) | **English**
 
-This directory holds the AID installer and related deployment files. You do not need to clone the repository first. Copy one official command: it downloads `aid.sh` from GitHub `main`, then Bash runs that file. The script reads the signed manifest and uses the matching GitHub release tag, and builds the backend, admin UI, web UI and updater in a temporary directory on the server. Install or upgrade starts only after the local package passes structure checks. Both Docker and systemd installs can use the script or the admin “one-click online upgrade”.
+This directory holds the AID installer and related deployment files. You do not need to clone the repository first. Copy one official command: it saves `aid.sh` from Gitee (GitHub is the fallback), then Bash runs that file. The script reads a signed version manifest, prefers Gitee release tags, switches the whole tree to GitHub if Gitee is unreachable, and builds the backend, admin UI, web UI and updater in a temporary directory on the server. Install or upgrade starts only after the local package passes structure checks. Both Docker and systemd installs can use the script or the admin “one-click online upgrade”.
 
 | Mode | When to use | Notes |
 |------|-------------|-------|
@@ -33,25 +33,31 @@ deploy/
 
 ```bash
 # First Docker install; wget is used if curl is missing
-if command -v curl >/dev/null 2>&1; then curl -fL --retry 3 -o aid-install.sh https://raw.githubusercontent.com/shijue-aid/aid-studio/main/deploy/aid.sh; elif command -v wget >/dev/null 2>&1; then wget -O aid-install.sh https://raw.githubusercontent.com/shijue-aid/aid-studio/main/deploy/aid.sh; else echo 'Install curl or wget first'; false; fi && sudo env AID_REMOTE_BOOTSTRAP=1 AID_MANIFEST_URL=https://raw.githubusercontent.com/shijue-aid/aid-studio/main/release/latest.json bash aid-install.sh install
+if command -v curl >/dev/null 2>&1; then curl -fL --retry 3 -o aid-install.sh https://gitee.com/gzxx-2025/aid-studio/raw/master/deploy/aid.sh; elif command -v wget >/dev/null 2>&1; then wget -O aid-install.sh https://gitee.com/gzxx-2025/aid-studio/raw/master/deploy/aid.sh; else echo 'Install curl or wget first'; false; fi && sudo env AID_REMOTE_BOOTSTRAP=1 bash aid-install.sh install
 ```
 
 The network response is never piped into a shell. The script runs only after `curl`/`wget` writes `aid-install.sh`. `AID_REMOTE_BOOTSTRAP=1` forces that freshly downloaded control logic; an already-installed managed script will not take over. `install` is the automatic entry: first Docker install when nothing is deployed; if AID is already present it checks and upgrades, and does not re-initialize the database. On success it creates `sudo aid` when that name is free. Run `sudo aid default` any time to reprint user/admin URLs (public/private, HTTPS), the database init admin note, and MySQL connection details. Use `sudo aid mysql` for MySQL only.
 
-First run does: signed manifest → stable/Beta channel → verified GitHub release tag → isolated source build of the three apps plus updater → SHA256 and package-layout checks → managed installer under `/data/aid/installer` → generated config and strong random secrets → hardware check → services and middleware → empty-database init → updater → health checks. A failed fetch or build does not replace running services.
+If Gitee raw files fail, use GitHub:
+
+```bash
+if command -v curl >/dev/null 2>&1; then curl -fL --retry 3 -o aid-install.sh https://raw.githubusercontent.com/gzxx-2025/aid-studio/master/deploy/aid.sh; elif command -v wget >/dev/null 2>&1; then wget -O aid-install.sh https://raw.githubusercontent.com/gzxx-2025/aid-studio/master/deploy/aid.sh; else echo 'Install curl or wget first'; false; fi && sudo env AID_REMOTE_BOOTSTRAP=1 bash aid-install.sh install
+```
+
+First run does: signed manifest → stable/Beta channel → Gitee tags (whole-tree GitHub fallback) → isolated source build of the three apps plus updater → SHA256 and package-layout checks → managed installer under `/data/aid/installer` → generated config and strong random secrets → hardware check → services and middleware → empty-database init → updater → health checks. A failed fetch or build does not replace running services.
 
 ### First confirmation
 
 Config is a required first step. The script writes the real config file and asks you to review, validate and confirm it. Until you confirm, it will not install the environment, pull source, build, initialize the database or start services. Unattended installs must set both `AID_ASSUME_YES=1` and `AID_CONFIG_CONFIRMED=1` so a pipeline cannot go live on defaults.
 
-Writing the config file is not a completed install. If you answer `n` at the final confirm, the next `sudo env AID_REMOTE_BOOTSTRAP=1 AID_MANIFEST_URL=https://raw.githubusercontent.com/shijue-aid/aid-studio/main/release/latest.json bash aid-install.sh install` still follows first-install, not upgrade. The managed installer creates `sudo aid` once it is on disk; deployed state is recorded only after health checks succeed.
+Writing the config file is not a completed install. If you answer `n` at the final confirm, the next `sudo env AID_REMOTE_BOOTSTRAP=1 bash aid-install.sh install` still follows first-install, not upgrade. The managed installer creates `sudo aid` once it is on disk; deployed state is recorded only after health checks succeed.
 
 > Default channel is `auto`: install stable when one exists; otherwise the latest Beta, with a yellow/red warning. For Beta, add `AID_RELEASE_CHANNEL=beta` to the `sudo env` line. Do not keep production on Beta.
 
 Manual systemd first install uses the same download, then `install-manual`:
 
 ```bash
-if command -v curl >/dev/null 2>&1; then curl -fL --retry 3 -o aid-install.sh https://raw.githubusercontent.com/shijue-aid/aid-studio/main/deploy/aid.sh; elif command -v wget >/dev/null 2>&1; then wget -O aid-install.sh https://raw.githubusercontent.com/shijue-aid/aid-studio/main/deploy/aid.sh; else echo 'Install curl or wget first'; false; fi && sudo env AID_REMOTE_BOOTSTRAP=1 AID_MANIFEST_URL=https://raw.githubusercontent.com/shijue-aid/aid-studio/main/release/latest.json bash aid-install.sh install-manual
+if command -v curl >/dev/null 2>&1; then curl -fL --retry 3 -o aid-install.sh https://gitee.com/gzxx-2025/aid-studio/raw/master/deploy/aid.sh; elif command -v wget >/dev/null 2>&1; then wget -O aid-install.sh https://gitee.com/gzxx-2025/aid-studio/raw/master/deploy/aid.sh; else echo 'Install curl or wget first'; false; fi && sudo env AID_REMOTE_BOOTSTRAP=1 bash aid-install.sh install-manual
 ```
 
 Config file locations (printed again at the end of install; `/data/aid/config/deployment.json` also records the absolute path):
@@ -68,7 +74,7 @@ Empty built-in MySQL passwords and JWT secrets are filled with generated values.
 Docker and systemd share one update command. The script reads the current mode from the deployment descriptor:
 
 ```bash
-if command -v curl >/dev/null 2>&1; then curl -fL --retry 3 -o aid-install.sh https://raw.githubusercontent.com/shijue-aid/aid-studio/main/deploy/aid.sh; elif command -v wget >/dev/null 2>&1; then wget -O aid-install.sh https://raw.githubusercontent.com/shijue-aid/aid-studio/main/deploy/aid.sh; else echo 'Install curl or wget first'; false; fi && sudo env AID_REMOTE_BOOTSTRAP=1 AID_MANIFEST_URL=https://raw.githubusercontent.com/shijue-aid/aid-studio/main/release/latest.json bash aid-install.sh update
+if command -v curl >/dev/null 2>&1; then curl -fL --retry 3 -o aid-install.sh https://gitee.com/gzxx-2025/aid-studio/raw/master/deploy/aid.sh; elif command -v wget >/dev/null 2>&1; then wget -O aid-install.sh https://gitee.com/gzxx-2025/aid-studio/raw/master/deploy/aid.sh; else echo 'Install curl or wget first'; false; fi && sudo env AID_REMOTE_BOOTSTRAP=1 bash aid-install.sh update
 ```
 
 For the Beta channel:
@@ -89,7 +95,7 @@ Config merge is “local wins, official only fills missing keys”:
 
 ### Automation safety
 
-- Manifests are HTTPS only. Source comes from the official AID GitHub repository. All three apps must share one `v<version>` tag. Local packages are still checked for layout, path traversal, special links and embedded script syntax.
+- Manifests are HTTPS only. Source comes from the official AID GitHub/Gitee trees. All three apps must share one `v<version>` tag. Local packages are still checked for layout, path traversal, special links and embedded script syntax.
 - Ed25519 `pkeyutl -rawin` verifies the manifest when OpenSSL supports it; older OpenSSL prints a yellow warning. The online updater always verifies the full signature.
 - The script does not silently open firewalls, change DNS, install HTTPS certificates, drop existing databases or import the large official media bundle. Missing or old Docker is installed only after you accept the risk to existing containers.
 - Non-install content already under `/data/aid`, version downgrades, database restore and below-recommended hardware default to refuse or extra confirm. Use `AID_ASSUME_YES=1` only in automation that already has an off-host backup.
@@ -285,7 +291,7 @@ One-click upgrade also takes its own backup (including the database) first.
 ## Manual systemd deploy
 
 ```bash
-if command -v curl >/dev/null 2>&1; then curl -fL --retry 3 -o aid-install.sh https://raw.githubusercontent.com/shijue-aid/aid-studio/main/deploy/aid.sh; elif command -v wget >/dev/null 2>&1; then wget -O aid-install.sh https://raw.githubusercontent.com/shijue-aid/aid-studio/main/deploy/aid.sh; else echo 'Install curl or wget first'; false; fi && sudo env AID_REMOTE_BOOTSTRAP=1 AID_MANIFEST_URL=https://raw.githubusercontent.com/shijue-aid/aid-studio/main/release/latest.json bash aid-install.sh install-manual
+if command -v curl >/dev/null 2>&1; then curl -fL --retry 3 -o aid-install.sh https://gitee.com/gzxx-2025/aid-studio/raw/master/deploy/aid.sh; elif command -v wget >/dev/null 2>&1; then wget -O aid-install.sh https://gitee.com/gzxx-2025/aid-studio/raw/master/deploy/aid.sh; else echo 'Install curl or wget first'; false; fi && sudo env AID_REMOTE_BOOTSTRAP=1 bash aid-install.sh install-manual
 ```
 
 The script writes `/data/aid/aid-deploy.conf`. New local MySQL gets generated root and app passwords. Existing or external MySQL asks for the real password (no echo) and checks it immediately. Empty `TOKEN_SECRET` is generated.
@@ -335,13 +341,21 @@ If both the updater and the app have new versions, the app upgrade is refused un
 
 ## Local development middleware
 
-Not for production:
+Run from the repository root with Bash, OpenSSL and Docker Compose available. First startup generates the MySQL root password and JWT secret and stores them in `deploy/docker/.middleware.env` (mode `600`).
 
 ```bash
-cd deploy/docker
-docker compose -f docker-compose.middleware.yml up -d
-docker compose -f docker-compose.middleware.yml --profile mq up -d
+bash deploy/docker/middleware.sh up -d
+# Add RocketMQ for integration testing:
+# COMPOSE_PROFILES=mq bash deploy/docker/middleware.sh up -d
+
+# For local backend startup, supply the saved credentials.
+source deploy/docker/.middleware.env
+export DB_NAME=aid_test DB_USERNAME=root DB_PASSWORD="$MYSQL_ROOT_PASSWORD"
 ```
+
+Later starts reuse the saved credentials. For a legacy development database, the launcher can recover the root password from the existing Compose container. If only the old volume remains, supply its current `MYSQL_ROOT_PASSWORD` before starting. Supply the existing `TOKEN_SECRET` before first run to preserve sessions and encrypted settings that depend on it.
+
+Direct backend startup requires `TOKEN_SECRET` and `DB_PASSWORD`. Managed Docker and systemd installs generate and store credentials in their deployment configuration and reuse them on upgrade.
 
 ## Must-do after install
 

@@ -20,12 +20,19 @@
 
 import { useContext, useEffect, useRef } from 'react'
 import { LoadingOutlined } from '@ant-design/icons'
-import { Button } from 'antd'
+import { GENERATING_CENTER_ICON_URL } from '~/utils/generatingCenterIcon'
+import { Button, message } from 'antd'
 import { useCreationStore } from '~/stores/creation'
 import { useRouteLike } from '~/hooks/useRouteLike'
 import { useCreateFlowScopeChangedResume } from '~/hooks/useCreateFlowLiveGenResume'
 import { createFlowShellContext } from '~/utils/createFlowInjection'
+import { ONBOARDING_PREPARE_ANCHOR_EVENT } from '~/utils/onboardingDom'
 import { routePathToCreationStep } from '~/utils/createFlowRoutes'
+import {
+  clearStudioFlowRpsAssetIntent,
+  readStudioFlowRpsAssetIntent,
+  resolveStudioFlowRpsAssetIndex
+} from '~/utils/studio/studioFlowEntityEditor'
 import type { RouteLikeLocation } from '~/types/routeLike'
 import { useScpState } from './scene-character-prop/useScpState'
 import { useScpDerived } from './scene-character-prop/useScpDerived'
@@ -373,11 +380,13 @@ export function SceneCharacterProp(rawProps: SceneCharacterPropProps) {
     const onResume = (e: Event) => ctx.handleResumeTaskEvent(e)
     const onFormCardSettled = (e: Event) => ctx.handleFormCardBatchSettledEvent(e)
     const onFormImageSettled = (e: Event) => ctx.handleFormImageTaskSettledFromModal(e)
+    const onOnboardingAnchor = (e: Event) => ctx.handleOnboardingPrepareAnchor(e)
     window.addEventListener('create-flow-track-task', onTrack as EventListener)
     window.addEventListener('create-flow-stop-task', onStop as EventListener)
     window.addEventListener('create-flow-resume-task', onResume as EventListener)
     window.addEventListener(FORM_CARD_BATCH_SETTLED_EVENT, onFormCardSettled as EventListener)
     window.addEventListener(FORM_IMAGE_TASK_SETTLED_EVENT, onFormImageSettled as EventListener)
+    window.addEventListener(ONBOARDING_PREPARE_ANCHOR_EVENT, onOnboardingAnchor as EventListener)
     ctx.deliverPendingCreateFlowTaskCommands()
 
     return () => {
@@ -398,6 +407,10 @@ export function SceneCharacterProp(rawProps: SceneCharacterPropProps) {
       window.removeEventListener('create-flow-resume-task', onResume as EventListener)
       window.removeEventListener(FORM_CARD_BATCH_SETTLED_EVENT, onFormCardSettled as EventListener)
       window.removeEventListener(FORM_IMAGE_TASK_SETTLED_EVENT, onFormImageSettled as EventListener)
+      window.removeEventListener(
+        ONBOARDING_PREPARE_ANCHOR_EVENT,
+        onOnboardingAnchor as EventListener
+      )
       /** 切换流程步骤时不重置第三步生成 loading、不中断形态图 SSE，由 Pinia + 壳层流程条持续展示 */
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -415,6 +428,47 @@ export function SceneCharacterProp(rawProps: SceneCharacterPropProps) {
   const localValue = ctx.localValue.value
   const activeTab = ctx.activeTab.value
   const showMask = ctx.showAssetBootstrapMask() || ctx.showActiveTabAssetLoading()
+
+  // Studio 流程画布从素材实体节点进入时，在原素材页 bootstrap 完成后精确
+  // 聚焦服务端 assetId。意图未命中时 fail-closed，不打开/滚动到相邻资产。
+  useEffect(() => {
+    const pid = Number(currentProjectId)
+    if (!Number.isSafeInteger(pid) || pid <= 0 || typeof document === 'undefined') return
+    const intent = readStudioFlowRpsAssetIntent(pid, currentEpisodeId)
+    if (!intent) return
+    if (activeTab !== intent.assetType) {
+      ctx.activeTab.set(intent.assetType)
+      return
+    }
+    const assetIds = activeTab === 'scene'
+      ? ctx.sceneAssetIds.value
+      : activeTab === 'character'
+        ? ctx.characterAssetIds.value
+        : ctx.propAssetIds.value
+    const assetIndex = resolveStudioFlowRpsAssetIndex(intent, activeTab, assetIds)
+    if (assetIndex != null) {
+      const selector = `[data-scp-asset-tab="${intent.assetType}"][data-scp-asset-index="${assetIndex}"]`
+      const target = document.querySelector<HTMLElement>(selector)
+      if (!target) return
+      clearStudioFlowRpsAssetIntent(pid, currentEpisodeId)
+      target.tabIndex = -1
+      target.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' })
+      target.focus({ preventScroll: true })
+      return
+    }
+    if (!ctx.step3AssetBootstrapReady.value || ctx.tabAssetLoading.value[activeTab]) return
+    clearStudioFlowRpsAssetIntent(pid, currentEpisodeId)
+    message.warning('未找到对应的素材实体，请刷新素材列表后重试')
+  }, [
+    activeTab,
+    currentEpisodeId,
+    currentProjectId,
+    ctx.characterAssetIds.value,
+    ctx.propAssetIds.value,
+    ctx.sceneAssetIds.value,
+    ctx.step3AssetBootstrapReady.value,
+    ctx.tabAssetLoading.value
+  ])
 
   return (
     <div className="scp-root create-step-scp">
@@ -444,30 +498,28 @@ export function SceneCharacterProp(rawProps: SceneCharacterPropProps) {
       ) : null}
 
       {/* 内容 */}
-      <div ref={ctx.scpContentRef} className="scp-content">
+      <div ref={ctx.scpContentRef} className="scp-content" data-onboarding="scp-detail-panel">
         {/* 提取中状态 */}
         {isExtracting ? (
           <div className="extracting-view">
             <div className="extracting-title" role="status" aria-live="polite">
               {ctx.extractingLiveTitle()}
             </div>
-            <div className="extracting-actions">
-              <Button className="scp-stop-extract-btn" danger onClick={ctx.emitStopExtract}>
-                停止生成
-              </Button>
-            </div>
             <div className="extracting-placeholder">
-              <img
-                src="/media/icon/generating-center.webp"
-                alt=""
-                className="extracting-placeholder-image"
-              />
+              <img src={GENERATING_CENTER_ICON_URL} alt="" className="extracting-placeholder-image" />
+            </div>
+            <div className="extracting-actions">
+              <button type="button" className="scp-stop-extract-btn" onClick={ctx.emitStopExtract}>
+                <span className="scp-stop-extract-btn__icon" aria-hidden="true" />
+                停止生成
+              </button>
             </div>
           </div>
         ) : (
           /* 场景 / 角色 / 道具：有数据展示对应列表，无数据共用空状态 */
           <div
             className={`asset-section${showMask ? ' asset-section--bootstrap-pending' : ''}`}
+            data-onboarding="scp-list"
           >
             {showMask ? (
               <div
@@ -476,7 +528,7 @@ export function SceneCharacterProp(rawProps: SceneCharacterPropProps) {
                 aria-live="polite"
                 aria-busy="true"
               >
-                <LoadingOutlined spin className="scp-asset-bootstrap-mask__icon" />
+                <LoadingOutlined spin className="scp-asset-bootstrap-mask__icon flow-generation-spinner" />
                 <p className="scp-asset-bootstrap-mask__text">{ctx.assetLoadingMaskText()}</p>
               </div>
             ) : activeTab === 'scene' && localValue.scenes.length > 0 ? (
@@ -507,6 +559,7 @@ export function SceneCharacterProp(rawProps: SceneCharacterPropProps) {
                       <Button
                         type="primary"
                         className="btn-primary"
+                        data-onboarding="extract-agent-btn"
                         onClick={(e) => ctx.onClickAutoExtract(activeTab, e)}
                       >
                         <div className="text-gradient">{ctx.autoExtractEmptyButtonLabel()}</div>

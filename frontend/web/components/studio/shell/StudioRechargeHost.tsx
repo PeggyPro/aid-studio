@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { message } from 'antd'
-import { requireLogin } from '~/utils/authLoginNavigation'
+import { openLoginModal } from '@/stores/loginModal'
 import RechargeModal from '@/components/common/RechargeModal'
-import { useAuthPublicConfig } from '@/hooks/useAuthPublicConfig'
+import './studio-recharge.css'
 import { useUserStore } from '@/stores/user'
 import { useCreationStore } from '@/stores/creation'
 import { useStudioUiStore } from '@/stores/studioUi'
@@ -25,25 +25,16 @@ import { studioFlowAutoPipelineStageTitle } from '@/utils/studio/studioFlowAutoP
 export function StudioRechargeHost() {
   const token = useUserStore((state) => state.token)
   const fetchProfile = useUserStore((state) => state.fetchProfile)
-  const { anyPaymentEnabled, loadPublicConfig } = useAuthPublicConfig()
   const [open, setOpen] = useState(false)
   const isLoggedIn = Boolean(token)
 
-  useEffect(() => {
-    void loadPublicConfig()
-  }, [loadPublicConfig])
-
   const openRecharge = useCallback(() => {
     if (!isLoggedIn) {
-      requireLogin()
-      return
-    }
-    if (!anyPaymentEnabled) {
-      message.warning('暂未开放充值')
+      openLoginModal()
       return
     }
     setOpen(true)
-  }, [anyPaymentEnabled, isLoggedIn])
+  }, [isLoggedIn])
 
   useEffect(() => {
     const onOpen = () => openRecharge()
@@ -59,7 +50,7 @@ export function StudioRechargeHost() {
         void fetchProfile()
         const projectId = useCreationStore.getState().currentProjectId
         const episodeId = Number(useCreationStore.getState().currentEpisodeId ?? 0)
-        if (projectId) {
+        if (useStudioUiStore.getState().studioMode === 'flow' && projectId) {
           const stored = readStudioFlowAutoPipelineResume(projectId, episodeId)
           if (stored) {
             const fromStage = reconcileStudioFlowAutoPipelineResume(stored, {

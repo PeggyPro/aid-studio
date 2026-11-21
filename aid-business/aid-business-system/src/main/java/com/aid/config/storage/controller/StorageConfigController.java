@@ -7,8 +7,6 @@ import java.util.Set;
 
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -19,7 +17,6 @@ import com.aid.aid.service.IAidConfigService;
 import com.aid.aid.domain.media.AidMediaTask;
 import com.aid.aid.mapper.AidMediaTaskMapper;
 import com.aid.common.aid.core.service.ConfigService;
-import com.aid.common.aid.oss.config.OssConfigManager;
 import com.aid.common.annotation.Log;
 import com.aid.common.core.controller.BaseController;
 import com.aid.common.core.domain.AjaxResult;
@@ -48,7 +45,6 @@ public class StorageConfigController extends BaseController
 
     private final ConfigService configService;
     private final IAidConfigService aidConfigService;
-    private final OssConfigManager ossConfigManager;
     private final AidMediaTaskMapper aidMediaTaskMapper;
     private final OssConnectivityTester ossConnectivityTester;
 
@@ -111,8 +107,7 @@ public class StorageConfigController extends BaseController
             saveValue("allowedExtensions", request.getAllowedExtensions());
             saveValue("maxBatchCount", request.getMaxBatchCount());
             saveValue("uploadTypeLimits", request.getUploadTypeLimits());
-            refreshAfterCommit();
-            return AjaxResult.success("保存成功");
+            return AjaxResult.success("保存成功，请点击同步配置使配置生效");
         }
         catch (IllegalArgumentException e)
         {
@@ -236,6 +231,11 @@ public class StorageConfigController extends BaseController
 
     private void validateMediaProcessOwnership(StorageConfigSaveRequest request, String storageMode)
     {
+        // 未配置的媒体处理按关闭处理；整类读取对不存在的分类会抛出异常。
+        if (!Boolean.parseBoolean(configService.getConfigValue("mps", "enabled")))
+        {
+            return;
+        }
         Map<String, String> media = configService.getConfigValues("mps");
         if (media == null || media.isEmpty())
         {
@@ -271,13 +271,17 @@ public class StorageConfigController extends BaseController
 
     private String normalizeDomain(String domain)
     {
-        require(domain, "资源地址");
+        if (StrUtil.isBlank(domain))
+        {
+            throw new IllegalArgumentException("请手动填写文件存储的资源访问地址，再保存并同步配置");
+        }
         try
         {
             URI uri = URI.create(domain.trim());
             if (!("http".equalsIgnoreCase(uri.getScheme()) || "https".equalsIgnoreCase(uri.getScheme()))
                     || StrUtil.isBlank(uri.getHost())
                     || StrUtil.isNotBlank(uri.getUserInfo())
+                    || (uri.getPort() != -1 && (uri.getPort() <= 0 || uri.getPort() > 65535))
                     || (StrUtil.isNotBlank(uri.getPath()) && !"/".equals(uri.getPath()))
                     || StrUtil.isNotBlank(uri.getQuery()) || StrUtil.isNotBlank(uri.getFragment()))
             {
@@ -288,8 +292,8 @@ public class StorageConfigController extends BaseController
         }
         catch (Exception e)
         {
-            log.error("资源访问地址格式非法, domain={}", domain);
-            throw new IllegalArgumentException("地址错误");
+            log.warn("资源访问地址格式非法");
+            throw new IllegalArgumentException("资源访问地址格式错误，请填写协议、域名及实际端口，不要填写路径或查询参数");
         }
     }
 
@@ -380,21 +384,4 @@ public class StorageConfigController extends BaseController
         }
     }
 
-    /** 配置缓存只能在数据库事务提交成功后刷新。 */
-    private void refreshAfterCommit()
-    {
-        if (!TransactionSynchronizationManager.isSynchronizationActive())
-        {
-            ossConfigManager.refresh();
-            return;
-        }
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization()
-        {
-            @Override
-            public void afterCommit()
-            {
-                ossConfigManager.refresh();
-            }
-        });
-    }
 }

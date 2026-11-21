@@ -134,4 +134,7 @@ public class AidAiProvider extends BaseEntity implements Serializable
     /** 官方定价页直链（后台配价时一键跳转核对官方价格，防止官方调价后无感知） */
     private String officialPriceUrl;
 
+    /** 官方账户查询相对路径；仅后台使用，不并入模型请求参数。 */
+    private String accountOperationsJson;
+
 }

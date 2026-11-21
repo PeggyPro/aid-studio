@@ -105,7 +105,7 @@ type ProjectGenConfigCacheEntry = {
 
 const CACHE_TTL_MS = 30_000
 const cache = new Map<string, ProjectGenConfigCacheEntry>()
-const inflight = new Map<string, { promise: Promise<ProjectGenConfigVO[]>; invalidated: boolean }>()
+const inflight = new Map<string, Promise<ProjectGenConfigVO[]>>()
 
 function projectGenConfigCacheKey(projectId: number, episodeId?: number | null): string {
   const pid = Number(projectId)
@@ -151,15 +151,15 @@ function indexBySceneCode(list: ProjectGenConfigVO[]): Map<string, ProjectGenCon
 export function clearProjectGenConfigCache(projectId?: number) {
   if (projectId == null) {
     cache.clear()
-    inflight.forEach((entry) => { entry.invalidated = true })
+    inflight.clear()
     return
   }
   const prefix = `${Number(projectId)}::`
   for (const key of [...cache.keys()]) {
     if (key === String(projectId) || key.startsWith(prefix)) cache.delete(key)
   }
-  for (const [key, entry] of inflight) {
-    if (key === String(projectId) || key.startsWith(prefix)) entry.invalidated = true
+  for (const key of [...inflight.keys()]) {
+    if (key === String(projectId) || key.startsWith(prefix)) inflight.delete(key)
   }
 }
 
@@ -174,30 +174,27 @@ export async function fetchProjectGenConfigList(
   const episodeId = Number(options?.episodeId)
   const cacheKey = projectGenConfigCacheKey(pid, episodeId)
   const running = inflight.get(cacheKey)
-  if (running) {
-    if (!running.invalidated) return running.promise
-    // 保存后的刷新等待旧读请求结束；不让旧结果重新填充缓存，也不并发发起同键请求。
-    await running.promise.catch(() => {})
-    return fetchProjectGenConfigList(pid, options)
-  }
+  if (running) return running
+
   const now = Date.now()
   const hit = options?.force ? undefined : cache.get(cacheKey)
   if (hit && now - hit.at < CACHE_TTL_MS) return hit.list
 
-  const transaction = { promise: Promise.resolve<ProjectGenConfigVO[]>([]), invalidated: false }
-  transaction.promise = Promise.resolve().then(() => userProjectGenConfigGet({
+  const request: Promise<ProjectGenConfigVO[]> = userProjectGenConfigGet({
     projectId: pid,
     ...(Number.isFinite(episodeId) && episodeId > 0 ? { episodeId } : {})
-  })).then((list) => {
-    if (!transaction.invalidated) {
-      cache.set(cacheKey, { at: Date.now(), list, bySceneCode: indexBySceneCode(list) })
-    }
-    return list
-  }).finally(() => {
-    if (inflight.get(cacheKey) === transaction) inflight.delete(cacheKey)
   })
-  inflight.set(cacheKey, transaction)
-  return transaction.promise
+    .then((list) => {
+      if (inflight.get(cacheKey) === request) {
+        cache.set(cacheKey, { at: Date.now(), list, bySceneCode: indexBySceneCode(list) })
+      }
+      return list
+    })
+    .finally(() => {
+      if (inflight.get(cacheKey) === request) inflight.delete(cacheKey)
+    })
+  inflight.set(cacheKey, request)
+  return request
 }
 
 /** 按 sceneCode 取单场景配置（含 availableModels 模型池） */

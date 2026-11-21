@@ -23,9 +23,9 @@ html.app-shell-create .create-step-scp .scp-topbar__right .ant-btn {
 html.app-shell-create .create-step-scp .scp-topbar-batch-btn.ant-btn-primary,
 html.app-shell-create .create-step-scp .scp-topbar-batch-btn.ant-btn-primary:hover,
 html.app-shell-create .create-step-scp .scp-topbar-batch-btn.ant-btn-primary:active {
-  background: #4ae7fd !important;
+  background: var(--ui-raised, #4ae7fd) !important;
   border: none !important;
-  color: #121212 !important;
+  color: var(--ui-text, #121212) !important;
   transform: none !important;
 }
 
@@ -62,9 +62,9 @@ html.app-shell-create .create-step-scp .prop-card-actions-header .ant-btn {
   height: 22px;
   padding: 0 0.5rem;
   border-radius: 6px;
-  border-color: #2f3949 !important;
+  border-color: var(--ui-hair, #2f3949) !important;
   background: transparent !important;
-  color: #dbe7f4;
+  color: var(--ui-text, #dbe7f4);
   font-size: 14px;
   line-height: 1;
 }
@@ -75,7 +75,7 @@ html.app-shell-create .create-step-scp .asset-action-footer .ant-btn {
   border-radius: 6px;
   border: none !important;
   background: none !important;
-  color: rgba(230, 237, 243, 0.9);
+  color: var(--ui-text, rgba(230, 237, 243, 0.9));
   font-size: 14px;
   display: flex;
   height: 100%;
@@ -90,8 +90,8 @@ html.app-shell-create .create-step-scp .asset-action-footer .ant-btn {
 html.app-shell-create .create-step-scp .asset-action-footer .ant-btn:hover,
 html.app-shell-create .create-step-scp .asset-action-footer .ant-btn:focus,
 html.app-shell-create .create-step-scp .asset-action-footer .ant-btn:focus-visible {
-  background: rgba(74, 231, 253, 0.16) !important;
-  color: #e9fbff !important;
+  background: var(--ui-soft-hover, rgba(74, 231, 253, 0.16)) !important;
+  color: var(--ui-text, #e9fbff) !important;
   border: none !important;
   border-color: transparent !important;
   box-shadow: none !important;
@@ -143,7 +143,7 @@ html.app-shell-create .create-step-scp .character-form-images-list .scene-card-i
   height: var(--scp-image-body-height);
 }
 
-/* ---------- 空态「自动提取」/ 提取中「停止生成」：rem 随根字号缩放（覆盖 ant 固定 px） ---------- */
+/* 空态「自动提取」随根字号缩放，覆盖 Ant Design 默认尺寸。 */
 html.app-shell-create .create-step-scp {
   --scp-empty-cta-h: 40px;
   --scp-empty-cta-fs: 14px;
@@ -171,8 +171,7 @@ html.app-shell-create .create-step-scp .scp-asset-empty .tips {
   margin-bottom: 16px;
 }
 
-html.app-shell-create .create-step-scp .scp-asset-empty .scp-actions .ant-btn.btn-primary,
-html.app-shell-create .create-step-scp .extracting-actions .ant-btn.scp-stop-extract-btn {
+html.app-shell-create .create-step-scp .scp-asset-empty .scp-actions .ant-btn.btn-primary {
   height: var(--scp-empty-cta-h) !important;
   min-width: var(--scp-empty-cta-min-w);
   padding: 0 var(--scp-empty-cta-pad-x) !important;
@@ -186,8 +185,7 @@ html.app-shell-create .create-step-scp .extracting-actions .ant-btn.scp-stop-ext
 }
 
 html.app-shell-create .create-step-scp .scp-asset-empty .scp-actions .ant-btn.btn-primary .text-gradient,
-html.app-shell-create .create-step-scp .scp-asset-empty .scp-actions .ant-btn.btn-primary > span,
-html.app-shell-create .create-step-scp .extracting-actions .ant-btn.scp-stop-extract-btn > span {
+html.app-shell-create .create-step-scp .scp-asset-empty .scp-actions .ant-btn.btn-primary > span {
   font-size: inherit !important;
   font-weight: inherit !important;
   line-height: 1 !important;

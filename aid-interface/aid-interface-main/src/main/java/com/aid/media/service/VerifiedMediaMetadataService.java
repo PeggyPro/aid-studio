@@ -1,9 +1,13 @@
 package com.aid.media.service;
 
+import com.drew.imaging.ImageMetadataReader;
+import com.drew.metadata.exif.ExifIFD0Directory;
 import com.aid.common.aid.oss.config.OssConfigManager;
 import com.aid.common.aid.oss.core.OssTemplate;
 import com.aid.common.aid.oss.properties.OssProperties;
 import com.aid.common.aid.oss.util.MediaUrlResolver;
+import com.aid.common.config.AidAppConfig;
+import com.aid.common.constant.Constants;
 import com.aid.common.error.TaskErrorCode;
 import com.aid.common.error.TaskErrorPresentation;
 import com.aid.common.exception.ServiceException;
@@ -22,6 +26,7 @@ import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.SocketTimeoutException;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
@@ -45,12 +50,47 @@ public class VerifiedMediaMetadataService {
     private final OssConfigManager ossConfig;
     private final OssTemplate ossTemplate;
 
+    /** Exact active storage base only; external-image allowlists do not grant private-network trust. */
+    public boolean isConfiguredStorageUrl(String source) {
+        if (source == null) return false;
+        try {
+            OssProperties storage = ossConfig.getOssProperties();
+            if (storage == null) return false;
+            String base = "local".equalsIgnoreCase(storage.getUploadMode())
+                    ? storage.getLocalDomain() : storage.getEffectiveCdnDomain();
+            if (base == null || base.isBlank()) return false;
+            URI configured = URI.create(base.contains("://") ? base : "https://" + base);
+            URI uri = URI.create(source);
+            String path = uri.getPath();
+            String prefix = configured.getPath() == null ? "" : configured.getPath().replaceAll("/+$", "");
+            return uri.getScheme() != null && Set.of("http", "https").contains(uri.getScheme())
+                    && uri.getHost() != null && uri.getUserInfo() == null && uri.getFragment() == null
+                    && path != null && !path.contains("\\")
+                    && java.util.Arrays.stream(path.split("/")).noneMatch(segment -> ".".equals(segment) || "..".equals(segment))
+                    && uri.getScheme().equalsIgnoreCase(configured.getScheme())
+                    && uri.getHost().equalsIgnoreCase(configured.getHost())
+                    && storagePort(uri) == storagePort(configured)
+                    && (prefix.isEmpty() || path.equals(prefix) || path.startsWith(prefix + "/"));
+        } catch (IllegalArgumentException invalid) {
+            return false;
+        }
+    }
+
+    private static int storagePort(URI uri) {
+        return uri.getPort() >= 0 ? uri.getPort() : "https".equalsIgnoreCase(uri.getScheme()) ? 443 : 80;
+    }
+
     public Metadata inspect(String source, String kind) {
         Path file = null;
-        Process process = null;
         HttpURLConnection connection = null;
         try {
             if (!urls.isSiteImageUrl(source)) throw new ServiceException("请使用本站素材");
+            Path managedLocal = managedLocalPath(source);
+            if (managedLocal != null) {
+                long size = Files.size(managedLocal);
+                if (size <= 0 || size > MAX_BYTES) throw new ServiceException("素材文件无效或过大");
+                return probe(managedLocal, kind, size);
+            }
             String originalAddress = urls.toFullUrl(source);
             URI directCosAddress = signedCosAddress(source, originalAddress);
             long size = 0;
@@ -88,7 +128,7 @@ public class VerifiedMediaMetadataService {
                         break;
                     }
                     if (connection.getContentLengthLong() > MAX_BYTES) throw new ServiceException("素材文件过大");
-                    file = Files.createTempFile("aid-input-metadata-", ".bin");
+                    file = Files.createTempFile(com.aid.common.config.AidAppConfig.getTemporaryDirectory(), "aid-input-metadata-", ".bin");
                     size = 0;
                     long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(DOWNLOAD_TIMEOUT_SECONDS);
                     try (InputStream input = connection.getInputStream(); OutputStream output = Files.newOutputStream(file)) {
@@ -121,31 +161,7 @@ public class VerifiedMediaMetadataService {
                             safeHost(address), kind, attempt, DOWNLOAD_ATTEMPTS);
                 }
             }
-            java.util.List<String> command = new java.util.ArrayList<>(java.util.List.of(
-                    config.getMpsProperties().getFfprobePath(), "-v", "error", "-protocol_whitelist", "file,pipe",
-                    "-select_streams", "audio".equals(kind) ? "a:0" : "v:0"));
-            if ("image".equals(kind)) command.add("-count_frames");
-            command.addAll(java.util.List.of("-show_entries",
-                    "stream=codec_name,width,height,avg_frame_rate,duration,nb_read_frames:format=duration,format_name:format_tags=major_brand",
-                    "-of", "json", file.toString()));
-            process = new ProcessBuilder(command).redirectErrorStream(true).start();
-            if (!process.waitFor(8, TimeUnit.SECONDS) || process.exitValue() != 0) throw new ServiceException("素材解析失败");
-            byte[] response = process.getInputStream().readNBytes(65537);
-            if (response.length > 65536) throw new ServiceException("素材解析失败");
-            JsonNode root = JSON.readTree(response);
-            JsonNode stream = root.path("streams").path(0);
-            if (!stream.isObject()) throw new ServiceException("素材类型不匹配");
-            BigDecimal duration = positiveDecimal(stream.path("duration").asText());
-            if (duration == null) duration = positiveDecimal(root.path("format").path("duration").asText());
-            if (!"image".equals(kind) && (duration == null || duration.signum() <= 0)) throw new ServiceException("素材时长不可用");
-            BigDecimal fps = null;
-            String[] fraction = stream.path("avg_frame_rate").asText().split("/");
-            if (fraction.length == 2 && !"0".equals(fraction[1])) {
-                fps = new BigDecimal(fraction[0]).divide(new BigDecimal(fraction[1]), 12, RoundingMode.HALF_UP);
-            }
-            return new Metadata(size, duration, stream.path("width").asInt(0), stream.path("height").asInt(0), fps,
-                    format(kind, stream.path("codec_name").asText(), root.path("format"), file),
-                    stream.path("codec_name").asText(), stream.path("nb_read_frames").asInt(0));
+            return probe(file, kind, size);
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
             throw new ServiceException("素材解析中断");
@@ -158,13 +174,192 @@ public class VerifiedMediaMetadataService {
             throw new ServiceException("素材元数据不可用");
         } finally {
             if (connection != null) connection.disconnect();
-            if (process != null && process.isAlive()) process.destroyForcibly();
             if (file != null) {
                 try { Files.deleteIfExists(file); }
                 catch (Exception ex) { log.warn("输入素材探测临时文件待清理: {}", file); }
             }
         }
     }
+
+    /** 只读取已登记本站对象；本地存储走规范化真实路径，远端继续固定公网DNS。 */
+    public byte[] readTrustedBytes(String source,int maxBytes) {
+        if(!urls.isSiteImageUrl(source)||maxBytes<=0||maxBytes>384*1024*1024)throw new ServiceException("本站素材地址或体积限制无效");
+        try {
+            Path local=managedLocalPath(source);
+            if(local!=null) {
+                long length=Files.size(local);if(length<=0||length>maxBytes)throw new ServiceException("素材为空或过大");
+                return Files.readAllBytes(local);
+            }
+            return com.aid.tokendance.security.TokenDancePublicMediaDownloader.download(urls.toFullUrl(source),5000,180000,maxBytes);
+        }catch(java.io.IOException invalid){throw new ServiceException("本站素材读取失败");}
+    }
+
+    public boolean hasGeneratedStorageFallback(String source) {
+        OssProperties storage = ossConfig.getOssProperties();
+        if (storage == null || "local".equalsIgnoreCase(storage.getUploadMode()) || !urls.isSiteImageUrl(source))
+            return false;
+        try {
+            return managedLocalPath(source) != null;
+        } catch (java.io.IOException | RuntimeException unavailable) {
+            return false;
+        }
+    }
+
+    /** Resolve a managed local-storage locator without routing the server back through HTTP. */
+    private Path managedLocalPath(String source) throws java.io.IOException {
+        OssProperties properties = ossConfig.getOssProperties();
+        if (properties == null) return null;
+        boolean localStorage = "local".equalsIgnoreCase(properties.getUploadMode());
+        String relative = urls.toRelativePath(source);
+        String prefix = Constants.RESOURCE_PREFIX + "/";
+        // The configured local CDN base can already include /profile. Recover the
+        // canonical locator only when it maps back to that exact configured URL.
+        if (localStorage && relative != null && relative.startsWith("/") && !relative.startsWith(prefix)
+                && Objects.equals(source, urls.toFullUrl(Constants.RESOURCE_PREFIX + relative))) {
+            relative = Constants.RESOURCE_PREFIX + relative;
+        }
+        if (!localStorage && (relative == null || !relative.startsWith(prefix + "media/"))) return null;
+        if (relative == null || !relative.startsWith(prefix) || relative.contains("..")
+                || relative.contains("\\") || AidAppConfig.getProfile() == null
+                || AidAppConfig.getProfile().isBlank()) {
+            throw new ServiceException("素材地址不可用");
+        }
+        Path configuredRoot = Path.of(AidAppConfig.getProfile());
+        if (!localStorage && !Files.isDirectory(configuredRoot)) return null;
+        Path root = configuredRoot.toRealPath();
+        Path candidate = root.resolve(relative.substring(prefix.length())).normalize();
+        // Generation can fall back to local storage while the configured backend
+        // is remote. Remote objects with no local file still use the remote path.
+        if (!localStorage && !Files.exists(candidate, LinkOption.NOFOLLOW_LINKS)) return null;
+        Path file = candidate.toRealPath();
+        if (!file.startsWith(root) || !Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS)) {
+            throw new ServiceException("素材文件不可用");
+        }
+        return file;
+    }
+
+
+    /** Inspect the actual local image/video upload before storage transfer; no client metadata is trusted. */
+    public Metadata inspectUpload(org.springframework.web.multipart.MultipartFile upload, String kind) {
+        if (upload == null || upload.isEmpty() || upload.getSize() > MAX_BYTES
+                || !Set.of("image", "video", "audio").contains(kind)) {
+            throw new ServiceException("媒体上传文件无效或过大");
+        }
+        Path file = null;
+        try {
+            file = Files.createTempFile(com.aid.common.config.AidAppConfig.getTemporaryDirectory(), "aid-upload-metadata-", ".bin");
+            long size = 0;
+            try (InputStream input = upload.getInputStream(); OutputStream output = Files.newOutputStream(file)) {
+                byte[] buffer = new byte[65536];
+                int count;
+                while ((count = input.read(buffer)) != -1) {
+                    size += count;
+                    if (size > MAX_BYTES) throw new ServiceException("素材文件过大");
+                    output.write(buffer, 0, count);
+                }
+            }
+            if (size == 0 || size != upload.getSize()) throw new ServiceException("上传文件大小不一致");
+            return probe(file, kind, size);
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            throw new ServiceException("素材解析中断");
+        } catch (ServiceException invalid) { throw invalid; }
+        catch (Exception invalid) { throw new ServiceException("图片或视频元数据解析失败"); }
+        finally {
+            if (file != null) {
+                try { Files.deleteIfExists(file); }
+                catch (Exception cleanup) { log.warn("上传素材探测临时文件待清理: {}", file); }
+            }
+        }
+    }
+
+    static Process startProbe(java.util.List<String> command) {
+        try {
+            return new ProcessBuilder(command).redirectErrorStream(true).start();
+        } catch (java.io.IOException unavailable) {
+            log.warn("媒体探测程序无法启动，请检查媒体处理运行配置: cause={}", unavailable.getClass().getSimpleName());
+            ServiceException rejected = MediaPreparationErrorCode.QUOTE_UNAVAILABLE.reject(
+                    "素材检测程序不可用，请检查媒体处理配置");
+            rejected.initCause(unavailable);
+            throw rejected;
+        }
+    }
+
+    private Metadata probe(Path file, String kind, long size) throws Exception {
+        return probe(file, kind, size, false);
+    }
+
+    private Metadata probe(Path file, String kind, long size, boolean mp3Hint) throws Exception {
+        Process process = null;
+        try {
+            java.util.List<String> command = new java.util.ArrayList<>(java.util.List.of(
+                    config.getMpsProperties().getFfprobePath(), "-v", "error", "-protocol_whitelist", "file,pipe",
+                    "-select_streams", "audio".equals(kind) ? "a:0" : "v:0"));
+            if ("image".equals(kind)) command.add("-count_frames");
+            if (mp3Hint) command.addAll(java.util.List.of("-f", "mp3"));
+            command.addAll(java.util.List.of("-show_entries",
+                    "stream=codec_name,width,height,avg_frame_rate,duration,nb_read_frames:format=duration,format_name:format_tags=major_brand",
+                    "-of", "json", file.toString()));
+            process = startProbe(command);
+            if (!process.waitFor(8, TimeUnit.SECONDS) || process.exitValue() != 0) throw new ServiceException("素材解析失败");
+            byte[] response = process.getInputStream().readNBytes(65537);
+            if (response.length > 65536) throw new ServiceException("素材解析失败");
+            JsonNode root = JSON.readTree(response);
+            JsonNode stream = root.path("streams").path(0);
+            // Some valid ID3-tagged MP3 files are auto-detected as binary text when
+            // downloaded to an extensionless temporary file. Retry only that case;
+            // the MP3 demuxer must still produce a valid audio stream and duration.
+            if (!stream.isObject() && !mp3Hint && "audio".equals(kind) && hasId3Tag(file)) {
+                return probe(file, kind, size, true);
+            }
+            if (!stream.isObject()) throw new ServiceException("素材类型不匹配");
+            BigDecimal duration = positiveDecimal(stream.path("duration").asText());
+            if (duration == null) duration = positiveDecimal(root.path("format").path("duration").asText());
+            if (!"image".equals(kind) && (duration == null || duration.signum() <= 0)) throw new ServiceException("素材时长不可用");
+            BigDecimal fps = null;
+            String[] fraction = stream.path("avg_frame_rate").asText().split("/");
+            if (fraction.length == 2 && !"0".equals(fraction[1])) {
+                fps = new BigDecimal(fraction[0]).divide(new BigDecimal(fraction[1]), 12, RoundingMode.HALF_UP);
+            }
+            Dimensions dimensions = normalizedImageDimensions(file, kind,
+                    stream.path("width").asInt(0), stream.path("height").asInt(0));
+            return new Metadata(size, duration, dimensions.width(), dimensions.height(), fps,
+                    format(kind, stream.path("codec_name").asText(), root.path("format"), file),
+                    stream.path("codec_name").asText(), stream.path("nb_read_frames").asInt(0));
+        } finally {
+            if (process != null && process.isAlive()) process.destroyForcibly();
+        }
+    }
+
+    private static boolean hasId3Tag(Path file) throws java.io.IOException {
+        try (InputStream input = Files.newInputStream(file)) {
+            return input.read() == 'I' && input.read() == 'D' && input.read() == '3';
+        }
+    }
+
+    /** Keep trusted image metadata in the same EXIF-normalized coordinate space used at execution. */
+    private static Dimensions normalizedImageDimensions(Path file, String kind, int width, int height) {
+        if (!"image".equals(kind) || width <= 0 || height <= 0) return new Dimensions(width, height);
+        try {
+            var metadata = ImageMetadataReader.readMetadata(file.toFile());
+            ExifIFD0Directory directory = metadata.getFirstDirectoryOfType(ExifIFD0Directory.class);
+            if (directory == null || !directory.containsTag(ExifIFD0Directory.TAG_ORIENTATION)) {
+                return new Dimensions(width, height);
+            }
+            int orientation = directory.getInt(ExifIFD0Directory.TAG_ORIENTATION);
+            if (orientation > 8) throw new ServiceException("图片方向信息无效");
+            if (orientation <= 1) return new Dimensions(width, height);
+            return orientation >= 5 ? new Dimensions(height, width) : new Dimensions(width, height);
+        } catch (ServiceException invalid) {
+            throw invalid;
+        } catch (Exception unreadable) {
+            log.debug("图片方向元数据读取失败，按标准方向登记, errorType={}",
+                    unreadable.getClass().getSimpleName());
+            return new Dimensions(width, height);
+        }
+    }
+
+    private record Dimensions(int width, int height) {}
 
     /** 仅对当前 COS 存储中的本站资源走服务端签名直读，避免 CDN 回源/Range 行为拖慢报价。 */
     private URI signedCosAddress(String source, String originalAddress) {

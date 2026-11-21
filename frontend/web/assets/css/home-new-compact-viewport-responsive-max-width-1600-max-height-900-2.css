@@ -44,7 +44,7 @@
     font-size: 10px;
   }
 
-  :is(html.layout-home-new, html.app-shell-create) .works-lib-card__cover-actions img {
+  :is(html.layout-home-new, html.app-shell-create) .works-lib-card__cover-actions :is(img, svg) {
     width: 14px;
     height: 14px;
   }
@@ -72,49 +72,6 @@
 
   :is(html.layout-home-new, html.app-shell-create) .works-lib-card__ep-count {
     font-size: var(--hn-c-fs-base);
-  }
-
-  /* 剧集卡片：仅展示「共 N 集」，底部高度收敛 */
-  :is(html.layout-home-new, html.app-shell-create) .works-lib-card--series .works-lib-card__body {
-    height: auto;
-    min-height: 48px;
-    padding: 0 10px 10px;
-  }
-
-  :is(html.layout-home-new, html.app-shell-create)
-    .works-library-figma.works-library-figma--series-tab,
-  :is(html.layout-home-new, html.app-shell-create)
-    .works-library-figma:has(.works-lib-card--series) {
-    --works-lib-body-h: 48px;
-  }
-
-  :is(html.layout-home-new, html.app-shell-create)
-    .works-library-figma.works-library-figma--series-tab
-    .works-lib-grid {
-    align-items: stretch;
-  }
-
-  :is(html.layout-home-new, html.app-shell-create)
-    .works-library-figma.works-library-figma--series-tab
-    .works-lib-card,
-  :is(html.layout-home-new, html.app-shell-create)
-    .works-library-figma.works-library-figma--series-tab
-    .works-lib-add-card {
-    align-self: stretch;
-    height: auto;
-  }
-
-  :is(html.layout-home-new, html.app-shell-create)
-    .works-library-figma.works-library-figma--series-tab
-    .works-lib-add-card__body {
-    height: auto;
-    min-height: var(--works-lib-body-h, 48px);
-    flex: 1 0 auto;
-  }
-
-  :is(html.layout-home-new, html.app-shell-create) .works-lib-card__episodes--series {
-    min-height: 0;
-    padding-top: 8px;
   }
 
   :is(html.layout-home-new, html.app-shell-create) .works-lib-add-card {
@@ -225,7 +182,7 @@
   }
 
   :is(html.layout-home-new, html.app-shell-create) .home-new-index .gallery-section {
-    padding: 6px var(--hn-c-page-pad-x) var(--hn-c-page-pad-x);
+    padding: 72px var(--hn-c-page-pad-x) var(--hn-c-page-pad-x);
   }
 
 }

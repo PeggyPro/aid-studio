@@ -558,10 +558,6 @@ export function ProjectGenConfigModal({
           <p className="pgc-desc">
             为当前作品配置各业务场景的默认智能体与模型。自动提取、批量生成未手动选模型时将使用此处配置（经济/性能模式跟随作品「模型策略」）。
           </p>
-          <div className="pgc-fallback-note">
-            后台停用模型或智能体后，未固定的场景会自动使用当前可用的策略默认项；历史生成结果和计费记录不受影响。
-          </div>
-
           {loading ? (
             <div className="pgc-loading" role="status" aria-live="polite" aria-busy="true">
               <LoadingOutlined spin className="pgc-loading__icon" />
@@ -735,6 +731,9 @@ export function ProjectGenConfigModal({
                     </section>
                   ))}
                 </div>
+                <p className="pgc-fallback-note">
+                  后台停用模型或智能体后，未固定的场景会自动使用当前可用的策略默认项；历史生成结果和计费记录不受影响。
+                </p>
               </div>
             </>
           )}

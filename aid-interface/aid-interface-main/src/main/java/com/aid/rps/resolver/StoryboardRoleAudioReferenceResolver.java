@@ -48,6 +48,10 @@ public class StoryboardRoleAudioReferenceResolver
     private static final Pattern AUDIO_ROLE_MAPPING_SECTION = Pattern.compile(
             "(?m)^[\\t ]*音频角色映射\\s*[:：][^\\r\\n]*(?:\\R|$)");
 
+    /** 仅括号舞台说明不构成角色发言；含实际引语时保守保留。 */
+    private static final Pattern STAGE_DIRECTION_ONLY = Pattern.compile(
+            "^(?:\\s*[（(][^（）()]*[）)]\\s*)+[。.!！?？…\\s]*$");
+
     @Autowired
     private IAidRolePropSceneService rolePropSceneService;
 
@@ -212,7 +216,7 @@ public class StoryboardRoleAudioReferenceResolver
         for (DialogueSegment segment : segments)
         {
             String roleName = Objects.isNull(segment) ? null : segment.getRoleName();
-            if (StrUtil.isBlank(roleName))
+            if (StrUtil.isBlank(roleName) || !hasSpokenContent(segment))
             {
                 continue;
             }
@@ -223,6 +227,18 @@ public class StoryboardRoleAudioReferenceResolver
             }
         }
         return result;
+    }
+
+    private static boolean hasSpokenContent(DialogueSegment segment)
+    {
+        String text = StrUtil.trimToEmpty(segment.getText());
+        if (text.isEmpty()) return false;
+        String raw = StrUtil.nullToEmpty(segment.getRawSegment());
+        // 明确引语即使包含括号或单字“无”也仍是实际台词，不能误删其音色。
+        if (raw.indexOf('“') >= 0 || raw.indexOf('"') >= 0
+                || raw.indexOf('「') >= 0 || raw.indexOf('『') >= 0) return true;
+        return !Set.of("无", "无台词", "无对白").contains(text)
+                && !STAGE_DIRECTION_ONLY.matcher(text).matches();
     }
 
     /**

@@ -23,7 +23,7 @@ import com.aid.common.error.TaskErrorPresentation;
 import com.aid.common.exception.ServiceException;
 import com.aid.common.utils.DateUtils;
 import com.aid.common.utils.StringUtils;
-import com.aid.common.utils.image.ImageUrlValidator;
+import com.aid.common.aid.image.ManagedImageResourceValidator;
 import com.aid.common.aid.oss.config.OssConfigManager;
 import com.aid.common.aid.oss.properties.OssProperties;
 import com.aid.common.aid.oss.util.MediaUrlResolver;
@@ -256,6 +256,9 @@ public class StoryboardWorkbenchServiceImpl implements IStoryboardWorkbenchServi
     /** 媒体URL拼接器：把DB相对路径拼回完整URL，供上传图真实性远程校验使用 */
     @Autowired
     private MediaUrlResolver mediaUrlResolver;
+
+    @Autowired
+    private ManagedImageResourceValidator managedImageResourceValidator;
     /** OSS配置管理器：读取上传模式(oss/local)，决定是否对图片做公网远程探测 */
     @Autowired
     private OssConfigManager ossConfigManager;
@@ -3365,7 +3368,7 @@ public class StoryboardWorkbenchServiceImpl implements IStoryboardWorkbenchServi
             boolean cloudMode = "oss".equalsIgnoreCase(uploadMode)
                     || "cos".equalsIgnoreCase(uploadMode)
                     || "qiniu".equalsIgnoreCase(uploadMode);
-            if (cloudMode && !ImageUrlValidator.isValidRemoteImageUrl(fullImageUrl)) {
+            if (cloudMode && !managedImageResourceValidator.isReadableImage(fullImageUrl)) {
                 log.error("用户上传分镜图校验不通过, storyboardId={}, userId={}, imageUrl={}",
                         request.getStoryboardId(), userId, fullImageUrl);
                 throw new ServiceException("图片不可用");

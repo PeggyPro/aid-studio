@@ -1,5 +1,7 @@
 package com.aid.billing.dto;
 
+import com.alibaba.fastjson2.annotation.JSONField;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.Data;
 
 import java.util.Map;
@@ -19,6 +21,11 @@ public class BillingInput {
 
     /** 只读报价中尚未核验的素材元数据，不允许用于正式任务预扣。 */
     private boolean inputMetadataPending;
+
+    /** 服务端附加的Run总预算引用；客户端JSON不能设置。 */
+    @JsonIgnore
+    @JSONField(serialize = false, deserialize = false)
+    private transient BillingBudgetContext budgetContext;
 
     public BillingInput() {
     }

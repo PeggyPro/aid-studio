@@ -94,8 +94,12 @@ const FIELD_META: Record<string, FieldMeta> = {
     description: '平台开源项目的 GitHub 仓库地址。'
   },
   open_source_gitee_url: {
-    label: 'Gitee 地址',
-    description: '平台开源项目的 Gitee 仓库地址。'
+    label: 'AtomGit 地址',
+    description: '平台开源项目的 AtomGit 仓库地址。'
+  },
+  work_publish_enabled: {
+    label: '作品发布',
+    description: '控制 C 端是否允许用户公开发布作品。'
   }
 };
 
@@ -138,9 +142,9 @@ const GROUPS = [
   {
     key: 'links',
     title: '产品入口与开放生态',
-    description: '维护教程与开源仓库入口。',
+    description: '维护教程、开源仓库及内容发布能力。',
     icon: <LinkOutlined />,
-    fields: ['tutorial_url', 'open_source_git_url', 'open_source_gitee_url']
+    fields: ['tutorial_url', 'open_source_git_url', 'open_source_gitee_url', 'work_publish_enabled']
   }
 ];
 
@@ -226,7 +230,7 @@ export default function BasicConfigSection({ items, onChange }: Props) {
             </div>
             <div>
               <h4>其他基础配置</h4>
-              <p>未归类的公共扩展配置会自动收纳在这里，不会丢失。</p>
+              <p>未归类的扩展配置会自动收纳在这里，不会丢失。</p>
             </div>
           </div>
           <div className="basic-config__grid">{otherItems.map(renderField)}</div>

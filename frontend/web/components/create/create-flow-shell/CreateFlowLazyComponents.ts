@@ -1,5 +1,8 @@
 import { lazy } from 'react'
 
+export const PublishCasePlazaModal = lazy(() =>
+  import('~/components/common/PublishCasePlazaModal')
+)
 export const ExtractAgentModal = lazy(() =>
   import('~/components/steps/ExtractAgentModal').then((module) => ({
     default: module.ExtractAgentModal

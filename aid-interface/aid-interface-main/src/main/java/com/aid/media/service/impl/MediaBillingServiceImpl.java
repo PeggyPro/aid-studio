@@ -16,6 +16,7 @@ import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.aid.aid.domain.media.AidMediaTask;
 import com.aid.aid.mapper.AidMediaTaskMapper;
+import com.aid.billing.dto.BillingBudgetContext;
 import com.aid.billing.enums.BillingConstants;
 import com.aid.billing.error.BillingBalanceErrors;
 import com.aid.billing.service.BillingRecordMetadataService;
@@ -52,6 +53,9 @@ public class MediaBillingServiceImpl implements IMediaBillingService {
     private IAccountUpdateService accountUpdateService;
 
     @Autowired
+    private org.springframework.beans.factory.ObjectProvider<com.aid.billing.service.BillingFacadeService> billingFacade;
+
+    @Autowired
     private BillingRecordMetadataService billingRecordMetadataService;
 
     @Autowired
@@ -59,6 +63,9 @@ public class MediaBillingServiceImpl implements IMediaBillingService {
 
     @Autowired
     private IWechatNotifyService wechatNotifyService;
+
+    @Autowired(required = false)
+    private com.aid.media.service.MediaTaskAnomalyRegistry anomalyRegistry;
 
     // 幂等锁 Redis Key 前缀，防止重复冻结。
     private static final String BILLING_LOCK_PREFIX = "media:billing:lock:";
@@ -78,11 +85,15 @@ public class MediaBillingServiceImpl implements IMediaBillingService {
             return;
         }
 
-        if (task.getBillingTraceId() != null) {
+        boolean stableBudgetTrace = StrUtil.isNotBlank(task.getBillingTraceId())
+                && BillingBudgetContext.isBudgetManagedBizTaskType(task.getBizTaskType());
+        if (StrUtil.isNotBlank(task.getBillingTraceId())
+                && (!stableBudgetTrace
+                || MediaBillingStatus.FROZEN.name().equals(task.getBillingStatus()))) {
             return;
         }
 
-        String traceId = IdUtil.fastSimpleUUID();
+        String traceId = StrUtil.blankToDefault(task.getBillingTraceId(), IdUtil.fastSimpleUUID());
         task.setBillingTraceId(traceId);
 
         BigDecimal frozenAmount = modelConfig.getCostCredits() == null
@@ -110,6 +121,9 @@ public class MediaBillingServiceImpl implements IMediaBillingService {
             accountUpdateService.freeze(userId, frozenAmount, traceId, "create", bizName,
                     StrUtil.blankToDefault(modelConfig.getModelCode(), task.getModelName()));
 
+            if (stableBudgetTrace) {
+                frozenAmount = accountUpdateService.resolveFrozenAmount(traceId, frozenAmount);
+            }
             task.setFrozenAmount(frozenAmount);
             task.setBillingStatus(MediaBillingStatus.FROZEN.name());
 
@@ -292,6 +306,7 @@ public class MediaBillingServiceImpl implements IMediaBillingService {
     {
         LambdaQueryWrapper<AidMediaTask> wrapper = Wrappers.lambdaQuery();
         wrapper.eq(AidMediaTask::getBillingStatus, billingStatus);
+        excludeBudgetManagedTasks(wrapper);
         wrapper.select(AidMediaTask::getId, AidMediaTask::getUserId, AidMediaTask::getBillingStatus,
                 AidMediaTask::getFrozenAmount, AidMediaTask::getBillingTraceId, AidMediaTask::getStatus,
                 AidMediaTask::getMediaType, AidMediaTask::getProjectId,
@@ -305,8 +320,18 @@ public class MediaBillingServiceImpl implements IMediaBillingService {
         {
             try
             {
+                if (BillingBudgetContext.isBudgetManagedBizTaskType(task.getBizTaskType()))
+                {
+                    log.warn("Skip legacy {} recovery for budget-managed task, taskId={}",
+                            billingStatus, task.getId());
+                    continue;
+                }
                 boolean result;
-                if (isSettle)
+                if ("FAILED".equals(task.getStatus()) && "TEXT".equalsIgnoreCase(task.getMediaType()))
+                {
+                    result = closeFailedTextBilling(task);
+                }
+                else if (isSettle)
                 {
                     result = settleBilling(task);
                 }
@@ -317,6 +342,7 @@ public class MediaBillingServiceImpl implements IMediaBillingService {
                 if (result)
                 {
                     processed++;
+                    closeCompensatedAnomaly(task);
                 }
             }
             catch (Exception e)
@@ -335,6 +361,7 @@ public class MediaBillingServiceImpl implements IMediaBillingService {
     {
         LambdaQueryWrapper<AidMediaTask> wrapper = Wrappers.lambdaQuery();
         wrapper.eq(AidMediaTask::getBillingStatus, MediaBillingStatus.FROZEN.name());
+        excludeBudgetManagedTasks(wrapper);
         wrapper.in(AidMediaTask::getStatus, "SUCCEEDED", "FAILED");
         wrapper.select(AidMediaTask::getId, AidMediaTask::getUserId, AidMediaTask::getBillingStatus,
                 AidMediaTask::getFrozenAmount, AidMediaTask::getBillingTraceId, AidMediaTask::getStatus,
@@ -356,18 +383,20 @@ public class MediaBillingServiceImpl implements IMediaBillingService {
         {
             try
             {
-                boolean result;
-                boolean textFailureBillable = "TEXT".equalsIgnoreCase(task.getMediaType())
-                        && TextFailureBillingPolicy.isBillableProviderCall(
-                                task.getUpstreamAcceptTime() != null,
-                                task.getProtocol(), task.getErrorDetailJson());
-                if ("SUCCEEDED".equals(task.getStatus()) || textFailureBillable)
+                boolean budgetManaged = BillingBudgetContext.isBudgetManagedBizTaskType(task.getBizTaskType());
+                if (budgetManaged)
                 {
-                    if (textFailureBillable && "FAILED".equals(task.getStatus()))
-                    {
-                        log.info("媒体FROZEN补偿检测到文本Provider边界，按预冻结上限保守结算: taskId={}",
-                                task.getId());
-                    }
+                    log.warn("Skip legacy FROZEN recovery for budget-managed task, taskId={}",
+                            task.getId());
+                    continue;
+                }
+                boolean result;
+                if ("FAILED".equals(task.getStatus()) && "TEXT".equalsIgnoreCase(task.getMediaType()))
+                {
+                    result = closeFailedTextBilling(task);
+                }
+                else if ("SUCCEEDED".equals(task.getStatus()))
+                {
                     result = settleBilling(task);
                 }
                 else
@@ -377,6 +406,7 @@ public class MediaBillingServiceImpl implements IMediaBillingService {
                 if (result)
                 {
                     processed++;
+                    closeCompensatedAnomaly(task);
                 }
             }
             catch (Exception e)
@@ -387,6 +417,53 @@ public class MediaBillingServiceImpl implements IMediaBillingService {
 
         log.info("媒体FROZEN补偿完成: 扫描{}条, 成功{}条", staleTasks.size(), processed);
         return processed;
+    }
+
+    /** 补偿任务也经过真实用量计价门面，不能直接把冻结上限转成消费。 */
+    private boolean closeFailedTextBilling(AidMediaTask selected) {
+        AidMediaTask task = aidMediaTaskMapper.selectById(selected.getId());
+        if (task == null || !"FAILED".equals(task.getStatus()) || !"TEXT".equalsIgnoreCase(task.getMediaType())) return false;
+        boolean done = billingFacade.getObject().settleBilling(task,
+                TextFailureBillingPolicy.observedUsage(task.getErrorDetailJson()));
+        if (done) {
+            aidMediaTaskMapper.update(null, Wrappers.<AidMediaTask>lambdaUpdate()
+                    .eq(AidMediaTask::getId, task.getId()).eq(AidMediaTask::getStatus, "FAILED")
+                    .eq(AidMediaTask::getBillingTraceId, task.getBillingTraceId())
+                    .set(AidMediaTask::getActualCost, task.getActualCost())
+                    .set(AidMediaTask::getBillingSnapshotJson, task.getBillingSnapshotJson())
+                    .set(AidMediaTask::getTextSettleStatus, task.getTextSettleStatus()));
+        }
+        return done;
+    }
+
+    private void excludeBudgetManagedTasks(LambdaQueryWrapper<AidMediaTask> wrapper)
+    {
+        wrapper.and(task -> task.isNull(AidMediaTask::getBizTaskType)
+                .or().notIn(AidMediaTask::getBizTaskType,
+                        BillingBudgetContext.ASSISTANT_BIZ_TASK_TYPE,
+                        BillingBudgetContext.SKILL_BIZ_TASK_TYPE));
+    }
+
+    /**
+     * Canvas anomaly bookkeeping is legacy, non-budget behavior. Reload the row so an
+     * anomaly is closed only after the public billing state machine durably committed
+     * its terminal state; Assistant/Skill budget tasks remain owned by reconciliation.
+     */
+    private void closeCompensatedAnomaly(AidMediaTask task)
+    {
+        if (anomalyRegistry == null || task == null
+                || BillingBudgetContext.isBudgetManagedBizTaskType(task.getBizTaskType()))
+        {
+            return;
+        }
+        AidMediaTask persisted = aidMediaTaskMapper.selectById(task.getId());
+        if (persisted == null || !MediaTaskStatus.FAILED.name().equals(persisted.getStatus())
+                || !MediaBillingStatus.FAILED.name().equals(persisted.getBillingStatus()))
+        {
+            return;
+        }
+        anomalyRegistry.resolveTerminal(
+                persisted.getId(), persisted.getStatus(), "BILLING_COMPENSATED");
     }
 
     /**

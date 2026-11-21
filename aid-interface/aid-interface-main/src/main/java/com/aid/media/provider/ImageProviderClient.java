@@ -5,6 +5,13 @@ import com.aid.domain.vo.AiModelConfigVo;
 
 public interface ImageProviderClient {
 
+    enum InputDelivery { URL, MULTIPART, INLINE }
+
+    /** Declares transport needs; storage preparation does not guess from business function names. */
+    default InputDelivery inputDelivery(AiModelConfigVo modelConfig, MediaImageGenerateRequest request) {
+        return InputDelivery.URL;
+    }
+
     // 协议标识：用于服务层路由到具体实现。
     String protocol();
 
@@ -28,6 +35,11 @@ public interface ImageProviderClient {
     /** capability 未配置时的厂商参考图默认上限；null 表示不在公共层额外限制。 */
     default Integer fallbackMaxReferenceImages(AiModelConfigVo modelConfig) {
         return null;
+    }
+
+    /** True only when this adapter guarantees a synchronous response and cancellable local transport. */
+    default boolean usesSynchronousExecution(AiModelConfigVo modelConfig) {
+        return false;
     }
 
     /** Pure provider contract validation; no network I/O or external mutation. */

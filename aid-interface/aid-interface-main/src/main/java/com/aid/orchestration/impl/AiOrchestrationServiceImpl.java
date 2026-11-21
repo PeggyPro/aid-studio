@@ -36,11 +36,15 @@ import com.aid.aid.mapper.AidAiModelCapabilityMapper;
 import com.aid.aid.mapper.AidProjectGenConfigMapper;
 import com.aid.aid.service.IAidAiModelFuncConfigService;
 import com.aid.aid.service.IAidAiModelService;
+import com.aid.aid.service.support.ModelReferenceGuard;
 import com.aid.aid.service.IAidAiProviderService;
 import com.aid.aid.service.IAidAiVoiceLibraryService;
 import com.aid.aid.service.IAidGenAgentPoolService;
 import com.aid.agent.IAidAgentService;
 import com.aid.common.exception.ServiceException;
+import com.aid.common.core.domain.ApiErrorDetails;
+import com.aid.common.core.domain.ApiErrorDetails.DependencyReference;
+import com.aid.aid.service.support.ConfiguredModelReferences;
 import com.aid.common.utils.DateUtils;
 import com.aid.orchestration.IAiOrchestrationService;
 import com.aid.orchestration.dto.ModelPoolBindingChangeRequest;
@@ -84,6 +88,9 @@ public class AiOrchestrationServiceImpl implements IAiOrchestrationService
 
     @Autowired
     private IAidAiModelService modelService;
+
+    @Autowired
+    private ModelReferenceGuard modelReferenceGuard;
 
     @Autowired
     private IAidAiProviderService providerService;
@@ -661,6 +668,7 @@ public class AiOrchestrationServiceImpl implements IAiOrchestrationService
         {
             return 0;
         }
+        modelReferenceGuard.assertDeletable(java.util.Arrays.asList(modelIds));
         for (Long modelId : modelIds)
         {
             OrchestrationImpactVO impact = previewModelRetirement(modelId);
@@ -681,6 +689,7 @@ public class AiOrchestrationServiceImpl implements IAiOrchestrationService
     @Transactional(rollbackFor = Exception.class)
     public int deleteAgentIfUnreferenced(Long agentId, String operator)
     {
+        assertLegacyAgentUnreferenced(agentId);
         OrchestrationImpactVO impact = previewAgentRetirement(agentId);
         if (!impact.isCanRetireDirectly())
         {
@@ -694,6 +703,7 @@ public class AiOrchestrationServiceImpl implements IAiOrchestrationService
     public void retireModel(Long modelId, RetireResourceRequest request, String operator)
     {
         requireConfirmed(request);
+        modelReferenceGuard.assertDeletable(java.util.Collections.singletonList(modelId));
         AidAiModel target = requireModel(modelId, true);
         String replacementCode = StrUtil.trimToNull(request.getReplacementCode());
         AidAiModel replacement = null;
@@ -741,6 +751,7 @@ public class AiOrchestrationServiceImpl implements IAiOrchestrationService
     public void retireAgent(Long agentId, RetireResourceRequest request, String operator)
     {
         requireConfirmed(request);
+        assertLegacyAgentUnreferenced(agentId);
         AidAgent target = requireAgent(agentId, true);
         String replacementCode = StrUtil.trimToNull(request.getReplacementCode());
         AidAgent replacement = null;
@@ -1108,6 +1119,7 @@ public class AiOrchestrationServiceImpl implements IAiOrchestrationService
 
     private int softDeleteModel(Long modelId, String operator)
     {
+        modelReferenceGuard.assertDeletable(List.of(modelId));
         return modelService.update(Wrappers.<AidAiModel>lambdaUpdate()
                 .eq(AidAiModel::getId, modelId)
                 .eq(AidAiModel::getDelFlag, NORMAL)
@@ -1119,6 +1131,7 @@ public class AiOrchestrationServiceImpl implements IAiOrchestrationService
 
     private int softDeleteAgent(Long agentId, String operator)
     {
+        assertLegacyAgentUnreferenced(agentId);
         return agentService.update(Wrappers.<AidAgent>lambdaUpdate()
                 .eq(AidAgent::getId, agentId)
                 .eq(AidAgent::getDelFlag, NORMAL)
@@ -1126,6 +1139,41 @@ public class AiOrchestrationServiceImpl implements IAiOrchestrationService
                 .set(AidAgent::getDelFlag, CONFIG_DELETED)
                 .set(AidAgent::getUpdateBy, operator)
                 .set(AidAgent::getUpdateTime, DateUtils.getNowDate())) ? 1 : 0;
+    }
+
+    private void assertLegacyAgentUnreferenced(Long agentId)
+    {
+        AidAgent agent = requireAgent(agentId, true);
+        List<DependencyReference> refs = new ArrayList<>();
+        long matrixCount = agentPoolService.count(Wrappers.<AidGenAgentPool>lambdaQuery()
+                .eq(AidGenAgentPool::getAgentCode, agent.getAgentCode())
+                .eq(AidGenAgentPool::getDelFlag, NORMAL).last("LOCK IN SHARE MODE"));
+        for (var row : agentPoolService.list(Wrappers.<AidGenAgentPool>lambdaQuery()
+                .select(AidGenAgentPool::getId, AidGenAgentPool::getBizCategoryCode, AidGenAgentPool::getStrategy)
+                .eq(AidGenAgentPool::getAgentCode, agent.getAgentCode()).eq(AidGenAgentPool::getDelFlag, NORMAL)
+                .orderByAsc(AidGenAgentPool::getId).last("LIMIT 100 LOCK IN SHARE MODE"))) {
+            refs.add(ConfiguredModelReferences.reference("GENERATION_MATRIX", row.getId(), row.getBizCategoryCode(),
+                    row.getBizCategoryCode() + " / " + row.getStrategy(), null, null, "AGENT_SELECTION", "生成策略仍引用此智能体"));
+        }
+        long projectCount = projectGenConfigMapper.selectCount(Wrappers.<AidProjectGenConfig>lambdaQuery()
+                .eq(AidProjectGenConfig::getAgentCode, agent.getAgentCode())
+                .eq(AidProjectGenConfig::getDelFlag, NORMAL).last("LOCK IN SHARE MODE"));
+        if (refs.size() < 100) for (var row : projectGenConfigMapper.selectList(Wrappers.<AidProjectGenConfig>lambdaQuery()
+                .select(AidProjectGenConfig::getId, AidProjectGenConfig::getProjectId, AidProjectGenConfig::getSceneCode)
+                .eq(AidProjectGenConfig::getAgentCode, agent.getAgentCode()).eq(AidProjectGenConfig::getDelFlag, NORMAL)
+                .orderByAsc(AidProjectGenConfig::getId)
+                .last("LIMIT " + (100 - refs.size()) + " LOCK IN SHARE MODE"))) {
+            refs.add(ConfiguredModelReferences.reference("PROJECT_CONFIG", row.getId(), row.getSceneCode(),
+                    "项目 " + row.getProjectId(), null, null, "AGENT_SELECTION", "项目生成配置仍引用此智能体"));
+        }
+        if (matrixCount + projectCount > 0) {
+            ApiErrorDetails details = new ApiErrorDetails();
+            details.setErrorCode("AGENT_IN_USE");
+            details.setReason("请先调整对应绑定，再重新删除；系统不会自动解绑。");
+            details.setTotalReferences(matrixCount + projectCount);
+            details.setReferences(refs);
+            throw new ServiceException("仍有绑定，无法删除", 409).setClientErrorData(details);
+        }
     }
 
     private List<Long> replaceModelId(List<Long> ids, Long targetId, Long replacementId)

@@ -1,42 +1,51 @@
-.user-menu-dropdown {
+.user-menu-dropdown.app-account-menu {
+  --account-ink: var(--v10-text, #fff);
+  --account-muted: var(--v10-muted, #a7b1c1);
+  --account-raised: var(--v10-s3, #202434);
+  --account-accent: var(--v10-brand, #67d8f4);
+  --account-danger: var(--v10-danger, #ffc9c9);
   position: fixed;
-  width: 260px;
+  font-size: 13px;
+  line-height: 1.4;
+  width: min(260px, calc(100vw - var(--home-new-sidebar-w, 80px) - 22px));
+  max-height: calc(100dvh - 24px);
   padding: 0;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
   border-radius: 12px;
-  background: rgba(17, 22, 33, 1);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+  background: var(--ui-surface, rgba(17, 22, 33, 1));
+  box-shadow: var(--ui-shadow, 0 12px 32px rgba(0, 0, 0, 0.5));
   transform: translateY(-100%);
   z-index: 1000;
 }
 
-.user-menu-dropdown__header {
+.app-account-menu .user-menu-dropdown__header {
   display: flex;
   align-items: center;
   gap: 12px;
   padding: 14px 14px 12px;
 }
 
-.user-menu-dropdown__avatar {
+.app-account-menu .user-menu-dropdown__avatar {
   width: 30px;
   height: 30px;
   border-radius: 50%;
   overflow: hidden;
   flex-shrink: 0;
-  background: rgba(14, 89, 250, 0.35);
+  background: var(--ui-raised, rgba(14, 89, 250, 0.35));
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-.user-menu-dropdown__avatar img {
+.app-account-menu .user-menu-dropdown__avatar img {
   width: 100%;
   height: 100%;
   object-fit: cover;
   display: block;
 }
 
-.user-menu-dropdown__meta {
+.app-account-menu .user-menu-dropdown__meta {
   min-width: 0;
   flex: 1;
   display: flex;
@@ -44,31 +53,31 @@
   gap: 4px;
 }
 
-.user-menu-dropdown__name {
+.app-account-menu .user-menu-dropdown__name {
   font-size: 14px;
   font-weight: 600;
-  color: #fff;
+  color: var(--ui-text, #fff);
   line-height: 1.3;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.user-menu-dropdown__sub {
+.app-account-menu .user-menu-dropdown__sub {
   font-size: 12px;
-  color: #8e97a5;
+  color: var(--ui-muted, #8e97a5);
   line-height: 1.3;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.user-menu-dropdown__wechat-notify {
+.app-account-menu .user-menu-dropdown__wechat-notify {
   padding: 0 14px 0;
-  background: #202434;
+  background: var(--ui-raised, #202434);
 }
 
-.user-menu-dropdown__wechat-notify-row {
+.app-account-menu .user-menu-dropdown__wechat-notify-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -76,24 +85,24 @@
   min-height: 40px;
 }
 
-.user-menu-dropdown__wechat-notify-row.is-disabled {
+.app-account-menu .user-menu-dropdown__wechat-notify-row.is-disabled {
   cursor: not-allowed;
 }
 
-.user-menu-dropdown__wechat-notify-label {
+.app-account-menu .user-menu-dropdown__wechat-notify-label {
   font-size: 14px;
-  color: rgba(255, 255, 255, 0.92);
+  color: var(--ui-text, rgba(255, 255, 255, 0.92));
   user-select: none;
 }
 
-.user-menu-dropdown__list {
+.app-account-menu .user-menu-dropdown__list {
   padding: 8px 10px 10px;
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
 
-.user-menu-dropdown__item {
+.app-account-menu .user-menu-dropdown__item {
   width: 100%;
   min-height: 40px;
   display: flex;
@@ -102,7 +111,7 @@
   border: none;
   border-radius: 8px;
   background: transparent;
-  color: rgba(255, 255, 255, 0.92);
+  color: var(--ui-text, rgba(255, 255, 255, 0.92));
   font-size: 14px;
   padding: 8px 10px;
   cursor: pointer;
@@ -111,45 +120,53 @@
     color 0.18s ease;
 }
 
-.user-menu-dropdown__item .anticon {
+.app-account-menu .user-menu-dropdown__item .anticon {
   font-size: 16px;
-  color: #8e97a5;
+  color: var(--ui-muted, #8e97a5);
   flex-shrink: 0;
   transition: color 0.18s ease;
 }
 
-.user-menu-dropdown__item:hover {
-  background: rgba(32, 36, 52, 1);
+.app-account-menu .user-menu-dropdown__item-icon {
+  display: block;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  filter: var(--v10-logo-filter, none);
 }
 
-.user-menu-dropdown__item:hover .anticon {
-  color: rgba(255, 255, 255, 0.88);
+.app-account-menu .user-menu-dropdown__item:hover {
+  background: var(--ui-raised, rgba(32, 36, 52, 1));
 }
 
-.user-menu-dropdown__item--danger {
-  color: #ffc9c9;
+.app-account-menu .user-menu-dropdown__item:hover .anticon {
+  color: var(--ui-text, rgba(255, 255, 255, 0.88));
 }
 
-.user-menu-dropdown__item--danger .anticon {
-  color: rgba(255, 180, 180, 0.85);
+.app-account-menu .user-menu-dropdown__item--danger {
+  color: var(--ui-text, #ffc9c9);
 }
 
-.user-menu-dropdown__item--danger:hover {
-  background: rgba(32, 36, 52, 1);
-  color: #ffe0e0;
+.app-account-menu .user-menu-dropdown__item--danger .anticon {
+  color: var(--ui-danger, rgba(255, 180, 180, 0.85));
 }
 
-.user-menu-dropdown__item--danger:hover .anticon {
-  color: #ffb4b4;
+.app-account-menu .user-menu-dropdown__item--danger:hover {
+  background: var(--ui-raised, rgba(32, 36, 52, 1));
+  color: var(--ui-text, #ffe0e0);
 }
 
-.user-menu-dropdown-pop-enter-active,
-.user-menu-dropdown-pop-leave-active {
+.app-account-menu .user-menu-dropdown__item--danger:hover .anticon {
+  color: var(--ui-danger, #ffb4b4);
+}
+
+.app-account-menu.user-menu-dropdown-pop-enter-active,
+.app-account-menu.user-menu-dropdown-pop-leave-active {
   transition: all 0.2s ease;
 }
 
-.user-menu-dropdown-pop-enter-from,
-.user-menu-dropdown-pop-leave-to {
+.app-account-menu.user-menu-dropdown-pop-enter-from,
+.app-account-menu.user-menu-dropdown-pop-leave-to {
   opacity: 0;
   transform: translateY(-100%) translateX(-14px) scale(0.98);
 }
@@ -158,22 +175,22 @@
 html.app-shell-create .user-menu-dropdown__switch.ant-switch,
 html.layout-home-new .user-menu-dropdown__switch.ant-switch {
   min-width: 36px;
-  background: rgba(106, 123, 148, 0.7) !important;
-  border: 1px solid rgba(180, 198, 224, 0.48) !important;
+  background: var(--ui-selected, rgba(106, 123, 148, 0.7)) !important;
+  border: 1px solid var(--ui-hair, rgba(180, 198, 224, 0.48)) !important;
 }
 
 html.app-shell-create .user-menu-dropdown__switch.ant-switch.ant-switch-checked,
 html.layout-home-new .user-menu-dropdown__switch.ant-switch.ant-switch-checked {
-  background: linear-gradient(270deg, #0e59fa 0%, #00abd8 100%) !important;
-  border-color: rgba(0, 171, 216, 0.95) !important;
+  background: var(--ui-brand, linear-gradient(270deg, #0e59fa 0%, #00abd8 100%)) !important;
+  border-color: var(--ui-ring, rgba(0, 171, 216, 0.95)) !important;
 }
 
 html.app-shell-create
   .user-menu-dropdown__switch.ant-switch.ant-switch-checked:hover:not(.ant-switch-disabled),
 html.layout-home-new
   .user-menu-dropdown__switch.ant-switch.ant-switch-checked:hover:not(.ant-switch-disabled) {
-  background: linear-gradient(270deg, #0e59fa 0%, #00abd8 100%) !important;
-  border-color: rgba(0, 171, 216, 0.95) !important;
+  background: var(--ui-brand, linear-gradient(270deg, #0e59fa 0%, #00abd8 100%)) !important;
+  border-color: var(--ui-ring, rgba(0, 171, 216, 0.95)) !important;
 }
 
 html.app-shell-create .user-menu-dropdown__switch.ant-switch .ant-switch-handle,
@@ -185,4 +202,15 @@ html.layout-home-new .user-menu-dropdown__switch.ant-switch .ant-switch-handle {
 html.app-shell-create .user-menu-dropdown__switch.ant-switch .ant-switch-handle::before,
 html.layout-home-new .user-menu-dropdown__switch.ant-switch .ant-switch-handle::before {
   background: #ffffff !important;
+}
+
+.app-account-menu .user-menu-dropdown__item:focus-visible {
+  outline: 2px solid var(--account-accent);
+  outline-offset: -2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-account-menu,
+  .app-account-menu .user-menu-dropdown__item,
+  .app-account-menu .user-menu-dropdown__item .anticon { transition: none; }
 }

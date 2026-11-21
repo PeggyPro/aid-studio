@@ -2,20 +2,20 @@
 
 /** 原 pages/create/story-script.vue（definePageMeta layout:'create'）：剧本创作步骤薄页面 */
 
-import { Suspense, useMemo, useRef, useState } from 'react'
+import { useScriptLimits } from '@/hooks/useScriptLimits'
+import { Suspense, useCallback, useEffect, useId, useRef, useState } from 'react'
 import { message, Modal } from 'antd'
+import dynamic from 'next/dynamic'
 import { StoryScript, type StoryScriptHandle } from '~/components/steps/StoryScript'
-import StoryScriptAgentPanel from '~/components/steps/story-script-agent/StoryScriptAgentPanel'
 import { useRouteLike } from '~/hooks/useRouteLike'
-import { useStoryScriptAgent } from '~/hooks/useStoryScriptAgent'
 import { useCreationStore } from '~/stores/creation'
+import { readHomeScreenplayRequest, type HomeScreenplayRequest } from '~/utils/homeComposerScreenplay'
+import { isPublicProjectPreviewQuery } from '~/utils/publicProjectPreviewNavigation'
 import {
   htmlToPlainText,
   htmlPureTextCharCount,
   isHtmlContentEmpty,
   scriptApiTextToEditorHtml,
-  STORY_SCRIPT_MAX_CHARS_MOVIE,
-  STORY_SCRIPT_MAX_CHARS_SERIES
 } from '~/utils/htmlPlain'
 import {
   formatEditorSelectionLocation,
@@ -28,9 +28,23 @@ import {
   parseStoryScriptAgentReplacements,
   storyScriptAgentReferencesOverlap
 } from '~/utils/storyScriptAgentReference'
+import '~/components/steps/story-script-agent/story-script-agent.css'
+
+const StoryScriptEditConversation = dynamic(
+  () => import('~/components/steps/story-script-agent/StoryScriptEditConversation').then(module => module.StoryScriptEditConversation),
+  { ssr: false, loading: () => <p role="status">正在加载剧本对话…</p> },
+)
 
 function StoryScriptStepClient() {
   const storyScriptRef = useRef<StoryScriptHandle | null>(null)
+  const [agentState, setAgentState] = useState<'idle' | 'open' | 'collapsed'>('idle')
+  const [homeLaunch, setHomeLaunch] = useState<{ projectId: number; request: HomeScreenplayRequest } | null>(null)
+  const agentPanelId = useId()
+  const agentTriggerId = `${agentPanelId}-trigger`
+  function openAgent() {
+    setAgentState('open')
+    window.requestAnimationFrame(() => document.getElementById(agentPanelId)?.focus({ preventScroll: true }))
+  }
   const [agentReferenceState, setAgentReferenceState] = useState<{
     projectId: number | null
     episodeId: number | null
@@ -38,11 +52,10 @@ function StoryScriptStepClient() {
   } | null>(null)
   const route = useRouteLike()
   const content = useCreationStore((s) => s.formData.storyScript.content)
-  const globalSetting = useCreationStore((s) => s.formData.globalSetting)
   const currentProjectId = useCreationStore((s) => s.currentProjectId)
   const currentEpisodeId = useCreationStore((s) => s.currentEpisodeId)
+  const scriptLimits = useScriptLimits()
   const currentProjectType = useCreationStore((s) => s.currentProjectType)
-  const workTitle = useCreationStore((s) => s.workTitle)
   const routeProjectId = Number(route.query.projectId ?? route.query.id ?? route.query.workId)
   const projectId =
     Number.isFinite(routeProjectId) && routeProjectId > 0
@@ -60,28 +73,22 @@ function StoryScriptStepClient() {
         : storeMatchesProject && currentEpisodeId != null && currentEpisodeId > 0
           ? currentEpisodeId
           : null
+  const currentScriptScope = storeMatchesProject && episodeId != null
+    && (currentProjectType === 'movie' ? episodeId === 0 : currentEpisodeId === episodeId)
+  const isPublicPreview = isPublicProjectPreviewQuery(route.query)
+  useEffect(() => {
+    if (!currentScriptScope || projectId == null || episodeId !== 0 || isPublicPreview) return
+    const request = readHomeScreenplayRequest(projectId)
+    if (request) setHomeLaunch({ projectId, request })
+  }, [currentScriptScope, projectId, episodeId, isPublicPreview])
+  const initialRequest = currentScriptScope && episodeId === 0 && !isPublicPreview
+    && homeLaunch?.projectId === projectId ? homeLaunch.request : undefined
+  const panelState = agentState === 'idle' && initialRequest ? 'open' : agentState
+  const focusScriptEditor = useCallback(() => storyScriptRef.current?.focusEditor() ?? false, [])
   const agentReferences =
     agentReferenceState?.projectId === projectId && agentReferenceState.episodeId === episodeId
       ? agentReferenceState.selections
       : []
-  const projectStyle = useMemo(
-    () => {
-      const selectedName = String(globalSetting.selectedStyle?.name || '').trim()
-      return [selectedName || globalSetting.style, globalSetting.selectedStyle?.promptText]
-        .map((value) => String(value || '').trim())
-        .filter(Boolean)
-        .join('\n')
-        .slice(0, 2000)
-    },
-    [globalSetting.selectedStyle?.name, globalSetting.selectedStyle?.promptText, globalSetting.style]
-  )
-  const agent = useStoryScriptAgent({
-    projectId,
-    episodeId,
-    projectTitle: workTitle || globalSetting.title || '未命名作品',
-    projectStyle
-  })
-
   function onUpdate(v: string) {
     useCreationStore.getState().updateFormData({ storyScript: { content: v } })
   }
@@ -93,7 +100,7 @@ function StoryScriptStepClient() {
         (reference) => editorTextSelectionKey(reference) === editorTextSelectionKey(selection)
       )
     ) {
-      agent.setOpen(true)
+      openAgent()
       return
     }
     if (existing.some((reference) => storyScriptAgentReferencesOverlap(reference, selection))) {
@@ -105,10 +112,18 @@ function StoryScriptStepClient() {
       episodeId,
       selections: normalizeStoryScriptAgentReferences([...existing, selection])
     })
-    agent.setOpen(true)
+    openAgent()
   }
 
   function applyAgentScript(raw: string, references?: EditorTextSelection[]) {
+    const stillOpen = () => {
+      const current = useCreationStore.getState()
+      return projectId != null && episodeId != null && current.currentProjectId === projectId
+        && (current.currentProjectType === 'movie' ? 0 : current.currentEpisodeId) === episodeId
+    }
+    const assertCurrentScript = () => {
+      if (!stillOpen()) throw new Error('当前打开的剧本已切换，请返回原剧本后再带入')
+    }
     const normalizedReferences = normalizeStoryScriptAgentReferences(references)
     if (normalizedReferences.length) {
       let replacements: EditorTextReplacement[]
@@ -131,6 +146,7 @@ function StoryScriptStepClient() {
         }))
       }
       const applySelections = () => {
+        assertCurrentScript()
         const result =
           storyScriptRef.current?.applyAgentSelectionEdits(replacements) ?? 'unavailable'
         if (result === 'applied') {
@@ -175,19 +191,18 @@ function StoryScriptStepClient() {
       message.warning('Agent 文档暂无可带入内容')
       return
     }
-    const maxLength =
-      currentProjectType === 'series'
-        ? STORY_SCRIPT_MAX_CHARS_SERIES
-        : STORY_SCRIPT_MAX_CHARS_MOVIE
-    if (htmlPureTextCharCount(nextHtml) > maxLength) {
+    const maxLength = currentProjectType === 'series' ? scriptLimits?.episodeMaxChars : scriptLimits?.movieMaxChars
+    if (maxLength !== undefined && htmlPureTextCharCount(nextHtml) > maxLength) {
       message.warning(`生成内容超过当前剧本 ${maxLength.toLocaleString('zh-CN')} 字上限，请先精简`)
       return
     }
     const apply = () => {
+      assertCurrentScript()
+      if (useCreationStore.getState().formData.storyScript.content !== content) throw new Error('当前剧本已修改，请重新确认后带入')
       onUpdate(nextHtml)
       message.success('已带入当前剧本')
     }
-    if (isHtmlContentEmpty(content)) {
+    if (isHtmlContentEmpty(content) && stillOpen()) {
       apply()
       return
     }
@@ -207,56 +222,29 @@ function StoryScriptStepClient() {
           ref={storyScriptRef}
           value={content}
           onChange={onUpdate}
-          agentOpen={agent.open}
-          onAgentToggle={() => agent.setOpen(!agent.open)}
+          agentOpen={panelState === 'open'}
+          agentPanelId={agentPanelId}
+          agentTriggerId={agentTriggerId}
+          onAgentToggle={openAgent}
           onAgentReference={addAgentReference}
         />
       </div>
-      <StoryScriptAgentPanel
-        runtimeFeedbackEnabled
-        key={`${projectId || 'no-project'}:${episodeId ?? 'no-episode'}`}
-        open={agent.open}
-        onClose={() => agent.setOpen(false)}
-        skills={agent.skills}
-        selectedSkillCode={agent.selectedSkillCode}
-        onSkillChange={agent.selectSkill}
-        selectedModelCode={agent.selectedModelCode}
-        onModelChange={agent.selectModel}
-        skillsLoading={agent.skillsLoading}
-        skillsError={agent.skillsError}
-        onSkillsRequest={() => { void agent.loadSkills() }}
-        messages={agent.messages}
-        messagesLoading={agent.messagesLoading}
-        hasOlderMessages={agent.hasOlderMessages}
-        olderMessagesLoading={agent.olderMessagesLoading}
-        onLoadOlderMessages={agent.loadOlderMessages}
-        conversationScopeKey={`${projectId || 'no-project'}:${episodeId ?? 'no-episode'}:${agent.selectedSkillCode || 'no-skill'}`}
-        sending={agent.sending}
-        paused={agent.paused}
-        statusText={agent.statusText}
-        lastError={agent.lastError}
-        canRetry={agent.canRetry}
-        canStop={agent.canStop}
-        stopping={agent.stopping}
-        onRetry={agent.retry}
-        onStop={() => void agent.stop()}
-        onResumeReceiving={agent.resumeReceiving}
-        onSend={agent.send}
-        onSubmitInputRequest={agent.submitInputRequest}
+      {panelState !== 'idle' ? <StoryScriptEditConversation
+        id={agentPanelId}
+        state={panelState}
+        projectId={currentScriptScope ? projectId : null}
+        episodeId={currentScriptScope ? episodeId : null}
         references={agentReferences}
-        onReferencesChange={(selections) =>
-          setAgentReferenceState(
-            selections.length
-              ? {
-                  projectId,
-                  episodeId,
-                  selections: normalizeStoryScriptAgentReferences(selections)
-                }
-              : null
-          )
-        }
-        onApplyScript={applyAgentScript}
-      />
+        scriptEmpty={isHtmlContentEmpty(content)}
+        initialRequest={initialRequest}
+        onClearReferences={() => setAgentReferenceState(null)}
+        onApplyHistoricalScript={applyAgentScript}
+        onLocateEditor={focusScriptEditor}
+        onClose={() => {
+          setAgentState('collapsed')
+          window.requestAnimationFrame(() => document.getElementById(agentTriggerId)?.focus({ preventScroll: true }))
+        }}
+      /> : null}
     </div>
   )
 }

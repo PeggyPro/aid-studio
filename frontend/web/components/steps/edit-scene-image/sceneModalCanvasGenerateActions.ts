@@ -287,7 +287,7 @@ const handleMultiAngleGenerate = async (payload: MultiAngleGeneratePayload) => {
   const liveScope = captureCreationLiveGenScope()
 
   const rawImg = ctx.currentSceneImages()[index] as Record<string, unknown>
-  const imageUrl = String(rawImg?.url || rawImg?.thumbnail || payload.imageUrl || '').trim()
+  const imageUrl = String(payload.imageUrl || rawImg?.url || rawImg?.thumbnail || '').trim()
 
   // 解析 formId 用于接口调用
   let formId: number | null = Number(rawImg?.rpsFormId)

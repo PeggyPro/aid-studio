@@ -1,5 +1,7 @@
 'use client'
 
+import { FlowActionIcon } from '~/components/common/FlowActionIcon'
+
 import { CreateEditorViewport } from '~/components/common/CreateEditorViewport'
 
 /**
@@ -65,7 +67,6 @@ import cameraSelIconRaw from '~/assets/img/icon/camera-sel.svg'
 import addIconRaw from '~/assets/img/icon/add.svg'
 import addSelIconRaw from '~/assets/img/icon/add-sel.svg'
 import deleteIconRaw from '~/assets/img/icon/del-black.svg'
-import starWhiteIconRaw from '~/assets/img/icon/star_white.svg'
 import { useEditStoryboardImageModalController } from './useEditStoryboardImageModalController'
 import { StoryboardModalSkeleton } from './StoryboardModalSkeleton'
 import {
@@ -87,8 +88,6 @@ const cameraSelIcon = assetUrl(cameraSelIconRaw)
 const addIcon = assetUrl(addIconRaw)
 const addSelIcon = assetUrl(addSelIconRaw)
 const deleteIcon = assetUrl(deleteIconRaw)
-const starWhiteIcon = assetUrl(starWhiteIconRaw)
-
 const canvasToolbarIconMap: Record<CanvasToolbarKey, { nor: string; sel: string }> = {
   drawing: { nor: drawingNorIcon, sel: drawingSelIcon },
   chat: { nor: chatNorIcon, sel: chatSelIcon },
@@ -428,7 +427,7 @@ export function EditStoryboardImageModal(props: EditStoryboardImageModalProps) {
                           onMouseLeave={() => ctx.canvasToolbarHoverKey.set(null)}
                           onClick={() => ctx.handleModifyImage(currentImageIndex)}
                           icon={
-                            <img className="toolbar-tab-icon" src={getCanvasToolbarIcon('drawing')} alt="" />
+                            <FlowActionIcon className="toolbar-tab-icon" src={getCanvasToolbarIcon('drawing')} />
                           }
                         >
                           点选改图
@@ -443,7 +442,7 @@ export function EditStoryboardImageModal(props: EditStoryboardImageModalProps) {
                         onMouseEnter={() => ctx.canvasToolbarHoverKey.set('chat')}
                         onMouseLeave={() => ctx.canvasToolbarHoverKey.set(null)}
                         onClick={() => ctx.handleDialogueImage(currentImageIndex)}
-                        icon={<img className="toolbar-tab-icon" src={getCanvasToolbarIcon('chat')} alt="" />}
+                        icon={<FlowActionIcon className="toolbar-tab-icon" src={getCanvasToolbarIcon('chat')} />}
                       >
                         对话作图
                       </Button>
@@ -467,7 +466,7 @@ export function EditStoryboardImageModal(props: EditStoryboardImageModalProps) {
                           className={ctx.canvasToolbarHoverKey.value === 'hd' ? 'toolbar-tab-hover' : ''}
                           onMouseEnter={() => ctx.canvasToolbarHoverKey.set('hd')}
                           onMouseLeave={() => ctx.canvasToolbarHoverKey.set(null)}
-                          icon={<img className="toolbar-tab-icon" src={getCanvasToolbarIcon('hd')} alt="" />}
+                          icon={<FlowActionIcon className="toolbar-tab-icon" src={getCanvasToolbarIcon('hd')} />}
                         >
                           变清晰
                         </Button>
@@ -481,7 +480,7 @@ export function EditStoryboardImageModal(props: EditStoryboardImageModalProps) {
                         onMouseEnter={() => ctx.canvasToolbarHoverKey.set('camera')}
                         onMouseLeave={() => ctx.canvasToolbarHoverKey.set(null)}
                         onClick={() => ctx.handleMultiAngle(currentImageIndex)}
-                        icon={<img className="toolbar-tab-icon" src={getCanvasToolbarIcon('camera')} alt="" />}
+                        icon={<FlowActionIcon className="toolbar-tab-icon" src={getCanvasToolbarIcon('camera')} />}
                       >
                         多机位
                       </Button>
@@ -495,7 +494,7 @@ export function EditStoryboardImageModal(props: EditStoryboardImageModalProps) {
                           onMouseEnter={() => ctx.canvasToolbarHoverKey.set('add')}
                           onMouseLeave={() => ctx.canvasToolbarHoverKey.set(null)}
                           onClick={() => void ctx.handleCancelAddImage(currentImageIndex)}
-                          icon={<img className="toolbar-tab-icon" src={getCanvasToolbarIcon('add')} alt="" />}
+                          icon={<FlowActionIcon className="toolbar-tab-icon" src={getCanvasToolbarIcon('add')} />}
                         >
                           取消添加
                         </Button>
@@ -507,7 +506,7 @@ export function EditStoryboardImageModal(props: EditStoryboardImageModalProps) {
                           onMouseEnter={() => ctx.canvasToolbarHoverKey.set('add')}
                           onMouseLeave={() => ctx.canvasToolbarHoverKey.set(null)}
                           onClick={() => void ctx.handleAddStoryboardImage()}
-                          icon={<img className="toolbar-tab-icon" src={getCanvasToolbarIcon('add')} alt="" />}
+                          icon={<FlowActionIcon className="toolbar-tab-icon" src={getCanvasToolbarIcon('add')} />}
                         >
                           添加分镜图
                         </Button>
@@ -771,7 +770,6 @@ export function EditStoryboardImageModal(props: EditStoryboardImageModalProps) {
                         />
                         <Button
                           type="primary"
-                          block
                           size="large"
                           className="generate-btn"
                           loading={ctx.showStoryboardGenerateButtonLoading()}
@@ -779,7 +777,6 @@ export function EditStoryboardImageModal(props: EditStoryboardImageModalProps) {
                             ctx.showStoryboardGenerateButtonLoading() ||
                             ctx.showGeneratingPromptForScene()
                           }
-                          icon={<img src={starWhiteIcon} alt="" />}
                           onClick={() => void ctx.handleStartGenerate()}
                         >
                           开始生图
@@ -798,12 +795,10 @@ export function EditStoryboardImageModal(props: EditStoryboardImageModalProps) {
                         />
                         <Button
                           type="primary"
-                          block
                           size="large"
                           className="generate-btn"
                           loading={ctx.showGeneratingDialogueButton()}
                           disabled={ctx.showGeneratingDialogueButton()}
-                          icon={<img src={starWhiteIcon} alt="" />}
                           onClick={() => void ctx.handleStartDialogueDraw()}
                         >
                           开始作图

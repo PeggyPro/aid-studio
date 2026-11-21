@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.aid.assistant.source.mapper.AidAssistantSourceImportPartMapper">
+
+    <sql id="sourceImportPartColumns">
+        id, import_id, part_index, part_kind, locator_json, char_start, char_end,
+        char_count, word_count, content_hash, status, attempt_count,
+        state_revision, error_code, error_detail, lease_owner, lease_until,
+        fencing_token, del_flag, create_by, create_time, update_by, update_time, remark
+    </sql>
+
+    <select id="selectByImportIdForUpdate" resultType="com.aid.assistant.source.domain.AidAssistantSourceImportPart">
+        SELECT <include refid="sourceImportPartColumns"/>
+        FROM aid_assistant_source_import_part
+        WHERE import_id = #{importId}
+          AND del_flag = '0'
+        ORDER BY part_index ASC, id ASC
+        FOR UPDATE
+    </select>
+
+    <select id="selectRequestedForUpdate" resultType="com.aid.assistant.source.domain.AidAssistantSourceImportPart">
+        SELECT <include refid="sourceImportPartColumns"/>
+        FROM aid_assistant_source_import_part
+        WHERE import_id = #{importId}
+          AND del_flag = '0'
+        <choose>
+            <when test="partIndexes != null and partIndexes.size() > 0">
+          AND part_index IN
+                <foreach collection="partIndexes" item="partIndex" open="(" separator="," close=")">
+                    #{partIndex}
+                </foreach>
+            </when>
+            <otherwise>
+          AND 1 = 0
+            </otherwise>
+        </choose>
+        ORDER BY part_index ASC, id ASC
+        FOR UPDATE
+    </select>
+
+    <select id="selectRecoverableIds" resultType="java.lang.Long">
+        SELECT id
+        FROM aid_assistant_source_import_part FORCE INDEX (idx_assistant_source_part_recovery)
+        WHERE status = 'PARSING'
+          AND lease_until IS NOT NULL
+          AND lease_until &lt;= #{now}
+          AND del_flag = '0'
+        ORDER BY lease_until ASC, id ASC
+        LIMIT #{limit}
+    </select>
+
+    <update id="claim">
+        UPDATE aid_assistant_source_import_part
+        SET status = #{targetStatus},
+            lease_owner = #{owner},
+            lease_until = #{leaseUntil},
+            fencing_token = fencing_token + 1,
+            state_revision = state_revision + 1,
+            attempt_count = attempt_count + 1,
+            update_by = #{operator},
+            update_time = #{now}
+        WHERE id = #{id}
+          AND state_revision = #{expectedStateRevision}
+          AND status = #{expectedStatus}
+          AND del_flag = '0'
+          AND ((lease_owner IS NULL AND lease_until IS NULL) OR lease_until &lt;= #{now})
+    </update>
+
+</mapper>

@@ -6,7 +6,6 @@ import { CloseOutlined, InfoCircleOutlined } from '@ant-design/icons'
 import { assetUrl } from '~/utils/assetUrl'
 import dialogSelectNorIconRaw from '~/assets/img/icon/dialog-select-nor.svg'
 import dialogSelectSelIconRaw from '~/assets/img/icon/dialog-select-sel.svg'
-import starWhiteIconRaw from '~/assets/img/icon/star_white.svg'
 import { emptyImageIconUrl as emptyImageIconRaw } from '~/utils/emptyImageIcon'
 import { ShimmerImage } from '~/components/common/ShimmerImage'
 import { ShimmerVideo } from '~/components/common/ShimmerVideo'
@@ -35,7 +34,6 @@ import './BatchGenerateStoryboardModal.css'
 
 const dialogSelectNorIcon = assetUrl(dialogSelectNorIconRaw)
 const dialogSelectSelIcon = assetUrl(dialogSelectSelIconRaw)
-const starWhiteIconUrl = assetUrl(starWhiteIconRaw)
 const emptyImageIconUrl = assetUrl(emptyImageIconRaw)
 
 interface Props {
@@ -777,6 +775,7 @@ export function BatchGenerateStoryboardModal({
                 loading={generationQuote.loading}
                 error={generationQuote.error}
                 active={Boolean(quoteRequest)}
+                className="billing-quote-hint--submit"
               />
             )}
             <Button className="bgsm-btn-cancel" disabled={confirmLoading} onClick={handleCancel}>
@@ -789,11 +788,6 @@ export function BatchGenerateStoryboardModal({
               className={`bgsm-btn-ok${action === 'delete' ? ' bgsm-btn-ok--danger' : ''}`}
               disabled={selectedIds.size === 0 || listLoading || confirmLoading}
               onClick={handleConfirm}
-              icon={
-                action === 'generate' && mode === 'video' ? (
-                  <img src={starWhiteIconUrl} alt="" />
-                ) : undefined
-              }
             >
               {action === 'delete' ? '确定' : '批量生成'}
             </Button>

@@ -36,6 +36,21 @@ public class AidConfigController extends BaseController
     @Autowired
     private IAidConfigService aidConfigService;
 
+    @Autowired
+    private com.aid.common.aid.core.service.RealtimeOriginSettings realtimeOrigins;
+
+    @org.springframework.beans.factory.annotation.Value("${canvas.websocket.allowed-origins:}")
+    private String realtimeEnvironmentDefault;
+
+    /** Read the effective policy without exposing deployment environment variables. */
+    @PreAuthorize("@ss.hasPermi('aidconfig:aidconfig:list')")
+    @GetMapping("/realtime-origins")
+    public AjaxResult realtimeOrigins()
+    {
+        return success(java.util.Map.of("origins", realtimeOrigins.editorOrigins(realtimeEnvironmentDefault),
+                "cacheSeconds", 5));
+    }
+
     /**
      * 查询配置信息列表
      */
@@ -44,6 +59,7 @@ public class AidConfigController extends BaseController
     public TableDataInfo list(AidConfig aidConfig)
     {
         startPage();
+        aidConfig.setConfigValue(null);
         List<AidConfig> list = aidConfigService.selectAidConfigList(aidConfig);
         // 列表展示脱敏：密钥/令牌类配置值打码，避免 AK/SK、私钥、token 在后台列表明文泄漏
         for (AidConfig item : list) {
@@ -60,7 +76,9 @@ public class AidConfigController extends BaseController
     @PostMapping("/export")
     public void export(HttpServletResponse response, AidConfig aidConfig)
     {
+        aidConfig.setConfigValue(null);
         List<AidConfig> list = aidConfigService.selectAidConfigList(aidConfig);
+        list.forEach(this::maskSecretInPlace);
         ExcelUtil<AidConfig> util = new ExcelUtil<AidConfig>(AidConfig.class);
         util.exportExcel(response, list, "配置信息数据");
     }
@@ -72,7 +90,9 @@ public class AidConfigController extends BaseController
     @GetMapping(value = "/{id}")
     public AjaxResult getInfo(@PathVariable("id") Long id)
     {
-        return success(aidConfigService.selectAidConfigById(id));
+        AidConfig config = aidConfigService.selectAidConfigById(id);
+        maskSecretInPlace(config);
+        return success(config);
     }
 
     /**
@@ -80,7 +100,7 @@ public class AidConfigController extends BaseController
      * 配置项支持后台 UI 维护；密钥/令牌类的展示脱敏与回写保护见 list / edit。
      */
     @PreAuthorize("@ss.hasPermi('aidconfig:aidconfig:add')")
-    @Log(title = "配置信息", businessType = BusinessType.INSERT)
+    @Log(title = "配置信息", businessType = BusinessType.INSERT, isSaveRequestData = false)
     @PostMapping
     public AjaxResult add(@RequestBody AidConfig aidConfig)
     {
@@ -90,21 +110,23 @@ public class AidConfigController extends BaseController
     /**
      * 修改配置信息
      * 脱敏回写保护：若提交的 configValue 与该字段当前值的脱敏形态一致，说明本项未改，
-     * 保留 DB 原值，避免把打码串（如 LTAI****8eLh）当真密钥写回冲掉真实密钥。
+     * 保留 DB 原值，兼容升级前已打开的配置页面。
      */
     @PreAuthorize("@ss.hasPermi('aidconfig:aidconfig:edit')")
-    @Log(title = "配置信息", businessType = BusinessType.UPDATE)
+    @Log(title = "配置信息", businessType = BusinessType.UPDATE, isSaveRequestData = false)
     @PutMapping
     public AjaxResult edit(@RequestBody AidConfig aidConfig)
     {
         if (aidConfig != null && aidConfig.getId() != null) {
             // 按 id 回查 DB 真实值，判断密钥类字段是否被"原样回写打码串"
             AidConfig existing = aidConfigService.selectAidConfigById(aidConfig.getId());
-            if (existing != null
-                    && isSecretConfig(existing.getConfigName())
-                    && Objects.equals(aidConfig.getConfigValue(), maskSecretValue(existing.getConfigValue()))) {
-                // 提交值=脱敏串 → 视为未修改，保留原密钥，避免误冲
-                aidConfig.setConfigValue(existing.getConfigValue());
+            if (existing != null && isSecretConfig(existing.getConfigName())) {
+                // 保留敏感配置原有分类，避免通过改名使其明文出现在查询结果中。
+                aidConfig.setConfigName(existing.getConfigName());
+                if (isMaskedSecretSubmission(aidConfig.getConfigValue(), existing.getConfigValue())) {
+                    // 提交值=脱敏串 → 视为未修改，保留原密钥，避免误冲
+                    aidConfig.setConfigValue(existing.getConfigValue());
+                }
             }
         }
         return toAjax(aidConfigService.updateAidConfig(aidConfig));
@@ -128,7 +150,8 @@ public class AidConfigController extends BaseController
     private static final java.util.List<String> SECRET_NAME_KEYWORDS = java.util.List.of(
             "secret", "password", "passwd", "pwd", "accesskey", "apikey", "api_key",
             "privatekey", "private_key", "token", "appsecret", "signkey", "mchkey",
-            "encodingaeskey", "encoding_aes_key", "aeskey", "aes_key"
+            "encodingaeskey", "encoding_aes_key", "aeskey", "aes_key", "access_key",
+            "access_code", "accesscode", "sign_key", "api-key", "credential"
     );
 
     /**
@@ -142,7 +165,7 @@ public class AidConfigController extends BaseController
         if (StrUtil.isBlank(configName)) {
             return false;
         }
-        String lower = configName.trim().toLowerCase();
+        String lower = configName.trim().toLowerCase(java.util.Locale.ROOT);
         for (String kw : SECRET_NAME_KEYWORDS) {
             if (lower.contains(kw)) {
                 return true; // 命中密钥关键字
@@ -151,21 +174,26 @@ public class AidConfigController extends BaseController
         return false;
     }
 
-    /**
-     * 密钥值脱敏：长度 > 8 显示「前4 + **** + 后4」；否则整体打码，避免短密钥泄漏。
-     *
-     * @param value 原始配置值
-     * @return 脱敏后的展示值
-     */
+    private static final String MASKED_SECRET = "********";
+
     private String maskSecretValue(String value)
     {
-        if (StrUtil.isBlank(value)) {
-            return value;
+        return StrUtil.isBlank(value) ? value : MASKED_SECRET;
+    }
+
+    private boolean isMaskedSecretSubmission(String submitted, String stored)
+    {
+        if (Objects.equals(submitted, maskSecretValue(stored))) {
+            return true;
         }
-        if (value.length() > 8) {
-            return value.substring(0, 4) + "****" + value.substring(value.length() - 4);
+        if (StrUtil.isBlank(stored)) {
+            return false;
         }
-        return "****";
+        // Older edit pages may still submit the display value they loaded before the upgrade.
+        String legacyMask = stored.length() > 8
+                ? stored.substring(0, 4) + "****" + stored.substring(stored.length() - 4)
+                : "****";
+        return Objects.equals(submitted, legacyMask);
     }
 
     /**

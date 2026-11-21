@@ -51,6 +51,7 @@ function clearPanelGeneratingForTargets(
 /**
  * 切回作品 / 刷新后：校验 step4 批量与弹窗任务 detail，清除已终态残留，
  * 避免「loading 还在但 SSE 已断、任务早已结束」导致流程条卡死。
+ * 分镜脚本的终态由分镜脚本恢复流程处理，需要先同步列表再清任务。
  */
 export async function purgeTerminalStep4LiveGenTasks(
   store: CreationStore,
@@ -60,7 +61,6 @@ export async function purgeTerminalStep4LiveGenTasks(
   const taskIds = new Set<number>()
 
   for (const id of collectPositiveTaskIds(
-    store.storyboardScriptActiveTaskId,
     store.storyboardImageBatchActiveTaskId,
     store.storyboardImageBatchActiveImageTaskId,
     store.storyboardVideoBatchActivePromptTaskId,
@@ -71,7 +71,6 @@ export async function purgeTerminalStep4LiveGenTasks(
 
   for (const { blob } of candidates) {
     for (const id of collectPositiveTaskIds(
-      blob.storyboardScriptActiveTaskId,
       blob.storyboardImageBatchActiveTaskId,
       blob.storyboardImageBatchActiveImageTaskId,
       blob.storyboardVideoBatchActivePromptTaskId,
@@ -112,10 +111,6 @@ export async function purgeTerminalStep4LiveGenTasks(
     }
   }
   if (!terminalIds.size) return
-
-  if (terminalIds.has(Number(store.storyboardScriptActiveTaskId))) {
-    store.stopStoryboardGeneration()
-  }
 
   if (
     shouldClearDualPhaseBatch(
@@ -174,10 +169,6 @@ export async function purgeTerminalStep4LiveGenTasks(
     }
 
     const patch: Record<string, unknown> = {}
-    if (terminalIds.has(Number(blob.storyboardScriptActiveTaskId))) {
-      patch.isGeneratingStoryboard = false
-      patch.storyboardScriptActiveTaskId = null
-    }
     if (
       shouldClearDualPhaseBatch(
         blob.storyboardImageBatchActiveTaskId,

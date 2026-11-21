@@ -25,6 +25,10 @@ public class ProviderTaskResult {
     @JsonIgnore
     private TaskErrorResult taskError;
 
+    /** Sanitized adapter proof retained through the authoritative terminal CAS. */
+    @JsonIgnore
+    private String errorDetailJson;
+
     // 厂商终态失败原文，仅供统一终态收口记录错误样本，禁止直接展示或写入任务错误字段。
     private String rawErrorMessage;
 
@@ -34,7 +38,7 @@ public class ProviderTaskResult {
     /**
      * 本次是否成功读取并识别了厂商文档定义的任务状态。
      * false 表示网络、鉴权、限流、非 JSON、缺少状态或未知状态等“查询异常”，
-     * 这类结果只能继续对账，绝不能当成生成失败。
+     * 这类结果计入连续查询失败次数；达到配置阈值时由本地失败策略退款结束，不能伪装成厂商终态。
      */
     private Boolean querySuccessful;
 
@@ -86,6 +90,12 @@ public class ProviderTaskResult {
     /** 查询成功时上游计费口径中的实际输入视频秒数。 */
     private Integer inputVideoSeconds;
 
+    /** 上游权威计费时长，区别于媒体文件探测的整数时长。 */
+    private java.math.BigDecimal videoBillingDurationSeconds;
+
+    /** 上游权威输入视频计费时长，保留小数。 */
+    private java.math.BigDecimal inputVideoBillingDurationSeconds;
+
     /** 查询成功时上游计费口径中的实际输入图片总数。 */
     private Integer inputImageCount;
 
@@ -96,7 +106,7 @@ public class ProviderTaskResult {
     private Integer totalTokens;
 
     /**
-     * MPS 实际输出时长（秒），仅 COMPOSE 任务填充。
+     * 实际媒体输出时长（向上取整秒），用于展示；独立于上游计费时长。
      * 由 MpsVideoProviderClient 从 DescribeTaskDetail 的输出媒体元信息解析，
      * 供合成分支结算（多退少补）使用，不影响既有字段与调用方。
      */
@@ -107,4 +117,8 @@ public class ProviderTaskResult {
      * 处理中状态用于回写业务表进度展示；终态不依赖本字段。
      */
     private Integer progress;
+
+    private List<AudioOutputItem> audioOutputs;
+    private java.util.Map<String, Object> usage;
+    private String resultText;
 }

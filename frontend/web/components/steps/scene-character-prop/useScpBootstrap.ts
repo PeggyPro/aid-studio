@@ -8,7 +8,7 @@ consumePendingCreateFlowTaskCommand
 } from '~/utils/createFlowTaskCommand'
 import { clearStep3FormImageTaskRegistry,rejectAllStep3FormImageTaskWaiters } from '~/utils/step3FormImageTaskRegistry'
 import { clearStep3SseConcurrencyGate } from '~/utils/step3SseConcurrencyGate'
-import { resumeUserTask } from '~/utils/taskPartialFailed'
+import { isStep3ResumableTaskType,resumeUserTask } from '~/utils/taskPartialFailed'
 import {
 acceptsStep3TrackCommand,
 isStoryboardScriptBatchTaskType,
@@ -28,10 +28,11 @@ export interface ScpBootstrapApi {
   handleResumeTaskEvent: (event: Event) => void
   /**
    * 全局任务面板先跳步骤再派发指令；跳步瞬间本页尚未挂载、事件已错过。
-   * 挂载完成后补投属于本页的 pending 指令（续生仅智能提取，跟进为第三步相关任务）。
+   * 挂载完成后补投属于本页的 pending 指令（续生含智能提取、形态和形态图批任务）。
    */
   deliverPendingCreateFlowTaskCommands: () => void
   handleStopTaskEvent: (event: Event) => void
+  handleOnboardingPrepareAnchor: (e: Event) => void
 }
 
 export function useScpBootstrap(ctx: ScpCtx): ScpBootstrapApi {
@@ -195,7 +196,7 @@ export function useScpBootstrap(ctx: ScpCtx): ScpBootstrapApi {
     const taskId = Number(payload?.taskId)
     if (!Number.isFinite(taskId) || taskId <= 0) return
     const ty = normUserTaskType(payload?.taskType)
-    if (ty !== 'asset_extract') return
+    if (!isStep3ResumableTaskType(ty)) return
     ackCreateFlowTaskCommand('resume', taskId)
     try {
       await resumeUserTask(taskId, ty)
@@ -216,12 +217,12 @@ export function useScpBootstrap(ctx: ScpCtx): ScpBootstrapApi {
 
   /**
    * 全局任务面板先跳步骤再派发指令；跳步瞬间本页尚未挂载、事件已错过。
-   * 挂载完成后补投属于本页的 pending 指令（续生仅智能提取，跟进为第三步相关任务）。
+   * 挂载完成后补投属于本页的 pending 指令（续生含智能提取、形态和形态图批任务）。
    */
   function deliverPendingCreateFlowTaskCommands() {
     const resume = consumePendingCreateFlowTaskCommand(
       'resume',
-      (d) => normUserTaskType(d.taskType) === 'asset_extract'
+      (d) => isStep3ResumableTaskType(d.taskType)
     )
     if (resume) {
       void handleResumeTaskFromGlobal(resume)
@@ -237,6 +238,17 @@ export function useScpBootstrap(ctx: ScpCtx): ScpBootstrapApi {
     handleStopTaskFromGlobal(customEvent.detail)
   }
 
+  function handleOnboardingPrepareAnchor(e: Event) {
+    const anchor = (e as CustomEvent<{ anchor?: string }>).detail?.anchor
+    if (anchor === 'scp-batch-ops') {
+      ctx.batchOpsDropdownOpen.set(false)
+      return
+    }
+    if (anchor === 'scp-batch-form-generate' || anchor === 'scp-batch-image-generate') {
+      ctx.batchOpsDropdownOpen.set(true)
+    }
+  }
+
   return {
     stopOngoingTaskStreamForRouteContextChange,
     runProjectAssetBootstrap,
@@ -247,6 +259,7 @@ export function useScpBootstrap(ctx: ScpCtx): ScpBootstrapApi {
     handleResumeTaskFromGlobal,
     handleResumeTaskEvent,
     deliverPendingCreateFlowTaskCommands,
-    handleStopTaskEvent
+    handleStopTaskEvent,
+    handleOnboardingPrepareAnchor
   }
 }

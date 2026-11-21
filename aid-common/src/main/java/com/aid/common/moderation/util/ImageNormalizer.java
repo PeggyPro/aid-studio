@@ -1,5 +1,7 @@
 package com.aid.common.moderation.util;
 
+import com.aid.common.aid.image.ManagedImageIO;
+
 import java.awt.Color;
 import java.awt.Container;
 import java.awt.Graphics2D;
@@ -67,7 +69,7 @@ public final class ImageNormalizer
         try
         {
             ByteArrayOutputStream out = new ByteArrayOutputStream(Math.max(8192, raw.length / 4));
-            if (!ImageIO.write(rgb, "jpg", out))
+            if (!ManagedImageIO.write(rgb, "jpg", out))
             {
                 // ImageIO.write 在没注册 writer 时会返回 false（JDK 自带 JPEG writer 不会，但保留兜底）
                 log.warn("图片归一化失败：JPEG writer 未就绪，原字节透传");
@@ -93,7 +95,7 @@ public final class ImageNormalizer
     {
         try
         {
-            BufferedImage img = ImageIO.read(new ByteArrayInputStream(bytes));
+            BufferedImage img = ManagedImageIO.read(new ByteArrayInputStream(bytes));
             if (Objects.nonNull(img))
             {
                 return img;

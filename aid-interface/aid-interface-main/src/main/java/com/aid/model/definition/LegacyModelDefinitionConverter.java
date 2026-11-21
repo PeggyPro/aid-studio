@@ -92,7 +92,9 @@ public final class LegacyModelDefinitionConverter {
         List<ModelCapabilityDefinition> definitions = convert(model);
         String preferred = switch (functionCode) {
             case "main_storyboard_video_edge" -> "start_end_to_video";
-            case "main_storyboard_video_image", "main_storyboard_video_grid" -> "image_to_video";
+            case "main_storyboard_video_image" -> "image_to_video";
+            case "main_storyboard_video_grid" -> Set.of("agnes-video-2.5", "agnes-video-2.5-flash").contains(model.getModelCode())
+                    ? "reference_to_video" : "image_to_video";
             case "main_storyboard_video", "main_storyboard_video_multi_pro" -> "reference_to_video";
             default -> normalizeCode(functionGenerateMode);
         };

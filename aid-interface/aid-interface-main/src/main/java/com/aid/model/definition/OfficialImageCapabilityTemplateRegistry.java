@@ -30,7 +30,8 @@ public class OfficialImageCapabilityTemplateRegistry {
         String upstream = model.getRealModelCode();
         if (upstream == null || upstream.isBlank()) upstream = model.getModelCode();
         boolean wan = "wanx2.1-imageedit".equals(upstream);
-        boolean gpt = Set.of("gpt-image-2.5-flare", "gpt-image-2.5-sunburst").contains(upstream);
+        boolean gpt26 = "gpt-image-2.6-flare".equals(upstream) || "gpt-image-2.6-sunburst".equals(upstream);
+        boolean gpt = gpt26 || "gpt-image-2.5-flare".equals(upstream) || "gpt-image-2.5-sunburst".equals(upstream);
         List<ModelCapabilityDefinition> current = JSON.parseArray(JSON.toJSONString(model.getCapabilities()), ModelCapabilityDefinition.class);
         if (current == null) current = new ArrayList<>();
         if (!wan && !gpt) return new Preview(false, modelId, current, List.of(), List.of());
@@ -56,7 +57,7 @@ public class OfficialImageCapabilityTemplateRegistry {
         for (var entry : catalog.entrySet()) {
             String code = entry.getKey();
             ModelCapabilityDefinition existing = current.stream().filter(c -> code.equals(c.getCode())).findFirst().orElse(null);
-            List<ModelParameter> fields = parameters(code, wan);
+            List<ModelParameter> fields = parameters(code, wan, gpt26);
             if (existing != null) {
                 existing.setParameters(mergeMissing(existing.getParameters(), fields));
                 continue;
@@ -88,7 +89,7 @@ public class OfficialImageCapabilityTemplateRegistry {
         return new Preview(true, modelId, current, added, List.of(source));
     }
 
-    private static List<ModelParameter> parameters(String code, boolean wan) {
+    private static List<ModelParameter> parameters(String code, boolean wan, boolean gpt26) {
         List<ModelParameter> result = new ArrayList<>();
         ModelParameter prompt = field("prompt", "提示词", "string", null);
         prompt.setMaximum(BigDecimal.valueOf(wan ? 800 : 32000));
@@ -137,6 +138,7 @@ public class OfficialImageCapabilityTemplateRegistry {
             size.setDescription("WIDTHxHEIGHT：16倍数，边长不超过3840，比例1:3至3:1，总像素655360至8294400；扩图由目标尺寸决定");
             result.add(size);
             options.add(choice("quality", "质量", List.of("auto", "low", "medium", "high", "xhigh", "max"), "auto"));
+            if (gpt26) options.add(choice("complexity", "构图复杂度", List.of("low", "medium", "high"), "high"));
             options.add(choice("output_format", "输出格式", List.of("png", "jpeg", "webp"), "png"));
             options.add(choice("background", "背景", List.of("auto", "opaque", "transparent"), "auto"));
             options.add(number("output_compression", "压缩质量", 0, 100, null));

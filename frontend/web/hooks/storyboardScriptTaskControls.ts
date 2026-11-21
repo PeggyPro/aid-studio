@@ -1,4 +1,5 @@
 import { useCreationStore } from '~/stores/creation'
+import { captureCreationLiveGenScope, matchesCreationLiveGenScope } from '~/composables/useCreationLiveGenScopeGuard'
 import type { StoryboardPanel } from '~/types'
 import {
 isStoryboardScriptBatchTask,
@@ -37,6 +38,7 @@ export function createStoryboardScriptTaskControls(
   } = runtime
 
 async function requestStop() {
+  const scope = captureCreationLiveGenScope()
   runtime.setStopRequested(true)
   closeStream()
   const taskId = activeTaskId.value
@@ -55,12 +57,12 @@ async function requestStop() {
     }
   } else {
     try {
-      await refreshPanelsFromApi()
+      if (matchesCreationLiveGenScope(scope)) await refreshPanelsFromApi()
     } catch {
       /* ignore */
     }
   }
-  syncActiveTaskIdToStore(null)
+  if (matchesCreationLiveGenScope(scope) && activeTaskId.value === taskId) syncActiveTaskIdToStore(null)
 }
 
 function onGlobalStopTask(event: Event) {

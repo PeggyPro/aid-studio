@@ -5,21 +5,20 @@
  */
 
 import { applyStoryboardScriptPanelsFromApi } from '~/composables/useCreateFlowStoryboardSync'
+import { captureCreationLiveGenScope, matchesCreationLiveGenScope } from '~/composables/useCreationLiveGenScopeGuard'
 import { getRouteLikeSnapshot } from '~/composables/useRouteLike'
 import { parseServerStoryboardId } from '~/composables/useStoryboardWorkbenchMutations'
-import {
-fetchUserTaskDetailOnce,
-normalizeTaskStatus
-} from '~/composables/useTaskSseFollow'
+import { isOngoingUserTaskStatus, normalizeTaskStatus } from '~/composables/useTaskSseFollow'
 import {
 createTaskStream,
 type TaskProgressEventData,
+type TaskStreamHandle,
 type TaskStreamResult
 } from '~/composables/useTaskStream'
 import { useCreationStore } from '~/stores/creation'
 import type { StoryboardPanel } from '~/types'
 import type { UserTaskDetailData,UserTaskRow } from '~/types/business-api'
-import { userStoryboardList } from '~/utils/businessApi'
+import { userStoryboardList, userTaskDetailCached } from '~/utils/businessApi'
 import {
 getPersistedStoryboardScriptPanels,
 mapStoryboardListRowToPanel
@@ -30,10 +29,8 @@ formatPartialFailedMessage,
 parseTaskPartialFailedData,
 type TaskPartialFailedData
 } from '~/utils/taskPartialFailed'
-import {
-isBenignTaskSseDisconnectMessage,
-isNavigationOrSuspendBatchMessage
-} from '~/utils/taskSseSilentDisconnect'
+import { shouldPreferSseBusinessTerminalOverOngoingDetail } from '~/utils/taskSseSilentDisconnect'
+import { scheduleUserBalanceRefresh } from '~/utils/userBalanceRefresh'
 
 export function storyboardScriptBizErr(e: unknown): string {
   const x = e as { msg?: string; message?: string }
@@ -54,8 +51,7 @@ export function isStoryboardScriptBatchTask(ty: unknown): boolean {
 }
 
 export function isOngoingStoryboardScriptTaskStatus(status: unknown): boolean {
-  const s = String(status ?? '').toUpperCase()
-  return s === 'PENDING' || s === 'PROCESSING' || s === 'RUNNING' || s === 'QUEUED' || s === 'WAITING'
+  return isOngoingUserTaskStatus(status)
 }
 
 /** 后端防重：同 project+episode 已有进行中的分镜脚本任务 */
@@ -68,10 +64,6 @@ export function isStoryboardScriptTaskBusyMessage(msg: string): boolean {
     m.includes('正在执行的分镜任务') ||
     m.includes('项目下有正在执行')
   )
-}
-
-export function storyboardScriptSleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
 export function hasPersistedStoryboards(panels: StoryboardPanel[]): boolean {
@@ -101,16 +93,19 @@ export function resolveScenePlotCountHint(): number {
 }
 
 /** 拉取分镜列表并作为唯一数据源写回 store（终态后调用，不在生成中轮询） */
-export async function refreshStoryboardScriptPanelsFromApi(): Promise<StoryboardPanel[]> {
+export async function refreshStoryboardScriptPanelsFromApi(shouldApply?: () => boolean): Promise<StoryboardPanel[]> {
+  const scope = captureCreationLiveGenScope()
   const ctx = await resolveStoryScriptSaveContext(getStore(), getRouteLikeSnapshot())
-  if (!ctx) return []
+  if (!ctx || !matchesCreationLiveGenScope(scope) || shouldApply?.() === false) return []
   const list = await userStoryboardList({
     projectId: ctx.projectId,
     episodeId: ctx.episodeId
-  })
+  }, { refresh: true })
   const sorted = [...list].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
   const panels = sorted.map((row, index) => mapStoryboardListRowToPanel(row, index))
-  applyStoryboardScriptPanelsFromApi(panels)
+  if (matchesCreationLiveGenScope(scope) && shouldApply?.() !== false) {
+    applyStoryboardScriptPanelsFromApi(panels)
+  }
   return panels
 }
 
@@ -138,7 +133,7 @@ function resetStoryboardScriptListToEmpty() {
   getStore().setStoryboardProgress(0, 0)
 }
 
-function shouldPersistStoryboardScriptGenerationError(panels: StoryboardPanel[]): boolean {
+function hasPersistedStoryboardScriptPanels(panels: StoryboardPanel[]): boolean {
   return getPersistedStoryboardScriptPanels(panels).length > 0
 }
 
@@ -148,22 +143,18 @@ export function applyStoryboardScriptPartialFailedOutcome(
   partialData: TaskPartialFailedData | null,
   panels: StoryboardPanel[]
 ) {
-  if (!shouldPersistStoryboardScriptGenerationError(panels)) {
-    getStore().clearStoryboardScriptGenerationOutcome()
+  if (!hasPersistedStoryboardScriptPanels(panels)) {
     resetStoryboardScriptListToEmpty()
-    getStore().setStoryboardGenerating(false)
-    return
   }
   getStore().setStoryboardPartialFailedOutcome(msg, taskId, partialData)
 }
 
 export function applyStoryboardScriptFailedOutcome(msg: string, panels: StoryboardPanel[]) {
   getStore().clearStoryboardScriptGenerationOutcome()
-  if (shouldPersistStoryboardScriptGenerationError(panels)) {
-    getStore().setStoryboardError(msg)
-  } else {
+  if (!hasPersistedStoryboardScriptPanels(panels)) {
     resetStoryboardScriptListToEmpty()
   }
+  getStore().setStoryboardError(msg)
   getStore().setStoryboardGenerating(false)
 }
 
@@ -222,10 +213,7 @@ export function resolveOutcomeFromTaskDetail(
   if (status === 'FAILED' || status === 'CANCELLED') {
     return { ok: false, message: detail.errorMessage || '分镜生成失败' }
   }
-  if (isOngoingStoryboardScriptTaskStatus(status)) {
-    return null
-  }
-  return { ok: true }
+  return null
 }
 
 export function mapStreamResultToOutcome(res: TaskStreamResult): StoryboardScriptTrackOutcome {
@@ -249,144 +237,134 @@ export function mapStreamResultToOutcome(res: TaskStreamResult): StoryboardScrip
   return { ok: true }
 }
 
-/** trackTaskUntilDone 的闭包状态由主体 hook 显式注入（stopRequested / 恢复代数 / 流关闭器槽位） */
+const STORYBOARD_STATUS_CHECK_MS = 12_000
+
 export interface StoryboardScriptTrackCtx {
+  isCurrent: () => boolean
   isStopRequested: () => boolean
-  getResumeFollowGeneration: () => number
-  setStreamCloser: (closer: (() => void) | null) => void
+  registerStop: (stop: () => void) => () => void
 }
 
 export async function trackStoryboardScriptTaskUntilDone(
   taskId: number,
   onSseProgress: (p: TaskProgressEventData) => void,
   ctx: StoryboardScriptTrackCtx,
-  options?: { startDetail?: UserTaskDetailData | null }
+  startDetail?: UserTaskDetailData | null
 ): Promise<StoryboardScriptTrackOutcome> {
-  if (ctx.isStopRequested()) {
-    return { ok: false, message: '已停止生成' }
+  const stopped = (): StoryboardScriptTrackOutcome => ctx.isStopRequested()
+    ? { ok: false, message: '已停止生成' }
+    : { ok: false, ongoing: true, message: '任务仍在后台执行，请稍候或刷新页面自动恢复进度' }
+
+  if (!ctx.isCurrent() || ctx.isStopRequested()) return stopped()
+  const terminalAtStart = resolveOutcomeFromTaskDetail(startDetail ?? null)
+  if (terminalAtStart) {
+    scheduleUserBalanceRefresh()
+    return terminalAtStart
   }
 
-  const startDetail = options?.startDetail ?? null
-  if (startDetail) {
-    const early = resolveOutcomeFromTaskDetail(startDetail)
-    if (early?.ok || early?.partial) {
-      return early
-    }
-    const startStatus = normalizeTaskStatus(startDetail.status)
-    if (startStatus === 'FAILED' || startStatus === 'CANCELLED') {
-      return early ?? { ok: false, message: startDetail.errorMessage || '分镜生成失败' }
-    }
-  }
+  let stream: TaskStreamHandle | undefined
+  let timer: ReturnType<typeof setTimeout> | undefined
+  let settled = false
+  let checking = false
+  let lastProgress = ''
+  let reconnected = false
+  let terminalStreamOutcome: StoryboardScriptTrackOutcome | undefined
+  let stopProgress = () => {}
+  let unregister = () => {}
 
-  const maxReconnects = 3
-  let lastStreamOutcome: StoryboardScriptTrackOutcome | null = null
-  const streamGen = ctx.getResumeFollowGeneration()
-
-  for (let attempt = 0; attempt <= maxReconnects; attempt++) {
-    if (ctx.isStopRequested()) {
-      return { ok: false, message: '已停止生成' }
-    }
-    if (streamGen !== ctx.getResumeFollowGeneration()) {
-      return {
-        ok: false,
-        ongoing: true,
-        message: '任务仍在后台执行，请稍候或刷新页面自动恢复进度'
+  try {
+    return await new Promise<StoryboardScriptTrackOutcome>((resolve) => {
+      const finish = (result: StoryboardScriptTrackOutcome) => {
+        if (settled) return
+        settled = true
+        resolve(result)
       }
-    }
 
-    const stream = createTaskStream(taskId)
-    ctx.setStreamCloser(() => {
-      try {
-        stream.close()
-      } catch {
-        /* ignore */
+      const scheduleStatusCheck = (delay = STORYBOARD_STATUS_CHECK_MS) => {
+        clearTimeout(timer)
+        if (settled || checking) return
+        timer = setTimeout(async () => {
+          if (!ctx.isCurrent() || ctx.isStopRequested()) {
+            finish(stopped())
+            return
+          }
+          checking = true
+          // SSE 停顿或断开时只核对当前任务。分镜列表仅在确认终态后读取。
+          const detail = await userTaskDetailCached(taskId, { force: true }).catch(() => null)
+          checking = false
+          if (settled) return
+          if (!ctx.isCurrent() || ctx.isStopRequested()) {
+            finish(stopped())
+            return
+          }
+          const outcome = resolveOutcomeFromTaskDetail(detail) ?? terminalStreamOutcome
+          if (outcome) {
+            scheduleUserBalanceRefresh()
+            finish(outcome)
+          } else {
+            if (!reconnected && stream?.isClosed() && isOngoingUserTaskStatus(detail?.status)) {
+              reconnected = true
+              connect()
+            }
+            scheduleStatusCheck()
+          }
+        }, delay)
       }
+
+      const reconcileAfterDisconnect = () => {
+        if (settled) return
+        if (!ctx.isCurrent() || ctx.isStopRequested()) {
+          finish(stopped())
+          return
+        }
+        onSseProgress({ message: '连接中断，正在核对分镜任务状态…', stepTitle: '正在核对分镜任务状态…' })
+        scheduleStatusCheck(0)
+      }
+
+      const connect = () => {
+        stopProgress()
+        stream = createTaskStream(taskId)
+        stopProgress = stream.subscribeProgress((progress) => {
+          if (settled) return
+          if (!ctx.isCurrent() || ctx.isStopRequested()) {
+            finish(stopped())
+            return
+          }
+          onSseProgress(progress)
+          // ETA 倒计时由本地生成，不能让它持续推迟终态核对。
+          const signature = JSON.stringify([
+            progress.status, progress.stage, progress.progress, progress.stepId,
+            progress.stepIndex, progress.stepTotal, progress.processedCount, progress.currentCount,
+            progress.updateMillis, progress.updateTime
+          ])
+          if (signature !== lastProgress) {
+            lastProgress = signature
+            scheduleStatusCheck()
+          }
+        })
+        void stream.done.then((result) => {
+          if (settled) return
+          if (!ctx.isCurrent() || ctx.isStopRequested()) {
+            finish(stopped())
+          } else if (result.type === 'complete' || result.type === 'partial_failed') {
+            finish(mapStreamResultToOutcome(result))
+          } else if (shouldPreferSseBusinessTerminalOverOngoingDetail(result)) {
+            terminalStreamOutcome = mapStreamResultToOutcome(result)
+            scheduleStatusCheck(0)
+          } else {
+            reconcileAfterDisconnect()
+          }
+        }, reconcileAfterDisconnect)
+      }
+
+      unregister = ctx.registerStop(() => finish(stopped()))
+      connect()
+      scheduleStatusCheck()
     })
-
-    // 原 watch(stream.lastProgress, cb, { immediate: true })：订阅时已有进度会立即回调一次
-    const stopWatchProgress = stream.subscribeProgress((p) => {
-      if (p) onSseProgress(p)
-    })
-
-    let streamResult: TaskStreamResult | null = null
-    try {
-      streamResult = await stream.done
-    } catch {
-      streamResult = null
-    } finally {
-      stopWatchProgress()
-      try {
-        stream.close()
-      } catch {
-        /* ignore */
-      }
-      ctx.setStreamCloser(null)
-    }
-
-    if (ctx.isStopRequested()) {
-      return { ok: false, message: '已停止生成' }
-    }
-
-    if (streamResult) {
-      const mapped = mapStreamResultToOutcome(streamResult)
-      if (mapped.ok || mapped.partial) {
-        return mapped
-      }
-      lastStreamOutcome = mapped
-      if (streamResult.type === 'cancelled' || streamResult.type === 'error') {
-        break
-      }
-    }
-
-    if (attempt < maxReconnects) {
-      await storyboardScriptSleep(800)
-    }
-  }
-
-  // SSE 结束后仅补查一次 task/detail（不做轮询）
-  const endDetail = await fetchUserTaskDetailOnce(taskId)
-  const fromDetail = resolveOutcomeFromTaskDetail(endDetail)
-  if (fromDetail) {
-    return fromDetail
-  }
-  // SSE 业务失败优先于滞后的 PROCESSING detail，避免永久保活 loading
-  if (lastStreamOutcome && !lastStreamOutcome.ok && lastStreamOutcome.message) {
-    const msg = String(lastStreamOutcome.message)
-    const isBenignDisconnect =
-      isBenignTaskSseDisconnectMessage(msg) || isNavigationOrSuspendBatchMessage(msg)
-    if (!isBenignDisconnect) {
-      return lastStreamOutcome
-    }
-  }
-  if (isOngoingStoryboardScriptTaskStatus(endDetail?.status)) {
-    return {
-      ok: false,
-      ongoing: true,
-      message: '任务仍在后台执行，请稍候或刷新页面自动恢复进度'
-    }
-  }
-  // 无终态详情时：视为后台仍在执行（切步/suspend 断流），禁止「连接中断请稍后重试」假失败
-  if (lastStreamOutcome && !lastStreamOutcome.ok && lastStreamOutcome.message) {
-    const msg = String(lastStreamOutcome.message)
-    if (
-      msg.includes('连接中断') ||
-      msg.includes('连接异常') ||
-      /abort|superseded|ended unexpectedly/i.test(msg)
-    ) {
-      return {
-        ok: false,
-        ongoing: true,
-        message: '任务仍在后台执行，请稍候或刷新页面自动恢复进度'
-      }
-    }
-    return lastStreamOutcome
-  }
-  return {
-    ok: false,
-    ongoing: true,
-    message:
-      endDetail?.errorMessage && !String(endDetail.errorMessage).includes('连接中断')
-        ? String(endDetail.errorMessage)
-        : '任务仍在后台执行，请稍候或刷新页面自动恢复进度'
+  } finally {
+    clearTimeout(timer)
+    stopProgress()
+    unregister()
+    stream?.close()
   }
 }

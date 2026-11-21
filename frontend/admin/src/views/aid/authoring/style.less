@@ -1,0 +1,437 @@
+.skill-authoring {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  height: calc(100dvh - 112px);
+  flex-direction: column;
+  gap: 12px;
+  overflow: hidden;
+
+  &__toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 16px;
+    border: 1px solid var(--ant-color-border-secondary);
+    border-radius: var(--ant-border-radius-lg);
+    background: var(--ant-color-bg-container);
+    flex: 0 0 auto;
+  }
+
+  &__search {
+    width: min(360px, 70vw);
+  }
+
+  &__owner-type {
+    width: 138px;
+  }
+
+  &__owner-id {
+    width: 180px;
+  }
+
+  &__publication-setting {
+    flex: 0 0 auto;
+  }
+
+  &__workspace {
+    display: grid;
+    min-width: 0;
+    min-height: 0;
+    flex: 1 1 auto;
+    overflow: hidden;
+    grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
+    gap: 12px;
+  }
+
+  &__tree-card,
+  &__editor-card {
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  &__tree-card .ant-card-body {
+    height: 100%;
+    overflow: auto;
+  }
+
+  &__tree-card .ant-tree-title {
+    min-width: 0;
+  }
+
+  &__tree-card .ant-tree-node-content-wrapper {
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  &__tree-card .ant-tree-treenode {
+    min-height: 32px;
+  }
+
+  &__editor-card .ant-card-body {
+    display: flex;
+    height: 100%;
+    min-height: 0;
+    flex-direction: column;
+  }
+
+  &__editor-header,
+  &__asset-bar,
+  &__editor-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  &__editor-header {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--ant-color-border-secondary);
+  }
+
+  &__asset-bar {
+    padding: 8px 16px;
+    border-bottom: 1px solid var(--ant-color-border-secondary);
+    background: var(--ant-color-fill-quaternary);
+  }
+
+  &__file-title {
+    display: flex;
+    min-width: 0;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  &__file-title > .ant-typography,
+  &__code {
+    max-width: min(420px, 45vw);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__editor-actions {
+    justify-content: flex-end;
+  }
+
+  &__version-select {
+    width: 190px;
+  }
+
+  &__editor-spin,
+  &__editor-spin > .ant-spin-container,
+  &__editor-body {
+    min-height: 0;
+    flex: 1 1 auto;
+  }
+
+  &__editor-spin > .ant-spin-container,
+  &__editor-body {
+    display: flex;
+    flex-direction: column;
+  }
+
+  &__editor-body {
+    gap: 10px;
+    padding: 12px 16px 16px;
+    overflow: auto;
+  }
+
+  &__textarea.ant-input {
+    min-height: 360px;
+    flex: 1 1 auto;
+    resize: none;
+    overflow: auto;
+    font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', monospace;
+    font-size: 14px;
+    line-height: 1.65;
+    tab-size: 2;
+  }
+
+  &__textarea.ant-input[readonly] {
+    color: var(--ant-color-text);
+    background: var(--ant-color-bg-container);
+    cursor: text;
+    user-select: text;
+  }
+
+  &__editor-footer {
+    flex-wrap: wrap;
+  }
+
+  &__reference-blockers {
+    flex: 0 1 auto;
+    max-height: min(240px, 30dvh);
+    margin: 8px 16px;
+    overflow: auto;
+  }
+
+  &__reference-locations .ant-btn {
+    height: auto;
+    max-width: 100%;
+    padding-inline: 0;
+    text-align: start;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  &__empty {
+    margin: auto;
+  }
+
+  &__advanced-form {
+    max-height: calc(100dvh - 240px);
+    overflow: auto;
+    padding-top: 12px;
+  }
+
+  .authoring-tree__asset-label {
+    display: grid;
+    min-width: 0;
+    max-width: 238px;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .authoring-tree__asset-label > span,
+  .authoring-tree__asset-label > .ant-typography {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  @media (max-width: 900px) {
+    &__toolbar,
+    &__editor-header,
+    &__asset-bar {
+      align-items: stretch;
+      flex-direction: column;
+    }
+
+    &__publication-setting {
+      justify-content: space-between;
+    }
+
+    &__toolbar {
+      max-height: min(220px, 34dvh);
+      overflow: auto;
+    }
+
+    &__workspace {
+      grid-template-columns: clamp(168px, 31vw, 240px) minmax(0, 1fr);
+      gap: 8px;
+    }
+
+    &__editor-actions,
+    &__version-select,
+    &__owner-type,
+    &__owner-id {
+      width: 100%;
+    }
+
+    &__editor-actions > .ant-space-item,
+    &__editor-actions .ant-btn,
+    &__editor-actions .ant-select {
+      flex: 1 1 auto;
+    }
+
+    &__file-title > .ant-typography,
+    &__code {
+      max-width: calc(100vw - 80px);
+    }
+  }
+
+  @media (max-width: 600px) {
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+
+    &__toolbar {
+      max-height: none;
+      padding: 10px 12px;
+      overflow: visible;
+    }
+
+    &__search {
+      width: 100%;
+    }
+
+    &__toolbar > .ant-space {
+      width: 100%;
+    }
+
+    &__toolbar > .ant-space > .ant-space-item {
+      max-width: 100%;
+    }
+
+    &__toolbar > .ant-space:first-child > .ant-space-item:first-child {
+      width: 100%;
+      flex: 1 1 100%;
+    }
+
+    &__workspace {
+      display: flex;
+      min-height: 0;
+      flex: 0 0 auto;
+      flex-direction: column;
+      overflow: visible;
+    }
+
+    &__tree-card,
+    &__editor-card {
+      width: 100%;
+      overflow: visible;
+    }
+
+    &__tree-card .ant-card-body {
+      height: auto;
+      max-height: min(42dvh, 360px);
+      overflow: auto;
+      overscroll-behavior: contain;
+    }
+
+    &__editor-card .ant-card-body {
+      height: auto;
+      overflow: visible;
+    }
+
+    &__editor-header,
+    &__asset-bar {
+      padding-inline: 12px;
+    }
+
+    &__editor-actions {
+      display: grid;
+      min-width: 0;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    &__editor-actions > .ant-space-item {
+      width: 100%;
+      min-width: 0;
+    }
+
+    &__editor-actions > .ant-space-item:first-child {
+      grid-column: 1 / -1;
+    }
+
+    &__editor-actions > .ant-space-item > span {
+      display: block;
+      width: 100%;
+    }
+
+    &__editor-actions .ant-btn,
+    &__editor-actions .ant-select,
+    &__editor-actions .ant-select-selector {
+      width: 100%;
+      min-width: 0;
+    }
+
+    &__editor-actions .ant-btn,
+    &__editor-actions .ant-select-selector {
+      min-height: 44px;
+    }
+
+    &__asset-bar > .ant-space {
+      width: 100%;
+    }
+
+    &__asset-bar > .ant-space > .ant-space-item {
+      max-width: 100%;
+    }
+
+    &__asset-bar .ant-btn {
+      height: auto;
+      min-height: 44px;
+      max-width: 100%;
+      white-space: normal;
+    }
+
+    &__editor-spin,
+    &__editor-spin > .ant-spin-container,
+    &__editor-body {
+      flex: 0 0 auto;
+    }
+
+    &__editor-body {
+      padding: 12px;
+      overflow: visible;
+    }
+
+    &__textarea.ant-input {
+      width: 100%;
+      min-height: 420px;
+      flex: 0 0 auto;
+      resize: vertical;
+    }
+
+    &__editor-card .ant-alert {
+      flex-wrap: wrap;
+    }
+
+    &__editor-card .ant-alert-action {
+      margin-block-start: 8px;
+      margin-inline-start: 0;
+    }
+
+    &__file-title > .ant-typography,
+    &__code {
+      max-width: calc(100vw - 64px);
+    }
+  }
+}
+
+.skill-authoring {
+  .skill-authoring__toolbar { flex-wrap: wrap; background: var(--skill-panel); border: 1px solid var(--skill-line); border-radius: 12px; }
+  .skill-authoring__tree-card .ant-tree-node-content-wrapper { display: flex; align-items: center; gap: 4px; border-radius: 7px; }
+  .skill-authoring__tree-card .authoring-tree__asset-label { padding: 5px 0; line-height: 1.55; }
+  .authoring-tree__asset-label > .ant-typography { font-size: 11px; color: var(--skill-muted); }
+  .skill-summary {
+    border-radius: 14px;
+    .ant-card-body { overflow: auto; }
+    .skill-authoring__editor-header {
+      flex-wrap: wrap; align-items: flex-start; justify-content: flex-start;
+      padding: clamp(18px, 2vw, 32px); gap: 16px;
+      background: linear-gradient(115deg, var(--skill-tint), var(--skill-panel) 72%);
+      border-bottom: 1px solid var(--skill-line);
+    }
+    .skill-authoring__file-title { min-width: min(230px,100%); gap: 7px; }
+    .skill-authoring__file-title > .ant-typography {
+      max-width: 100%; white-space: normal; overflow-wrap: anywhere;
+      font-size: clamp(19px, 1.45vw, 26px); line-height: 1.35; letter-spacing: -.025em;
+    }
+    .skill-authoring__code { font: 12px/1.5 ui-monospace, Consolas, monospace; color: var(--skill-muted); }
+    .skill-authoring__editor-actions { margin-left: auto; }
+    .skill-authoring__asset-bar { padding: 12px clamp(18px, 2vw, 32px); background: var(--skill-panel); border-bottom: 1px solid var(--skill-line); }
+    .skill-authoring__asset-bar .ant-btn { min-height: 30px; padding-inline: 11px; border-radius: 7px; }
+  }
+}
+.skill-summary {
+  &__mark, &__file-icon { display: inline-grid; place-items: center; flex-shrink: 0; }
+  &__mark { width: 46px; height: 46px; border-radius: 13px; color: white; font-size: 23px; background: linear-gradient(140deg,#3965ee,#6754dc); }
+  &__status { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--skill-muted); }
+  &__status::before { content: ''; border-radius: 50%; background: currentColor; width: 6px; height: 6px; }
+  &__status[data-enabled="true"] { color: var(--skill-success); }
+  &__description { margin: 0; max-width: 65ch; line-height: 1.65; color: var(--skill-muted); overflow-wrap: anywhere; }
+  &__body { padding: clamp(18px,2vw,32px); }
+  &__body h2 { font-size: 15px; font-weight: 650; margin: 0 0 13px; color: var(--skill-text); }
+  &__facts, &__documents { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(175px,100%),1fr)); gap: 12px; }
+  &__facts { margin: 0 0 28px; }
+  &__facts > div { min-width: 0; padding: 16px 18px; background: var(--skill-fill); border: 1px solid var(--skill-line); border-radius: 10px; }
+  &__facts dt { display: flex; align-items: center; gap: 7px; color: var(--skill-muted); font-size: 12px; }
+  &__facts dd { margin: 9px 0 0; font-size: 16px; font-weight: 600; overflow-wrap: anywhere; color: var(--skill-text); }
+  &__documents button { display: flex; align-items: center; gap: 12px; padding: 16px; text-align: left; cursor: pointer; background: var(--skill-panel); border: 1px solid var(--skill-line); border-radius: 10px; color: var(--skill-text); font: inherit; }
+  &__documents button:hover, &__documents button:focus-visible { border-color: var(--skill-accent); background: var(--skill-tint); }
+  &__documents button:focus-visible { outline: 2px solid var(--skill-accent); outline-offset: 2px; }
+  &__documents strong, &__documents small { display: block; }
+  &__documents small { margin-top: 3px; font-size: 11px; color: var(--skill-muted); overflow-wrap: anywhere; }
+  &__documents button > .anticon:last-child { margin-left: auto; font-size: 10px; color: var(--skill-muted); }
+  &__file-icon { width: 34px; height: 38px; border-radius: 8px; background: var(--skill-tint); color: var(--skill-accent); font-size: 18px; }
+}
+@media (max-width: 900px) {
+  .skill-authoring .skill-summary .skill-authoring__editor-header { flex-direction: row; }
+  .skill-authoring .skill-summary .skill-authoring__editor-actions { margin-left: 0; }
+}

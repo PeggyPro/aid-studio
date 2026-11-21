@@ -5,10 +5,10 @@
   gap: 12px;
   margin: 4px 0 2px;
   padding: 12px 14px;
-  color: #c5ced8;
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  color: var(--studio-ui-text, var(--ui-text, #c5ced8));
+  border: 1px solid var(--studio-ui-border, var(--ui-hair, rgba(255, 255, 255, 0.06)));
   border-radius: 12px;
-  background: rgba(38, 41, 49, 0.72);
+  background: var(--studio-ui-surface, var(--ui-raised, rgba(38, 41, 49, 0.72)));
 }
 
 .agent-paused-runtime-notice__copy {
@@ -18,7 +18,7 @@
 
 .agent-paused-runtime-notice__copy strong {
   display: block;
-  color: #e8edf4;
+  color: var(--studio-ui-text, var(--ui-text, #e8edf4));
   font-size: 13px;
   font-weight: 600;
   line-height: 1.4;
@@ -26,7 +26,7 @@
 
 .agent-paused-runtime-notice__copy p {
   margin: 4px 0 0;
-  color: #8d97a5;
+  color: var(--studio-ui-muted, var(--ui-muted, #8d97a5));
   font-size: 12px;
   line-height: 1.5;
 }
@@ -46,10 +46,10 @@
   gap: 6px;
   min-height: 32px;
   padding: 0 14px;
-  color: #fff;
+  color: var(--studio-ui-inverse, var(--ui-text, #fff));
   border: 0;
   border-radius: 8px;
-  background: var(--home-grad-btn, linear-gradient(135deg, #3b82f6 0%, #22d3ee 100%));
+  background: var(--ui-surface, var(--home-grad-btn, linear-gradient(135deg, #3b82f6 0%, #22d3ee 100%)));
   cursor: pointer;
   font-size: 13px;
   font-weight: 500;
@@ -58,8 +58,8 @@
 }
 
 .agent-paused-runtime-notice__stop {
-  color: #e8edf4;
-  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: var(--ui-text, #e8edf4);
+  border: 1px solid var(--ui-hair, rgba(255, 255, 255, 0.18));
   background: transparent;
 }
 

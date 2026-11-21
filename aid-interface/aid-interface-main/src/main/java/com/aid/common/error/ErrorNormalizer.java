@@ -300,6 +300,10 @@ public class ErrorNormalizer {
                 || Objects.equals(lower.trim(), "余额不足")) {
             return TaskErrorResult.of(TaskErrorCode.PROVIDER_QUOTA_EXHAUSTED, rawMessage);
         }
+        if (containsAny(lower, "not available for your current group", "model access denied",
+                "you do not have access to this model", "you do not have access to the model")) {
+            return TaskErrorResult.of(TaskErrorCode.UPSTREAM_MODEL_ACCESS_DENIED, rawMessage);
+        }
         if (containsAny(lower, "invalid api key", "incorrect api key", "api key not valid",
                 "unauthorized", "authentication failed", "invalid credential",
                 "access denied", "signaturedoesnotmatch", "invalidaccesskeyid",
@@ -347,14 +351,15 @@ public class ErrorNormalizer {
         }
         if (containsAny(lower, "private ip address not allowed", "must be a public http",
                 "download input image failed", "参考文件地址不可访问", "素材读取超时",
-                "素材下载超时", "素材读取失败", "素材文件不可用")) {
+                "素材下载超时", "素材读取失败", "素材文件不可用", "参考图读取失败",
+                "原图读取失败", "蒙版读取失败", "文件读取失败")) {
             return TaskErrorResult.of(TaskErrorCode.USER_FILE_DOWNLOAD_FAILED, rawMessage);
         }
         if (containsAny(lower, "上游未返回任务标识、url或文本结果", "模型返回为空", "合成为空",
                 "no image url", "no video url", "模型未返回有效结果")) {
             return TaskErrorResult.of(TaskErrorCode.RESULT_INVALID, rawMessage);
         }
-        if (containsAny(lower, "输出格式异常", "模型返回异常", "拆分内容异常", "拆分内容缺失",
+        if (containsAny(lower, "输出格式异常", "模型格式异常", "模型返回异常", "拆分内容异常", "拆分内容缺失",
                 "拆分顺序异常", "拆分格式异常")) {
             return TaskErrorResult.of(TaskErrorCode.RESULT_FORMAT_INVALID, rawMessage);
         }
@@ -474,7 +479,7 @@ public class ErrorNormalizer {
     /**
      * 这些错误只供服务端定位和前端机器判断，面向用户的文案必须由代码统一控制。
      */
-    static boolean usesProtectedUserMessage(TaskErrorCode code) {
+    public static boolean usesProtectedUserMessage(TaskErrorCode code) {
         return switch (code) {
             case MERCHANT_QUOTA_EXHAUSTED,
                     PROVIDER_FREE_TIER_EXHAUSTED,
@@ -482,6 +487,8 @@ public class ErrorNormalizer {
                     PROVIDER_BALANCE_INSUFFICIENT,
                     UPSTREAM_AUTH_INVALID,
                     UPSTREAM_SERVICE_NOT_OPEN,
+                    UPSTREAM_MODEL_ACCESS_DENIED,
+                    UPSTREAM_MODEL_UNAVAILABLE,
                     MODEL_ACCOUNT_UNAVAILABLE,
                     PROVIDER_BUSY,
                     UPSTREAM_RATE_LIMITED,

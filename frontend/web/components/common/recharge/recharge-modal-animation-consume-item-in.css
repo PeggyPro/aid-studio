@@ -19,10 +19,10 @@
 }
 
 .consume-card {
-  border: 1px solid rgba(74, 231, 253, 0.2);
+  border: 1px solid var(--ui-hair, rgba(74, 231, 253, 0.2));
   border-radius: 8px;
   padding: 12px;
-  background: rgba(18, 22, 32, 0.45);
+  background: var(--recharge-surface, var(--ui-surface, rgba(18, 22, 32, 0.45)));
 }
 
 .consume-card__head {
@@ -39,15 +39,15 @@
   border-radius: 4px;
   font-size: 12px;
   font-weight: 500;
-  color: rgba(74, 231, 253, 0.95);
-  background: rgba(74, 231, 253, 0.12);
-  border: 1px solid rgba(74, 231, 253, 0.25);
+  color: var(--recharge-accent, var(--ui-brand, rgba(74, 231, 253, 0.95)));
+  background: var(--ui-soft, rgba(74, 231, 253, 0.12));
+  border: 1px solid var(--ui-hair, rgba(74, 231, 253, 0.25));
 }
 
 .consume-card__time {
   flex-shrink: 0;
   font-size: 12px;
-  color: #8e97a5;
+  color: var(--recharge-muted, var(--ui-muted, #8e97a5));
 }
 
 .consume-card__amount-row {
@@ -63,27 +63,27 @@
 }
 
 .consume-card__amount--consume {
-  color: #ff7875;
+  color: var(--ui-danger, #ff7875);
 }
 
 .consume-card__amount--refund {
-  color: #52c41a;
+  color: var(--ui-success, #52c41a);
 }
 
 .consume-card__amount--neutral {
-  color: #8e97a5;
+  color: var(--recharge-muted, var(--ui-muted, #8e97a5));
 }
 
 .consume-card__amount-label {
   font-size: 12px;
-  color: #8e97a5;
+  color: var(--recharge-muted, var(--ui-muted, #8e97a5));
 }
 
 .consume-card__model {
   margin: 4px 0 0;
   font-size: 12px;
   line-height: 1.45;
-  color: #8e97a5;
+  color: var(--recharge-muted, var(--ui-muted, #8e97a5));
   word-break: break-word;
 }
 
@@ -91,7 +91,7 @@
   margin: 6px 0 0;
   font-size: 12px;
   line-height: 1.45;
-  color: rgba(255, 255, 255, 0.72);
+  color: var(--recharge-text, var(--ui-text, rgba(255, 255, 255, 0.72)));
 }
 
 .consume-card__details {
@@ -102,7 +102,7 @@
   padding: 0;
   list-style: none;
   font-size: 12px;
-  color: #8e97a5;
+  color: var(--recharge-muted, var(--ui-muted, #8e97a5));
 }
 
 /* ======== 以下为原组件非 scoped 全局样式，逐字保留 ======== */
@@ -118,12 +118,12 @@
 /* 订单管理 / 消耗明细抽屉：关闭图标在深色头上需为白色 */
 .recharge-order-drawer .ant-drawer-close,
 .ant-drawer.recharge-order-drawer .ant-drawer-close {
-  color: #ffffff !important;
+  color: var(--recharge-text, var(--ui-text, #ffffff)) !important;
 }
 
 .recharge-order-drawer .ant-drawer-close:hover,
 .ant-drawer.recharge-order-drawer .ant-drawer-close:hover {
-  color: #4ae7fd !important;
+  color: var(--recharge-accent, var(--ui-brand, #4ae7fd)) !important;
   background: transparent !important;
 }
 
@@ -134,79 +134,16 @@
 
 .recharge-order-drawer .ant-drawer-title,
 .ant-drawer.recharge-order-drawer .ant-drawer-title {
-  color: #ffffff !important;
+  color: var(--recharge-text, var(--ui-text, #ffffff)) !important;
 }
 
 .recharge-order-drawer .ant-drawer-header,
 .ant-drawer.recharge-order-drawer .ant-drawer-header {
-  background: rgba(25, 26, 29, 0.98) !important;
-  border-bottom: 1px solid rgba(74, 231, 253, 0.12) !important;
+  background: var(--recharge-surface, var(--ui-surface, rgba(25, 26, 29, 0.98))) !important;
+  border-bottom: 1px solid var(--ui-hair, rgba(74, 231, 253, 0.12)) !important;
 }
 
 .recharge-order-drawer .ant-drawer-content,
 .ant-drawer.recharge-order-drawer .ant-drawer-content {
-  background: #191a1d !important;
+  background: var(--recharge-surface, var(--ui-surface, #191a1d)) !important;
 }
-
-/* 充值弹窗：固定设计宽高上限，随视口收缩；首页 / 流程页同一套规则 */
-.ant-modal-wrap.recharge-modal-wrap .ant-modal.recharge-main-modal {
-  width: min(960px, calc(100vw - 32px)) !important;
-  max-width: min(960px, calc(100vw - 32px)) !important;
-  max-height: calc(100vh - 48px);
-  padding-bottom: 0;
-}
-
-.ant-modal-wrap.recharge-modal-wrap .ant-modal.recharge-pay-modal {
-  width: min(520px, calc(100vw - 32px)) !important;
-  max-width: min(520px, calc(100vw - 32px)) !important;
-  max-height: calc(100vh - 48px);
-  padding-bottom: 0;
-}
-
-.ant-modal.recharge-modal-branded .ant-modal-content {
-  padding: 0 !important;
-  overflow: hidden;
-  border-radius: 12px !important;
-  background: #191a1d !important;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55) !important;
-  max-height: calc(100vh - 48px);
-  display: flex;
-  flex-direction: column;
-}
-
-.ant-modal.recharge-modal-branded .ant-modal-header {
-  margin: 0 !important;
-  padding: 1.25rem 1.5rem 0.75rem !important;
-  border-bottom: none !important;
-  background: #191a1d !important;
-  flex-shrink: 0;
-}
-
-.ant-modal.recharge-modal-branded .ant-modal-title {
-  width: 100%;
-}
-
-.ant-modal.recharge-modal-branded .ant-modal-close {
-  top: 1rem !important;
-  inset-inline-end: 1rem !important;
-  color: rgba(255, 255, 255, 0.75) !important;
-}
-
-.ant-modal.recharge-modal-branded .ant-modal-close:hover {
-  color: #4ae7fd !important;
-}
-
-.ant-modal.recharge-modal-branded .ant-modal-body {
-  padding: 0 !important;
-  background: #191a1d !important;
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow-x: hidden;
-  overflow-y: auto;
-}
-
-.ant-modal.recharge-main-modal .ant-modal-body .recharge-modal__body--step1 {
-  padding: 16px 24px 0;
-}
-
-/* 矮屏：收紧套餐卡，避免 150% 缩放后撑出视口 */

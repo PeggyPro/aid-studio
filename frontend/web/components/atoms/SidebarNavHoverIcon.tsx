@@ -8,8 +8,42 @@ const GALLERY_PATH =
 const WORKS_PATH =
   'M18.6494 2.99902C19.9489 2.99926 21.0029 4.05299 21.0029 5.35254V18.6484C21.0027 19.9478 19.9488 21.0017 18.6494 21.002H5.35352C4.05396 21.002 3.00023 19.9479 3 18.6484V5.35254C3 4.05284 4.05382 2.99902 5.35352 2.99902H18.6494ZM4 18.6484C4.00023 19.3957 4.60625 20.002 5.35352 20.002H7.25V16.751H4V18.6484ZM8.25 16.2412C8.25006 16.2444 8.25098 16.2478 8.25098 16.251C8.25098 16.2539 8.25005 16.2568 8.25 16.2598V20.002H15.752V12.5H8.25V16.2412ZM16.752 20.002H18.6494C19.3965 20.0017 20.0027 19.3955 20.0029 18.6484V16.751H16.752V20.002ZM4 15.751H7.25V12.5H4V15.751ZM16.752 15.751H20.0029V12.5H16.752V15.751ZM4 11.5H7.25V8.24902H4V11.5ZM8.25 7.73926C8.25006 7.74251 8.25097 7.74576 8.25098 7.74902C8.25098 7.75186 8.25005 7.75499 8.25 7.75781V11.5H15.752V3.99902H8.25V7.73926ZM16.752 8.24902V11.5H20.0029V8.24902H16.752ZM16.752 7.24902H20.0029V5.35254C20.0029 4.60528 19.3966 3.99926 18.6494 3.99902H16.752V7.24902ZM5.35352 3.99902C4.6061 3.99902 4 4.60513 4 5.35254V7.24902H7.25V3.99902H5.35352Z'
 
+const OPEN_SOURCE_PATH =
+  'M15.8574 18.9229C15.8573 20.0668 14.99 21 13.9277 21H10.0723C9.01013 20.9998 8.14371 20.07 8.14355 18.9229V17.1934H9.42871V18.9229C9.42887 19.304 9.71533 19.616 10.0723 19.6162H13.9277C14.2817 19.6162 14.5721 19.3074 14.5723 18.9229V9.92383H15.8574V18.9229ZM7.15625 9.42871H5.07812C4.69688 9.42872 4.38495 9.71525 4.38477 10.0723V13.9277C4.38477 14.2818 4.69347 14.5723 5.07812 14.5723H14.0762V15.8574H5.07812C3.93402 15.8574 3 14.9931 3 13.9277V10.0723C3.00017 9.01006 3.93086 8.14356 5.07812 8.14355H7.15625V9.42871ZM18.9229 8.14355C20.0667 8.14372 20.9999 9.0071 21 10.0723V13.9277C21 14.993 20.0668 15.8573 18.9229 15.8574H16.8447V14.5723H18.9229C19.3041 14.5721 19.6162 14.2848 19.6162 13.9277V10.0723C19.6161 9.71838 19.3073 9.42887 18.9229 9.42871H9.80957V8.14355H18.9229ZM13.9277 3C14.9901 3 15.8574 3.93075 15.8574 5.07812V7.09668H14.5723V5.07812C14.5723 4.69677 14.2849 4.38477 13.9277 4.38477H10.0723C9.71826 4.38488 9.42872 4.69355 9.42871 5.07812V13.9609H8.14355V5.07812C8.14356 3.9341 9.007 3.00014 10.0723 3H13.9277Z'
+
+const DISCUSSION_PATH =
+  'M18.75 5.96973C19.9876 5.96973 21 6.94737 21 8.14258V15.3135C21 16.5087 19.9876 17.4873 18.75 17.4873H17.5498V21L12.1504 17.5234H7.9873C6.74988 17.5234 5.73754 16.5456 5.7373 15.3506V8.14258C5.73732 6.94737 6.74975 5.96973 7.9873 5.96973H18.75ZM7.9873 7.41797C7.57479 7.41797 7.23732 7.74418 7.2373 8.14258V15.3135C7.2373 15.7119 7.57478 16.0381 7.9873 16.0381H12.5996L16.0498 18.2842V16.0381H18.75C19.1625 16.0381 19.5 15.7119 19.5 15.3135V8.14258C19.5 7.74418 19.1625 7.41797 18.75 7.41797H7.9873ZM16.125 3C16.5374 3 16.8748 3.32537 16.875 3.72363C16.875 4.12204 16.5375 4.44824 16.125 4.44824H6.1875C5.24995 4.44824 4.5 5.13652 4.5 6.04199V14.5898C4.49987 14.988 4.16227 15.3142 3.75 15.3145C3.33756 15.3145 3.00013 14.9881 3 14.5898V6.04199C3 4.37592 4.4249 3 6.1875 3H16.125ZM9.8623 10.6416C10.4623 10.6416 10.9502 11.1129 10.9502 11.6924C10.95 12.2717 10.4622 12.7422 9.8623 12.7422C9.26243 12.7421 8.77459 12.2717 8.77441 11.6924C8.77441 11.1129 9.26232 10.6417 9.8623 10.6416ZM13.4248 10.6416C14.0248 10.6416 14.5127 11.1129 14.5127 11.6924C14.5125 12.2717 14.0247 12.7422 13.4248 12.7422C12.825 12.742 12.3752 12.2716 12.375 11.6924C12.375 11.113 12.8624 10.6418 13.4248 10.6416ZM17.0254 10.6416C17.6254 10.6417 18.1133 11.1129 18.1133 11.6924C18.1131 12.2717 17.6253 12.7421 17.0254 12.7422C16.4255 12.7422 15.9377 12.2717 15.9375 11.6924C15.9375 11.1129 16.4254 10.6416 17.0254 10.6416Z'
+
+const FILL_ICON_PATHS = {
+  gallery: GALLERY_PATH,
+  works: WORKS_PATH,
+  'open-source': OPEN_SOURCE_PATH,
+  discussion: DISCUSSION_PATH
+} as const
+
+type SidebarNavIconType = 'assets' | 'previz' | keyof typeof FILL_ICON_PATHS
+
+function FillNavIcon({ path }: { path: string }) {
+  return (
+    <svg className="sidebar-nav-hover-icon__svg" viewBox="0 0 24 24" width="24" height="24" fill="none">
+      <g className="sidebar-nav-hover-icon__draw-flap">
+        <path className="sidebar-nav-hover-icon__fill" d={path} fill="currentColor" />
+        <path
+          className="sidebar-nav-hover-icon__stroke-trace"
+          pathLength={1}
+          d={path}
+          fill="none"
+          stroke="currentColor"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </g>
+    </svg>
+  )
+}
+
 interface SidebarNavHoverIconProps {
-  type: 'gallery' | 'works' | 'assets'
+  type: SidebarNavIconType
   className?: string
 }
 
@@ -20,54 +54,16 @@ export default function SidebarNavHoverIcon({ type, className }: SidebarNavHover
 
   return (
     <span className={rootClass} aria-hidden="true">
-      {type === 'gallery' ? (
-        /* 首页：原图 fill 静态层 + hover 描摹与翻起 */
-        <svg
-          className="sidebar-nav-hover-icon__svg"
-          viewBox="0 0 24 24"
-          width="24"
-          height="24"
-          fill="none"
-          xmlns="http://www.w3.org/2000/svg"
-        >
+      {type === 'previz' ? (
+        <svg className="sidebar-nav-hover-icon__svg" viewBox="0 0 24 24" width="24" height="24" fill="none">
           <g className="sidebar-nav-hover-icon__draw-flap">
-            <path className="sidebar-nav-hover-icon__fill" d={GALLERY_PATH} fill="currentColor" />
-            <path
-              className="sidebar-nav-hover-icon__stroke-trace"
-              pathLength={1}
-              d={GALLERY_PATH}
-              fill="none"
-              stroke="currentColor"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
+            <path className="sidebar-nav-hover-icon__stroke" d="m12 3 9 5v8l-9 5-9-5V8l9-5Z M3 8l9 5 9-5 M12 13v8 M7.5 5.5l9 5" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
           </g>
         </svg>
-      ) : type === 'works' ? (
-        /* 我的作品：原图 fill 静态层 + hover 描摹与翻起 */
-        <svg
-          className="sidebar-nav-hover-icon__svg"
-          viewBox="0 0 24 24"
-          width="24"
-          height="24"
-          fill="none"
-          xmlns="http://www.w3.org/2000/svg"
-        >
-          <g className="sidebar-nav-hover-icon__draw-flap">
-            <path className="sidebar-nav-hover-icon__fill" d={WORKS_PATH} fill="currentColor" />
-            <path
-              className="sidebar-nav-hover-icon__stroke-trace"
-              pathLength={1}
-              d={WORKS_PATH}
-              fill="none"
-              stroke="currentColor"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </g>
-        </svg>
+      ) : type !== 'assets' ? (
+        <FillNavIcon path={FILL_ICON_PATHS[type]} />
       ) : (
-        /* 资产库：原图 stroke 静态层 + hover 描边重绘与翻盖 */
+        /* 资产库：原图 stroke 线稿 + hover 描边加粗与翻盖 */
         <svg
           className="sidebar-nav-hover-icon__svg"
           viewBox="0 0 24 24"

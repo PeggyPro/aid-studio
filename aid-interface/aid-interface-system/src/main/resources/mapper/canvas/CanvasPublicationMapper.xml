@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.aid.canvas.publication.mapper.CanvasPublicationMapper">
+  <sql id="filter">
+    FROM aid_canvas_publication p JOIN aid_canvas_publication_state s ON s.project_id=p.project_id
+    <if test="publicOnly">JOIN aid_comic_project c ON c.id=p.project_id AND c.del_flag='0'</if>
+    WHERE 1=1
+    <if test="publicOnly">AND s.visible=1 AND s.blocked=0 AND s.published_id=p.id AND p.review_status='APPROVED'</if>
+    <if test="status != null and status != ''">AND p.review_status=#{status}</if>
+    <if test="keyword != null and keyword != ''">AND p.project_name LIKE CONCAT('%',#{keyword},'%')</if>
+  </sql>
+  <select id="list" resultType="com.aid.canvas.publication.domain.CanvasPublication">
+    SELECT p.id,p.project_id,p.owner_user_id,p.workspace_revision,p.scene_version,p.project_name,p.project_desc,
+      p.video_url,p.cover_url,p.allow_copy,p.review_status,p.review_reason,p.source_publication_id,p.root_publication_id,p.create_time
+    <include refid="filter"/> ORDER BY p.id DESC LIMIT #{offset},#{limit}
+  </select>
+  <select id="count" resultType="long">SELECT COUNT(*) <include refid="filter"/></select>
+</mapper>

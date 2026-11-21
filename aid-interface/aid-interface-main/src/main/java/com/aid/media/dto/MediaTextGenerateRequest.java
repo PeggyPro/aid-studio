@@ -1,8 +1,11 @@
 package com.aid.media.dto;
 
+import com.aid.billing.dto.BillingBudgetContext;
+import com.alibaba.fastjson2.annotation.JSONField;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 
@@ -27,6 +30,16 @@ public class MediaTextGenerateRequest {
     /** 归一化后的调用配置标识，参与请求幂等。 */
     @com.fasterxml.jackson.annotation.JsonIgnore
     private String invocationIdentity;
+
+    /** Assistant 原生工具别名到批准执行身份的服务端快照，不发送给 Provider。 */
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    @JSONField(serialize = false, deserialize = false)
+    private String assistantNativeToolBindingsJson;
+
+    /** 服务端编排注入的Run预算上下文，不接受外部JSON。 */
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    @JSONField(serialize = false, deserialize = false)
+    private transient BillingBudgetContext billingBudgetContext;
 
     /** 已解析模型的单图 Token 保守估值，仅用于服务端本次报价。 */
     @com.fasterxml.jackson.annotation.JsonIgnore
@@ -69,11 +82,23 @@ public class MediaTextGenerateRequest {
     /** 计费豁免标记（内部使用）：为 true 时跳过 prepareBilling/settleBilling/refundBilling，由外层任务统一计费 */
     private Boolean billingExempt;
 
+
+    /**
+     * Deprecated legacy orchestration ceiling. It is not an Assistant authorization and must stay out of JSON.
+     * Reject it when a typed BillingBudgetContext is present or the task is budget managed.
+     */
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    @com.alibaba.fastjson2.annotation.JSONField(serialize = false, deserialize = false)
+    private BigDecimal authorizedPreHoldCap;
+
     /**
      * 本次调用是否要求上游流式响应。该值属于调用策略，不从模型 extra_body 读取。
      * {@code generateTextStream} 要求为 true；{@code generateText} 缺省按 false 处理。
      */
     private Boolean stream;
+
+    /** 任务调用方要求真正的上游非流式响应，禁止使用流式聚合。 */
+    private Boolean requireNativeNonStream;
 
     /** 本次调用是否开启模型思考；缺省关闭，不能由模型 extra_body 写死。 */
     private Boolean reasoningEnabled;

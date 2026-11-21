@@ -26,7 +26,13 @@ public final class SkillAdminVO {
         private String capabilityDescription;
         private String iconUrl;
         private String ownerType;
+        private Long ownerUserId;
         private String visibility;
+        private Boolean cacheToDisk;
+        private String moderationReason;
+        private Long moderatedBy;
+        @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+        private Date moderatedAt;
         private String invocationScope;
         private Long currentVersionId;
         private String status;
@@ -41,8 +47,10 @@ public final class SkillAdminVO {
     public static class TextModelOption {
         private String modelCode;
         private String modelName;
+        private String modelType;
         private String capabilityJson;
         private CapabilityVO capability;
+        private java.util.List<ModelCapabilityOption> capabilities;
         @com.aid.common.aid.oss.annotation.MediaUrl
         private String modelLogo;
         private String providerName;
@@ -53,6 +61,18 @@ public final class SkillAdminVO {
         private String delFlag;
         private Boolean available;
         private String unavailableReason;
+    }
+
+    @Data
+    public static class PublicationSettings {
+        private Boolean allowUserPublicSkills;
+    }
+
+    @Data
+    public static class ModelCapabilityOption {
+        private String code;
+        private String label;
+        private Boolean enabled;
     }
 
     @Data

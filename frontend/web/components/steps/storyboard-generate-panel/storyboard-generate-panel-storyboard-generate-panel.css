@@ -21,7 +21,7 @@
 }
 
 .storyboard-generate-panel .asset-panel .asset-reference-placeholder span {
-  color: rgba(142, 151, 165, 1) !important;
+  color: var(--ui-muted, rgba(142, 151, 165, 1)) !important;
 }
 
 /* 原 SCSS 嵌套原样展开（选择器保持编译结果一致） */
@@ -38,7 +38,7 @@
 }
 
 .storyboard-generate-panel .storyboard-generate-panel.is-compact-height::-webkit-scrollbar-thumb {
-  background: rgba(120, 140, 170, 0.55);
+  background: var(--ui-raised, rgba(120, 140, 170, 0.55));
   border-radius: calc(4px * var(--create-editor-scale, 1));
 }
 
@@ -103,22 +103,22 @@
   display: flex;
   align-items: center;
   margin-bottom: 0;
-  color: rgba(142, 151, 165, 1) !important;
+  color: var(--ui-muted, rgba(142, 151, 165, 1)) !important;
 }
 
 .storyboard-generate-panel .asset-row-switch .ant-switch {
   flex-shrink: 0;
-  background: rgba(106, 123, 148, 0.65) !important;
-  border: calc(1px * var(--create-editor-scale, 1)) solid rgba(180, 198, 224, 0.45);
+  background: var(--ui-raised, rgba(106, 123, 148, 0.65)) !important;
+  border: calc(1px * var(--create-editor-scale, 1)) solid var(--ui-hair, rgba(180, 198, 224, 0.45));
 }
 
 .storyboard-generate-panel .asset-row-switch .ant-switch.ant-switch-checked {
-  background: linear-gradient(270deg, #0e59fa 0%, #00abd8 100%) !important;
-  border-color: rgba(0, 171, 216, 0.95);
+  background: var(--ui-surface, linear-gradient(270deg, #0e59fa 0%, #00abd8 100%)) !important;
+  border-color: var(--ui-ring, rgba(0, 171, 216, 0.95));
 }
 
 .storyboard-generate-panel .asset-row-switch .ant-switch .ant-switch-handle::before {
-  background: #ffffff !important;
+  background: var(--ui-raised, #ffffff) !important;
 }
 
 .storyboard-generate-panel .asset-reference-item {
@@ -159,8 +159,8 @@
   width: calc(1.25rem * var(--create-editor-scale, 1));
   height: calc(1.25rem * var(--create-editor-scale, 1));
   border-radius: 50%;
-  background: rgba(0, 0, 0, 0.5);
-  color: white;
+  background: var(--ui-bg, rgba(0, 0, 0, 0.5));
+  color: var(--ui-text, white);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -169,7 +169,7 @@
 }
 
 .storyboard-generate-panel .asset-reference-remove:hover {
-  background: rgba(0, 0, 0, 0.7);
+  background: var(--ui-bg, rgba(0, 0, 0, 0.7));
 }
 
 .storyboard-generate-panel .asset-plus {
@@ -183,7 +183,7 @@
 .storyboard-generate-panel .input-action {
   margin-left: calc(0.35rem * var(--create-editor-scale, 1));
   cursor: pointer;
-  color: #8E97A5 !important;
+  color: var(--ui-muted, #8E97A5) !important;
 }
 
 .storyboard-generate-panel .asset-panel {
@@ -208,12 +208,12 @@
 }
 
 .storyboard-generate-panel .asset-panel::-webkit-scrollbar-thumb {
-  background: rgba(120, 140, 170, 0.35);
+  background: var(--ui-raised, rgba(120, 140, 170, 0.35));
   border-radius: calc(3px * var(--create-editor-scale, 1));
 }
 
 .storyboard-generate-panel .asset-panel::-webkit-scrollbar-thumb:hover {
-  background: rgba(74, 231, 253, 0.35);
+  background: var(--ui-raised, rgba(74, 231, 253, 0.35));
 }
 
 .storyboard-generate-panel .asset-panel .asset-row {

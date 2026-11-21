@@ -248,7 +248,11 @@ export function htmlToMarkdownForStoryScript(html: string): string {
 }
 
 function applyInlineMarkdown(line: string): string {
-  let s = escapeHtml(line)
+  return applyEscapedInlineMarkdown(escapeHtml(line))
+}
+
+function applyEscapedInlineMarkdown(escaped: string): string {
+  let s = escaped
   s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
   s = s.replace(/\*([^*]+)\*/g, '<em>$1</em>')
   s = s.replace(/~~([^~]+)~~/g, '<s>$1</s>')
@@ -256,8 +260,101 @@ function applyInlineMarkdown(line: string): string {
   return s
 }
 
-/** Markdown → 剧本创作编辑器 HTML */
-export function markdownToStoryScriptEditorHtml(md: string): string {
+/** 助手表格只放行无属性 br；行内代码（含流式未闭合片段）保持字面量。 */
+function applyAssistantTableInlineMarkdown(line: string): string {
+  let escaped = '', previous = 0, codeMarkerLength = 0
+  const literal = (text: string) => codeMarkerLength
+    ? text.replace(/[&<>*~]/g, character => `&#${character.charCodeAt(0)};`)
+    : escapeHtml(text)
+  for (const match of line.matchAll(/`+|<br[ \t]*\/?>/gi)) {
+    const index = match.index ?? 0
+    escaped += literal(line.slice(previous, index))
+    const token = match[0]
+    let slashes = 0
+    for (let cursor = index - 1; cursor >= 0 && line[cursor] === '\\'; cursor -= 1) slashes += 1
+    if (token.startsWith('`')) {
+      if (codeMarkerLength === token.length) codeMarkerLength = 0
+      else if (!codeMarkerLength && slashes % 2 === 0) codeMarkerLength = token.length
+      escaped += token
+    } else escaped += !codeMarkerLength && slashes % 2 === 0 ? '<br/>' : literal(token)
+    previous = index + token.length
+  }
+  escaped += literal(line.slice(previous))
+  return applyEscapedInlineMarkdown(escaped)
+}
+
+interface SafeMarkdownRenderOptions {
+  assistantFences?: boolean
+  assistantSections?: boolean
+  assistantTables?: boolean
+}
+
+function splitMarkdownTableRow(line: string): string[] | null {
+  let value = line.trim()
+  if (!value.includes('|')) return null
+  if (value.startsWith('|')) value = value.slice(1)
+  if (value.endsWith('|') && !value.endsWith('\\|')) value = value.slice(0, -1)
+  const cells: string[] = []
+  let cell = ''
+  for (let index = 0; index < value.length; index += 1) {
+    const character = value[index]
+    if (character === '\\' && value[index + 1] === '|') {
+      cell += '|'
+      index += 1
+    } else if (character === '|') {
+      cells.push(cell.trim())
+      cell = ''
+    } else {
+      cell += character
+    }
+  }
+  cells.push(cell.trim())
+  return cells.length >= 2 ? cells : null
+}
+
+function assistantMarkdownTable(lines: string[], start: number): { html: string; next: number } | null {
+  const headers = splitMarkdownTableRow(lines[start] || '')
+  const separators = splitMarkdownTableRow(lines[start + 1] || '')
+  if (!headers || !separators || headers.length !== separators.length || headers.length > 12
+    || !separators.every(cell => /^:?-{3,}:?$/.test(cell))) return null
+  const rows: string[][] = []
+  let next = start + 2
+  while (next < lines.length && lines[next].trim()) {
+    const cells = splitMarkdownTableRow(lines[next])
+    if (!cells || cells.length > headers.length) break
+    rows.push([...cells, ...Array<string>(headers.length - cells.length).fill('')])
+    next += 1
+    if (rows.length > 200) return null
+  }
+  const head = `<thead><tr>${headers.map(cell => `<th scope="col">${applyAssistantTableInlineMarkdown(cell)}</th>`).join('')}</tr></thead>`
+  const body = rows.length ? `<tbody>${rows.map(row => `<tr>${row.map(cell => `<td>${applyAssistantTableInlineMarkdown(cell)}</td>`).join('')}</tr>`).join('')}</tbody>` : ''
+  return { html: `<div class="assistant-markdown-table-scroll" role="region" aria-label="表格内容" tabindex="0"><table>${head}${body}</table></div>`, next }
+}
+
+function assistantMarkdownFence(lines: string[], start: number): { html: string; next: number } | null {
+  const opening = /^\s*(`{3,}|~{3,})[ \t]*([A-Za-z0-9_.+-]{1,64})?[ \t]*$/.exec((lines[start] || '').replace(/\r$/, ''))
+  if (!opening) return null
+  const marker = opening[1]
+  const closing = new RegExp(`^\\s*${marker[0]}{${marker.length},}\\s*$`)
+  const content: string[] = []
+  let next = start + 1
+  while (next < lines.length && !closing.test(lines[next].replace(/\r$/, ''))) {
+    content.push(lines[next].replace(/\r$/, ''))
+    next += 1
+  }
+  if (next < lines.length) next += 1
+  const language = opening[2] ? `，${opening[2]}代码` : ''
+  return { html: `<pre class="assistant-markdown-code" tabindex="0" aria-label="代码内容${language}"><code>${escapeHtml(content.join('\n'))}</code></pre>`, next }
+}
+
+function markdownHeading(line: string, assistantSections?: boolean) {
+  const atx = /^(#{1,6})\s+(.+)$/.exec(line)
+  if (atx) return { level: atx[1].length, text: atx[2] }
+  const label = assistantSections ? /^\*\*([^*]{1,60}[：:])\*\*$/.exec(line.trim()) : null
+  return label ? { level: 2, text: label[1] } : null
+}
+
+function safeMarkdownToHtml(md: string, options: SafeMarkdownRenderOptions = {}): string {
   const t = (md || '').trim()
   if (!t) return ''
 
@@ -272,10 +369,24 @@ export function markdownToStoryScriptEditorHtml(md: string): string {
       continue
     }
 
-    const headerMatch = line.match(/^(#{1,6})\s+(.+)$/)
-    if (headerMatch) {
-      const level = headerMatch[1].length
-      blocks.push(`<h${level}>${applyInlineMarkdown(headerMatch[2])}</h${level}>`)
+    const fence = options.assistantFences ? assistantMarkdownFence(lines, i) : null
+    if (fence) {
+      blocks.push(fence.html)
+      i = fence.next
+      continue
+    }
+
+    const table = options.assistantTables ? assistantMarkdownTable(lines, i) : null
+    if (table) {
+      blocks.push(table.html)
+      i = table.next
+      continue
+    }
+
+    const heading = markdownHeading(line, options.assistantSections)
+    if (heading) {
+      const { level, text } = heading
+      blocks.push(`<h${level}>${applyInlineMarkdown(text)}</h${level}>`)
       i += 1
       continue
     }
@@ -308,6 +419,9 @@ export function markdownToStoryScriptEditorHtml(md: string): string {
 
     const paraLines: string[] = []
     while (i < lines.length && lines[i].trim()) {
+      if (paraLines.length && ((options.assistantFences && assistantMarkdownFence(lines, i))
+        || (options.assistantTables && assistantMarkdownTable(lines, i))
+        || (options.assistantSections && (markdownHeading(lines[i], true) || /^(?:>|[-*+]\s|\d+\.\s)/.test(lines[i]))))) break
       paraLines.push(lines[i])
       i += 1
     }
@@ -315,6 +429,16 @@ export function markdownToStoryScriptEditorHtml(md: string): string {
   }
 
   return blocks.join('')
+}
+
+/** Markdown → 剧本创作编辑器 HTML；默认不引入编辑器不支持的表格节点。 */
+export function markdownToStoryScriptEditorHtml(md: string): string {
+  return safeMarkdownToHtml(md)
+}
+
+/** 助手回复使用相同的 escape-first 规则，并额外支持严格的围栏代码与 GFM 表格。 */
+export function markdownToAssistantConversationHtml(md: string): string {
+  return safeMarkdownToHtml(md, { assistantFences: true, assistantTables: true, assistantSections: true })
 }
 
 /** 历史数据：接口纯文本无换行时，在小节标题前补换行以便列表/编辑器恢复分段 */

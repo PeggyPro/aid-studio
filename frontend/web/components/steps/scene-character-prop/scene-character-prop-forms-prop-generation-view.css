@@ -31,18 +31,18 @@
 /* 角色/道具卡片基础样式（与场景卡片一致） */
 .create-step-scp .character-card,
 .create-step-scp .prop-card {
-  border: 1px solid #006c8f;
+  border: 1px solid var(--ui-hair, #006c8f);
   border-radius: var(--radius-sm);
   /* padding: 1.25rem; */
-  background: rgba(12, 16, 24, 0.72);
+  background: var(--ui-bg, rgba(12, 16, 24, 0.72));
   transition: all 0.2s ease;
   position: relative;
 }
 
 .create-step-scp .character-card:hover,
 .create-step-scp .prop-card:hover {
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
-  border-color: #33d9ff;
+  box-shadow: var(--ui-no-shadow, 0 8px 24px rgba(0, 0, 0, 0.35));
+  border-color: var(--ui-ring, #33d9ff);
 }
 
 .create-step-scp .character-card-header,
@@ -67,7 +67,7 @@
 .create-step-scp .prop-card-title {
   font-size: 1rem;
   font-weight: 600;
-  color: var(--home-text, #e6edf3);
+  color: var(--home-text, var(--ui-text, #e6edf3));
   margin: 0;
 }
 
@@ -80,7 +80,7 @@
 .create-step-scp .character-card-delete-btn,
 .create-step-scp .prop-card-delete-btn {
   position: static;
-  color: var(--home-muted, #8e97a5);
+  color: var(--home-muted, var(--ui-muted, #8e97a5));
   padding: 0.25rem;
   width: auto;
   height: auto;
@@ -91,7 +91,7 @@
 
 .create-step-scp .character-card-delete-btn:hover,
 .create-step-scp .prop-card-delete-btn:hover {
-  color: #ff7a84;
+  color: var(--ui-danger, #ff7a84);
   background: rgba(255, 82, 97, 0.12);
 }
 
@@ -110,7 +110,7 @@
 .create-step-scp .character-card-divider,
 .create-step-scp .prop-card-divider {
   text-align: center;
-  color: var(--home-muted, #8e97a5);
+  color: var(--home-muted, var(--ui-muted, #8e97a5));
   font-size: 0.875rem;
   font-weight: 500;
   padding: 0.25rem 0;
@@ -130,8 +130,8 @@
   display: flex;
   flex-direction: column;
   gap: 0;
-  border: 1px solid rgba(74, 231, 253, 0.3);
-  background: #070d17;
+  border: 1px solid var(--ui-hair, rgba(74, 231, 253, 0.3));
+  background: var(--ui-bg, #070d17);
   border-radius: 8px;
   overflow: hidden;
 }
@@ -144,7 +144,7 @@
   align-items: center;
   gap: 0.75rem;
   padding: 0.5rem 0.75rem;
-  border-bottom: 1px solid rgba(74, 231, 253, 0.3);
+  border-bottom: 1px solid var(--ui-hair, rgba(74, 231, 253, 0.3));
 }
 
 .create-step-scp .character-card-header-bar .character-name-input,
@@ -160,7 +160,7 @@
 .create-step-scp .character-card-wrapper .character-add-form,
 .create-step-scp .prop-card-wrapper .prop-add-form {
   /*padding: 0.75rem; */
-  background: #080d14;
+  background: var(--ui-bg, #080d14);
 }
 
 .create-step-scp .character-card-title-wrapper,
@@ -177,14 +177,14 @@
 .create-step-scp .character-card-title-prefix,
 .create-step-scp .prop-card-title-prefix {
   font-weight: 600;
-  color: var(--home-text, #e6edf3);
+  color: var(--home-text, var(--ui-text, #e6edf3));
   white-space: nowrap;
 }
 
 .create-step-scp .character-card-title-editable,
 .create-step-scp .prop-card-title-editable {
   font-weight: 600;
-  color: var(--home-text, #e6edf3);
+  color: var(--home-text, var(--ui-text, #e6edf3));
   cursor: pointer;
   border-radius: var(--radius-md);
   transition: all 0.2s ease;
@@ -197,8 +197,7 @@
 
 .create-step-scp .character-card-title-editable:hover,
 .create-step-scp .prop-card-title-editable:hover {
-  background: rgba(14, 89, 250, 0.12);
-  color: var(--home-cyan, #4ae7fd);
+  color: var(--home-text, var(--ui-text, #e6edf3));
 }
 
 .create-step-scp .character-name-input,
@@ -222,7 +221,7 @@
 
 .create-step-scp .character-card-actions-header button,
 .create-step-scp .prop-card-actions-header button {
-  border: 1px solid #2f3949 !important;
+  border: 1px solid var(--ui-hair, #2f3949) !important;
 }
 
 /* 手动角色/道具的卡片：定宽见 scp-step-shared.css --scp-card-width */

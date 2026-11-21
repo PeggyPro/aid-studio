@@ -26,7 +26,7 @@
 }
 
 .logo {
-  display: flex;
+  display: block;
   width: 50px;
   height: 50px;
   object-fit: contain;
@@ -92,6 +92,19 @@
   transform: translateY(1px);
   filter: brightness(0.95);
 }
+
+.backLink {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  margin-top: 12px;
+  color: #c7e9fa;
+  font-size: 14px;
+  text-decoration: none;
+}
+
+.backLink:focus-visible { outline: 2px solid #68ddfa; outline-offset: 3px; }
 
 @media (max-width: 359px) {
   .panel {

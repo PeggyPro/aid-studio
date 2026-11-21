@@ -1,6 +1,7 @@
 package com.aid.aid.controller;
 
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import com.aid.common.core.controller.BaseController;
@@ -28,6 +29,7 @@ public class AidDashboardController extends BaseController
      * @return 概览统计（数据在 data 字段）
      */
     @GetMapping("/overview")
+    @PreAuthorize("@ss.isBackendUser()")
     public AjaxResult overview()
     {
         DashboardOverviewVO vo = dashboardStatService.getOverview();

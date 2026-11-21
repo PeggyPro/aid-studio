@@ -111,12 +111,17 @@ public class UserEpisodeBusinessServiceImpl implements IUserEpisodeBusinessServi
     /**
      * 校验项目归属并返回项目
      */
-    private AidComicProject getAndCheckProject(Long projectId, Long userId)
+    private AidComicProject getAndCheckProject(Long projectId, Long userId) {
+        return getAndCheckProject(projectId, userId, false);
+    }
+
+    private AidComicProject getAndCheckProject(Long projectId, Long userId, boolean forUpdate)
     {
         LambdaQueryWrapper<AidComicProject> wrapper = Wrappers.lambdaQuery();
         wrapper.eq(AidComicProject::getId, projectId);
         wrapper.eq(AidComicProject::getUserId, userId);
         wrapper.eq(AidComicProject::getDelFlag, "0");
+        wrapper.last(forUpdate, "FOR UPDATE");
         AidComicProject project = aidComicProjectService.getOne(wrapper);
         if (project == null) {
             log.info("剧集操作项目缺失或越权, projectId={}, userId={}", projectId, userId);
@@ -177,10 +182,11 @@ public class UserEpisodeBusinessServiceImpl implements IUserEpisodeBusinessServi
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public AidComicEpisode insertUserEpisode(UserEpisodeCreateRequest request, Long userId)
     {
         // 校验项目归属
-        AidComicProject project = getAndCheckProject(request.getProjectId(), userId);
+        AidComicProject project = getAndCheckProject(request.getProjectId(), userId, true);
 
         // 公开锁：项目公开期间禁止新增剧集，须先关闭公开
         projectContentGuardService.assertProjectEditable(project);

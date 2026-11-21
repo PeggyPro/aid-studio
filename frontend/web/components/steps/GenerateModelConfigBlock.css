@@ -4,7 +4,7 @@
   display: flex;
   align-items: center;
   gap: calc(6px * var(--create-editor-scale, 1));
-  color: rgba(218, 233, 255, 0.9);
+  color: var(--ui-text, rgba(218, 233, 255, 0.9));
   font-size: calc(14px * var(--create-editor-scale, 1));
   font-weight: 500;
   margin-bottom: calc(12px * var(--create-editor-scale, 1));
@@ -12,7 +12,7 @@
 
 .generate-model-config-block .model-config-title .anticon {
   font-size: calc(14px * var(--create-editor-scale, 1));
-  color: rgba(188, 205, 228, 0.92);
+  color: var(--ui-text, rgba(188, 205, 228, 0.92));
 }
 
 .generate-model-config-block .generate-settings-stacked {
@@ -41,7 +41,7 @@
 
 .generate-model-config-block .setting-item label {
   margin-bottom: calc(2px * var(--create-editor-scale, 1));
-  color: rgba(188, 205, 228, 0.72);
+  color: var(--ui-text, rgba(188, 205, 228, 0.72));
   font-size: calc(12px * var(--create-editor-scale, 1));
   line-height: calc(18px * var(--create-editor-scale, 1));
 }
@@ -67,7 +67,7 @@
 
 .generate-model-config-block--scene .setting-item label {
   font-size: calc(13px * var(--create-editor-scale, 1));
-  color: #8e97a5 !important;
+  color: var(--ui-muted, #8e97a5) !important;
 }
 
 .generate-model-config-block .generate-settings-params {
@@ -91,8 +91,8 @@
 /* 与模型选择条同色；带 html.app-shell-create 压过全局青边 / Select.selectorBg */
 html.app-shell-create .generate-model-config-block .setting-select.ant-select,
 html.app-shell-create .generate-model-config-block .setting-select-inline.ant-select {
-  --ant-select-selector-bg: #0a0d12;
-  --ant-color-border: rgba(78, 94, 122, 0.42);
+  --ant-select-selector-bg: var(--ui-bg, #0a0d12);
+  --ant-color-border: var(--ui-hair, rgba(78, 94, 122, 0.42));
 }
 
 html.app-shell-create .generate-model-config-block .setting-select .ant-select-selector,
@@ -101,10 +101,10 @@ html.app-shell-create .generate-model-config-block .setting-select-inline .ant-s
 .generate-model-config-block .setting-select-inline .ant-select-selector {
   height: calc(44px * var(--create-editor-scale, 1)) !important;
   border-radius: calc(8px * var(--create-editor-scale, 1)) !important;
-  background: #0a0d12 !important;
-  background-color: #0a0d12 !important;
-  border: calc(1px * var(--create-editor-scale, 1)) solid rgba(78, 94, 122, 0.42) !important;
-  border-color: rgba(78, 94, 122, 0.42) !important;
+  background: var(--ui-bg, #0a0d12) !important;
+  background-color: var(--ui-bg, #0a0d12) !important;
+  border: calc(1px * var(--create-editor-scale, 1)) solid var(--ui-hair, rgba(78, 94, 122, 0.42)) !important;
+  border-color: var(--ui-hair, rgba(78, 94, 122, 0.42)) !important;
   box-shadow: none !important;
   display: flex !important;
   flex-wrap: nowrap !important;
@@ -117,9 +117,9 @@ html.app-shell-create .generate-model-config-block .setting-select.ant-select-fo
 html.app-shell-create .generate-model-config-block .setting-select-inline.ant-select-focused .ant-select-selector,
 html.app-shell-create .generate-model-config-block .setting-select.ant-select-open .ant-select-selector,
 html.app-shell-create .generate-model-config-block .setting-select-inline.ant-select-open .ant-select-selector {
-  background: #0a0d12 !important;
-  background-color: #0a0d12 !important;
-  border-color: rgba(120, 140, 170, 0.45) !important;
+  background: var(--ui-bg, #0a0d12) !important;
+  background-color: var(--ui-bg, #0a0d12) !important;
+  border-color: var(--ui-ring, rgba(120, 140, 170, 0.45)) !important;
   box-shadow: none !important;
 }
 
@@ -134,7 +134,7 @@ html.app-shell-create .generate-model-config-block .setting-select-inline.ant-se
 .generate-model-config-block .setting-select-inline .ant-select-selection-item {
   line-height: calc(42px * var(--create-editor-scale, 1)) !important;
   font-size: calc(13px * var(--create-editor-scale, 1));
-  color: rgba(225, 239, 255, 0.92) !important;
+  color: var(--ui-text, rgba(225, 239, 255, 0.92)) !important;
   overflow: hidden !important;
   text-overflow: ellipsis !important;
   white-space: nowrap !important;
@@ -202,8 +202,8 @@ html.app-shell-create .generate-model-config-block .setting-select-inline.ant-se
   min-height: calc(40px * var(--create-editor-scale, 1));
   padding: 0 calc(10px * var(--create-editor-scale, 1)) !important;
   border-radius: calc(10px * var(--create-editor-scale, 1)) !important;
-  background: #0a0d12 !important;
-  border: calc(1px * var(--create-editor-scale, 1)) solid rgba(78, 94, 122, 0.42) !important;
+  background: var(--ui-bg, #0a0d12) !important;
+  border: calc(1px * var(--create-editor-scale, 1)) solid var(--ui-ring, rgba(78, 94, 122, 0.42)) !important;
   box-shadow: none !important;
 }
 
@@ -212,8 +212,8 @@ html.app-shell-create .generate-model-config-block .setting-select-inline.ant-se
   min-height: calc(44px * var(--create-editor-scale, 1));
   padding: 0 calc(10px * var(--create-editor-scale, 1)) !important;
   border-radius: calc(10px * var(--create-editor-scale, 1)) !important;
-  background: #0a0d12 !important;
-  border: calc(1px * var(--create-editor-scale, 1)) solid rgba(78, 94, 122, 0.42) !important;
+  background: var(--ui-bg, #0a0d12) !important;
+  border: calc(1px * var(--create-editor-scale, 1)) solid var(--ui-ring, rgba(78, 94, 122, 0.42)) !important;
   box-shadow: none !important;
 }
 
@@ -228,7 +228,7 @@ html.app-shell-create .generate-model-config-block .setting-select-inline.ant-se
 }
 
 .generate-model-config-block--scene .model-select-dropdown .selected-model:hover {
-  border-color: rgba(120, 140, 170, 0.45) !important;
+  border-color: var(--ui-ring, rgba(120, 140, 170, 0.45)) !important;
 }
 
 .generate-model-config-block .generate-model-config-block__action {
@@ -242,8 +242,8 @@ html.app-shell-create .generate-model-config-block .setting-select-inline.ant-se
   border-radius: calc(8px * var(--create-editor-scale, 1)) !important;
   font-size: calc(14px * var(--create-editor-scale, 1));
   font-weight: 600;
-  background: linear-gradient(270deg, #2a6cfb 0%, #4ae7fd 100%) !important;
-  box-shadow: 0 calc(8px * var(--create-editor-scale, 1)) calc(20px * var(--create-editor-scale, 1)) rgba(37, 99, 235, 0.35);
+  background: var(--ui-primary, linear-gradient(270deg, #2a6cfb 0%, #4ae7fd 100%)) !important;
+  box-shadow: var(--ui-no-shadow, 0 calc(8px * var(--create-editor-scale, 1)) calc(20px * var(--create-editor-scale, 1)) rgba(37, 99, 235, 0.35));
   border: none !important;
   outline: none !important;
 }
@@ -254,7 +254,7 @@ html.app-shell-create .generate-model-config-block .setting-select-inline.ant-se
   border: none !important;
   outline: none !important;
   filter: brightness(1.06);
-  box-shadow: 0 calc(8px * var(--create-editor-scale, 1)) calc(20px * var(--create-editor-scale, 1)) rgba(37, 99, 235, 0.35) !important;
+  box-shadow: var(--ui-no-shadow, 0 calc(8px * var(--create-editor-scale, 1)) calc(20px * var(--create-editor-scale, 1)) rgba(37, 99, 235, 0.35)) !important;
 }
 
 .generate-model-config-block--scene .generate-model-config-block__action .generate-btn {
@@ -265,8 +265,8 @@ html.app-shell-create .generate-model-config-block .setting-select-inline.ant-se
   border-radius: calc(8px * var(--create-editor-scale, 1)) !important;
   font-size: calc(14px * var(--create-editor-scale, 1));
   font-weight: 600;
-  background: linear-gradient(270deg, #2a6cfb 0%, #4ae7fd 100%);
-  box-shadow: 0 calc(8px * var(--create-editor-scale, 1)) calc(20px * var(--create-editor-scale, 1)) rgba(37, 99, 235, 0.35);
+  background: var(--ui-primary, linear-gradient(270deg, #2a6cfb 0%, #4ae7fd 100%));
+  box-shadow: var(--ui-no-shadow, 0 calc(8px * var(--create-editor-scale, 1)) calc(20px * var(--create-editor-scale, 1)) rgba(37, 99, 235, 0.35));
 }
 
 .generate-model-config-block--scene .generate-model-config-block__action .generate-btn:hover,
@@ -275,7 +275,7 @@ html.app-shell-create .generate-model-config-block .setting-select-inline.ant-se
   border: none !important;
   outline: none !important;
   filter: brightness(1.06);
-  box-shadow: 0 calc(8px * var(--create-editor-scale, 1)) calc(20px * var(--create-editor-scale, 1)) rgba(37, 99, 235, 0.35) !important;
+  box-shadow: var(--ui-no-shadow, 0 calc(8px * var(--create-editor-scale, 1)) calc(20px * var(--create-editor-scale, 1)) rgba(37, 99, 235, 0.35)) !important;
 }
 
 .generate-model-config-block--scene .generate-model-config-block__action .ant-btn-primary {

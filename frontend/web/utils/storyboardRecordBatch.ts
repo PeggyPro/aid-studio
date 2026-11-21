@@ -54,11 +54,12 @@ export async function fetchProjectStoryboardRecords(
 ): Promise<StoryboardRecordRow[]> {
   const key = recordCacheKey(ctx, type)
   const cached = projectRecordCache.get(key)
+  if (cached?.promise) return cached.promise
+
   if (!options?.force) {
     if (cached?.data) return cached.data
-    if (cached?.promise) return cached.promise
   } else {
-    // SSE/写操作后强制刷新：丢弃旧 data，也不并入「打开弹窗时」可能仍在飞的旧请求
+    // SSE/写操作后强制刷新只绕过结果缓存；相同业务键的进行中请求必须复用。
     projectRecordCache.delete(key)
   }
 

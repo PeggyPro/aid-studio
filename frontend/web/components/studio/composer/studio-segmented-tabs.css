@@ -1,0 +1,6 @@
+.studio-segmented-tabs { display:flex; flex:0 0 auto; gap:2px; padding:3px; border-radius:9px; background:var(--studio-theme-segment-fill,var(--studio-ui-control,rgba(255,255,255,.06))); }
+.studio-segmented-tabs button { flex:1 1 0; min-width:0; min-height:30px; padding:0 10px; color:var(--studio-ui-muted,#9aa3b0); background:transparent; border:0; border-radius:6px; font:inherit; font-size:var(--studio-ui-font-control,14px); white-space:nowrap; cursor:pointer; transition:background .16s ease,color .16s ease; }
+.studio-segmented-tabs button:hover { color:var(--studio-ui-text,#f4f7fb); background:var(--studio-ui-hover,rgba(255,255,255,.06)); }
+.studio-segmented-tabs button.is-active { color:var(--studio-theme-segment-ink,var(--studio-ui-text,#f4f7fb)); background:var(--studio-theme-segment-selected,var(--studio-ui-selected,rgba(255,255,255,.12))); font-weight:650; }
+.studio-segmented-tabs button:focus-visible { outline:2px solid var(--studio-ui-accent,#aeb8c8); outline-offset:-2px; }
+@media (prefers-reduced-motion:reduce) { .studio-segmented-tabs button { transition:none; } }

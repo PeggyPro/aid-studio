@@ -129,6 +129,35 @@ public class CoreComposeServiceImpl implements CoreComposeService {
     }
 
     @Override
+    public AidMediaTask prepare(ComposeCommand source, Long taskId) {
+        if (source == null || source.getUserId() == null || source.getUserId() <= 0
+                || taskId == null || taskId <= 0) {
+            throw new com.aid.common.exception.ServiceException("合成准备身份不完整");
+        }
+        // Work on a private copy: a quote must not change the caller's original resource input.
+        ComposeCommand command = JSON.parseObject(JSON.toJSONString(source), ComposeCommand.class);
+        validate(command);
+        MpsProperties media = mpsConfigManager.getMpsProperties();
+        OssProperties storage = ossConfigManager == null ? null : ossConfigManager.getOssProperties();
+        validateRuntimeConfig(media, storage);
+        MediaTaskPayloadSanitizer.serializeRequest(command);
+        normalizeCommandUrls(command);
+        if (MpsConfigManager.MODE_ALIYUN_IMS.equals(media.getProcessMode())) {
+            validateAliyunInputOwnership(command, storage);
+        }
+        long seconds = estimateSeconds(command);
+        String resolution = resolveResolution(command.getResolution(), media.getOutputResolution());
+        ComposeBillingSnapshot pricing = composeBillingService.quote(seconds, resolution);
+        AidMediaTask task = buildTask(command, resolution, seconds, null, pricing, media.getProcessMode());
+        task.setId(taskId);
+        task.setBillingStatus(MediaBillingStatus.INIT.name());
+        task.setFrozenAmount(BigDecimal.ZERO);
+        task.setRequestJson(MediaTaskPayloadSanitizer.serializeRequest(assembleComposeRequest(
+                command, buildTracks(command), resolution, taskId, media, storage)));
+        return task;
+    }
+
+    @Override
     public ComposeSubmitResult compose(ComposeCommand command) {
         validate(command);
         MpsProperties mediaConfig = mpsConfigManager.getMpsProperties();
@@ -303,6 +332,9 @@ public class CoreComposeServiceImpl implements CoreComposeService {
         } else if (!hasGroupBgm) {
             // 全无 BGM（global 空且无任一组 bgmUrl）：不建背景音轨
             tracks.getBgmItems().clear();
+        }
+        if (Boolean.FALSE.equals(command.getSourceAudioEnabled())) {
+            tracks.getVideoItems().forEach(item -> item.setVolume(0D));
         }
         return tracks;
     }
@@ -1046,6 +1078,9 @@ public class CoreComposeServiceImpl implements CoreComposeService {
                 Map<String, Object> trackTime = new LinkedHashMap<>();
                 trackTime.put("Duration", secToStr(item.getTrackDurationSeconds()));
                 video.put("TrackTime", trackTime);
+            }
+            if (item.getVolume() != null) {
+                video.put("AudioOperations", List.of(Map.of("Type", "Volume", "Volume", item.getVolume())));
             }
             mpsItem.put("Video", video);
             result.add(mpsItem);

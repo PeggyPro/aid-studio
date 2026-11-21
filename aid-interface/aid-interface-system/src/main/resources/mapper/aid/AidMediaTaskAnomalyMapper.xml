@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.aid.aid.mapper.AidMediaTaskAnomalyMapper">
+    <sql id="uncertainSubmissionWhere">
+        t.status='PENDING' AND r.del_flag='0' AND e.del_flag='0'
+        AND r.status IN ('PENDING','CLAIMED','UNSUPPORTED') AND e.verdict IN ('UNKNOWN','UNSUPPORTED')
+        AND e.task_id=t.id AND e.reconciliation_id=r.id
+        AND (r.last_error_code='LEGACY_WALLET_REVIEW_REQUIRED'
+             OR r.create_time &lt;= TIMESTAMPADD(SECOND,-#{thresholdSeconds},NOW()))
+        AND (EXISTS (SELECT 1 FROM aid_media_execution_permit p WHERE p.task_id=t.id AND p.state='ACTIVE'
+            AND NOT (p.execution_mode IN ('SYNC_TEXT','SYNC_IMAGE')
+                AND p.lease_until IS NOT NULL AND p.lease_until &gt; NOW(3)))
+             OR EXISTS (SELECT 1 FROM aid_media_execution_permit p WHERE p.task_id=t.id
+                 AND p.token=t.execution_permit_token AND p.state='RELEASED'
+                 AND p.execution_mode IN ('SYNC_TEXT','SYNC_IMAGE'))
+             OR (r.last_error_code='LEGACY_WALLET_REVIEW_REQUIRED' AND e.evidence_type='LOCAL_LEDGER_REVIEW'
+                 AND EXISTS (SELECT 1 FROM aid_media_execution_permit p WHERE p.task_id=t.id
+                     AND p.token=t.execution_permit_token AND p.state='RELEASED' AND p.execution_mode='LEGACY')))
+    </sql>
+    <select id="selectUnobservedSubmissions" resultType="java.lang.Long">
+        SELECT t.id FROM aid_media_task t
+        JOIN aid_media_submission_reconciliation r ON r.task_id=t.id
+        JOIN aid_media_submission_evidence e ON e.id=r.last_evidence_id
+        WHERE <include refid="uncertainSubmissionWhere"/>
+        AND NOT EXISTS (SELECT 1 FROM aid_media_task_anomaly a WHERE a.task_id=t.id)
+        ORDER BY r.create_time,t.id LIMIT #{limit}
+    </select>
+    <insert id="insertSubmissionObservation">
+        INSERT IGNORE INTO aid_media_task_anomaly
+        (task_id,status,anomaly_type,failure_count,last_error_message,first_detected_time,
+         last_detected_time,next_recheck_time,create_by,create_time)
+        SELECT t.id,'PENDING','SUBMISSION_RESULT_UNKNOWN',1,
+               CASE WHEN r.last_error_code='LEGACY_WALLET_REVIEW_REQUIRED'
+                    THEN '历史任务状态与原账本不一致，已暂停自动退款；请核对原始结算记录'
+                    ELSE '提交结果待核实，尚无可信终态；原任务、冻结费用和执行占用继续保留' END,
+               r.create_time,NOW(),r.next_retry_at,'scheduler',NOW()
+        FROM aid_media_task t
+        JOIN aid_media_submission_reconciliation r ON r.task_id=t.id
+        JOIN aid_media_submission_evidence e ON e.id=r.last_evidence_id
+        WHERE t.id=#{taskId} AND <include refid="uncertainSubmissionWhere"/>
+    </insert>
+    <select id="selectRecoveredSubmissions" resultType="java.lang.Long">
+        SELECT a.task_id FROM aid_media_task_anomaly a JOIN aid_media_task t ON t.id=a.task_id
+        LEFT JOIN aid_media_submission_reconciliation r ON r.task_id=t.id AND r.del_flag='0'
+        WHERE a.anomaly_type='SUBMISSION_RESULT_UNKNOWN' AND a.status IN ('PENDING','WAITING')
+        AND (t.status IN ('SUCCEEDED','FAILED','CANCELLED')
+             OR (r.status='ACCEPTED' AND t.provider_task_id IS NOT NULL AND t.provider_task_id&lt;&gt;''
+                 AND a.last_detected_time&lt;=r.update_time))
+        ORDER BY a.id LIMIT #{limit}
+    </select>
+    <insert id="insertObservation" parameterType="com.aid.aid.domain.media.AidMediaTaskAnomaly"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT IGNORE INTO aid_media_task_anomaly
+        (task_id,status,anomaly_type,failure_count,last_provider_status,last_error_message,
+         first_detected_time,last_detected_time,next_recheck_time,create_by,create_time)
+        VALUES
+        (#{taskId},#{status},#{anomalyType},#{failureCount},#{lastProviderStatus},#{lastErrorMessage},
+         #{firstDetectedTime},#{lastDetectedTime},#{nextRecheckTime},#{createBy},#{createTime})
+    </insert>
+
+    <sql id="adminColumns">
+        a.id, a.task_id taskId, t.user_id userId, u.user_name userName,
+        COALESCE(b.project_id,t.project_id) projectId, b.object_id nodeId,
+        t.biz_task_type bizType, t.media_type mediaType, t.protocol providerCode,
+        t.model_name modelCode, t.status taskStatus, a.anomaly_type anomalyType,
+        a.status anomalyStatus, a.last_error_message anomalyReason,
+        TIMESTAMPDIFF(SECOND,a.first_detected_time,COALESCE(a.resolved_time,NOW())) waitingSeconds,
+        a.first_detected_time detectedAt, a.last_recheck_time lastCheckedAt,
+        a.next_recheck_time nextReviewTime, a.last_error_message lastCheckMessage,
+        a.wait_reason handlingReason, a.update_by handler, a.resolved_time handledAt,
+        t.billing_status billingStatus, t.frozen_amount frozenAmount, t.actual_cost actualCost,
+        t.billing_trace_id billingTraceId,
+        CASE WHEN a.status='COMPENSATION_PENDING' OR t.billing_status IN ('FROZEN','REFUNDING','SETTLING') THEN 1 ELSE 0 END compensationPending,
+        a.update_time updateTime, t.provider_task_id providerTaskId,
+        t.upstream_accept_time upstreamAcceptTime, t.last_progress_time lastProgressTime,
+        t.terminal_time terminalTime, a.last_provider_status lastProviderStatus,
+        a.resolution_type resolutionType
+    </sql>
+    <select id="selectAdminRows" resultType="java.util.LinkedHashMap">
+        SELECT <include refid="adminColumns"/>
+        FROM aid_media_task_anomaly a
+        JOIN aid_media_task t ON t.id=a.task_id
+        LEFT JOIN sys_user u ON u.user_id=t.user_id
+        LEFT JOIN aid_canvas_task_binding b ON b.task_id=t.id
+        <where>
+            <if test="taskId != null">AND a.task_id=#{taskId}</if>
+            <if test="userId != null">AND t.user_id=#{userId}</if>
+            <if test="mediaType != null and mediaType != ''">AND t.media_type=#{mediaType}</if>
+            <if test="anomalyType != null and anomalyType != ''">AND a.anomaly_type=#{anomalyType}</if>
+            <choose>
+                <when test="anomalyStatus != null and anomalyStatus != ''">AND a.status=#{anomalyStatus}</when>
+                <otherwise>AND a.status IN ('PENDING','WAITING','COMPENSATION_PENDING')</otherwise>
+            </choose>
+            <if test="detectedStartTime != null">AND a.first_detected_time &gt;= #{detectedStartTime}</if>
+            <if test="detectedEndTime != null">AND a.first_detected_time &lt;= #{detectedEndTime}</if>
+        </where>
+        ORDER BY a.last_detected_time DESC,a.id DESC
+    </select>
+    <select id="selectAdminSummary" resultType="java.util.LinkedHashMap">
+        SELECT COUNT(*) pendingCount,
+        COALESCE(MAX(TIMESTAMPDIFF(SECOND,first_detected_time,NOW())),0) longestWaitingSeconds,
+        MAX(update_time) updateTime
+        FROM aid_media_task_anomaly
+        WHERE status IN ('PENDING','WAITING','COMPENSATION_PENDING')
+    </select>
+    <select id="selectLatestActive" resultType="java.util.LinkedHashMap">
+        SELECT <include refid="adminColumns"/>
+        FROM aid_media_task_anomaly a
+        JOIN aid_media_task t ON t.id=a.task_id
+        LEFT JOIN sys_user u ON u.user_id=t.user_id
+        LEFT JOIN aid_canvas_task_binding b ON b.task_id=t.id
+        WHERE a.status IN ('PENDING','WAITING','COMPENSATION_PENDING')
+        ORDER BY a.last_detected_time DESC,a.id DESC
+        LIMIT 1
+    </select>
+    <select id="selectAdminRowById" resultType="java.util.LinkedHashMap">
+        SELECT <include refid="adminColumns"/>
+        FROM aid_media_task_anomaly a
+        JOIN aid_media_task t ON t.id=a.task_id
+        LEFT JOIN sys_user u ON u.user_id=t.user_id
+        LEFT JOIN aid_canvas_task_binding b ON b.task_id=t.id
+        WHERE a.id=#{id}
+        LIMIT 1
+    </select>
+</mapper>

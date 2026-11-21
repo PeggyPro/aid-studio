@@ -129,6 +129,11 @@ public class JimengImageProviderClient implements ImageProviderClient {
         JIMENG_RATIO_TO_4K_SIZE_V46 = Collections.unmodifiableMap(m4kV46);
     }
 
+    @Override public InputDelivery inputDelivery(AiModelConfigVo config, MediaImageGenerateRequest request) {
+        return com.aid.media.provider.ReferenceImageBase64Support.isBase64Enabled(config)
+                ? InputDelivery.INLINE : InputDelivery.URL;
+    }
+
     @Override
     public String protocol() {
         return JimengConstants.PROTOCOL_IMAGE;
@@ -176,16 +181,8 @@ public class JimengImageProviderClient implements ImageProviderClient {
         // Base64 传图开关：官方 binary_data_base64 与 image_urls 二选一，启用时下载转裸 base64 下发
         boolean useBase64 = com.aid.media.provider.ReferenceImageBase64Support.isBase64Enabled(modelConfig);
         if (useBase64 && CollectionUtil.isNotEmpty(imageInputs)) {
-            List<String> rawBase64s = com.aid.media.provider.ReferenceImageBase64Support.toRawBase64s(imageInputs);
-            if (rawBase64s.size() == imageInputs.size()) {
-                imageInputs = rawBase64s;
-                log.info("即梦参考图按 binary_data_base64 下发, modelCode={}, count={}", modelCode, rawBase64s.size());
-            } else {
-                // 任一图转换失败则整体退回 URL 形态，避免 base64/URL 混填被官方拒收
-                useBase64 = false;
-                log.warn("即梦参考图 base64 转换不完整({}→{}), 退回 image_urls, modelCode={}",
-                        imageInputs.size(), rawBase64s.size(), modelCode);
-            }
+            imageInputs = com.aid.media.provider.ReferenceImageBase64Support.toRawBase64s(imageInputs);
+            log.info("即梦参考图按 binary_data_base64 下发, modelCode={}, count={}", modelCode, imageInputs.size());
         } else {
             useBase64 = false;
         }

@@ -5,9 +5,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -47,6 +45,12 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @Component
 public class GeminiImageProviderClient implements ImageProviderClient {
+    @Override public InputDelivery inputDelivery(AiModelConfigVo config, MediaImageGenerateRequest request) {
+        return InputDelivery.INLINE;
+    }
+
+    @Override
+    public boolean usesSynchronousExecution(AiModelConfigVo modelConfig) { return true; }
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
@@ -56,25 +60,12 @@ public class GeminiImageProviderClient implements ImageProviderClient {
      */
     private static final long MAX_REFERENCE_IMAGE_BYTES = 20L * 1024L * 1024L;
     /**
-     * 下载超时（毫秒）：连接 5s + 读取 30s，覆盖一般 CDN 场景。
-     */
-    private static final int IMAGE_DOWNLOAD_CONNECT_TIMEOUT_MS = 5_000;
-    private static final int IMAGE_DOWNLOAD_READ_TIMEOUT_MS = 30_000;
-
-    /**
      * 共享 HttpClient，避免每次请求都创建新的连接池/Selector 线程。
      * Java 11 HttpClient 是线程安全的，官方建议单例复用。
      */
     private static final HttpClient SHARED_HTTP_CLIENT = HttpClient.newBuilder()
             .connectTimeout(Duration.ofMinutes(GeminiConstants.IMAGE_HTTP_TIMEOUT_MINUTES))
             .build();
-    /**
-     * 专供参考图下载使用的共享 HttpClient：连接超时 5s，用独立实例避免干扰上游 API 调用。
-     */
-    private static final HttpClient SHARED_DOWNLOAD_CLIENT = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofMillis(IMAGE_DOWNLOAD_CONNECT_TIMEOUT_MS))
-            .build();
-
     /**
      * Gemini 图片模型输出收口指令：
      * 业务侧部分模板仍带“生成提示词/单段纯文本”语义，这会把 Gemini 引导成返回文本而非图片。
@@ -119,9 +110,7 @@ public class GeminiImageProviderClient implements ImageProviderClient {
             body = buildRequestBody(modelConfig, request);
         } catch (Exception e) {
             log.error("Gemini 图片请求体构建失败, model={}, error={}", model, e.getMessage(), e);
-            return ProviderSubmitResult.builder()
-                    .rawResponse("请求构建失败: " + e.getMessage())
-                    .build();
+            return com.aid.media.provider.ProviderSubmissionFailures.localPreparationFailure(e);
         }
 
         String json;
@@ -129,9 +118,7 @@ public class GeminiImageProviderClient implements ImageProviderClient {
             json = MAPPER.writeValueAsString(com.aid.model.definition.ModelConfiguredRequestBody.apply(modelConfig, body, request));
         } catch (Exception e) {
             log.error("Gemini 图片请求体序列化失败", e);
-            return ProviderSubmitResult.builder()
-                    .rawResponse("序列化失败")
-                    .build();
+            return com.aid.media.provider.ProviderSubmissionFailures.localPreparationFailure(e);
         }
 
         log.info("Gemini 图片提交, url={}, model={}, requestBodyLen={}", url, model, json.length());
@@ -141,12 +128,13 @@ public class GeminiImageProviderClient implements ImageProviderClient {
             // 单次 HTTP 超时按模型 capability_json.submitTimeoutSeconds 取值，缺省回退官方 5 分钟常量。
             int timeoutMs = SubmitTimeoutResolver.resolveMs(modelConfig,
                     GeminiConstants.IMAGE_HTTP_TIMEOUT_MINUTES * 60 * 1000);
-            respBody = doPost(url, apiKey, json, timeoutMs);
+            HttpResponse<String> response = doPost(url, apiKey, json, timeoutMs);
+            if (response.statusCode() < 200 || response.statusCode() >= 300)
+                return com.aid.media.provider.ProviderSubmissionFailures.httpResponse(response.statusCode(), response.body(), model);
+            respBody = response.body() == null ? "" : response.body();
         } catch (Exception e) {
             log.error("Gemini 图片提交网络异常, model={}", model, e);
-            return ProviderSubmitResult.builder()
-                    .rawResponse(e.getMessage())
-                    .build();
+            return com.aid.media.provider.ProviderSubmissionFailures.unknownResponse(e.getMessage());
         }
 
         try {
@@ -196,10 +184,7 @@ public class GeminiImageProviderClient implements ImageProviderClient {
                 resolveReferenceImages(request), modelConfig, GEMINI_IMAGE_REFERENCE_MAX, "Gemini图片");
         boolean hasRefImage = !refImages.isEmpty();
         for (String imgUrl : refImages) {
-            Map<String, Object> inlinePart = buildInlineDataPart(imgUrl);
-            if (inlinePart != null) {
-                parts.add(inlinePart);
-            }
+            parts.add(buildInlineDataPart(request, imgUrl));
         }
         log.info("Gemini 图片请求场景: {}, 参考图数量={}", hasRefImage ? "图生图" : "纯文生图", refImages.size());
         if (parts.isEmpty()) {
@@ -313,74 +298,24 @@ public class GeminiImageProviderClient implements ImageProviderClient {
      * { "inlineData": { "mimeType": "image/jpeg", "data": "base64..." } }
      * </pre>
      */
-    private Map<String, Object> buildInlineDataPart(String imageUrl) {
-        try {
-            // 带字节上限的下载，替代无限制的 HttpUtil.downloadBytes
-            byte[] bytes = downloadBytesWithLimit(imageUrl, MAX_REFERENCE_IMAGE_BYTES);
-            if (bytes == null || bytes.length == 0) {
-                log.warn("Gemini 参考图下载为空, url={}", imageUrl);
-                return null;
-            }
-            // 优先用文件魔数字节识别 MIME，不再仅靠 URL 后缀猜测
-            String mimeType = inferMimeTypeByMagicBytes(bytes);
-            if (mimeType == null) {
-                // 字节无法识别时回退到 URL 后缀推断
-                mimeType = inferMimeType(imageUrl);
-            }
-            log.info("Gemini 参考图下载完成, url={}, bytes={}, mimeType={}", imageUrl, bytes.length, mimeType);
-            String base64Data = Base64.getEncoder().encodeToString(bytes);
-            Map<String, Object> inlineData = new LinkedHashMap<>();
-            inlineData.put("mimeType", mimeType);
-            inlineData.put("data", base64Data);
-            return Map.of("inlineData", inlineData);
-        } catch (Exception e) {
-            log.error("Gemini 参考图下载失败, url={}, error={}", imageUrl, e.getMessage());
-            return null;
+    private Map<String, Object> buildInlineDataPart(MediaImageGenerateRequest request, String imageUrl) {
+        var image = com.aid.media.provider.ImageEditAssetSupport.readRequestReference(request, imageUrl, "参考图");
+        byte[] bytes = image.bytes();
+        if (bytes.length > MAX_REFERENCE_IMAGE_BYTES)
+            throw com.aid.common.error.TaskErrorPresentation.fromCode(com.aid.common.error.TaskErrorCode.USER_FILE_TOO_LARGE, "参考图过大");
+        // 优先用文件魔数字节识别 MIME，不再仅靠 URL 后缀猜测
+        String mimeType = inferMimeTypeByMagicBytes(bytes);
+        if (mimeType == null) {
+            // 字节无法识别时回退到 URL 后缀推断
+            mimeType = inferMimeType(imageUrl);
         }
-    }
-
-    /**
-     * 带字节上限的图片下载。
-     * 使用 java.net.http.HttpClient 以流式方式读取，累计字节数超过 maxBytes 立即终止，
-     * 避免下载无限大文件导致 OOM。
-     */
-    private byte[] downloadBytesWithLimit(String imageUrl, long maxBytes) throws IOException, InterruptedException {
-        // 复用共享 HttpClient
-        HttpClient client = SHARED_DOWNLOAD_CLIENT;
-        HttpRequest req = HttpRequest.newBuilder()
-                .uri(URI.create(imageUrl))
-                .timeout(Duration.ofMillis(IMAGE_DOWNLOAD_READ_TIMEOUT_MS))
-                .GET()
-                .build();
-        HttpResponse<InputStream> resp = com.aid.diagnostics.DiagnosticHttp.send(client, req, HttpResponse.BodyHandlers.ofInputStream());
-        if (resp.statusCode() < 200 || resp.statusCode() >= 300) {
-            throw new IOException("HTTP " + resp.statusCode());
-        }
-        // 若响应带 Content-Length 且明确超限，直接拒绝
-        resp.headers().firstValue("Content-Length").ifPresent(cl -> {
-            try {
-                long len = Long.parseLong(cl);
-                if (len > maxBytes) {
-                    throw new RuntimeException("参考图过大: " + len + " bytes, limit=" + maxBytes);
-                }
-            } catch (NumberFormatException ignore) {
-                // 忽略非法 Content-Length
-            }
-        });
-        try (InputStream in = resp.body();
-             ByteArrayOutputStream buf = new ByteArrayOutputStream()) {
-            byte[] chunk = new byte[8192];
-            long total = 0;
-            int n;
-            while ((n = in.read(chunk)) > 0) {
-                total += n;
-                if (total > maxBytes) {
-                    throw new IOException("参考图超过大小上限 " + maxBytes + " bytes");
-                }
-                buf.write(chunk, 0, n);
-            }
-            return buf.toByteArray();
-        }
+        var scope = com.aid.media.provider.ImageInputExecutionScope.current();
+        if (scope != null) scope.recordDelivery(imageUrl, "INLINE", com.aid.media.provider.ImageInputExecutionScope.sha256(bytes), image.image().getWidth(), image.image().getHeight());
+        String base64Data = Base64.getEncoder().encodeToString(bytes);
+        Map<String, Object> inlineData = new LinkedHashMap<>();
+        inlineData.put("mimeType", mimeType);
+        inlineData.put("data", base64Data);
+        return Map.of("inlineData", inlineData);
     }
 
     /**
@@ -431,9 +366,10 @@ public class GeminiImageProviderClient implements ImageProviderClient {
         if (!errorNode.isMissingNode() && !errorNode.isNull()) {
             String errMsg = errorNode.path("message").asText("未知错误");
             log.error("Gemini 图片生成上游错误, model={}, error={}, fullResponse={}", model, errMsg, logResponse);
-            return ProviderSubmitResult.builder()
-                    .rawResponse(logResponse)
-                    .build();
+            JsonNode outputs = root.path("candidates");
+            if (outputs.isArray() && !outputs.isEmpty())
+                return com.aid.media.provider.ProviderSubmissionFailures.unknownResponse("上游同时返回错误和候选结果，需核实结果");
+            return com.aid.media.provider.ProviderSubmissionFailures.reportedFailure(respBody, model);
         }
 
         // 检查 finishReason=NO_IMAGE（上游未生成图片，通常为请求字段问题）
@@ -530,7 +466,7 @@ public class GeminiImageProviderClient implements ImageProviderClient {
     /**
      * 发起 Gemini REST POST 请求，返回响应正文。
      */
-    private String doPost(String url, String apiKey, String jsonBody, int timeoutMs) throws Exception {
+    private HttpResponse<String> doPost(String url, String apiKey, String jsonBody, int timeoutMs) throws Exception {
         // 复用共享 HttpClient
         HttpClient client = SHARED_HTTP_CLIENT;
         HttpRequest req = HttpRequest.newBuilder()
@@ -547,12 +483,7 @@ public class GeminiImageProviderClient implements ImageProviderClient {
             Thread.currentThread().interrupt();
             throw new RuntimeException("请求被中断", ie);
         }
-        String body = resp.body() != null ? resp.body() : "";
-        if (resp.statusCode() < 200 || resp.statusCode() >= 300) {
-            log.error("Gemini 图片 HTTP 失败, url={}, status={}, bodyLen={}", url, resp.statusCode(), body.length());
-            throw new RuntimeException("HTTP " + resp.statusCode());
-        }
-        return body;
+        return resp;
     }
     /** 构建包含受控 {model} 占位符的 Gemini 提交 URL。 */
     static String buildGenerateContentUrl(String baseUrl, String apiSuffix, String model) {

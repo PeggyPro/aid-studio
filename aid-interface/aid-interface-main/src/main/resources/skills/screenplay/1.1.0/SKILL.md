@@ -1,5 +1,5 @@
 ---
-name: screenplay
+name: 剧本创作
 description: AID 电影与剧集剧本入口，负责动态澄清、上下文装配、写作与独立审核编排。
 ---
 
@@ -11,8 +11,8 @@ description: AID 电影与剧集剧本入口，负责动态澄清、上下文装
 
 1. 先读取项目类型、当前集、已接受剧本、用户引用和本次动作，不重复询问系统已经知道的事实。
 2. 只有缺失信息会改变故事方向、审核范围或目标集时才发起结构化询问；可安全推断的细节由模型采用可回退默认值。
-3. 将 `CREATE`、`REWRITE`、`CONTINUE`、`NORMALIZE`、`REPAIR` 路由到固定版本的 `screenplay-write`。
-4. 将 `REVIEW_ONLY` 和高质量模式的独立审核路由到固定版本的 `screenplay-review`。
+3. 将 `CREATE`、`REWRITE`、`CONTINUE`、`NORMALIZE`、`REPAIR` 路由到固定版本的 `screenplay_write`。
+4. 将 `REVIEW_ONLY` 和高质量模式的独立审核路由到固定版本的 `screenplay_review`。
 5. 普通模式由写作子 Skill 静默自检；高质量模式执行写作、审核，并且只对有正文证据的客观硬伤执行一次局部修复。
 
 ## 边界

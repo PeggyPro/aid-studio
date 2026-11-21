@@ -1,0 +1,107 @@
+.canvas-skill-picker-popover { z-index: 1200; }
+.canvas-agent-tool-select.is-skill-selected { color: var(--studio-ui-accent, #607bd5); background: var(--studio-ui-hover, rgba(96,123,213,.1)); }
+.canvas-skill-picker,
+.canvas-skill-picker__create-menu {
+  color: var(--studio-ui-text, #e9eef5);
+  background: var(--studio-ui-surface, #202735);
+  border: 1px solid var(--studio-ui-border, rgba(255,255,255,.12));
+  box-shadow: 0 20px 52px rgba(16,24,42,.2);
+}
+.canvas-skill-picker {
+  display: flex;
+  width: min(348px, calc(100vw - 32px));
+  height: min(392px, calc(100vh - 196px));
+  flex-direction: column;
+  border-radius: var(--studio-theme-radius, 18px);
+  overflow: hidden;
+}
+.canvas-skill-picker__header { display: flex; flex: 0 0 auto; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 12px 8px; }
+.canvas-skill-picker__header > div:first-child { display: flex; flex-direction: column; min-width: 0; gap: 1px; }
+.canvas-skill-picker__header strong { font-size: 14px; font-weight: 650; }
+.canvas-skill-picker__header small,
+.canvas-skill-picker__footer { color: var(--studio-ui-muted, #9aa3b0); font-size: var(--studio-ui-font-caption, 11px); }
+.canvas-skill-picker__header-actions { display: flex; align-items: center; gap: 7px; flex: 0 0 auto; }
+.canvas-skill-picker__header-button { display: inline-flex; align-items: center; justify-content: center; min-height: 28px; gap: 4px; padding: 0 8px; color: var(--studio-ui-text, #e9eef5); background: var(--studio-ui-control, rgba(255,255,255,.05)); border: 1px solid var(--studio-ui-border, rgba(255,255,255,.12)); border-radius: 8px; font-size: var(--studio-ui-font-control, 12px); cursor: pointer; }
+.canvas-skill-picker__header-button:hover { background: var(--studio-ui-hover, rgba(255,255,255,.09)); border-color: var(--studio-ui-border-strong, rgba(255,255,255,.24)); }
+.canvas-skill-picker__filters { display: flex; flex: 0 0 auto; align-items: center; gap: 8px; padding: 0 12px 8px; }
+.canvas-skill-picker__tabs.studio-segmented-tabs button { min-height: 26px; padding-inline: 8px; }
+.canvas-skill-picker__search { display: flex; flex: 1 1 auto; min-width: 0; align-items: center; gap: 6px; padding: 0 8px; height: 30px; color: var(--studio-ui-muted, #9aa3b0); background: var(--studio-ui-control, rgba(255,255,255,.04)); border: 1px solid var(--studio-ui-border, rgba(255,255,255,.1)); border-radius: 8px; }
+.canvas-skill-picker__search:focus-within { border-color: var(--studio-ui-border-strong, #8d9ec2); }
+.canvas-skill-picker__search input { width: 100%; min-width: 0; color: var(--studio-ui-text, #e9eef5); background: transparent; border: 0; outline: 0; font-size: var(--studio-ui-font-control, 12px); }
+.canvas-skill-picker__search input::placeholder { color: var(--studio-ui-muted, #9aa3b0); }
+.canvas-skill-picker__notice { flex: 0 0 auto; margin: 0 12px 8px; padding: 7px 8px; color: var(--studio-ui-text, #e9eef5); background: var(--studio-ui-control, rgba(255,255,255,.05)); border: 1px solid var(--studio-ui-border, rgba(255,255,255,.1)); border-radius: 8px; font-size: var(--studio-ui-font-caption, 11px); line-height: 1.45; }
+.canvas-skill-picker__list { flex: 1 1 auto; min-height: 0; padding: 0 6px 4px; overflow-y: auto; scrollbar-width: thin; }
+.canvas-skill-picker__row { display: flex; align-items: center; margin: 1px 0; border: 1px solid transparent; border-radius: 10px; }
+.canvas-skill-picker__row:hover { background: var(--studio-ui-hover, rgba(255,255,255,.06)); }
+.canvas-skill-picker__row.is-selected { background: var(--studio-ui-control, rgba(255,255,255,.06)); border-color: var(--studio-ui-border-strong, rgba(255,255,255,.2)); }
+.canvas-skill-picker__item { display: flex; flex: 1 1 auto; min-width: 0; align-items: center; gap: 8px; padding: 7px 6px; color: var(--studio-ui-text, #e9eef5); background: transparent; border: 0; text-align: left; cursor: pointer; }
+.canvas-skill-glyph { display: grid; flex: 0 0 28px; width: 28px; height: 28px; place-items: center; color: var(--studio-ui-text, #e9eef5); background: var(--studio-ui-control, rgba(255,255,255,.06)); border: 1px solid var(--studio-ui-border, rgba(255,255,255,.12)); border-radius: 8px; }
+.canvas-skill-glyph i { width: 13px; height: 15px; background: currentColor; -webkit-mask: var(--canvas-skill-glyph) center / contain no-repeat; mask: var(--canvas-skill-glyph) center / contain no-repeat; }
+.canvas-skill-picker__copy { display: flex; flex: 1 1 auto; min-width: 0; flex-direction: column; gap: 4px; }
+.canvas-skill-picker__copy > span { display: flex; align-items: baseline; min-width: 0; gap: 7px; }
+.canvas-skill-picker__copy strong { min-width: 0; flex: 1; overflow-wrap: anywhere; font-size: var(--studio-ui-font-control, 13px); font-weight: 600; line-height: 1.5; }
+.canvas-skill-picker__copy em { overflow: hidden; flex: 0 1 auto; padding: 2px 5px; color: var(--studio-ui-muted, #9aa3b0); background: var(--studio-ui-control, rgba(255,255,255,.05)); border-radius: 5px; font-size: 10px; font-style: normal; text-overflow: ellipsis; white-space: nowrap; }
+.canvas-skill-picker__copy small { color: var(--studio-ui-muted, #9aa3b0); font-size: var(--studio-ui-font-caption, 11px); line-height: 1.5; overflow-wrap: anywhere; }
+.canvas-skill-picker__check { color: var(--studio-ui-text, #e9eef5); }
+.canvas-skill-picker__star { display: grid; flex: 0 0 34px; width: 34px; height: 34px; place-items: center; margin-right: 5px; color: var(--studio-ui-muted, #9aa3b0); background: transparent; border: 0; border-radius: 8px; cursor: pointer; }
+.canvas-skill-picker__star:hover,
+.canvas-skill-picker__star[aria-pressed='true'] { color: var(--studio-ui-text, #e9eef5); background: var(--studio-ui-control, rgba(255,255,255,.08)); }
+.canvas-skill-picker__empty,
+.canvas-skill-picker__retry { display: block; width: 100%; padding: 42px 12px; color: var(--studio-ui-muted, #9aa3b0); background: transparent; border: 0; text-align: center; font-size: var(--studio-ui-font-caption, 12px); }
+.canvas-skill-picker__retry { cursor: pointer; }
+.canvas-skill-picker__footer { flex: 0 0 auto; padding: 8px 12px 10px; border-top: 1px solid var(--studio-ui-border, rgba(255,255,255,.1)); }
+.canvas-skill-preview {
+  position: fixed;
+  z-index: 1300;
+  width: 248px;
+  overflow: hidden;
+  color: var(--studio-ui-text, #e9eef5);
+  background: var(--studio-ui-surface, #202735);
+  border: 1px solid var(--studio-ui-border, rgba(255,255,255,.12));
+  border-radius: 16px;
+  box-shadow: 0 18px 48px rgba(16,24,42,.28);
+  opacity: 0;
+  transform: translateY(8px) scale(.98);
+  transform-origin: right center;
+  transition: opacity 220ms ease, transform 220ms cubic-bezier(.2, .8, .2, 1), top 180ms ease, left 180ms ease;
+}
+.canvas-skill-preview.is-shown {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+.canvas-skill-preview__cover {
+  display: block;
+  height: 132px;
+  background: var(--studio-ui-control, rgba(255,255,255,.06)) center / cover no-repeat;
+}
+.canvas-skill-preview__cover img { width: 100%; height: 100%; object-fit: cover; }
+.canvas-skill-preview__body { display: flex; flex-direction: column; gap: 6px; padding: 12px 14px 14px; }
+.canvas-skill-preview__body strong { font-size: 14px; font-weight: 650; }
+.canvas-skill-preview__body p { margin: 0; color: var(--studio-ui-muted, #9aa3b0); font-size: var(--studio-ui-font-caption, 12px); line-height: 1.5; }
+.canvas-skill-picker__create-menu { display: flex; width: 252px; flex-direction: column; gap: 3px; padding: 6px; border-radius: 13px; }
+.canvas-skill-picker__create-menu button { display: flex; align-items: center; gap: 11px; padding: 10px; color: inherit; background: transparent; border: 0; border-radius: 9px; text-align: left; cursor: pointer; }
+.canvas-skill-picker__create-menu button:hover { background: var(--studio-ui-hover, rgba(255,255,255,.08)); }
+.canvas-skill-picker__create-menu button > .anticon { font-size: 16px; }
+.canvas-skill-picker__create-menu button span { display: flex; flex-direction: column; gap: 3px; }
+.canvas-skill-picker__create-menu button strong { font-size: var(--studio-ui-font-caption, 12px); }
+.canvas-skill-picker__create-menu button small { color: var(--studio-ui-muted, #9aa3b0); font-size: 10px; }
+.canvas-skill-import-modal .ant-modal-container { color: var(--studio-ui-text, #e9eef5); background: var(--studio-ui-surface, #202735); border: 1px solid var(--studio-ui-border); border-radius: 16px; }
+.canvas-skill-import-modal .ant-modal-title { color: inherit; background: transparent; }
+.canvas-skill-import-modal p { color: var(--studio-ui-muted); line-height: 1.7; }
+.canvas-skill-import-modal .canvas-skill-picker__create-menu { width: 100%; padding: 0; border: 0; box-shadow: none; background: transparent; }
+.canvas-skill-import-modal .canvas-skill-picker__create-menu button { min-height: 68px; }
+.canvas-skill-import-modal .canvas-skill-picker__create-menu button strong { font-size: 14px; }
+.canvas-skill-import-modal .canvas-skill-picker__create-menu button small { font-size: var(--studio-ui-font-caption, 12px); }
+.canvas-skill-picker button:focus-visible,
+.canvas-skill-picker__create-menu button:focus-visible { outline: 2px solid var(--studio-ui-border-strong, #8d9ec2); outline-offset: 2px; }
+@media (max-width: 560px) {
+  .canvas-skill-picker__header { padding: 14px 12px 10px; }
+  .canvas-skill-picker__filters { align-items: stretch; flex-direction: column; gap: 8px; padding: 0 12px 10px; }
+  .canvas-skill-picker__tabs { align-self: flex-start; }
+  .canvas-skill-picker { height: min(360px, calc(100vh - 120px)); }
+  .canvas-skill-picker__copy em { max-width: 115px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .canvas-skill-picker *, .canvas-skill-picker__create-menu * { scroll-behavior: auto; transition: none !important; }
+  .canvas-skill-preview { transition: none; }
+}

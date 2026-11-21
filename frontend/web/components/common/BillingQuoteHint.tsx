@@ -1,9 +1,13 @@
 'use client'
 
 import { LoadingOutlined } from '@ant-design/icons'
+import starlightCoinRaw from '~/assets/img/home/starlightCoin.svg'
 import type { BillingQuoteVO } from '~/types/business-api'
-import { billingQuoteTextForDisplay } from '~/utils/billingQuoteDisplay'
+import { assetUrl } from '~/utils/assetUrl'
+import { billingQuoteAmountForDisplay, billingQuoteTextForDisplay } from '~/utils/billingQuoteDisplay'
 import './BillingQuoteHint.css'
+
+const starlightCoinUrl = assetUrl(starlightCoinRaw)
 
 interface Props {
   quote?: BillingQuoteVO | null
@@ -26,29 +30,59 @@ export function BillingQuoteHint({
   idleText = ''
 }: Props) {
   if (!active) return null
-  const text = billingQuoteTextForDisplay(quote)
   const classes = ['billing-quote-hint', className].filter(Boolean).join(' ')
+  const serverText = billingQuoteTextForDisplay(quote)
+  const credits = billingQuoteAmountForDisplay(quote)
 
   if (loading) {
     return (
       <div className={`${classes} is-loading`} role="status" aria-live="polite">
         <LoadingOutlined spin aria-hidden="true" />
-        <span>正在获取预计费用…</span>
+        <span>估价中…</span>
       </div>
     )
   }
 
-  if (text) {
+  if (quote?.isFree) {
     return (
       <div
-        className={`${classes}${quote?.isFree ? ' is-free' : ''}${quote?.estimated ? ' is-estimated' : ''}`}
+        className={`${classes} is-free`}
+        role="status"
+        aria-live="polite"
+        title={serverText || '免费'}
+      >
+        <img className="billing-quote-hint__coin" src={starlightCoinUrl} alt="" aria-hidden="true" />
+        <span>免费</span>
+      </div>
+    )
+  }
+
+  if (credits != null) {
+    return (
+      <div
+        className={`${classes}${quote?.estimated ? ' is-estimated' : ''}`}
+        role="status"
+        aria-live="polite"
+        aria-label={serverText || `预估 ${credits} 积分`}
+        title={serverText || quote?.skuName || undefined}
+      >
+        <span className="billing-quote-hint__label">预估</span>
+        <img className="billing-quote-hint__coin" src={starlightCoinUrl} alt="" aria-hidden="true" />
+        <span className="billing-quote-hint__value">{credits}</span>
+      </div>
+    )
+  }
+
+  if (serverText) {
+    return (
+      <div
+        className={`${classes}${quote?.estimated ? ' is-estimated' : ''}`}
         role="status"
         aria-live="polite"
         title={quote?.skuName || undefined}
       >
-        <span className="billing-quote-hint__dot" aria-hidden="true" />
-        <span>{text}</span>
-        {quote?.skuName ? <span className="billing-quote-hint__sku">{quote.skuName}</span> : null}
+        <img className="billing-quote-hint__coin" src={starlightCoinUrl} alt="" aria-hidden="true" />
+        <span>{serverText}</span>
       </div>
     )
   }
@@ -56,7 +90,7 @@ export function BillingQuoteHint({
   if (error) {
     return (
       <div className={`${classes} is-unavailable`} title={error}>
-        报价暂不可用，不影响提交
+        报价暂不可用
       </div>
     )
   }

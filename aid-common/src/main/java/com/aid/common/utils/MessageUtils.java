@@ -2,6 +2,7 @@ package com.aid.common.utils;
 
 import org.springframework.context.MessageSource;
 import org.springframework.context.i18n.LocaleContextHolder;
+import com.aid.common.constant.Constants;
 import com.aid.common.utils.spring.SpringUtils;
 
 /**
@@ -22,5 +23,10 @@ public class MessageUtils
     {
         MessageSource messageSource = SpringUtils.getBean(MessageSource.class);
         return messageSource.getMessage(code, args, LocaleContextHolder.getLocale());
+    }
+
+    public static String messageInDefaultLocale(String code)
+    {
+        return SpringUtils.getBean(MessageSource.class).getMessage(code, null, Constants.DEFAULT_LOCALE);
     }
 }

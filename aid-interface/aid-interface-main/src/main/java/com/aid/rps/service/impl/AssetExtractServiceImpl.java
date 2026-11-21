@@ -488,12 +488,12 @@ public class AssetExtractServiceImpl implements IAssetExtractService, com.aid.rp
     @Autowired
     private com.aid.rps.queue.TaskCancelFlagManager taskCancelFlagManager;
 
-    /** 本地编排规格：批量形态生成（有失败项仍记 SUCCEEDED，与 Consumer 同口径） */
+    /** 本地编排规格：批量形态生成（全成功/部分失败/全部失败分别收口，与 Consumer 同口径） */
     private static final com.aid.rps.queue.BatchTaskLocalOrchestrator.Spec LOCAL_SPEC_FORM_GENERATE =
             new com.aid.rps.queue.BatchTaskLocalOrchestrator.Spec(
                     "form_generate", "初始化批量形态生成...",
                     "剩余任务已取消", "部分生成失败，可续生",
-                    TASK_TYPE_FORM_GENERATE_BATCH, false);
+                    TASK_TYPE_FORM_GENERATE_BATCH, true, true);
 
     /** 本地编排规格：批量形态图生成（全成功/部分失败/全部失败分别收口） */
     private static final com.aid.rps.queue.BatchTaskLocalOrchestrator.Spec LOCAL_SPEC_FORM_IMAGE =
@@ -7631,8 +7631,10 @@ public class AssetExtractServiceImpl implements IAssetExtractService, com.aid.rp
                 log.error("批量形态生成单项失败: taskId={}, assetId={}", taskId, assetId, e);
                 Map<String, Object> item = new LinkedHashMap<>();
                 item.put("assetId", assetId);
-                item.put("message", TaskErrorPresentation.toUserMessage(
-                        modelCode, e.getMessage(), "图片生成失败"));
+                TaskErrorResult error = ErrorNormalizer.normalize(e);
+                item.put("errorCode", error.getErrorCode());
+                item.put("message", Objects.equals(error.getErrorCode(), TaskErrorCode.AI_GENERATION_FAILED.name())
+                        ? "形态生成失败" : error.getUserMessage());
                 failedItems.add(item);
                 failCount++;
                 if (BillingBalanceErrors.isPreholdNotEnough(e))
@@ -7765,8 +7767,10 @@ public class AssetExtractServiceImpl implements IAssetExtractService, com.aid.rp
                 log.error("批量形态图单项失败: taskId={}, formId={}", taskId, formId, e);
                 Map<String, Object> item = new LinkedHashMap<>();
                 item.put("formId", formId);
-                item.put("message", TaskErrorPresentation.toUserMessage(
-                        modelCode, e.getMessage(), "图片生成失败"));
+                TaskErrorResult error = ErrorNormalizer.normalize(e);
+                item.put("errorCode", error.getErrorCode());
+                item.put("message", TaskErrorPresentation.isGeneric(error)
+                        ? "图片生成失败" : error.getUserMessage());
                 failedItems.add(item);
                 failCount++;
             }
@@ -9363,9 +9367,11 @@ public class AssetExtractServiceImpl implements IAssetExtractService, com.aid.rp
                         raw -> isValidCharacterFormOutput(raw, asset),
                         expectedTraceId, BIZ_CATEGORY_MAIN_CHARACTER_FORM), TextTaskExecutionRejectedException::new);
 
-        if (!isValidCharacterFormOutput(visualDescription, asset))
+        String formatError = characterFormOutputError(visualDescription, asset);
+        if (Objects.nonNull(formatError))
         {
-            throw new ServiceException("AI生成失败");
+            log.warn("角色形态输出校验失败: assetId={}, reason={}", asset.getId(), formatError);
+            throw TaskErrorPresentation.fromCode(TaskErrorCode.RESULT_FORMAT_INVALID, formatError);
         }
 
         return transactionTemplate.execute(status -> {
@@ -9378,7 +9384,8 @@ public class AssetExtractServiceImpl implements IAssetExtractService, com.aid.rp
             {
                 return forms;
             }
-            throw new ServiceException("AI生成失败");
+            log.warn("角色形态输出未产生有效形态: assetId={}", asset.getId());
+            throw TaskErrorPresentation.fromCode(TaskErrorCode.RESULT_FORMAT_INVALID, "形态描述缺失");
         });
     }
 
@@ -9389,9 +9396,14 @@ public class AssetExtractServiceImpl implements IAssetExtractService, com.aid.rp
      */
     private boolean isValidCharacterFormOutput(String raw, AidRolePropScene asset)
     {
+        return Objects.isNull(characterFormOutputError(raw, asset));
+    }
+
+    private String characterFormOutputError(String raw, AidRolePropScene asset)
+    {
         if (StrUtil.isBlank(raw) || Objects.isNull(asset))
         {
-            return false;
+            return "角色形态格式错误";
         }
         try
         {
@@ -9399,12 +9411,12 @@ public class AssetExtractServiceImpl implements IAssetExtractService, com.aid.rp
             JsonNode characters = root.get("characters");
             if (Objects.isNull(characters) || !characters.isArray() || characters.isEmpty())
             {
-                return false;
+                return "角色形态格式错误";
             }
             JsonNode appearances = characters.get(0).get("appearances");
             if (Objects.isNull(appearances) || !appearances.isArray() || appearances.isEmpty())
             {
-                return false;
+                return "形态描述缺失";
             }
 
             Set<Integer> expectedIds = new LinkedHashSet<>();
@@ -9414,29 +9426,30 @@ public class AssetExtractServiceImpl implements IAssetExtractService, com.aid.rp
             {
                 if (!appearance.isObject())
                 {
-                    return false;
+                    return "角色形态格式错误";
                 }
                 JsonNode idNode = appearance.get("id");
-                if (Objects.isNull(idNode) || !idNode.canConvertToInt()
+                if (Objects.isNull(idNode) || !idNode.isIntegralNumber() || !idNode.canConvertToInt()
                         || !actualIds.add(idNode.asInt()))
                 {
-                    return false;
+                    return "形态编号无效或重复";
                 }
                 JsonNode descriptions = appearance.get("descriptions");
                 boolean validDescription = Objects.nonNull(descriptions)
                         && ((descriptions.isTextual() && StrUtil.isNotBlank(descriptions.asText()))
                         || (descriptions.isArray() && !descriptions.isEmpty()
+                        && descriptions.get(0).isTextual()
                         && StrUtil.isNotBlank(descriptions.get(0).asText())));
                 if (!validDescription)
                 {
-                    return false;
+                    return "形态描述缺失";
                 }
             }
-            return actualIds.equals(expectedIds);
+            return actualIds.equals(expectedIds) ? null : "形态编号不一致";
         }
         catch (Exception ignored)
         {
-            return false;
+            return "角色形态格式错误";
         }
     }
 
@@ -10194,7 +10207,7 @@ public class AssetExtractServiceImpl implements IAssetExtractService, com.aid.rp
         String cleaned = stripMarkdownJsonFence(json);
         if (StrUtil.isBlank(cleaned))
         {
-            throw new ServiceException("视觉描述格式有误");
+            throw TaskErrorPresentation.fromCode(TaskErrorCode.RESULT_FORMAT_INVALID, "视觉描述格式有误");
         }
         com.fasterxml.jackson.databind.JsonNode root;
         try
@@ -10205,21 +10218,21 @@ public class AssetExtractServiceImpl implements IAssetExtractService, com.aid.rp
         {
             log.warn("extractPromptFromStylistJson JSON 解析失败: err={}, contentLen={}",
                     e.getMessage(), cleaned.length());
-            throw TaskErrorPresentation.toServiceException(e.getMessage(), "视觉描述格式有误");
+            throw TaskErrorPresentation.fromCode(TaskErrorCode.RESULT_FORMAT_INVALID, "视觉描述格式有误");
         }
         com.fasterxml.jackson.databind.JsonNode target = null;
-        if (root.isObject())
+        if (Objects.nonNull(root) && root.isObject())
         {
             target = root;
         }
-        else if (root.isArray() && !root.isEmpty())
+        else if (Objects.nonNull(root) && root.isArray() && !root.isEmpty())
         {
             target = root.get(0);
         }
         if (Objects.isNull(target))
         {
             log.warn("extractPromptFromStylistJson 顶层结构非对象/非数组: contentLen={}", cleaned.length());
-            throw new ServiceException("视觉描述格式有误");
+            throw TaskErrorPresentation.fromCode(TaskErrorCode.RESULT_FORMAT_INVALID, "视觉描述格式有误");
         }
         if (!target.has("prompt"))
         {
@@ -10233,17 +10246,17 @@ public class AssetExtractServiceImpl implements IAssetExtractService, com.aid.rp
             }
             log.warn("extractPromptFromStylistJson 缺少 prompt 字段: 实际字段=[{}], contentLen={}",
                     actualFields, cleaned.length());
-            throw new ServiceException("视觉描述不能为空");
+            throw TaskErrorPresentation.fromCode(TaskErrorCode.RESULT_FORMAT_INVALID, "视觉描述不能为空");
         }
         com.fasterxml.jackson.databind.JsonNode promptNode = target.get("prompt");
         if (Objects.isNull(promptNode) || !promptNode.isTextual())
         {
-            throw new ServiceException("视觉描述格式有误");
+            throw TaskErrorPresentation.fromCode(TaskErrorCode.RESULT_FORMAT_INVALID, "视觉描述格式有误");
         }
         String prompt = promptNode.asText("");
         if (StrUtil.isBlank(prompt))
         {
-            throw new ServiceException("视觉描述不能为空");
+            throw TaskErrorPresentation.fromCode(TaskErrorCode.RESULT_FORMAT_INVALID, "视觉描述不能为空");
         }
         return prompt;
     }
@@ -11784,7 +11797,7 @@ public class AssetExtractServiceImpl implements IAssetExtractService, com.aid.rp
             String errorMsg = imageResponse.getErrorMessage();
             log.error("形态图生成失败: mediaTaskId={}, status={}, error={}",
                     imageResponse.getTaskId(), imageResponse.getStatus(), errorMsg);
-            throw new ServiceException(StrUtil.isNotBlank(errorMsg) ? errorMsg : "图片生成失败");
+            throw formImageMediaFailure(imageResponse);
         }
 
         //    注意：queryTask(.., true) 当前实现已退化为「只读本地快照」，无法触发远端刷新与 OSS 修复，
@@ -11837,7 +11850,7 @@ public class AssetExtractServiceImpl implements IAssetExtractService, com.aid.rp
             {
                 String errorMsg = polled.getErrorMessage();
                 log.error("异步图片生成失败: mediaTaskId={}, error={}", mediaTaskId, errorMsg);
-                throw new ServiceException(StrUtil.isNotBlank(errorMsg) ? errorMsg : "图片生成失败");
+                throw formImageMediaFailure(polled);
             }
             // 仍在 PROCESSING/QUEUED/PENDING，继续轮询
         }
@@ -11845,6 +11858,25 @@ public class AssetExtractServiceImpl implements IAssetExtractService, com.aid.rp
         // 超时
         log.error("异步图片生成超时: mediaTaskId={}, timeout={}s", mediaTaskId, IMAGE_POLL_TIMEOUT_SECONDS);
         throw new ServiceException("图片生成超时");
+    }
+
+    /** 保留媒体任务的错误分类，批量父任务与 SSE 使用同一失败原因。 */
+    private ServiceException formImageMediaFailure(MediaTaskResponse response)
+    {
+        if (Objects.nonNull(response) && StrUtil.isNotBlank(response.getErrorCode()))
+        {
+            try
+            {
+                return TaskErrorPresentation.fromCode(TaskErrorCode.valueOf(response.getErrorCode()),
+                        response.getUserMessage());
+            }
+            catch (IllegalArgumentException ignored)
+            {
+                log.warn("形态图媒体任务错误码未识别: errorCode={}", response.getErrorCode());
+            }
+        }
+        return TaskErrorPresentation.toServiceException(
+                Objects.isNull(response) ? null : response.getErrorMessage(), "图片生成失败");
     }
     /**
      * 形态图最终 prompt 组装入口：按资产类型分派到各自的构造方法

@@ -85,7 +85,7 @@ public class AjaxResult extends HashMap<String, Object>
      */
     public static AjaxResult success()
     {
-        return AjaxResult.success(MessageUtils.message("operation.success"));
+        return AjaxResult.success(MessageUtils.messageInDefaultLocale("operation.success"));
     }
 
     /**
@@ -95,7 +95,7 @@ public class AjaxResult extends HashMap<String, Object>
      */
     public static AjaxResult success(Object data)
     {
-        return AjaxResult.success(MessageUtils.message("operation.success"), data);
+        return AjaxResult.success(MessageUtils.messageInDefaultLocale("operation.success"), data);
     }
 
     /**

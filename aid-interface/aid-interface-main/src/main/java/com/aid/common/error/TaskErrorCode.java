@@ -63,11 +63,16 @@ public enum TaskErrorCode {
     /** 上游模型/服务未开通（ServiceNotOpen / ModelNotOpen / 未激活） */
     UPSTREAM_SERVICE_NOT_OPEN("PROVIDER", "UPSTREAM_TECH", "当前生成服务暂不可用", false, null, false),
 
+    /** Provider explicitly rejects the selected model for the current account/group. */
+    UPSTREAM_MODEL_ACCESS_DENIED("PROVIDER", "UPSTREAM_TECH", "当前生成账号无权使用所选模型，请更换模型或联系管理员检查授权", false, null, false),
+    UPSTREAM_MODEL_UNAVAILABLE("PROVIDER", "UPSTREAM_TECH", "所选模型当前没有可用生成渠道，请更换模型或联系管理员", false, null, false),
+
     /** 当前模型没有可用账号或路由节点 */
     MODEL_ACCOUNT_UNAVAILABLE("PROVIDER", "UPSTREAM_TECH", "当前生成服务暂不可用", false, null, false),
 
     /** 上游服务繁忙、队列已满或资源过载 */
     PROVIDER_BUSY("PROVIDER", "UPSTREAM_TECH", "当前生成任务较多，稍后重试", false, null, true),
+    UPSTREAM_STREAM_INTERRUPTED("PROVIDER", "UPSTREAM_TECH", "模型回复中断，请继续处理", false, null, true),
 
     /** 上游限流（HTTP 429） */
     UPSTREAM_RATE_LIMITED("PROVIDER", "UPSTREAM_TECH", "当前生成任务较多，稍后重试", false, null, true),
@@ -100,7 +105,7 @@ public enum TaskErrorCode {
     RESULT_INVALID("PLATFORM", "RESULT", "生成结果不可用，重新生成", false, null, true),
 
     /** 大模型返回内容不符合业务要求的结构 */
-    RESULT_FORMAT_INVALID("PLATFORM", "RESULT", "生成结果不可用，重新生成", false, null, true),
+    RESULT_FORMAT_INVALID("PLATFORM", "RESULT", "模型返回的内容格式不符合要求，请重新生成", false, null, true),
 
     /** OSS 持久化失败 */
     OSS_PERSIST_FAILED("PLATFORM", "INTERNAL", "生成结果保存失败，重新生成", false, null, true),

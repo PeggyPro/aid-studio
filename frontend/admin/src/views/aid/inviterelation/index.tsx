@@ -1,5 +1,7 @@
 import React from 'react';
 import { Tag, message } from 'antd';
+import { useNavigate } from 'react-router-dom';
+import { entityId } from '@/utils/adminWorkspaces';
 import { StopOutlined, CheckCircleOutlined } from '@ant-design/icons';
 import CrudPage, { type CrudConfig } from '@/components/CrudPage';
 import {
@@ -117,6 +119,22 @@ const config: CrudConfig = {
   ]
 };
 
-export default function Page() {
-  return <CrudPage config={config} />;
+export default function Page({ rebatePath }: { rebatePath?: string }) {
+  const navigate = useNavigate();
+  const relationConfig: CrudConfig = {
+    ...config,
+    rowActions: rebatePath ? [{
+      label: '返佣流水',
+      perm: 'aid:inviterebate:list',
+      visible: row => Boolean(entityId(String(row.inviterUserId)) && entityId(String(row.inviteeUserId))),
+      onClick: row => {
+        const search = new URLSearchParams({
+          inviterUserId: String(row.inviterUserId),
+          inviteeUserId: String(row.inviteeUserId)
+        });
+        navigate({ pathname: rebatePath, search: search.toString() });
+      }
+    }, ...(config.rowActions ?? [])] : config.rowActions
+  };
+  return <CrudPage config={relationConfig} />;
 }

@@ -1,0 +1,14 @@
+.studio-style-card { box-sizing:border-box; display:flex; flex-direction:column; width:100%; min-width:0; padding:0; overflow:hidden; border:1px solid var(--studio-ui-border,var(--ui-hair,rgba(255,255,255,.12))); border-radius:10px; background:var(--studio-ui-control,var(--ui-surface,#25272c)); color:var(--studio-ui-text,var(--ui-text,#e6e8ec)); font:inherit; text-align:left; cursor:pointer; transition:border-color .16s ease,background-color .16s ease; }
+.studio-style-card:hover { border-color:var(--studio-ui-border-strong,var(--ui-ring,rgba(255,255,255,.3))); background:var(--studio-ui-hover,var(--ui-raised,#30333a)); }
+.studio-style-card.is-selected { border-color:var(--studio-ui-accent,var(--ui-brand,#dce4f0)); box-shadow:inset 0 0 0 1px var(--studio-ui-accent,var(--ui-brand,#dce4f0)); }
+.studio-style-card:focus-visible { outline:2px solid var(--studio-ui-accent,var(--ui-brand,#dce4f0)); outline-offset:2px; }
+.studio-style-card__preview { position:relative; isolation:isolate; display:grid; place-items:center; flex:none; width:100%; min-width:0; aspect-ratio:1; overflow:hidden; background:var(--studio-ui-surface,var(--ui-bg,#1d1f23)); }
+.studio-style-card__preview > img { position:absolute; inset:0; display:block; width:100%; height:100%; }
+.studio-style-card__backdrop { z-index:-1; object-fit:cover; filter:blur(12px); opacity:.32; transform:scale(1.12); }
+.studio-style-card__image { object-fit:contain; }
+.studio-style-card__name { display:block; width:100%; min-width:0; overflow:hidden; padding:6px 8px; font-size:12px; font-weight:500; line-height:1.5; white-space:nowrap; text-overflow:ellipsis; }
+.studio-style-card__badge,.studio-style-card__selected { position:absolute; z-index:1; top:6px; display:grid; place-items:center; height:22px; padding:0 6px; border-radius:5px; color:var(--studio-ui-text,var(--ui-text,#fff)); background:color-mix(in srgb,var(--studio-ui-surface,var(--ui-bg,#17191e)) 86%,transparent); font-size:11px; font-weight:600; line-height:1; }
+.studio-style-card__badge { left:6px; }
+.studio-style-card__selected { right:6px; width:22px; padding:0; color:var(--studio-ui-primary-ink,#17191c); background:var(--studio-ui-primary,#e2e8f0); }
+.studio-style-card__placeholder { color:var(--studio-ui-muted,var(--ui-muted,#8f98a5)); font-size:24px; }
+@media (prefers-reduced-motion:reduce) { .studio-style-card { transition:none; } }

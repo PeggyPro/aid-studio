@@ -1,5 +1,3 @@
-import { request } from '~/utils/api'
-
 export interface PublicSeoMeta {
   title?: string
   description?: string
@@ -9,71 +7,74 @@ export interface PublicSeoMeta {
   robots?: string
 }
 
-export const DEFAULT_SITE_TITLE = '视觉·AID'
-export const DEFAULT_SITE_DESCRIPTION = '从剧本到成片的全流程创作工具'
+type SeoOwner = { owner: string; value: PublicSeoMeta }
 
-const PAGE_TITLES: Record<string, string> = {
-  '/works': '我的作品',
-  '/invite': '邀请管理',
-  '/faq': '常见问题',
-  '/about': '关于我们',
-  '/mobile': '移动端提示'
-}
+let baseSeo: PublicSeoMeta = {}
+let pageSeo: SeoOwner | null = null
+const managedMeta = new WeakSet<HTMLMetaElement>()
 
-export function normalizeSeoPath(pathname: string): string {
-  return pathname.replace(/\/+$/, '') || '/'
-}
-
-export function isPrivateSeoPath(pathname: string): boolean {
-  return /^\/(?:admin|assets|billing|create|forgot-password|login|user|works|invite|mobile|index-legacy|case)(?:\/|$)/.test(pathname)
-}
-
-/** 路由和动态配置在同一处合成；标签生命周期由 PublicSiteHead 声明式管理。 */
-export function resolveSiteSeo(pathname: string, base: PublicSeoMeta, registered?: PublicSeoMeta | null): PublicSeoMeta {
-  const route = normalizeSeoPath(pathname)
-  const siteTitle = base.title || DEFAULT_SITE_TITLE
-  const defaults: PublicSeoMeta = {
-    title: PAGE_TITLES[route] ? `${PAGE_TITLES[route]} - ${siteTitle}` : siteTitle,
-    description: route === '/faq'
-      ? '产品使用说明、常见问题与帮助中心'
-      : route === '/about' ? '了解产品、服务与创作平台' : base.description || DEFAULT_SITE_DESCRIPTION,
-    keywords: base.keywords,
-    canonicalUrl: base.canonicalUrl,
-    robots: 'index,follow'
+function setMeta(attr: 'name' | 'property', key: string, content?: string) {
+  let element = document.head.querySelector<HTMLMetaElement>(`meta[${attr}="${key}"]`)
+  if (!content) {
+    // Next/React 会在路由卸载时回收它渲染的节点。只清除本模块创建的标签。
+    if (element && managedMeta.has(element)) element.remove()
+    return
   }
-  if (isPrivateSeoPath(route)) return { ...defaults, robots: 'noindex,nofollow' }
-  return {
-    title: registered?.title || defaults.title,
-    description: registered?.description || defaults.description,
-    keywords: registered?.keywords || defaults.keywords,
-    canonicalUrl: registered?.canonicalUrl || defaults.canonicalUrl,
-    imageUrl: registered?.imageUrl,
-    robots: registered?.robots || defaults.robots
+  if (!element) {
+    element = document.createElement('meta')
+    element.setAttribute(attr, key)
+    managedMeta.add(element)
+    document.head.appendChild(element)
   }
+  element.setAttribute('content', content)
 }
 
-const metaInflight = new Map<string, Promise<PublicSeoMeta | null>>()
-const metaCache = new Map<string, { value: PublicSeoMeta | null; at: number }>()
-const META_CACHE_MS = 60_000
+function setCanonical(href: string) {
+  const canonical = document.head.querySelector<HTMLLinkElement>('link[rel="canonical"]')
+    || document.createElement('link')
+  canonical.setAttribute('rel', 'canonical')
+  canonical.setAttribute('href', href)
+  if (!canonical.parentNode) document.head.appendChild(canonical)
+}
 
-/** 未登记路径返回 404，表示无覆盖配置；按路径合并请求并做一分钟短时缓存。 */
-export function loadRegisteredSeoMeta(path: string, force = false): Promise<PublicSeoMeta | null> {
-  const normalized = normalizeSeoPath(path.startsWith('/') ? path : `/${path}`)
-  const running = metaInflight.get(normalized)
-  if (running) return running
-  const cached = metaCache.get(normalized)
-  if (!force && cached && Date.now() - cached.at < META_CACHE_MS) return Promise.resolve(cached.value)
-  const promise = request
-    .get<PublicSeoMeta>('/seo/public/meta', { path: normalized }, {
-      validateStatus: (status) => (status >= 200 && status < 300) || status === 404
-    })
-    .then((response) => response || null)
-    .catch(() => null)
-    .then((value) => {
-      metaCache.set(normalized, { value, at: Date.now() })
-      return value
-    })
-    .finally(() => metaInflight.delete(normalized))
-  metaInflight.set(normalized, promise)
-  return promise
+function currentCanonical() {
+  return `${window.location.origin}${window.location.pathname}`
+}
+
+function renderSeo() {
+  if (typeof document === 'undefined') return
+  const value = { ...baseSeo, ...pageSeo?.value }
+  const description = value.description || baseSeo.description
+  if (value.title) document.title = value.title
+  setMeta('name', 'description', description)
+  setMeta('name', 'keywords', value.keywords)
+  setMeta('name', 'robots', value.robots || 'index,follow')
+  setMeta('property', 'og:title', value.title)
+  setMeta('property', 'og:description', description)
+  setMeta('property', 'og:url', value.canonicalUrl || currentCanonical())
+  setMeta('property', 'og:type', 'website')
+  setMeta('property', 'og:image', value.imageUrl)
+  setMeta('name', 'twitter:card', value.imageUrl ? 'summary_large_image' : 'summary')
+  setMeta('name', 'twitter:title', value.title)
+  setMeta('name', 'twitter:description', description)
+  setMeta('name', 'twitter:image', value.imageUrl)
+  setCanonical(value.canonicalUrl || currentCanonical())
+}
+
+/** 写入路由默认 SEO；页面级覆盖存在时不会被异步公共配置覆盖。 */
+export function setBaseSeo(value: PublicSeoMeta) {
+  baseSeo = value
+  renderSeo()
+}
+
+/** 页面详情加载后设置更高优先级的 SEO，并返回清理函数。 */
+export function setPageSeo(owner: string, value: PublicSeoMeta) {
+  pageSeo = { owner, value }
+  renderSeo()
+  return () => {
+    if (pageSeo?.owner === owner) {
+      pageSeo = null
+      renderSeo()
+    }
+  }
 }

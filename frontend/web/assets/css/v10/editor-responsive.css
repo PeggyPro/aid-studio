@@ -1,0 +1,43 @@
+/* Preserve desktop editing geometry; narrow viewports keep preview, controls and history reachable. */
+@media(max-width:1050px) and (min-width:701px) {
+ html[data-aid-ui='v10'] .edit-scene-image-modal .figma-stage-layout { grid-template-columns:100px minmax(0,1fr) 300px; }
+}
+@media(max-width:700px) {
+ html[data-aid-ui='v10'] .edit-scene-image-modal .edit-scene-image-container { min-width:0; width:100%; }
+ html[data-aid-ui='v10'] .edit-scene-image-modal .main-content-wrapper { display:block; overflow-y:auto; overflow-x:hidden; overscroll-behavior:contain; }
+ html[data-aid-ui='v10'] .edit-scene-image-modal .figma-stage-layout { display:grid; grid-template-columns:minmax(0,1fr); grid-template-rows:auto auto auto; grid-template-areas:'canvas' 'config' 'history'; height:auto; min-height:100%; gap:8px; padding:8px; }
+ html[data-aid-ui='v10'] .edit-scene-image-modal .figma-stage-layout > * { width:100%; min-width:0; max-width:100%; height:auto; }
+ html[data-aid-ui='v10'] .edit-scene-image-modal .stage-canvas-panel { grid-area:canvas; min-height:280px; padding:12px; }
+ html[data-aid-ui='v10'] .edit-scene-image-modal .stage-config-panel { grid-area:config; min-height:640px; overflow:visible; }
+ html[data-aid-ui='v10'] .edit-scene-image-modal .stage-history-panel { grid-area:history; max-height:300px; overflow:auto; }
+ html[data-aid-ui='v10'] .edit-scene-image-modal .history-list { flex-direction:row; flex-wrap:nowrap; flex:none; overflow:auto; min-height:96px; }
+ html[data-aid-ui='v10'] .edit-scene-image-modal .history-list > * { flex:none; width:100px; }
+ html[data-aid-ui='v10'] .edit-scene-image-modal .canvas-content-stack { margin-top:12px; }
+ html[data-aid-ui='v10'] .edit-scene-image-modal :is(.canvas-toolbar,.storyboard-canvas-toolbar) { flex-wrap:wrap; max-width:100%; }
+ html[data-aid-ui='v10'] .edit-scene-image-modal :is(.canvas-preview,.storyboard-canvas-preview) { width:100%; height:auto; min-height:180px; aspect-ratio:16/9; }
+ html[data-aid-ui='v10'] .edit-scene-image-modal :is(.config-body,.dubbing-edit-left) { overflow:visible; }
+ html[data-aid-ui='v10'] .edit-scene-image-modal .modal-header { min-width:0; max-width:100%; }
+}
+
+/* Prompt editors share one toolbar contract, including wrapped narrow layouts. */
+html[data-aid-ui='v10'] :is(.scene-setting-modal,.storyboard-script-modal) .toolbar { height:auto; min-height:28px; flex-wrap:wrap; gap:8px; }
+html[data-aid-ui='v10'] :is(.scene-setting-modal,.storyboard-script-modal) :is(.toolbar-left,.toolbar-right) { min-width:0; max-width:100%; flex-wrap:wrap; gap:6px; }
+html[data-aid-ui='v10'] :is(.scene-setting-modal,.storyboard-script-modal) .toolbar-btn { flex:none; white-space:nowrap; height:30px; padding:0 10px; border:0; border-radius:8px; background:var(--v10-s2); color:var(--v10-text); transition:background .2s,color .2s; }
+html[data-aid-ui='v10'] :is(.scene-setting-modal,.storyboard-script-modal) .toolbar-btn:hover:not(:disabled) { background:var(--v10-s3); color:var(--v10-text); }
+
+/* Inspiration uses the same scrollable single-column contract as the editor on narrow screens. */
+@media(max-width:800px) {
+ html[data-aid-ui='v10'] .storyboard-param-settings-modal .spsm-body { display:flex; flex-direction:column; gap:16px; overflow-y:auto; overflow-x:hidden; }
+ html[data-aid-ui='v10'] .storyboard-param-settings-modal :is(.spsm-left,.spsm-right) { flex:none; min-width:0; width:100%; }
+ html[data-aid-ui='v10'] .storyboard-param-settings-modal .spsm-grid-scroll { flex:none; min-height:140px; max-height:260px; }
+ html[data-aid-ui='v10'] .storyboard-param-settings-modal .spsm-settings-scroll { overflow:visible; }
+ html[data-aid-ui='v10'] .storyboard-param-settings-modal .spsm-upload-row { grid-template-columns:repeat(auto-fit,minmax(80px,1fr)); }
+ html[data-aid-ui='v10'] .storyboard-param-settings-modal .spsm-grid { grid-template-columns:repeat(auto-fit,minmax(90px,1fr)); }
+}
+
+@media(max-width:800px) { html[data-aid-ui='v10'] .select-asset-image-modal .saim-grid { grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); } }
+
+@media(max-width:800px) {
+ html[data-aid-ui='v10'] .create-flow-modal :is(.brdm-grid,.bgsm-grid,.bgam-grid,.agent-grid) { grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); }
+ html[data-aid-ui='v10'] .create-flow-modal :is(.brdm-footer,.bgsm-footer,.bgam-footer) { flex-wrap:wrap; gap:8px; }
+}

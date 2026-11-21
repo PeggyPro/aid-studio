@@ -40,6 +40,17 @@ import './GlobalGenerateTaskPopover.css'
 const iconStop = assetUrl(iconStopRaw)
 const iconStar = assetUrl(iconStarRaw)
 
+function TaskGlyph({ src, label }: { src: string; label: string }) {
+  return (
+    <span
+      className="global-task-panel__glyph"
+      role="img"
+      aria-label={label}
+      style={{ ['--task-icon' as string]: `url("${src}")` }}
+    />
+  )
+}
+
 const GLOBAL_TASKS_EVENT = 'create-flow-global-tasks-updated'
 
 export interface GlobalGenerateTaskPopoverProps {
@@ -510,7 +521,7 @@ export function GlobalGenerateTaskPopover({
                           title="停止生成"
                           onClick={() => handleStop(task)}
                         >
-                          <img src={iconStop} alt="停止生成" />
+                          <TaskGlyph src={iconStop} label="停止生成" />
                         </button>
                       ) : null}
                       {showTaskRestart(task) ? (
@@ -520,7 +531,7 @@ export function GlobalGenerateTaskPopover({
                           title={restartButtonTitle(task)}
                           onClick={() => handleRestart(task)}
                         >
-                          <img src={iconStar} alt={restartButtonTitle(task)} />
+                          <TaskGlyph src={iconStar} label={restartButtonTitle(task)} />
                         </button>
                       ) : null}
                     </div>
@@ -554,7 +565,7 @@ export function GlobalGenerateTaskPopover({
                           className="global-task-panel__icon-btn global-task-panel__icon-btn--restart"
                           title="续生失败项"
                         >
-                          <img src={iconStar} alt="续生失败项" />
+                          <TaskGlyph src={iconStar} label="续生失败项" />
                         </button>
                       </BillingQuoteConfirm>
                     </div>
@@ -589,7 +600,7 @@ export function GlobalGenerateTaskPopover({
                             className="global-task-panel__icon-btn global-task-panel__icon-btn--restart"
                             title="重新生成"
                           >
-                            <img src={iconStar} alt="重新生成" />
+                            <TaskGlyph src={iconStar} label="重新生成" />
                           </button>
                         </BillingQuoteConfirm>
                       ) : null}
@@ -625,7 +636,7 @@ export function GlobalGenerateTaskPopover({
                               className="global-task-panel__icon-btn global-task-panel__icon-btn--restart"
                               title={restartButtonTitle(task)}
                             >
-                              <img src={iconStar} alt={restartButtonTitle(task)} />
+                              <TaskGlyph src={iconStar} label={restartButtonTitle(task)} />
                             </button>
                           </BillingQuoteConfirm>
                         ) : (
@@ -635,7 +646,7 @@ export function GlobalGenerateTaskPopover({
                             title={restartButtonTitle(task)}
                             onClick={() => handleRestart(task)}
                           >
-                            <img src={iconStar} alt={restartButtonTitle(task)} />
+                            <TaskGlyph src={iconStar} label={restartButtonTitle(task)} />
                           </button>
                         )
                       ) : null}

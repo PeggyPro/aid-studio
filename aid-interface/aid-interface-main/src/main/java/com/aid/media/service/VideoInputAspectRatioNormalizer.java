@@ -1,5 +1,7 @@
 package com.aid.media.service;
 
+import com.aid.common.aid.image.ManagedImageIO;
+
 import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
@@ -281,7 +283,7 @@ public class VideoInputAspectRatioNormalizer {
                 graphics.dispose();
             }
             ByteArrayOutputStream output = new ByteArrayOutputStream();
-            if (!ImageIO.write(canvas, "jpg", output)) {
+            if (!ManagedImageIO.write(canvas, "jpg", output)) {
                 log.error("视频输入图编码失败: url={}", sourceUrl);
                 throw new ServiceException("图片处理失败");
             }
@@ -299,7 +301,9 @@ public class VideoInputAspectRatioNormalizer {
     }
 
     private byte[] readImageBytes(String url) {
-        FetchOutcome outcome = imageBytesFetcher.resolve(url);
+        String sourceUrl = StrUtil.startWithAnyIgnoreCase(url, "http://", "https://")
+                ? url : mediaUrlResolver.toFullUrl(url);
+        FetchOutcome outcome = imageBytesFetcher.resolve(sourceUrl);
         if (!outcome.isUseUrl()) {
             return validateImageBytes(outcome.getBytes(), url);
         }
@@ -314,7 +318,7 @@ public class VideoInputAspectRatioNormalizer {
 
     /** 先读取图片头部尺寸再完整解码，使像素上限能在大画布分配前生效。 */
     private BufferedImage decodeImage(byte[] bytes, String url) throws Exception {
-        try (ImageInputStream input = ImageIO.createImageInputStream(new ByteArrayInputStream(bytes))) {
+        try (ImageInputStream input = ManagedImageIO.createImageInputStream(new ByteArrayInputStream(bytes))) {
             if (input == null) {
                 return null;
             }

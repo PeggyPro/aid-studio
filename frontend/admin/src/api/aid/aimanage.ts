@@ -475,8 +475,8 @@ export function addModel(data) {
   return request({ url: '/aid/aidmodel', method: 'post', data, ...(newApiGeneration ? { timeout: 360000 } : {}) })
 }
 
-export function updateModel(data) {
-  return request({ url: '/aid/aidmodel', method: 'put', data })
+export function updateModel(data, suppressConflictToast = false) {
+  return request({ url: '/aid/aidmodel', method: 'put', data, suppressConflictToast })
 }
 
 export type ModelSkuCoverageStatus =
@@ -501,6 +501,14 @@ export function checkModelSkuCoverage(data: Record<string, unknown>) {
 
 export function delModel(id) {
   return request({ url: '/aid/aidmodel/' + id, method: 'delete' })
+}
+
+/** 查看当前仍会阻止模型或能力删除的有效绑定，不执行解绑。 */
+export function listModelReferences(data: { modelIds: number[]; capabilityCode?: string;
+  page: number; pageSize: number }) {
+  return request<{ totalReferences: number; references: import('@/utils/apiErrorDetails').ApiReference[] }>({
+    url: '/aid/aidmodel/references', method: 'post', data
+  });
 }
 
 /**

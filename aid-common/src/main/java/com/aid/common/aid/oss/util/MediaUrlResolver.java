@@ -50,7 +50,7 @@ public class MediaUrlResolver
         String lower = path.toLowerCase();
         if (lower.startsWith("http://") || lower.startsWith("https://"))
         {
-            return path;
+            return resolveStorageAccessUrl(path);
         }
         // Packaged brand and default assets are served by each application itself.
         // They must never be rewritten to the configured upload CDN.
@@ -76,14 +76,40 @@ public class MediaUrlResolver
             {
                 return path;
             }
-            return stripTrailingSlash(cdnDomain) + path;
+            return resolveStorageAccessUrl(stripTrailingSlash(cdnDomain) + path);
         }
         String cdnDomain = Objects.isNull(properties) ? null : properties.getEffectiveCdnDomain();
         if (StrUtil.isBlank(cdnDomain))
         {
             return "/" + path;
         }
-        return stripTrailingSlash(cdnDomain) + "/" + path;
+        return resolveStorageAccessUrl(stripTrailingSlash(cdnDomain) + "/" + path);
+    }
+
+    /** 官方S3系统域名要求签名；只处理当前存储域名下的资源，不改外部图片。 */
+    private String resolveStorageAccessUrl(String fullUrl)
+    {
+        OssProperties p = ossConfigManager.getOssProperties();
+        if (p == null || !"qiniu".equalsIgnoreCase(p.getUploadMode())
+                || StrUtil.isBlank(p.getEffectiveResourceAccessDomain())) return fullUrl;
+        try
+        {
+            URI domain = URI.create(p.getEffectiveResourceAccessDomain());
+            URI resource = URI.create(fullUrl);
+            if (!Objects.equals(domain.getHost(), resource.getHost())
+                    || !Objects.equals(domain.getScheme(), resource.getScheme())
+                    || domain.getPort() != resource.getPort()
+                    || resource.getUserInfo() != null || StrUtil.isBlank(resource.getPath())
+                    || "/".equals(resource.getPath())) return fullUrl;
+            String signed = com.aid.common.aid.oss.core.QiniuS3ResourceUrlSigner.signIfSupported(
+                    p.getEffectiveResourceAccessDomain(), resource.getPath().substring(1),
+                    p.getQiniuAccessKey(), p.getQiniuSecretKey(), 3600);
+            return signed == null ? fullUrl : signed;
+        }
+        catch (IllegalArgumentException exception)
+        {
+            return fullUrl;
+        }
     }
 
     /**
@@ -143,6 +169,22 @@ public class MediaUrlResolver
                 && !url.startsWith("//")
                 && !url.startsWith("/\\")
                 && !url.contains("..");
+    }
+
+    /** 判断当前存储的媒体来源；图片外链白名单不授予本站存储权限。 */
+    public boolean isSiteMediaUrl(String url)
+    {
+        if (StrUtil.isBlank(url) || url.chars().anyMatch(Character::isWhitespace)) return false;
+        String lower = url.toLowerCase(java.util.Locale.ROOT);
+        if (lower.startsWith("http://") || lower.startsWith("https://"))
+        {
+            OssProperties properties = ossConfigManager.getOssProperties();
+            if (properties == null) return false;
+            String domain = UPLOAD_MODE_LOCAL.equalsIgnoreCase(properties.getUploadMode())
+                    ? properties.getLocalDomain() : properties.getEffectiveCdnDomain();
+            return matchesTrustedPrefix(url, domain);
+        }
+        return url.startsWith("/") && !url.startsWith("//") && !url.startsWith("/\\") && !url.contains("..");
     }
 
     /**

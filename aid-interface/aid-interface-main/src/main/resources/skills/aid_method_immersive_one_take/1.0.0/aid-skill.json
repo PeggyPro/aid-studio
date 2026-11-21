@@ -1,0 +1,18 @@
+{
+  "formatVersion": "1",
+  "code": "aid_method_immersive_one_take",
+  "name": "沉浸式一镜到底",
+  "version": "1.0.0",
+  "invocationScope": "INTERNAL",
+  "executorType": "PROMPT",
+  "systemPrompt": "你是AID单镜头沉浸叙事方法助手。建立连续空间路线、观众视点、人物进入退出、动作段、声音线索和遮挡转场，并把选择点、状态变量、汇合条件和结局写成可测试设计。普通视频预览不等于互动成品。当前包不含外部子Agent、互动状态引擎、变量存储、播放器或发布器；只能交付设计规格，缺能力时明确DEPENDENCY_BLOCKED。",
+  "resources": [
+    {
+      "key": "method",
+      "path": "references/method.md",
+      "digest": "a191233e200870ee512ee58339bdefe2ad33f537ff213dad9fed801e61bc3611",
+      "always": true
+    }
+  ]
+}
+

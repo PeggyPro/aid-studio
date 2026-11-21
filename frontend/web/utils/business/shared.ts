@@ -81,7 +81,11 @@ export function stableRequestKey(body: unknown): string {
 }
 
 /** 列表类接口共用的：短时 burst 缓存 + 同 key 并发合并（避免四处复制同一套 if/inflight/finally） */
-export type ListBurstSlot<T> = { current: { key: string; data: T; at: number } | null }
+export type ListBurstSlot<T> = {
+  current: { key: string; data: T; at: number } | null
+  /** 按业务请求键分别保留短时结果，避免 A/B/A 交替请求击穿单槽缓存。 */
+  entries?: Map<string, { data: T; at: number }>
+}
 
 export function runListDedupe<T>(
   key: string,
@@ -91,10 +95,17 @@ export function runListDedupe<T>(
   burstMs = API_LIST_BURST_CACHE_MS
 ): Promise<T> {
   const now = Date.now()
-  const b = burst.current
-  if (b && b.key === key && now - b.at < burstMs) {
+  // 各业务域既有的 `current = null` 仍是显式失效入口。
+  if (burst.current === null && burst.entries?.size) burst.entries.clear()
+  const entries = burst.entries ?? new Map<string, { data: T; at: number }>()
+  burst.entries = entries
+  const b = entries.get(key) ?? (burst.current?.key === key
+    ? { data: burst.current.data, at: burst.current.at }
+    : undefined)
+  if (b && now - b.at < burstMs) {
     return Promise.resolve(b.data)
   }
+  if (b && now - b.at >= burstMs) entries.delete(key)
   const existing = inflight.get(key)
   if (existing) return existing
   // 持有器先于闭包声明，规避 const 自引用的 TS 暂时性死区检查
@@ -104,6 +115,13 @@ export function runListDedupe<T>(
     // 仍是当前在途任务才写 burst 缓存（避免被后来的同 key 任务覆盖）
     if (inflight.get(key) === self.p) {
       burst.current = { key, data, at: Date.now() }
+      entries.delete(key)
+      entries.set(key, { data, at: Date.now() })
+      while (entries.size > 64) {
+        const oldest = entries.keys().next().value
+        if (oldest == null) break
+        entries.delete(oldest)
+      }
     }
     return data
   })().finally(() => {

@@ -20,12 +20,17 @@ import com.aid.aid.domain.media.AidMediaTask;
 import com.aid.aid.mapper.AidMediaResultMapper;
 import com.aid.aid.mapper.AidMediaTaskMapper;
 import com.aid.aid.service.IAidGenRecordService;
+import com.aid.canvas.domain.CanvasEntities.CanvasResource;
+import com.aid.canvas.service.CanvasAccessService;
+import com.aid.canvas.service.CanvasResourceService;
 import com.aid.common.aid.oss.util.MediaUrlResolver;
 import com.aid.common.exception.ServiceException;
 import com.aid.enums.GenTypeEnum;
 import com.aid.media.dto.MediaVideoGenerateRequest;
 import com.aid.media.dto.ReferenceVideoInput;
 import com.aid.media.service.VerifiedMediaMetadataService;
+import com.alibaba.fastjson2.JSON;
+import com.alibaba.fastjson2.JSONObject;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 
 import cn.hutool.core.collection.CollectionUtil;
@@ -51,6 +56,8 @@ public class ReferenceVideoRecordResolver
     private final AidMediaResultMapper mediaResultMapper;
     private final MediaUrlResolver mediaUrlResolver;
     private final VerifiedMediaMetadataService verifiedMediaMetadataService;
+    private final CanvasAccessService canvasAccessService;
+    private final CanvasResourceService canvasResourceService;
 
     /** 仅防止异常请求耗尽探测资源，模型实际数量上限仍由 capability 校验。 */
     @Value("${aid.media.reference-video-resolve-max:50}")
@@ -79,6 +86,15 @@ public class ReferenceVideoRecordResolver
             return;
         }
         request.setResolvedReferenceVideos(Collections.emptyList());
+        if (CollectionUtil.isNotEmpty(request.getReferenceVideoResourceIds())) {
+            if (CollectionUtil.isNotEmpty(request.getReferenceVideoRecordIds())) {
+                throw new ServiceException("视频来源不能同时选择画布资源和生成记录");
+            }
+            List<ReferenceVideoInput> resolved = resolveCanvas(request, userId, allowProbe);
+            canonicalizeOptions(request, resolved);
+            request.setResolvedReferenceVideos(resolved);
+            return;
+        }
         if (CollectionUtil.isEmpty(request.getReferenceVideoRecordIds()))
         {
             return;
@@ -87,6 +103,143 @@ public class ReferenceVideoRecordResolver
                 request.getReferenceVideoRecordIds(), userId, request.getProjectId(), allowProbe);
         canonicalizeOptions(request, resolved);
         request.setResolvedReferenceVideos(resolved);
+    }
+
+    private List<ReferenceVideoInput> resolveCanvas(MediaVideoGenerateRequest request, Long userId,
+                                                     boolean allowProbe) {
+        List<Long> ids = request.getReferenceVideoResourceIds();
+        if (request.getWorkspaceId() == null || request.getProjectId() == null
+                || userId == null || ids.size() > maxRecordsPerRequest) {
+            throw new ServiceException("画布视频来源缺少有效工作区或项目");
+        }
+        var workspace = canvasAccessService.requireWorkspace(request.getWorkspaceId(), userId,
+                "OWNER", "EDITOR");
+        if (!Objects.equals(workspace.getProjectId(), request.getProjectId())) {
+            throw new ServiceException("画布视频来源与项目不一致");
+        }
+        List<CanvasResource> resources = canvasResourceService.requireResources(
+                request.getWorkspaceId(), ids, userId);
+        if (resources.size() != new LinkedHashSet<>(ids).size()) {
+            throw new ServiceException("画布视频来源不可用");
+        }
+        List<ReferenceVideoInput> resolved = new ArrayList<>(resources.size());
+        for (CanvasResource resource : resources) {
+            if (!Objects.equals(resource.getProjectId(), request.getProjectId())
+                    || !"VIDEO".equalsIgnoreCase(resource.getMediaType())
+                    || !"ACTIVE".equals(resource.getStatus())
+                    || !mediaUrlResolver.isSiteImageUrl(resource.getStorageUrl())) {
+                throw new ServiceException("画布视频来源不可用");
+            }
+            String url = mediaUrlResolver.toFullUrl(resource.getStorageUrl());
+            TrustedCanvasVideoMetadata persisted = trustedCanvasVideoMetadata(resource);
+            Long durationMs = persisted.durationMs();
+            Long sizeBytes = persisted.sizeBytes();
+            Integer width = persisted.width();
+            Integer height = persisted.height();
+            BigDecimal fps = persisted.fps();
+            String format = persisted.format();
+            if (allowProbe) {
+                var actual = verifiedMediaMetadataService.inspect(url, "video");
+                durationMs = actual.durationSeconds().multiply(BigDecimal.valueOf(1000))
+                        .setScale(0, RoundingMode.CEILING).longValueExact();
+                sizeBytes = actual.sizeBytes();
+                width = actual.width();
+                height = actual.height();
+                fps = actual.fps();
+                format = actual.format();
+            }
+            resolved.add(new ReferenceVideoInput(resource.getId(), url, durationMs,
+                    sizeBytes, width, height, fps, format));
+        }
+        return List.copyOf(resolved);
+    }
+
+    private TrustedCanvasVideoMetadata trustedCanvasVideoMetadata(CanvasResource resource) {
+        JSONObject metadata;
+        try {
+            metadata = StrUtil.isBlank(resource.getMetadataJson())
+                    ? new JSONObject() : JSON.parseObject(resource.getMetadataJson());
+        } catch (RuntimeException invalid) {
+            metadata = new JSONObject();
+        }
+        if (metadata == null) metadata = new JSONObject();
+        BigDecimal seconds = positiveDecimal(metadata.get("durationSeconds"));
+        Long durationMs = positiveLong(metadata.get("durationMs"));
+        if (durationMs == null && seconds != null) {
+            try {
+                durationMs = seconds.multiply(BigDecimal.valueOf(1000))
+                        .setScale(0, RoundingMode.CEILING).longValueExact();
+            } catch (ArithmeticException invalid) {
+                durationMs = null;
+            }
+        }
+        Integer width = positiveInteger(metadata.get("width"));
+        Integer height = positiveInteger(metadata.get("height"));
+        BigDecimal fps = positiveDecimal(metadata.get("fps"));
+        Long sizeBytes = resource.getFileSize() != null && resource.getFileSize() > 0
+                ? resource.getFileSize() : positiveLong(metadata.get("sizeBytes"));
+        String format = normalizedVideoFormat(metadata.getString("format"), resource.getMimeType());
+        return new TrustedCanvasVideoMetadata(durationMs, sizeBytes, width, height, fps, format);
+    }
+
+    private Long positiveLong(Object value) {
+        BigDecimal decimal = positiveDecimal(value);
+        if (decimal == null || decimal.stripTrailingZeros().scale() > 0) return null;
+        try { return decimal.longValueExact(); }
+        catch (ArithmeticException invalid) { return null; }
+    }
+
+    private Integer positiveInteger(Object value) {
+        Long parsed = positiveLong(value);
+        if (parsed == null) return null;
+        if (parsed > Integer.MAX_VALUE) return null;
+        return parsed.intValue();
+    }
+
+    private BigDecimal positiveDecimal(Object value) {
+        if (value == null) return null;
+        try {
+            BigDecimal parsed = new BigDecimal(String.valueOf(value));
+            return parsed.signum() > 0 ? parsed : null;
+        } catch (NumberFormatException invalid) {
+            return null;
+        }
+    }
+
+    private String normalizedVideoFormat(String configured, String mimeType) {
+        String value = StrUtil.trim(configured);
+        if (StrUtil.isBlank(value) && StrUtil.isNotBlank(mimeType)
+                && mimeType.trim().toLowerCase(java.util.Locale.ROOT).startsWith("video/")) {
+            value = mimeType.trim().substring("video/".length());
+        }
+        if (StrUtil.isBlank(value) || !value.matches("[A-Za-z0-9.+_-]{1,32}")) return null;
+        return value.toLowerCase(java.util.Locale.ROOT);
+    }
+
+    private record TrustedCanvasVideoMetadata(Long durationMs, Long sizeBytes, Integer width,
+                                               Integer height, BigDecimal fps, String format) { }
+
+    public void resolveBackgroundImage(MediaVideoGenerateRequest request, Long userId) {
+        if (request == null || request.getWorkspaceId() == null || request.getProjectId() == null
+                || request.getBackgroundImageResourceId() == null || userId == null) {
+            throw new ServiceException("画布背景图片缺少有效工作区或项目");
+        }
+        var workspace = canvasAccessService.requireWorkspace(request.getWorkspaceId(), userId,
+                "OWNER", "EDITOR");
+        if (!Objects.equals(workspace.getProjectId(), request.getProjectId())) {
+            throw new ServiceException("画布背景图片与项目不一致");
+        }
+        List<CanvasResource> resources = canvasResourceService.requireResources(
+                request.getWorkspaceId(), List.of(request.getBackgroundImageResourceId()), userId);
+        if (resources.size() != 1) throw new ServiceException("画布背景图片不可用");
+        CanvasResource resource = resources.get(0);
+        if (!"IMAGE".equalsIgnoreCase(resource.getMediaType())
+                || !"ACTIVE".equals(resource.getStatus())
+                || !Objects.equals(resource.getProjectId(), request.getProjectId())
+                || !mediaUrlResolver.isSiteImageUrl(resource.getStorageUrl())) {
+            throw new ServiceException("画布背景图片不可用");
+        }
+        request.setImageUrl(mediaUrlResolver.toFullUrl(resource.getStorageUrl()));
     }
 
     /**
@@ -381,7 +534,8 @@ public class ReferenceVideoRecordResolver
                 Wrappers.<AidMediaResult>lambdaQuery()
                         .select(AidMediaResult::getTaskId, AidMediaResult::getFileSize,
                                 AidMediaResult::getDurationSeconds, AidMediaResult::getMimeType)
-                        .in(AidMediaResult::getTaskId, taskIds));
+                        .in(AidMediaResult::getTaskId, taskIds)
+                        .eq(AidMediaResult::getResultIndex, 0));
         Map<Long, AidMediaResult> result = new LinkedHashMap<>();
         for (AidMediaResult row : results)
         {

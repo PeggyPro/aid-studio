@@ -14,6 +14,10 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useAppStore } from '@/store/useAppStore';
 import { usePermissionStore, AppRoute } from '@/store/usePermissionStore';
 import { resolvePath } from '@/router/utils';
+import { scopedAuthoringTab } from '@/utils/adminWorkspaces';
+import Auth from '@/components/Auth';
+import { MediaTaskAnomalyHeaderEntry } from '@/components/MediaTaskAnomaly';
+import { MEDIA_TASK_ANOMALY_PERMISSIONS } from '@/api/system/mediaTaskAnomaly';
 import './AppHeader.less';
 
 function useBreadcrumbs() {
@@ -29,14 +33,16 @@ function useBreadcrumbs() {
     ];
     if (location.pathname === '/index') return crumbs;
 
-    const base = '';
     const walk = (list: AppRoute[], idx: number, parentPath: string) => {
       if (idx >= segments.length) return;
       const curr = '/' + segments.slice(0, idx + 1).join('/');
       for (const r of list) {
         const full = resolvePath(parentPath, r.path);
         if (full === curr) {
-          if (r.meta?.title) crumbs.push({ title: r.meta.title, path: full });
+          if (r.meta?.title) {
+            const scoped = full === location.pathname ? scopedAuthoringTab(r.view, full, location.search) : undefined;
+            crumbs.push({ title: scoped?.title ?? r.meta.title, path: full });
+          }
           if (r.children) walk(r.children, idx + 1, full);
           return;
         }
@@ -56,7 +62,7 @@ function useBreadcrumbs() {
     };
     walk(routes, 0, '');
     return crumbs;
-  }, [location.pathname, routes]);
+  }, [location.pathname, location.search, routes]);
 }
 
 export default function AppHeader() {
@@ -105,6 +111,9 @@ export default function AppHeader() {
       </div>
       <div className="app-header__right">
         <Space size={4}>
+          <Auth permission={MEDIA_TASK_ANOMALY_PERMISSIONS.list}>
+            <MediaTaskAnomalyHeaderEntry />
+          </Auth>
           <Tooltip title="刷新">
             <Button type="text" icon={<ReloadOutlined />} onClick={refresh} />
           </Tooltip>

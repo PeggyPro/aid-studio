@@ -11,6 +11,8 @@ export interface GlobalSettingPagePanelProps {
   projectType: ProjectTypeValue
   draft: GlobalSettingData
   projectTypeLocked: boolean
+  contentConfigLocked?: boolean
+  contentConfigLockReason?: 'storyboard' | 'assets'
   onTitleChange: (value: string) => void
   onProjectTypeChange: (value: ProjectTypeValue) => void
   onFieldChange: (
@@ -31,6 +33,8 @@ export function GlobalSettingPagePanel({
   projectType,
   draft,
   projectTypeLocked,
+  contentConfigLocked = false,
+  contentConfigLockReason,
   onTitleChange,
   onProjectTypeChange,
   onFieldChange,
@@ -43,6 +47,8 @@ export function GlobalSettingPagePanel({
         open={true}
         flowEditMode
         projectTypeLocked={projectTypeLocked}
+        contentConfigLocked={contentConfigLocked}
+        contentConfigLockReason={contentConfigLockReason}
         title={title}
         projectType={projectType}
         aspectRatio={draft.aspectRatio}

@@ -10,7 +10,7 @@
 }
 
 .create-page .flow-step-connector--skeleton {
-  background: rgba(74, 231, 253, 0.08);
+  background: var(--ui-soft, rgba(74, 231, 253, 0.08));
 }
 
 .create-page .flow-step-pill--skeleton {
@@ -23,7 +23,7 @@
   width: 16px;
   height: 16px;
   border-radius: 4px;
-  background: rgba(74, 231, 253, 0.12);
+  background: var(--ui-soft, rgba(74, 231, 253, 0.12));
   flex-shrink: 0;
 }
 
@@ -41,7 +41,7 @@
   overflow: hidden;
   position: relative;
   z-index: 1;
-  background: #111621;
+  background: var(--ui-surface, #111621);
   border: none;
   border-radius: 8px;
   margin: 10px 12px;
@@ -57,14 +57,14 @@
   border: 1px solid rgba(255, 105, 105, 0.42);
   border-radius: 8px;
   background: rgba(255, 105, 105, 0.1);
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--ui-text, rgba(255, 255, 255, 0.9));
   font-size: 13px;
   line-height: 1.45;
 }
 
 .create-page .preview-audit-failure__title {
   flex: 0 0 auto;
-  color: #ff8585;
+  color: var(--ui-danger, #ff8585);
   font-weight: 600;
 }
 
@@ -89,14 +89,14 @@
   justify-content: space-between;
   align-items: center;
   padding: 1rem 1.25rem;
-  border-bottom: 1px solid rgba(74, 231, 253, 0.1);
-  background: rgba(12, 16, 24, 0.6);
+  border-bottom: 1px solid var(--ui-hair, rgba(74, 231, 253, 0.1));
+  background: var(--ui-bg, rgba(12, 16, 24, 0.6));
 }
 
 .create-page .preview-title {
   font-size: 1.5rem;
   font-weight: 700;
-  color: #fff;
+  color: var(--ui-text, #fff);
   margin: 0;
 }
 
@@ -112,7 +112,7 @@
   display: flex;
   flex-direction: column;
   min-height: 0;
-  color: var(--home-text, #e6edf3);
+  color: var(--home-text, var(--ui-text, #e6edf3));
 }
 
 .create-page .create-step-swap-placeholder {
@@ -125,7 +125,7 @@
   justify-content: center;
   gap: 0.75rem;
   padding: 1.5rem;
-  background: rgba(6, 10, 18, 0.78);
+  background: var(--ui-bg, rgba(6, 10, 18, 0.78));
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   pointer-events: auto;
@@ -134,7 +134,7 @@
 
 .create-page .create-step-swap-placeholder__ico {
   font-size: 1.75rem;
-  color: var(--home-accent, #4ae7fd);
+  color: var(--home-accent, var(--ui-brand, #4ae7fd));
 }
 
 .create-page .create-step-swap-placeholder__spinner {
@@ -161,7 +161,7 @@
 
 .create-page .create-step-swap-placeholder__text {
   font-size: 0.9rem;
-  color: var(--home-muted, #8e97a5);
+  color: var(--home-muted, var(--ui-muted, #8e97a5));
 }
 
 .create-page .preview-content.step-global-setting {
@@ -171,7 +171,7 @@
 
 .create-page .preview-content.step-story-script {
   padding: 0;
-  overflow-y: auto;
+  overflow: hidden;
 }
 
 .create-page .preview-content.step-series-script-upload {

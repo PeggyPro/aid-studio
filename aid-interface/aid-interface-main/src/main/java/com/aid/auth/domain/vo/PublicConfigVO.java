@@ -80,6 +80,9 @@ public class PublicConfigVO
      */
     private VoicePreviewConfig voicePreview;
 
+    /** 电影、单集及整部剧本字数限制。 */
+    private com.aid.script.service.ScriptLimitsService.Limits scriptLimits;
+
     /**
      * 营销活动公开配置（注册送积分 + 邀请激励）。
      * 来自 aid_config category=register_bonus / invite，供登录/注册页展示活动文案与开关。

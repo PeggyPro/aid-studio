@@ -3,6 +3,7 @@ package com.aid.media.service.impl;
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
+import com.aid.billing.dto.BillingBudgetContext;
 import com.aid.billing.util.ResolutionUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
@@ -23,8 +24,11 @@ import com.aid.media.constants.KlingConstants;
 import com.aid.media.constants.MinimaxH3Constants;
 import com.aid.media.provider.MinimaxH3CallbackSupport;
 import com.aid.media.provider.VideoProviderClient;
+import com.aid.media.reconciliation.AuthoritativeProviderTaskQuery;
 import com.aid.media.service.TaskCompletionService;
 import com.aid.media.service.TaskDispatchService;
+import com.aid.media.service.MediaTaskAnomalyRegistry;
+import com.aid.media.model.TaskRecheckResult;
 import com.aid.media.util.TaskLivenessDecider;
 import com.aid.media.util.MediaTaskPayloadSanitizer;
 import com.aid.service.IAiModelConfigService;
@@ -49,8 +53,24 @@ import java.util.Objects;
 @Service
 public class TaskDispatchServiceImpl implements TaskDispatchService {
 
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private MediaTaskAnomalyRegistry anomalyRegistry;
+
     @org.springframework.beans.factory.annotation.Autowired
     private com.aid.model.definition.ModelTaskConfigurationResolver taskConfigurationResolver;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    private org.springframework.beans.factory.ObjectProvider<com.aid.media.reconciliation.MediaSubmissionReconciliationService> submissionReconciliations;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    private org.redisson.api.RedissonClient queryLocks;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.aid.media.service.MediaTaskQueryTracker queryTracker;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.aid.media.service.MediaExecutionPermitService executionPermits;
 
     /** 独立滚动文件日志：只记录已提交上游但无法确认状态的任务。 */
     private static final Logger UPSTREAM_ANOMALY_LOG = LoggerFactory.getLogger("media-upstream-anomaly");
@@ -326,6 +346,24 @@ public class TaskDispatchServiceImpl implements TaskDispatchService {
     }
 
     @Override
+    public boolean dispatchDueTask(Long taskId) {
+        if (taskId == null || taskId <= 0) return false;
+        AidMediaTask task = aidMediaTaskMapper.selectById(taskId);
+        if (task == null || StrUtil.isBlank(task.getProviderTaskId())) return false;
+        Date now = new Date();
+        if (MediaTaskStatus.WAIT_CALLBACK.name().equals(task.getStatus())) {
+            if (task.getCallbackDeadline() == null || task.getCallbackDeadline().after(now)) return false;
+            mediaGenFanInSupport.renewParentLeaseIfFanIn(task.getBizTaskType(), task.getBizTaskId(), task.getParentTaskId());
+            if (!transitionToPoll(task)) return false;
+            task = aidMediaTaskMapper.selectById(taskId);
+        }
+        if (task == null || !List.of("WAIT_POLL", "PROCESSING").contains(task.getStatus())
+                || task.getNextPollTime() == null || task.getNextPollTime().after(now)
+                || StrUtil.isBlank(task.getProviderTaskId())) return false;
+        return dispatchSingleTask(task);
+    }
+
+    @Override
     public int transitionExpiredCallbacks(int batchSize) {
         LambdaQueryWrapper<AidMediaTask> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(AidMediaTask::getStatus, MediaTaskStatus.WAIT_CALLBACK.name());
@@ -437,6 +475,7 @@ public class TaskDispatchServiceImpl implements TaskDispatchService {
                 AidMediaTask::getScheduleSnapshotJson,
                 AidMediaTask::getUpstreamAcceptTime,
                 AidMediaTask::getLastProgressTime,
+                AidMediaTask::getNextPollTime,
                 AidMediaTask::getCreateTime,
                 AidMediaTask::getUpdateTime);
         wrapper.in(AidMediaTask::getStatus,
@@ -445,9 +484,12 @@ public class TaskDispatchServiceImpl implements TaskDispatchService {
                 MediaTaskStatus.PROCESSING.name());
         wrapper.isNotNull(AidMediaTask::getProviderTaskId);
         wrapper.ne(AidMediaTask::getProviderTaskId, "");
+        Date now = new Date();
+        wrapper.and(item -> item.isNull(AidMediaTask::getNextPollTime)
+                .or().le(AidMediaTask::getNextPollTime, now));
         wrapper.and(item -> item.isNull(AidMediaTask::getUpdateTime)
                 .or().le(AidMediaTask::getUpdateTime,
-                        new Date(System.currentTimeMillis()
+                        new Date(now.getTime()
                                 - LIVENESS_RECONCILE_MIN_INTERVAL_SECONDS * 1000L)));
         return wrapper;
     }
@@ -473,27 +515,15 @@ public class TaskDispatchServiceImpl implements TaskDispatchService {
     private boolean reconcileAfterLivenessThreshold(AidMediaTask task, TaskLivenessDecider.Verdict verdict) {
         mediaGenFanInSupport.renewParentLeaseIfFanIn(
                 task.getBizTaskType(), task.getBizTaskId(), task.getParentTaskId());
-        ProviderTaskResult upstream = queryUpstream(task);
+        QueryAttempt attempt = queryUpstream(task);
+        if (attempt.deferred()) return false;
+        if (attempt.localTerminal()) return true;
+        ProviderTaskResult upstream = attempt.result();
         if (Objects.isNull(upstream) || StrUtil.isBlank(upstream.getStatus())) {
             recordUpstreamAnomaly(task, verdict, "上游查询无响应", null);
             return false;
         }
         if (!Boolean.TRUE.equals(upstream.getQuerySuccessful())) {
-            if (shouldRefundExpiredMinimaxTerminalAnomaly(task, verdict, upstream)) {
-                ProviderTaskResult refundResult = ProviderTaskResult.builder()
-                    .status(MediaTaskStatus.FAILED.name())
-                    .errorMessage("结算结果超时")
-                    .rawResponse(upstream.getRawResponse())
-                    .querySuccessful(Boolean.TRUE)
-                    .providerStatus(upstream.getProviderStatus())
-                    .terminalConfirmed(Boolean.TRUE)
-                    .build();
-                boolean won = taskCompletionService.completeTask(task.getId(), refundResult);
-                log.warn("MiniMax H3 成功终态长期缺少可结算结果，按最大生命周期失败收口并退款, "
-                        + "taskId={}, providerTaskId={}, completeTask={}",
-                    task.getId(), task.getProviderTaskId(), won);
-                return won;
-            }
             recordUpstreamAnomaly(task, verdict,
                     StrUtil.blankToDefault(upstream.getErrorMessage(), "上游状态待确认"), upstream);
             return false;
@@ -512,20 +542,16 @@ public class TaskDispatchServiceImpl implements TaskDispatchService {
         }
         // 上游已终态：无论成功失败，都用上游结果收口，不再套用超时文案
         boolean won = taskCompletionService.completeTask(task.getId(), upstream);
+        String finalStatus = won ? upstreamStatus : currentTaskStatus(task.getId(), task.getStatus());
+        if (anomalyRegistry != null
+                && (MediaTaskStatus.SUCCEEDED.name().equals(finalStatus)
+                || MediaTaskStatus.FAILED.name().equals(finalStatus))) {
+            anomalyRegistry.resolveTerminal(task.getId(), finalStatus, "UPSTREAM_" + finalStatus);
+        }
         log.info("reconcileAfterLivenessThreshold 对账确认上游终态, taskId={}, upstreamStatus={}, verdict={}, completeTask={}",
             task.getId(), upstreamStatus, verdict, won);
         // 成功终态提交后由 MediaTaskCompletedEvent 单向驱动 OSS 持久化，调度服务不反向依赖媒体生成服务。
-        return true;
-    }
-
-    static boolean shouldRefundExpiredMinimaxTerminalAnomaly(AidMediaTask task,
-                                                               TaskLivenessDecider.Verdict verdict,
-                                                               ProviderTaskResult upstream) {
-        return task != null && upstream != null
-            && TaskLivenessDecider.Verdict.EXPIRED.equals(verdict)
-            && MinimaxH3Constants.PROTOCOL_VIDEO.equals(task.getProtocol())
-            && MinimaxH3Constants.STATUS_SUCCEEDED.equalsIgnoreCase(upstream.getProviderStatus())
-            && !Boolean.TRUE.equals(upstream.getQuerySuccessful());
+        return won;
     }
 
     @Override
@@ -547,7 +573,11 @@ public class TaskDispatchServiceImpl implements TaskDispatchService {
             Objects.nonNull(task.getUserId()) ? String.valueOf(task.getUserId()) : "");
         wrapper.set(AidMediaTask::getUpdateTime, now);
         try {
-            aidMediaTaskMapper.update(null, wrapper);
+            int changed = aidMediaTaskMapper.update(null, wrapper);
+            if (changed > 0 && anomalyRegistry != null) {
+                anomalyRegistry.resolveTerminal(task.getId(), MediaTaskStatus.PROCESSING.name(),
+                        "UPSTREAM_RECOVERED");
+            }
         } catch (Exception ex) {
             // 进展登记失败只会让任务早一轮被判无进展，不阻断调度主流程。
             log.warn("markUpstreamProgress 登记失败, taskId={}, error={}", task.getId(), ex.getMessage());
@@ -613,6 +643,9 @@ public class TaskDispatchServiceImpl implements TaskDispatchService {
                 Objects.nonNull(task.getUserId()) ? String.valueOf(task.getUserId()) : "");
         wrapper.set(AidMediaTask::getUpdateTime, new Date());
         aidMediaTaskMapper.update(null, wrapper);
+        if (anomalyRegistry != null) {
+            anomalyRegistry.recordQueryFailure(task, safeReason, upstream);
+        }
 
         UPSTREAM_ANOMALY_LOG.warn(
                 "taskId={} providerTaskId={} projectId={} userId={} bizTaskType={} bizTaskId={} batchId={} "
@@ -627,10 +660,8 @@ public class TaskDispatchServiceImpl implements TaskDispatchService {
 
     @Override
     public int closeStaleUnsubmittedTasks(int batchSize) {
-        // 未提交上游的僵尸任务无调度快照（schedule_snapshot_json 为空），用固定兜底时限判定。
-        // 取 2 小时：必须显著大于单次 HTTP 提交超时上限（SubmitTimeoutResolver 最大 3600s），
-        // 否则可能把「提交仍在合法等待中」的任务误判为僵尸并退款（与 R11 超时分层一致：deadline > submitTimeout）。
-        final long unsubmittedMaxLifeMs = 7200L * 1000L;
+        // Synchronous recovery needs a released execution lease, never task age alone.
+        // Existing compose idempotent recovery keeps its own inactivity threshold.
         final long composeUnsubmittedMaxLifeMs = 600L * 1000L;
         LambdaQueryWrapper<AidMediaTask> wrapper = new LambdaQueryWrapper<>();
         // QUEUED 只表示等待并发槽，50 个分镜在低并发下合法等待可能超过数小时，不能当僵尸关闭。
@@ -639,8 +670,9 @@ public class TaskDispatchServiceImpl implements TaskDispatchService {
         // 仅清「未提交上游」的：providerTaskId 为空（NULL 或空串）。
         wrapper.and(w -> w.isNull(AidMediaTask::getProviderTaskId)
             .or().eq(AidMediaTask::getProviderTaskId, ""));
-        wrapper.and(w -> w.isNull(AidMediaTask::getProtocol)
-            .or().ne(AidMediaTask::getProtocol, "dmc-h3-video"));
+        wrapper.and(w -> w.eq(AidMediaTask::getMediaType, com.aid.compose.ComposeConstants.MEDIA_TYPE_COMPOSE)
+                .or().exists("SELECT 1 FROM aid_media_execution_permit p WHERE p.token=aid_media_task.execution_permit_token "
+                        + "AND p.state='RELEASED' AND p.execution_mode IN ('SYNC_TEXT','SYNC_IMAGE','SYNC_AUDIO','SUBMITTING')"));
         // 本地 FFmpeg 会定期刷新 updateTime；按最近活动时间排序，避免长任务长期占据扫描窗口，
         // 让真正失联的 PENDING 任务优先进入补偿。
         wrapper.orderByAsc(AidMediaTask::getUpdateTime, AidMediaTask::getId);
@@ -653,17 +685,12 @@ public class TaskDispatchServiceImpl implements TaskDispatchService {
         Date now = new Date();
         int closed = 0;
         for (AidMediaTask task : tasks) {
-            // DMC 的首次 POST 可能已受理却未返回 task_id；没有上游证据时不能自动失败退款。
-            if ("dmc-h3-video".equalsIgnoreCase(task.getProtocol())) {
-                continue;
-            }
             Date pendingSince = Objects.nonNull(task.getUpdateTime()) ? task.getUpdateTime() : task.getCreateTime();
             if (Objects.isNull(pendingSince)) {
                 continue;
             }
             boolean compose = com.aid.compose.ComposeConstants.MEDIA_TYPE_COMPOSE.equals(task.getMediaType());
-            long maxLifeMs = compose ? composeUnsubmittedMaxLifeMs : unsubmittedMaxLifeMs;
-            if (now.getTime() - pendingSince.getTime() > maxLifeMs) {
+            if (!compose || now.getTime() - pendingSince.getTime() > composeUnsubmittedMaxLifeMs) {
                 boolean won = compose
                         ? taskCompletionService.requeueUnsubmittedTask(task.getId())
                         : taskCompletionService.closeUnsubmittedTask(task.getId(), "任务超时: 提交未完成");
@@ -697,6 +724,8 @@ public class TaskDispatchServiceImpl implements TaskDispatchService {
 
         LambdaUpdateWrapper<AidMediaTask> casWrapper = new LambdaUpdateWrapper<>();
         casWrapper.eq(AidMediaTask::getId, task.getId());
+        casWrapper.in(AidMediaTask::getStatus, "WAIT_POLL", "PROCESSING");
+        casWrapper.eq(AidMediaTask::getProviderTaskId, task.getProviderTaskId());
         casWrapper.eq(AidMediaTask::getNextPollTime, task.getNextPollTime());
         casWrapper.set(AidMediaTask::getNextPollTime, nextPollTime);
         casWrapper.set(AidMediaTask::getRetryCount, nextRetryCount);
@@ -714,7 +743,10 @@ public class TaskDispatchServiceImpl implements TaskDispatchService {
         mediaGenFanInSupport.renewParentLeaseIfFanIn(
                 task.getBizTaskType(), task.getBizTaskId(), task.getParentTaskId());
 
-        ProviderTaskResult taskResult = queryUpstream(task);
+        QueryAttempt attempt = queryUpstream(task);
+        if (attempt.deferred()) return false;
+        if (attempt.localTerminal()) return true;
+        ProviderTaskResult taskResult = attempt.result();
         if (Objects.isNull(taskResult)) {
             // 上游无响应，保持当前状态等待下次调度。
             recordUpstreamAnomaly(task, TaskLivenessDecider.Verdict.ALIVE, "上游查询无响应", null);
@@ -745,9 +777,16 @@ public class TaskDispatchServiceImpl implements TaskDispatchService {
             return false;
         }
 
-        taskCompletionService.completeTask(task.getId(), taskResult);
+        boolean won = taskCompletionService.completeTask(task.getId(), taskResult);
+        String finalStatus = won ? taskResult.getStatus()
+                : currentTaskStatus(task.getId(), task.getStatus());
+        if (anomalyRegistry != null
+                && (MediaTaskStatus.SUCCEEDED.name().equals(finalStatus)
+                || MediaTaskStatus.FAILED.name().equals(finalStatus))) {
+            anomalyRegistry.resolveTerminal(task.getId(), finalStatus, "UPSTREAM_" + finalStatus);
+        }
         // CAS 赢家发布终态事件，OSS 持久化由事件监听器统一处理。
-        return true;
+        return won;
     }
 
     /**
@@ -776,13 +815,23 @@ public class TaskDispatchServiceImpl implements TaskDispatchService {
     /**
      * 查询上游任务状态。
      */
-    private ProviderTaskResult queryUpstream(AidMediaTask task) {
-        try (com.aid.diagnostics.DiagnosticCapture.TaskScope scope = com.aid.diagnostics.DiagnosticCapture.task(task)) {
-            return queryUpstreamCaptured(task);
+    private record QueryAttempt(ProviderTaskResult result, boolean deferred, boolean localTerminal) { }
+
+    private QueryAttempt queryUpstream(AidMediaTask task) {
+        var lock = queryLocks.getLock("aid:media:upstream-query:" + task.getId());
+        if (!lock.tryLock()) return new QueryAttempt(null, true, false);
+        try {
+            ProviderTaskResult result = queryUpstreamCaptured(task);
+            ScheduleStrategy strategy = parseStrategySnapshot(task);
+            boolean terminal = queryTracker.record(task, result, strategy.getMaxConsecutiveQueryFailures());
+            return new QueryAttempt(result, false, terminal);
+        } finally {
+            lock.unlock();
         }
     }
 
     private ProviderTaskResult queryUpstreamCaptured(AidMediaTask task) {
+        if (task == null || StrUtil.isBlank(task.getProviderTaskId())) return null;
         try {
             //    MPS 不在 aid_ai_model，故必须在 selectByModelCode 之前短路，避免因模型缺失误判为「无法查询」。
             if (Objects.equals(task.getMediaType(), com.aid.compose.ComposeConstants.MEDIA_TYPE_COMPOSE)) {
@@ -835,9 +884,167 @@ public class TaskDispatchServiceImpl implements TaskDispatchService {
         }
     }
 
+    @Override
+    public TaskRecheckResult recheckTask(Long taskId, boolean confirmFailure, String reason) {
+        return recheckTask(taskId, confirmFailure, reason, null);
+    }
+
+    @Override
+    public TaskRecheckResult recheckTask(Long taskId, boolean confirmFailure, String reason, Long operatorId) {
+        if (confirmFailure && (operatorId == null || operatorId <= 0))
+            throw new com.aid.common.exception.ServiceException("人工确认失败需要有效操作人");
+        AidMediaTask task = aidMediaTaskMapper.selectById(taskId);
+        if (task == null) {
+            return TaskRecheckResult.builder().taskId(taskId).outcome("NOT_FOUND").message("任务不存在").build();
+        }
+        if (MediaTaskStatus.PENDING.name().equals(task.getStatus()) && StrUtil.isBlank(task.getProviderTaskId())) {
+            var reconciler = submissionReconciliations.getIfAvailable();
+            if (reconciler != null) reconciler.reconcileSubmissionNow(taskId);
+            task = aidMediaTaskMapper.selectById(taskId);
+            if (task == null)
+                return TaskRecheckResult.builder().taskId(taskId).outcome("NOT_FOUND").message("任务不存在").build();
+        }
+        if (MediaTaskStatus.SUCCEEDED.name().equals(task.getStatus())
+                || MediaTaskStatus.FAILED.name().equals(task.getStatus())
+                || MediaTaskStatus.CANCELLED.name().equals(task.getStatus())) {
+            submissionReconciliations.getObject().reconcileSubmissionNow(taskId);
+            if (anomalyRegistry != null) {
+                anomalyRegistry.resolveTerminal(taskId, task.getStatus(), "TASK_ALREADY_" + task.getStatus());
+            }
+            return TaskRecheckResult.builder().taskId(taskId).outcome("ALREADY_TERMINAL")
+                    .taskStatus(task.getStatus()).terminal(true).querySuccessful(true).build();
+        }
+        var reconciler = submissionReconciliations.getIfAvailable();
+        var localReview = reconciler == null ? java.util.Optional.<String>empty()
+                : reconciler.loadLocalReviewReason(taskId);
+        if (localReview.isPresent()) {
+            return TaskRecheckResult.builder().taskId(taskId).outcome("LOCAL_REVIEW_REQUIRED")
+                    .taskStatus(task.getStatus()).terminal(false).querySuccessful(false)
+                    .message(localReview.get()).build();
+        }
+        QueryAttempt attempt = queryUpstream(task);
+        if (attempt.deferred()) return TaskRecheckResult.builder().taskId(taskId)
+                .taskStatus(task.getStatus()).outcome("QUERY_IN_PROGRESS").terminal(false)
+                .querySuccessful(false).message("任务正在查询中").build();
+        if (attempt.localTerminal()) return TaskRecheckResult.builder().taskId(taskId)
+                .taskStatus(currentTaskStatus(taskId, task.getStatus())).outcome("TERMINATED")
+                .terminal(true).querySuccessful(false).message("上游连续查询失败，任务已结束并退还积分").build();
+        ProviderTaskResult result = attempt.result();
+        if (result != null && Boolean.TRUE.equals(result.getQuerySuccessful())) {
+            if (Boolean.TRUE.equals(result.getTerminalConfirmed())) {
+                boolean won = taskCompletionService.completeTask(taskId, result);
+                String finalStatus = won ? result.getStatus() : currentTaskStatus(taskId, task.getStatus());
+                boolean terminal = MediaTaskStatus.SUCCEEDED.name().equals(finalStatus)
+                        || MediaTaskStatus.FAILED.name().equals(finalStatus)
+                        || MediaTaskStatus.CANCELLED.name().equals(finalStatus);
+                if (terminal && anomalyRegistry != null) {
+                    anomalyRegistry.resolveTerminal(taskId, finalStatus, "UPSTREAM_" + finalStatus);
+                }
+                return TaskRecheckResult.builder().taskId(taskId)
+                        .outcome(won ? "TERMINATED" : terminal ? "CAS_LOST" : "STATE_CHANGED")
+                        .taskStatus(finalStatus).providerStatus(result.getProviderStatus())
+                        .terminal(terminal).querySuccessful(true).build();
+            }
+            markUpstreamProgress(task);
+            return TaskRecheckResult.builder().taskId(taskId).outcome("UPSTREAM_PROCESSING")
+                    .taskStatus(task.getStatus()).providerStatus(result.getProviderStatus())
+                    .terminal(false).querySuccessful(true).message("上游仍在处理").build();
+        }
+        if (!confirmFailure) {
+            return TaskRecheckResult.builder().taskId(taskId).outcome("QUERY_UNAVAILABLE")
+                    .taskStatus(task.getStatus()).providerStatus(result == null ? null : result.getProviderStatus())
+                    .terminal(false).querySuccessful(false)
+                    .message(result == null ? "上游查询无响应" : result.getErrorMessage()).build();
+        }
+        boolean won = taskCompletionService.completeManualFailure(taskId, task.getUpdateTime(), operatorId, reason);
+        String finalStatus = won ? MediaTaskStatus.FAILED.name()
+                : currentTaskStatus(taskId, task.getStatus());
+        boolean terminal = MediaTaskStatus.SUCCEEDED.name().equals(finalStatus)
+                || MediaTaskStatus.FAILED.name().equals(finalStatus)
+                || MediaTaskStatus.CANCELLED.name().equals(finalStatus);
+        if (terminal && anomalyRegistry != null) {
+            anomalyRegistry.resolveTerminal(taskId, finalStatus,
+                    won ? "MANUAL_FAILED" : "TASK_ALREADY_" + finalStatus);
+        }
+        return TaskRecheckResult.builder().taskId(taskId)
+                .outcome(won ? "TERMINATED" : terminal ? "CAS_LOST" : "STATE_CHANGED")
+                .taskStatus(finalStatus).terminal(terminal).querySuccessful(false).build();
+    }
+
+    private String currentTaskStatus(Long taskId, String fallback) {
+        AidMediaTask current = aidMediaTaskMapper.selectById(taskId);
+        return current == null || StrUtil.isBlank(current.getStatus()) ? fallback : current.getStatus();
+    }
+
     /**
      * 计算下次轮询间隔（指数退避 + 上限封顶）。
      */
+    @Override
+    public AuthoritativeProviderTaskQuery queryAuthoritativeProviderTask(AidMediaTask task) {
+        if (task == null || StrUtil.isBlank(task.getProviderTaskId())) {
+            return AuthoritativeProviderTaskQuery.unknown("KNOWN_TASK_QUERY", "PROVIDER_TASK_ID_MISSING");
+        }
+        String protocol = StrUtil.blankToDefault(task.getProtocol(), "UNKNOWN");
+        QueryAttempt attempt = queryUpstream(task);
+        if (attempt.deferred() || attempt.localTerminal())
+            return AuthoritativeProviderTaskQuery.unknown(protocol,
+                    attempt.localTerminal() ? "LOCAL_TASK_TERMINATED" : "QUERY_IN_PROGRESS");
+        ProviderTaskResult result = attempt.result();
+        return result == null
+                ? AuthoritativeProviderTaskQuery.unknown(protocol, "QUERY_RESULT_MISSING_OR_FAILED")
+                : AuthoritativeProviderTaskQuery.evidence(protocol, result);
+    }
+
+    @Override
+    @org.springframework.transaction.annotation.Transactional(rollbackFor = Exception.class)
+    public boolean attachAcceptedProviderTask(Long taskId, String providerTaskId) {
+        if (taskId == null || StrUtil.isBlank(providerTaskId)) return false;
+        AidMediaTask task = aidMediaTaskMapper.selectById(taskId);
+        if (task == null) return false;
+        if (MediaTaskStatus.SUCCEEDED.name().equals(task.getStatus())
+                || MediaTaskStatus.FAILED.name().equals(task.getStatus())
+                || MediaTaskStatus.CANCELLED.name().equals(task.getStatus())) return true;
+        if (StrUtil.isNotBlank(task.getProviderTaskId())
+                && !Objects.equals(task.getProviderTaskId(), providerTaskId)) return false;
+        if (Objects.equals(task.getProviderTaskId(), providerTaskId)
+                && (MediaTaskStatus.WAIT_POLL.name().equals(task.getStatus())
+                    || MediaTaskStatus.WAIT_CALLBACK.name().equals(task.getStatus())
+                    || MediaTaskStatus.PROCESSING.name().equals(task.getStatus()))) return true;
+
+        task.setProviderTaskId(providerTaskId);
+        if (Objects.equals(task.getMediaType(), com.aid.compose.ComposeConstants.MEDIA_TYPE_COMPOSE)) {
+            initComposeDispatchSchedule(task);
+        } else {
+            AiModelConfigVo modelConfig = taskConfigurationResolver.resolveForQuery(task);
+            if (modelConfig == null) return false;
+            initDispatchSchedule(task, modelConfig);
+            if (!MediaTaskStatus.WAIT_POLL.name().equals(task.getStatus())
+                    && !MediaTaskStatus.WAIT_CALLBACK.name().equals(task.getStatus())) {
+                task.setStatus(MediaTaskStatus.PROCESSING.name());
+                task.setNextPollTime(new Date());
+            }
+        }
+        LambdaUpdateWrapper<AidMediaTask> update = new LambdaUpdateWrapper<>();
+        update.eq(AidMediaTask::getId, taskId);
+        update.notIn(AidMediaTask::getStatus, MediaTaskStatus.SUCCEEDED.name(),
+                MediaTaskStatus.FAILED.name(), MediaTaskStatus.CANCELLED.name());
+        update.and(provider -> provider.isNull(AidMediaTask::getProviderTaskId)
+                .or().eq(AidMediaTask::getProviderTaskId, "")
+                .or().eq(AidMediaTask::getProviderTaskId, providerTaskId));
+        update.set(AidMediaTask::getProviderTaskId, providerTaskId);
+        update.set(AidMediaTask::getStatus, task.getStatus());
+        update.set(AidMediaTask::getDispatchMode, task.getDispatchMode());
+        update.set(AidMediaTask::getScheduleSnapshotJson, task.getScheduleSnapshotJson());
+        update.set(AidMediaTask::getNextPollTime, task.getNextPollTime());
+        update.set(AidMediaTask::getCallbackDeadline, task.getCallbackDeadline());
+        update.set(AidMediaTask::getUpstreamAcceptTime, task.getUpstreamAcceptTime());
+        update.set(AidMediaTask::getLastProgressTime, task.getLastProgressTime());
+        update.set(AidMediaTask::getUpdateTime, new Date());
+        boolean attached = aidMediaTaskMapper.update(null, update) == 1;
+        if (attached) executionPermits.acceptUpstreamTask(task.getExecutionPermitToken());
+        return attached;
+    }
+
     private int calculateNextInterval(ScheduleStrategy strategy, int retryCount) {
         double base = strategy.getBaseIntervalSeconds();
         double factor = strategy.getBackoffFactor();

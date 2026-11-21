@@ -8,31 +8,51 @@
  */
 
 import { HtmlShellClass } from '@/components/app/HtmlShellClass'
-import { usePathname } from 'next/navigation'
+import { usePathname, useSearchParams } from 'next/navigation'
 import { Suspense } from 'react'
 import CreateFlowShell from '~/components/create/CreateFlowShell'
+import { PublicProjectPreviewProvider } from '~/components/create/project-preview/PublicProjectPreviewProvider'
+import { isPublicProjectPreviewQuery } from '~/utils/publicProjectPreviewNavigation'
 import './create-layout.css'
 
 export default function CreateLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <Suspense fallback={null}>
+      <CreateLayoutContent>{children}</CreateLayoutContent>
+    </Suspense>
+  )
+}
+
+function CreateLayoutContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() ?? ''
+  const searchParams = useSearchParams()
   const normalized = pathname.replace(/\/+$/, '') || '/'
   if (normalized === '/create') {
     return <>{children}</>
   }
+  // Studio 当前仅供内部直达验收，不挂七步创作壳，也不在现有菜单暴露入口。
   if (normalized === '/create/studio') {
     return (
       <>
         <HtmlShellClass classes="app-shell-create layout-create-flow app-shell-studio" />
-        <Suspense fallback={null}>{children}</Suspense>
+        {children}
+      </>
+    )
+  }
+  if (isPublicProjectPreviewQuery(searchParams)) {
+    return (
+      <>
+        <HtmlShellClass classes="app-shell-create layout-create-flow" />
+        <PublicProjectPreviewProvider>
+          <CreateFlowShell>{children}</CreateFlowShell>
+        </PublicProjectPreviewProvider>
       </>
     )
   }
   return (
     <>
       <HtmlShellClass classes="app-shell-create layout-create-flow" />
-      <Suspense fallback={null}>
-        <CreateFlowShell>{children}</CreateFlowShell>
-      </Suspense>
+      <CreateFlowShell>{children}</CreateFlowShell>
     </>
   )
 }

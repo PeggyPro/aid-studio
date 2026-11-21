@@ -1,5 +1,9 @@
 'use client'
 
+import { flowRowMotionStyle } from '~/utils/v10Motion'
+
+import { FlowActionIcon } from '~/components/common/FlowActionIcon'
+
 import { Button, Dropdown, Input } from 'antd'
 import type { MenuProps } from 'antd'
 import {
@@ -50,7 +54,7 @@ export function StoryboardScriptCardView({
   onPreviewStoryboardImage,
   onDownloadStoryboardImage,
   onDeleteStoryboardImage,
-  showStoryboardPartialBanner,
+  showStoryboardErrorBanner,
   generationError,
   canResumePartialFailed,
   isResumingPartialFailed,
@@ -83,10 +87,10 @@ export function StoryboardScriptCardView({
 
   return (
     <div className="storyboard-cards">
-      {showStoryboardPartialBanner || failedPanels.length > 0 ? (
+      {showStoryboardErrorBanner || failedPanels.length > 0 ? (
         <div className="storyboard-cards-status">
-          {showStoryboardPartialBanner ? (
-            <div className="storyboard-partial-banner">
+          {showStoryboardErrorBanner ? (
+            <div className="storyboard-partial-banner" role="alert">
               <div className="storyboard-partial-banner__text">{generationError}</div>
               {canResumePartialFailed ? (
                 <BillingQuoteConfirm
@@ -131,7 +135,8 @@ export function StoryboardScriptCardView({
         return (
           <div
             key={panel.id}
-            className="storyboard-card"
+            className="storyboard-card" style={flowRowMotionStyle(index)}
+            data-onboarding={index === 0 ? 'storyboard-shot-edit' : undefined}
           >
             <div className="storyboard-card-header">
               <div
@@ -195,7 +200,7 @@ export function StoryboardScriptCardView({
                     {generating ? (
                       <div className="asset-visual-generating-block" role="status" aria-live="polite">
                         <div className="asset-visual-generating-block__shimmer" aria-hidden="true" />
-                        <LoadingOutlined spin className="asset-visual-generating-block__icon" />
+                        <LoadingOutlined spin className="asset-visual-generating-block__icon flow-generation-spinner" />
                         <p className="asset-visual-generating-block__text">正在生成分镜图…</p>
                       </div>
                     ) : cover ? (
@@ -232,7 +237,7 @@ export function StoryboardScriptCardView({
                               e.stopPropagation()
                               onPreviewStoryboardImage(index, getPanelCoverImageIndex(panel))
                             }}
-                            icon={<img src={iconPreview} alt="" className="footer-action-icon" />}
+                            icon={<FlowActionIcon src={iconPreview} className="footer-action-icon" />}
                           >
                             预览
                           </Button>
@@ -241,7 +246,7 @@ export function StoryboardScriptCardView({
                               e.stopPropagation()
                               onOpenStoryboardImage(index)
                             }}
-                            icon={<img src={iconReplace} alt="" className="footer-action-icon" />}
+                            icon={<FlowActionIcon src={iconReplace} className="footer-action-icon" />}
                           >
                             替换
                           </Button>
@@ -250,7 +255,7 @@ export function StoryboardScriptCardView({
                               e.stopPropagation()
                               onDownloadStoryboardImage(index, getPanelCoverImageIndex(panel))
                             }}
-                            icon={<img src={iconDownload} alt="" className="footer-action-icon" />}
+                            icon={<FlowActionIcon src={iconDownload} className="footer-action-icon" />}
                           >
                             下载
                           </Button>

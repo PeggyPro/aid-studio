@@ -1,6 +1,8 @@
 import type { BillingQuoteRequest } from '~/types/business-api'
 import { userTaskResume } from '~/utils/businessApi'
 import { parseTaskResultPayload } from '~/utils/taskChainOutcome'
+import { shouldOpenUserRechargeFromSseError } from '~/utils/insufficientBalanceRecharge'
+
 /** SSE partial_failed / complete 批量结果中的失败项 */
 export interface TaskPartialFailedItem {
   batchIndex?: number
@@ -29,6 +31,7 @@ export interface TaskPartialFailedData {
   failCount?: number
   successItems?: unknown[]
   failedItems?: TaskPartialFailedItem[]
+  needsUserRecharge?: boolean
   /** 分镜视频出片：成功镜头明细（含 videoUrl） */
   items?: TaskVideoBatchSuccessItem[]
   /** 分镜视频出片：成功记录 ID 列表 */
@@ -75,7 +78,7 @@ export function isCancelledResumableTask(task: { taskType?: unknown; status?: un
 export function isPartialFailedResumableTaskType(ty: unknown): boolean {
   const n = normUserTaskType(ty)
   return (
-    n === 'asset_extract' ||
+    isStep3ResumableTaskType(n) ||
     n === 'storyboard_script_batch' ||
     n === 'storyboard_image_prompt_batch' ||
     n === 'storyboard_video_prompt_batch' ||
@@ -83,6 +86,12 @@ export function isPartialFailedResumableTaskType(ty: unknown): boolean {
     n === 'storyboard_image_generate' ||
     n === 'storyboard_image_batch'
   )
+}
+
+/** 素材准备页受理的续生类型；事件广播和跨页补投共用。 */
+export function isStep3ResumableTaskType(ty: unknown): boolean {
+  const n = normUserTaskType(ty)
+  return n === 'asset_extract' || n === 'form_generate_batch' || n === 'form_image_batch'
 }
 
 /** 分镜视频出片：FAILED 终态也可续生（与 PARTIAL_FAILED 同入口） */
@@ -180,7 +189,7 @@ export function resolveVideoBatchFailedStoryboardIds(
   return failed
 }
 
-export function parseTaskPartialFailedData(data: unknown): TaskPartialFailedData | null {
+export function parseTaskPartialFailedData(data: unknown, fallbackMessage?: string): TaskPartialFailedData | null {
   const o = parseTaskResultPayload(data)
   if (!o) return null
   const num = (v: unknown) => {
@@ -208,6 +217,8 @@ export function parseTaskPartialFailedData(data: unknown): TaskPartialFailedData
     failedItems: Array.isArray(o.failedItems)
       ? (o.failedItems as TaskPartialFailedItem[])
       : undefined,
+    ...(o.needsUserRecharge === true || shouldOpenUserRechargeFromSseError(o, String(o.message ?? o.reason ?? fallbackMessage ?? ''))
+      ? { needsUserRecharge: true } : {}),
     ...(videoItems.length ? { items: videoItems } : {}),
     ...(recordIds?.length ? { recordIds } : {}),
     ...(shots?.length ? { shots } : {}),
@@ -236,6 +247,11 @@ export function extractSceneIdsFromPartialFailed(data?: TaskPartialFailedData | 
   return [...ids]
 }
 
+export function taskPartialFailedNeedsUserRecharge(data?: TaskPartialFailedData | null): boolean {
+  return Boolean(data?.needsUserRecharge || data?.failedItems?.some(item =>
+    shouldOpenUserRechargeFromSseError(item, item.message || item.reason)))
+}
+
 export function formatPartialFailedMessage(
   data?: TaskPartialFailedData | null,
   fallback?: string,
@@ -246,7 +262,7 @@ export function formatPartialFailedMessage(
   const f = data.failCount
   const t = data.totalCount
   const reasons = [...new Set((data.failedItems ?? [])
-    .map((item) => String(item.userMessage || item.errorMessage || '').trim())
+    .map((item) => String(item.userMessage || item.errorMessage || item.message || item.reason || '').trim())
     .filter(Boolean))].slice(0, 2)
   const detail = reasons.length ? `：${reasons.join('；').slice(0, 240)}` : ''
   if (s != null && f != null && t != null) {
@@ -258,6 +274,8 @@ export function formatPartialFailedMessage(
 export function taskTypeLabelForResume(ty: unknown): string {
   const n = normUserTaskType(ty)
   if (n === 'asset_extract') return '智能提取'
+  if (n === 'form_generate_batch') return '形态生成（批量）'
+  if (n === 'form_image_batch') return '形态图生成（批量）'
   if (n === 'storyboard_script_batch') return '分镜脚本生成'
   if (n === 'storyboard_image_prompt_batch') return '分镜图提示词生成'
   if (n === 'storyboard_video_prompt_batch') return '分镜视频提示词生成'
@@ -268,6 +286,8 @@ export function taskTypeLabelForResume(ty: unknown): string {
 }
 
 /** 统一续生：POST /api/user/task/resume，复用原 taskId */
+const taskResumeInflight = new Map<string, Promise<{ taskId: number; totalBatches?: number; totalShots?: number }>>()
+
 export async function resumeUserTask(
   taskId: number,
   taskType: unknown
@@ -276,8 +296,17 @@ export async function resumeUserTask(
   if (!isPartialFailedResumableTaskType(n)) {
     throw new Error('该任务类型不支持续生')
   }
-  const r = await userTaskResume({ taskId })
-  return { taskId: r.taskId, totalBatches: r.totalBatches, totalShots: r.totalShots }
+  const session = typeof window === 'undefined' ? '' : window.localStorage.getItem('token') || ''
+  const key = `${session}:${taskId}`
+  const existing = taskResumeInflight.get(key)
+  if (existing) return existing
+  const pending = userTaskResume({ taskId })
+    .then((r) => ({ taskId: r.taskId, totalBatches: r.totalBatches, totalShots: r.totalShots }))
+    .finally(() => {
+      if (taskResumeInflight.get(key) === pending) taskResumeInflight.delete(key)
+    })
+  taskResumeInflight.set(key, pending)
+  return pending
 }
 
 /** 续生报价只接收原任务 ID，服务端按任务快照还原实际计费计划。 */

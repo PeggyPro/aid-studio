@@ -2,9 +2,9 @@ package com.aid.media.provider;
 
 import cn.hutool.core.util.StrUtil;
 import com.aid.billing.util.TextTokenEstimator;
-import com.aid.common.exception.ServiceException;
 import com.aid.domain.vo.AiModelConfigVo;
 import com.aid.media.dto.MediaTextGenerateRequest;
+import com.aid.media.service.MediaPreparationErrorCode;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -17,7 +17,17 @@ public final class TextOutputLimitResolver {
     public static final String BILLING_OUTPUT_TOKENS_KEY = "_aid_billing_output_tokens";
     public static final String PROVIDER_OUTPUT_TOKENS_KEY = "_aid_provider_output_tokens";
     public static final String OUTPUT_TOKEN_API_FIELD_KEY = "_aid_output_token_api_field";
+    /** Historical non-reasoning fallback when callers and model configuration omit an output cap. */
     public static final int FALLBACK_OUTPUT_TOKENS = 4_096;
+    /**
+     * Reasoning and visible content may consume the same provider output limit. The implicit
+     * reasoning fallback sizes that shared limit as the historical 4096 baseline plus a 12288
+     * reasoning allowance; it does not guarantee either category a dedicated quota. Explicit
+     * request or model limits always take precedence.
+     */
+    public static final int FALLBACK_REASONING_TOKENS = 12_288;
+    public static final int FALLBACK_REASONING_OUTPUT_TOKENS =
+            FALLBACK_OUTPUT_TOKENS + FALLBACK_REASONING_TOKENS;
     /** Qwen 文档声明实际输出最多可比配置多约 10 token，统一取 16 留出结算余量。 */
     public static final int OUTPUT_OVERSHOOT_TOLERANCE = 16;
     public static final int ABSOLUTE_OUTPUT_TOKENS = 1_600_000;
@@ -41,7 +51,7 @@ public final class TextOutputLimitResolver {
         request.setInputImageTokenEstimate(model != null
                 && "deepseek".equalsIgnoreCase(model.getProviderCode())
                 && TextReasoningOptionsResolver.isDeepSeekFlash(model) ? 1024 : null);
-        int providerCap = resolveProviderCap(model, request.getOptions());
+        int providerCap = resolveProviderCapForRequest(model, request);
         int billingCeiling = billingCeiling(providerCap);
         String apiField = resolveRequestedApiField(model, request.getOptions());
         Map<String, Object> options = request.getOptions() == null
@@ -60,16 +70,21 @@ public final class TextOutputLimitResolver {
                 || !"tokendance".equalsIgnoreCase(model.getProviderCode());
         int conservativeInputTokens = TextTokenEstimator.estimateRequestConservative(request, includeMedia);
         int balancedInputTokens = TextTokenEstimator.estimateRequestBalanced(request, includeMedia);
-        int contextLimit = positiveCapability(model, "contextWindowTokens");
-        int contextSafetyMargin = Math.max(256, contextLimit / 50);
-        if (conservativeInputTokens > ABSOLUTE_INPUT_TOKENS
-                || (contextLimit > 0
-                && (long) balancedInputTokens + providerCap + contextSafetyMargin > contextLimit)) {
-            throw new ServiceException("文本上下文过长");
-        }
+        TextContextBudget.validate(balancedInputTokens, conservativeInputTokens, providerCap,
+                TextContextBudget.limits(model));
     }
 
     public static int resolveProviderCap(AiModelConfigVo model, Map<String, Object> requestOptions) {
+        return resolveProviderCap(model, requestOptions, FALLBACK_OUTPUT_TOKENS);
+    }
+
+    private static int resolveProviderCapForRequest(AiModelConfigVo model, MediaTextGenerateRequest request) {
+        return resolveProviderCap(model, request == null ? null : request.getOptions(),
+                implicitOutputTokens(model, request));
+    }
+
+    private static int resolveProviderCap(AiModelConfigVo model, Map<String, Object> requestOptions,
+                                          int implicitOutputTokens) {
         int requested = firstPositive(requestOptions,
                 TextReasoningOptionsResolver.MAX_OUTPUT_TOKENS_KEY,
                 "max_completion_tokens", "max_tokens", "maxOutputTokens");
@@ -77,15 +92,33 @@ public final class TextOutputLimitResolver {
                         model == null ? null : model.getExtraBodyJson(),
                         model == null ? null : model.getModelExtraBodyJson(), null),
                 "max_completion_tokens", "max_tokens", "maxOutputTokens");
-        int effective = requested > 0 ? requested : configured > 0 ? configured : FALLBACK_OUTPUT_TOKENS;
-        int capabilityMax = positiveCapability(model, "maxOutputTokens");
+        int effective = requested > 0 ? requested : configured > 0 ? configured : implicitOutputTokens;
+        int capabilityMax = TextContextBudget.limits(model).output();
         if (requested > ABSOLUTE_OUTPUT_TOKENS || capabilityMax > 0 && requested > capabilityMax) {
-            throw new ServiceException("输出长度超限");
+            throw MediaPreparationErrorCode.MODEL_PARAMETERS_INVALID.reject("输出长度超限");
         }
         if (capabilityMax > 0) {
             effective = Math.min(effective, capabilityMax);
         }
         return Math.max(1, Math.min(effective, ABSOLUTE_OUTPUT_TOKENS));
+    }
+
+    private static int implicitOutputTokens(AiModelConfigVo model, MediaTextGenerateRequest request) {
+        if (!reasoningEnabled(model, request)) {
+            return FALLBACK_OUTPUT_TOKENS;
+        }
+        int reasoningBudget = request == null || request.getReasoningBudgetTokens() == null
+                ? 0 : positiveInt(request.getReasoningBudgetTokens());
+        if (!(reasoningBudget > 0 && booleanCapability(model, "supportsReasoningBudget"))) {
+            return FALLBACK_REASONING_OUTPUT_TOKENS;
+        }
+        long total = (long) FALLBACK_OUTPUT_TOKENS + reasoningBudget;
+        return (int) Math.min(total, ABSOLUTE_OUTPUT_TOKENS);
+    }
+
+    private static boolean reasoningEnabled(AiModelConfigVo model, MediaTextGenerateRequest request) {
+        return request != null && Boolean.TRUE.equals(request.getReasoningEnabled())
+                && booleanCapability(model, "supportsReasoning");
     }
 
     public static int billingCeiling(int providerCap) {
@@ -94,7 +127,7 @@ public final class TextOutputLimitResolver {
     }
 
     public static int contextWindowTokens(AiModelConfigVo model) {
-        return positiveCapability(model, "contextWindowTokens");
+        return TextContextBudget.limits(model).context();
     }
 
     private static int positiveCapability(AiModelConfigVo model, String key) {
@@ -110,6 +143,17 @@ public final class TextOutputLimitResolver {
             return (int) Math.max(0L, Math.min(parsed, Integer.MAX_VALUE));
         } catch (Exception ignored) {
             return 0;
+        }
+    }
+
+    private static boolean booleanCapability(AiModelConfigVo model, String key) {
+        if (model == null || StrUtil.isBlank(model.getCapabilityJson())) {
+            return false;
+        }
+        try {
+            return MAPPER.readTree(model.getCapabilityJson()).path(key).asBoolean(false);
+        } catch (Exception ignored) {
+            return false;
         }
     }
 

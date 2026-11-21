@@ -52,8 +52,10 @@ public final class TaskSuccessValidator {
      */
     public static TaskErrorResult validateText(String textContent) {
         if (StringUtils.isBlank(textContent)) {
-            return TaskErrorResult.of(TaskErrorCode.RESULT_INVALID,
+            TaskErrorResult error = TaskErrorResult.of(TaskErrorCode.RESULT_INVALID,
                     "SUCCEEDED but text content is empty");
+            error.setUserMessage("模型未返回正文");
+            return error;
         }
         return null;
     }

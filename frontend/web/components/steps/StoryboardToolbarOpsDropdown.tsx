@@ -11,6 +11,8 @@ export interface StoryboardOpsMenuItem {
   danger?: boolean
   disabled?: boolean
   disabledTooltip?: string
+  /** 操作引导锚点 */
+  onboardingAnchor?: string
 }
 
 export interface StoryboardToolbarOpsDropdownProps {
@@ -20,8 +22,14 @@ export interface StoryboardToolbarOpsDropdownProps {
   loading?: boolean
   disabled?: boolean
   ariaLabel?: string
+  /** @deprecated 请改用 items[].onboardingAnchor */
+  onboardingItemKey?: string
+  /** @deprecated 请改用 items[].onboardingAnchor */
+  onboardingItemAnchor?: string
+  /** 「批量操作」触发按钮锚点 */
+  buttonOnboardingAnchor?: string
   onSelect: (key: string) => void
-  /** 原 useAttrs 透传（class/style 除外）：额外属性原样落到触发按钮上 */
+  /** 原 useAttrs 透传（class/style 除外）：额外属性原样落到触发按钮上，如 data-onboarding */
   [key: string]: unknown
 }
 
@@ -32,11 +40,22 @@ export function StoryboardToolbarOpsDropdown({
   loading = false,
   disabled = false,
   ariaLabel = '批量操作',
+  onboardingItemKey,
+  onboardingItemAnchor = '',
+  buttonOnboardingAnchor = '',
   onSelect,
   className: _className,
   style: _style,
   ...buttonAttrs
 }: StoryboardToolbarOpsDropdownProps) {
+  function itemOnboardingAnchor(item: StoryboardOpsMenuItem): string | undefined {
+    if (item.onboardingAnchor) return item.onboardingAnchor
+    if (onboardingItemKey && item.key === onboardingItemKey && onboardingItemAnchor) {
+      return onboardingItemAnchor
+    }
+    return undefined
+  }
+
   function onItemClick(item: StoryboardOpsMenuItem) {
     if (item.disabled) return
     onOpenChange(false)
@@ -60,6 +79,7 @@ export function StoryboardToolbarOpsDropdown({
                   <button
                     type="button"
                     className={`storyboard-ops-panel__item storyboard-ops-panel__item--disabled${item.danger ? ' storyboard-ops-panel__item--danger' : ''}`}
+                    data-onboarding={itemOnboardingAnchor(item)}
                     disabled
                     role="menuitem"
                   >
@@ -77,6 +97,7 @@ export function StoryboardToolbarOpsDropdown({
               className={`storyboard-ops-panel__item${item.danger ? ' storyboard-ops-panel__item--danger' : ''}`}
               role="menuitem"
               disabled={item.disabled}
+              data-onboarding={itemOnboardingAnchor(item)}
               onClick={() => onItemClick(item)}
             >
               {ItemIcon ? <ItemIcon /> : null}
@@ -98,8 +119,9 @@ export function StoryboardToolbarOpsDropdown({
       popupRender={() => overlay}
     >
       <Button
-        type="primary"
+        type="default"
         className="storyboard-action-btn storyboard-toolbar-cyan-btn storyboard-toolbar-ops-btn"
+        data-onboarding={buttonOnboardingAnchor || undefined}
         loading={loading}
         disabled={disabled}
         {...(buttonAttrs as Record<string, unknown>)}

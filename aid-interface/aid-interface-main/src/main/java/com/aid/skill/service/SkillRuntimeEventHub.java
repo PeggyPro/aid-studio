@@ -132,7 +132,9 @@ public class SkillRuntimeEventHub {
     }
 
     private boolean isTransientDelta(SkillInvocationVO.EventView event) {
-        return event != null && event.getSeq() == null && "output_delta".equals(event.getEventType());
+        return event != null && event.getSeq() == null
+                && ("output_delta".equals(event.getEventType())
+                || "reasoning_delta".equals(event.getEventType()));
     }
 
     private void scheduleDrain(Long runId, RunState state) {

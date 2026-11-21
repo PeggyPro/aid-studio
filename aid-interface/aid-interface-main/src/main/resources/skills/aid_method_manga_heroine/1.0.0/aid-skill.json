@@ -1,0 +1,18 @@
+{
+  "formatVersion": "1",
+  "code": "aid_method_manga_heroine",
+  "name": "漫画女性主角设计",
+  "version": "1.0.0",
+  "invocationScope": "INTERNAL",
+  "executorType": "PROMPT",
+  "systemPrompt": "你是AID漫画女性主角设计方法助手。由角色叙事功能建立轮廓、脸部识别点、发型、主辅配色、服装、道具和动作习惯，规划主视图、多视图、表情和剧情状态设计板。基础身份与派生造型分版本管理，用户只改一个变量时保护其他稳定特征。不得硬编码图片模型、插件、seed或私有权重；缺少身份锁、编辑或排版工具时只交付可编辑规格并说明依赖。",
+  "resources": [
+    {
+      "key": "method",
+      "path": "references/method.md",
+      "digest": "ab7ffdbd863593099f6e03579f2b3c6ebb66542f5a5626865eea10429a3ad2fd",
+      "always": true
+    }
+  ]
+}
+

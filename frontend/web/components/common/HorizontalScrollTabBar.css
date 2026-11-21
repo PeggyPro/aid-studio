@@ -41,8 +41,8 @@
   padding: 0;
   border: none;
   border-radius: calc(6px * var(--create-editor-scale, 1));
-  color: #d9e6f2;
-  background: rgba(74, 231, 253, 0.12);
+  color: var(--studio-ui-text, var(--ui-text, #d9e6f2));
+  background: var(--studio-ui-control, var(--ui-soft, rgba(74, 231, 253, 0.12)));
   cursor: pointer;
   transition:
     color 0.2s ease,
@@ -50,8 +50,8 @@
 }
 
 .h-scroll-tab-bar__arrow:hover {
-  color: #4ae7fd;
-  background: rgba(74, 231, 253, 0.22);
+  color: var(--studio-ui-accent, var(--ui-brand, #4ae7fd));
+  background: var(--studio-ui-hover, var(--ui-soft-hover, rgba(74, 231, 253, 0.22)));
 }
 
 .h-scroll-tab-bar__suffix {

@@ -5,11 +5,12 @@
  * 剧集上传 / 剧集分集列表 / 常规流程三种形态 + 预览步导出下拉。
  */
 
-import { lazy, Suspense, type CSSProperties, type RefObject } from 'react'
+import { lazy, Suspense, type CSSProperties, type RefObject, type ReactNode } from 'react'
 import { Button, Dropdown, Input, Tooltip } from 'antd'
-import { DeploymentUnitOutlined, LeftOutlined } from '@ant-design/icons'
+import { ArrowRightOutlined, LeftOutlined, SaveOutlined, SettingOutlined } from '@ant-design/icons'
 import { useCreationStore } from '~/stores/creation'
 import type { BillingQuoteRequest, UserTaskRow } from '~/types/business-api'
+import { PublicProjectReadonlyBadge } from '../project-preview/PublicProjectReadonlyBadge'
 
 const GlobalGenerateTaskPopover = lazy(() =>
   import('~/components/steps/GlobalGenerateTaskPopover').then((m) => ({
@@ -18,6 +19,7 @@ const GlobalGenerateTaskPopover = lazy(() =>
 )
 
 export interface CreateFlowToolbarProps {
+  readOnly?: boolean
   isSeriesScriptUpload: boolean
   isSeriesEpisodeList: boolean
   titleMeasureRef: RefObject<HTMLElement | null>
@@ -30,7 +32,7 @@ export interface CreateFlowToolbarProps {
   seriesProjectConfigChecking: boolean
   onSeriesProjectConfigClick: () => void
   activeProjectId: number | null
-  onOpenFlowCanvas: () => void
+  stepNavigation?: ReactNode
   onGlobalTaskStop: (task: UserTaskRow) => void
   onGlobalTaskRestart: (task: UserTaskRow) => void
   resolveGlobalTaskRestartBillingRequest: (
@@ -42,13 +44,12 @@ export interface CreateFlowToolbarProps {
   flowStepIndex: number
   globalSettingConfirmLoading: boolean
   onGlobalSettingSave: () => void
-  saveDraftSubmitting: boolean
   toolbarPrimaryLoading: boolean
-  saveDraft: () => void
   isPreviewStep: boolean
   exportMenuOpen: boolean
   onExportMenuOpenChange: (open: boolean) => void
   previewExportBusy: boolean
+  publishGuideActive: boolean
   onExportFullVideo: () => void
   onExportSegments: () => void
   publishToCasePlazaDisabled: boolean
@@ -64,6 +65,7 @@ export interface CreateFlowToolbarProps {
 
 /** 作品标题输入框：v-model:value="creationStore.workTitle" 的受控等价 */
 function WorkTitleInput(props: {
+  readOnly?: boolean
   titleMeasureRef: RefObject<HTMLElement | null>
   titleMeasureText: string
   titleInputWrapStyle: CSSProperties
@@ -83,13 +85,15 @@ function WorkTitleInput(props: {
         </span>
         <Input
           value={workTitle}
+          readOnly={props.readOnly}
           placeholder="作品名称"
           className="title-input"
           size="large"
           variant="borderless"
           maxLength={100}
-          onBlur={props.onSeriesWorkTitleBlur}
+          onBlur={props.readOnly ? undefined : props.onSeriesWorkTitleBlur}
           onChange={(e) => {
+            if (props.readOnly) return
             useCreationStore.getState().setWorkTitle(e.target.value)
             props.syncTitleInputWidth()
           }}
@@ -101,6 +105,7 @@ function WorkTitleInput(props: {
 
 export function CreateFlowToolbar(props: CreateFlowToolbarProps) {
   const titleInputProps = {
+    readOnly: props.readOnly,
     titleMeasureRef: props.titleMeasureRef,
     titleMeasureText: props.titleMeasureText,
     titleInputWrapStyle: props.titleInputWrapStyle,
@@ -110,7 +115,7 @@ export function CreateFlowToolbar(props: CreateFlowToolbarProps) {
 
   if (props.isSeriesScriptUpload) {
     return (
-      <div className="toolbar toolbar--series-upload">
+      <div className="toolbar create-flow-toolbar toolbar--series-upload">
         <div className="toolbar-left">
           <button type="button" className="back-btn" onClick={props.goBack}>
             <LeftOutlined />
@@ -123,7 +128,7 @@ export function CreateFlowToolbar(props: CreateFlowToolbarProps) {
 
   if (props.isSeriesEpisodeList) {
     return (
-      <div className="toolbar toolbar--series-upload toolbar--series-episode-list">
+      <div className="toolbar create-flow-toolbar toolbar--series-upload toolbar--series-episode-list">
         <div className="toolbar-left toolbar-left--wrap">
           <button type="button" className="back-btn" onClick={props.goBack}>
             <LeftOutlined />
@@ -132,16 +137,12 @@ export function CreateFlowToolbar(props: CreateFlowToolbarProps) {
           <span className="toolbar-series-episode-count">共{props.seriesEpisodeCountLabel}集</span>
         </div>
         <div className="toolbar-right">
-          {props.activeProjectId ? (
-            <Button size="large" className="toolbar-btn-draft" icon={<DeploymentUnitOutlined />} aria-label="流程画布" onClick={props.onOpenFlowCanvas}>
-              <div className="text-gradient">流程画布</div>
-            </Button>
-          ) : null}
+          {props.readOnly ? <PublicProjectReadonlyBadge /> : null}
           <Button
             size="large"
             className="toolbar-btn-draft"
             loading={props.seriesProjectConfigChecking}
-            disabled={props.seriesProjectConfigChecking}
+            disabled={props.readOnly || props.seriesProjectConfigChecking}
             onClick={props.onSeriesProjectConfigClick}
           >
             <div className="text-gradient">项目配置</div>
@@ -152,20 +153,17 @@ export function CreateFlowToolbar(props: CreateFlowToolbarProps) {
   }
 
   return (
-    <div className="toolbar">
+    <div className="toolbar create-flow-toolbar">
       <div className="toolbar-left">
         <button type="button" className="back-btn" onClick={props.goBack}>
           <LeftOutlined />
         </button>
         <WorkTitleInput {...titleInputProps} />
       </div>
+      {props.stepNavigation}
       <div className="toolbar-right">
-        {props.activeProjectId ? (
-          <Button size="large" className="toolbar-btn-draft" icon={<DeploymentUnitOutlined />} aria-label="流程画布" onClick={props.onOpenFlowCanvas}>
-            <div className="text-gradient">流程画布</div>
-          </Button>
-        ) : null}
-        <Suspense fallback={null}>
+        {props.readOnly ? <PublicProjectReadonlyBadge /> : null}
+        {!props.readOnly ? <Suspense fallback={null}>
           <GlobalGenerateTaskPopover
             projectId={props.activeProjectId}
             onStop={props.onGlobalTaskStop}
@@ -174,11 +172,14 @@ export function CreateFlowToolbar(props: CreateFlowToolbarProps) {
             onResume={props.onGlobalTaskResume}
             resolveResumeBillingRequest={props.resolveGlobalTaskResumeBillingRequest}
           />
-        </Suspense>
+        </Suspense> : null}
         {props.activeProjectId ? (
           <Button
             size="large"
             className="toolbar-btn-draft"
+            icon={<SettingOutlined />}
+            aria-label="生成配置"
+            disabled={props.readOnly}
             onClick={props.openProjectGenConfig}
           >
             <div className="text-gradient">生成配置</div>
@@ -188,26 +189,19 @@ export function CreateFlowToolbar(props: CreateFlowToolbarProps) {
           <Button
             size="large"
             className="toolbar-btn-draft"
+            icon={<SaveOutlined />}
+            aria-label="保存"
             loading={props.globalSettingConfirmLoading}
+            disabled={props.readOnly}
             onClick={props.onGlobalSettingSave}
           >
             <div className="text-gradient">保存</div>
           </Button>
         ) : null}
-        {props.flowStepIndex === 1 ? (
-          <Button
-            size="large"
-            className="toolbar-btn-draft"
-            loading={props.saveDraftSubmitting}
-            disabled={props.saveDraftSubmitting || props.toolbarPrimaryLoading}
-            onClick={props.saveDraft}
-          >
-            <div className="text-gradient">存草稿</div>
-          </Button>
-        ) : null}
         {props.isPreviewStep ? (
           <Dropdown
-            open={props.exportMenuOpen}
+            open={props.readOnly ? false : props.exportMenuOpen}
+            disabled={props.readOnly}
             trigger={['click']}
             placement="bottomRight"
             classNames={{ root: 'preview-export-dropdown-overlay' }}
@@ -263,8 +257,11 @@ export function CreateFlowToolbar(props: CreateFlowToolbarProps) {
             <Button
               type="primary"
               size="large"
-              className="toolbar-btn-export"
-              disabled={props.previewExportBusy}
+              className={`toolbar-btn-export${props.publishGuideActive ? ' toolbar-btn-guide-breathing' : ''}`}
+              aria-label="导出/发布"
+              icon={<ArrowRightOutlined />}
+              data-onboarding="btn-export-video"
+              disabled={props.readOnly || props.previewExportBusy}
               loading={props.previewExportBusy}
             >
               导出/发布
@@ -276,11 +273,14 @@ export function CreateFlowToolbar(props: CreateFlowToolbarProps) {
               <Button
                 type="primary"
                 size="large"
-                disabled={props.toolbarPrimaryDisabled || props.nextStepDelayLoading}
+                data-onboarding="btn-next-step"
+                className="toolbar-btn-next"
+                aria-label={props.toolbarPrimaryLabel}
+                disabled={props.readOnly || props.toolbarPrimaryDisabled || props.nextStepDelayLoading}
                 loading={props.toolbarPrimaryLoading}
                 onClick={props.onNextStepWithDelay}
               >
-                {props.toolbarPrimaryLabel}
+                <span className="toolbar-action-label">{props.toolbarPrimaryLabel}</span>
               </Button>
             </span>
           </Tooltip>

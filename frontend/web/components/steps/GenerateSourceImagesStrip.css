@@ -1,7 +1,7 @@
-/* 原 GenerateSourceImagesStrip.vue <style scoped>：类名与声明原样保留，统一以 .generate-source-images-strip 作用域前缀替代 scoped */
+/* 原 GenerateSourceImagesStrip.vue \3c style scoped>：类名与声明原样保留，统一以 .generate-source-images-strip 作用域前缀替代 scoped */
 .generate-source-images-strip {
   padding: 8px 10px;
-  background: rgba(18, 18, 18, 1);
+  background: var(--ui-bg, rgba(18, 18, 18, 1));
   border-radius: 10px;
   margin-bottom: 4px;
 }
@@ -27,8 +27,8 @@
   height: 64px;
   border-radius: 8px;
   overflow: hidden;
-  border: 1px dashed rgba(128, 154, 188, 0.35);
-  background: rgba(8, 12, 20, 0.9);
+  border: 1px dashed var(--ui-hair, rgba(128, 154, 188, 0.35));
+  background: var(--ui-bg, rgba(8, 12, 20, 0.9));
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -42,9 +42,9 @@
 }
 
 .generate-source-images-strip .generate-source-thumb--audio {
-  --create-ref-audio-bg: var(--accent-100, rgba(74, 231, 253, 0.1));
-  --create-ref-audio-border: var(--accent-400, rgba(74, 231, 253, 0.42));
-  --create-ref-audio-text: var(--accent-500, #4ae7fd);
+  --create-ref-audio-bg: var(--accent-100, var(--ui-soft, rgba(74, 231, 253, 0.1)));
+  --create-ref-audio-border: var(--accent-400, var(--ui-hair, rgba(74, 231, 253, 0.42)));
+  --create-ref-audio-text: var(--accent-500, var(--ui-brand, #4ae7fd));
   border-style: solid;
   border-color: var(--create-ref-audio-border);
   background: var(--create-ref-audio-bg);
@@ -64,8 +64,8 @@
   z-index: 1;
   padding: 0 4px;
   border-radius: 4px;
-  background: rgba(0, 0, 0, 0.55);
-  color: #fff;
+  background: var(--ui-bg, rgba(0, 0, 0, 0.55));
+  color: var(--ui-text, #fff);
   font-size: 10px;
   line-height: 16px;
   font-variant-numeric: tabular-nums;
@@ -168,7 +168,7 @@
   align-items: center;
   justify-content: center;
   background: rgba(255, 77, 79, 0.95);
-  color: #fff;
+  color: var(--ui-text, #fff);
   cursor: pointer;
   font-size: 10px;
   line-height: 1;
@@ -191,16 +191,16 @@
   min-width: 64px;
   padding: 0 6px;
   box-sizing: border-box;
-  border: 1px dashed rgba(188, 205, 228, 0.6);
+  border: 1px dashed var(--ui-hair, rgba(188, 205, 228, 0.6));
   background: transparent;
-  color: rgba(225, 239, 255, 0.85);
+  color: var(--ui-text, rgba(225, 239, 255, 0.85));
   cursor: pointer;
   font-size: 18px;
 }
 
 .generate-source-images-strip .generate-source-thumb--adder:hover {
-  border-color: rgba(74, 231, 253, 0.85);
-  color: rgba(74, 231, 253, 1);
+  border-color: var(--ui-ring, rgba(74, 231, 253, 0.85));
+  color: var(--ui-brand, rgba(74, 231, 253, 1));
 }
 
 .generate-source-images-strip .generate-source-thumb--adder .adder-text {
@@ -215,7 +215,7 @@
 
 .generate-source-images-strip .generate-source-empty-hint {
   margin-left: 4px;
-  color: rgba(188, 205, 228, 0.62);
+  color: var(--ui-muted, rgba(188, 205, 228, 0.62));
   font-size: 12px;
 }
 
@@ -227,8 +227,8 @@
   height: 28px;
   border: 0;
   border-radius: 6px;
-  background: rgba(255, 255, 255, 0.06);
-  color: rgba(225, 239, 255, 0.85);
+  background: var(--ui-soft, rgba(255, 255, 255, 0.06));
+  color: var(--ui-text, rgba(225, 239, 255, 0.85));
   cursor: pointer;
   font-size: 12px;
   flex-shrink: 0;
@@ -239,6 +239,6 @@
 }
 
 .generate-source-images-strip .generate-source-collapse-toggle:hover {
-  background: rgba(74, 231, 253, 0.16);
-  color: rgba(74, 231, 253, 1);
+  background: var(--ui-soft-hover, rgba(74, 231, 253, 0.16));
+  color: var(--ui-brand, rgba(74, 231, 253, 1));
 }

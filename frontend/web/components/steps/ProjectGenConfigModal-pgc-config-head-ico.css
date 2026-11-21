@@ -36,8 +36,8 @@
   min-height: 72px;
   padding: 0.75rem 0.875rem;
   border-radius: 8px;
-  border: 1px solid rgba(74, 231, 253, 0.3);
-  background: rgba(18, 18, 18, 1);
+  border: 1px solid var(--ui-hair, rgba(74, 231, 253, 0.3));
+  background: var(--ui-bg, rgba(18, 18, 18, 1));
   color: inherit;
   text-align: left;
   cursor: pointer;
@@ -47,8 +47,8 @@
 }
 
 .project-gen-config-modal .pgc-agent-model-card:hover {
-  border-color: rgba(74, 231, 253, 0.45);
-  background: rgba(74, 231, 253, 0.04);
+  border-color: var(--ui-ring, rgba(74, 231, 253, 0.45));
+  background: var(--ui-soft-hover, rgba(74, 231, 253, 0.04));
 }
 
 .project-gen-config-modal .pgc-agent-model-card__agent,
@@ -67,12 +67,12 @@
   width: 40px;
   height: 40px;
   border-radius: 8px;
-  background: rgba(74, 231, 253, 0.1);
+  background: var(--ui-soft, rgba(74, 231, 253, 0.1));
   overflow: hidden;
 }
 
 .project-gen-config-modal .pgc-agent-model-card__avatar--model {
-  color: #fff;
+  color: var(--ui-text, #fff);
   font-size: 16px;
   font-weight: 700;
   line-height: 1;
@@ -96,7 +96,7 @@
 
 .project-gen-config-modal .pgc-agent-model-card__avatar-ico {
   font-size: 18px;
-  color: #4ae7fd;
+  color: var(--ui-brand, #4ae7fd);
 }
 
 .project-gen-config-modal .pgc-agent-model-card__info {
@@ -107,7 +107,7 @@
 .project-gen-config-modal .pgc-agent-model-card__name {
   font-size: 0.875rem;
   font-weight: 600;
-  color: #f1f5f9;
+  color: var(--ui-text, #f1f5f9);
   line-height: 1.35;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -130,7 +130,7 @@
   margin-top: 0.2rem;
   font-size: 0.75rem;
   line-height: 1.45;
-  color: rgba(142, 151, 165, 0.95) !important;
+  color: var(--ui-muted, rgba(142, 151, 165, 0.95)) !important;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   line-clamp: 2;
@@ -148,7 +148,7 @@
   font-size: 1.375rem;
   font-weight: 400;
   line-height: 1;
-  color: rgba(142, 151, 165, 0.65);
+  color: var(--ui-muted, rgba(142, 151, 165, 0.65));
 }
 
 .project-gen-config-modal .pgc-select {
@@ -162,12 +162,12 @@ html.app-shell-create .project-gen-config-modal .pgc-select--param.ant-select .a
   min-height: 72px !important;
   padding: 0 28px 0 12px !important;
   border-radius: 8px !important;
-  background: #1e2028 !important;
-  background-color: #1e2028 !important;
-  border: 1px solid #30363d !important;
-  border-color: #30363d !important;
+  background: var(--ui-raised, #1e2028) !important;
+  background-color: var(--ui-raised, #1e2028) !important;
+  border: 1px solid var(--ui-hair, #30363d) !important;
+  border-color: var(--ui-hair, #30363d) !important;
   box-shadow: none !important;
-  color: #c0c4cc !important;
+  color: var(--ui-muted, #c0c4cc) !important;
   display: flex !important;
   align-items: center !important;
 }
@@ -184,13 +184,13 @@ html.app-shell-create .project-gen-config-modal .pgc-select--param.ant-select-op
   line-height: 1.35 !important;
   font-size: 0.875rem;
   font-weight: 500;
-  color: #c0c4cc !important;
+  color: var(--ui-muted, #c0c4cc) !important;
 }
 
 .project-gen-config-modal .pgc-select--param .ant-select-selection-placeholder {
   line-height: 1.35 !important;
   font-size: 0.875rem;
-  color: #8e97a5 !important;
+  color: var(--ui-muted, #8e97a5) !important;
 }
 
 html.app-shell-create .project-gen-config-modal-wrap .pgc-select--param .ant-select-arrow,
@@ -208,7 +208,7 @@ html.app-shell-create .project-gen-config-modal .pgc-select--param .ant-select-c
   height: auto;
   margin: 0;
   line-height: 1;
-  color: #c0c4cc !important;
+  color: var(--ui-muted, #c0c4cc) !important;
   pointer-events: auto;
 }
 
@@ -232,7 +232,7 @@ html.app-shell-create .project-gen-config-modal-wrap .pgc-select--param:hover .a
 html.app-shell-create .project-gen-config-modal .pgc-select--param:hover .ant-select-arrow,
 html.app-shell-create .project-gen-config-modal-wrap .pgc-select--param.ant-select-open .ant-select-arrow,
 html.app-shell-create .project-gen-config-modal .pgc-select--param.ant-select-open .ant-select-arrow {
-  color: #d1d5db !important;
+  color: var(--ui-text, #d1d5db) !important;
 }
 
 .project-gen-config-modal .pgc-select--param .ant-select-clear {

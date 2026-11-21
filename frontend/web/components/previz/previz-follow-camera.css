@@ -1,0 +1,6 @@
+.pv-follow-camera { display: grid; gap: 8px; margin: 12px 0; padding: 12px 0; border-block: 1px solid var(--pv-border); }
+.pv-follow-camera__actions { display: flex; align-items: center; gap: 8px; }
+.pv-follow-camera__actions > .studio-canvas-tooltip-trigger { flex: 1; min-width: 0; }
+.pv-follow-camera__actions button { display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 32px; font: inherit; font-size: 12px; white-space: nowrap; }
+.pv-follow-camera .pv-help { margin: 0; }
+.pv-follow-camera__error { margin: 0; color: var(--pv-danger, #ef8e85); font-size: 12px; line-height: 1.6; }

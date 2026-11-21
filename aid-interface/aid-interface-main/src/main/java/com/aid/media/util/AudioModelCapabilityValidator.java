@@ -1,9 +1,9 @@
 package com.aid.media.util;
 
 import cn.hutool.core.util.StrUtil;
-import com.aid.common.exception.ServiceException;
 import com.aid.domain.vo.AiModelConfigVo;
 import com.aid.media.dto.MediaAudioGenerateRequest;
+import com.aid.media.service.MediaPreparationErrorCode;
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.extern.slf4j.Slf4j;
 
@@ -138,7 +138,7 @@ public final class AudioModelCapabilityValidator
         {
             log.info("音频模型能力范围校验拒绝: field={}/{}, actual={}, min={}, max={}",
                     minField, maxField, actual, minimum, maximum);
-            throw new ServiceException(message);
+            throw MediaPreparationErrorCode.MODEL_PARAMETERS_INVALID.reject(message);
         }
     }
 
@@ -146,6 +146,6 @@ public final class AudioModelCapabilityValidator
     {
         log.info("音频模型能力校验拒绝: modelCode={}, reason={}",
                 config == null ? null : config.getModelCode(), reason);
-        throw new ServiceException(message);
+        throw MediaPreparationErrorCode.MODEL_PARAMETERS_INVALID.reject(message);
     }
 }

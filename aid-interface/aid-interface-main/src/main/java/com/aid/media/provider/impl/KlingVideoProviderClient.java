@@ -13,6 +13,7 @@ import com.aid.media.provider.KlingErrorClassifier;
 import com.aid.media.provider.KlingStatusMapper;
 import com.aid.media.provider.KlingVideoRequestBuilder;
 import com.aid.media.provider.ProviderResponseHelper;
+import com.aid.media.provider.ProviderSubmissionFailures;
 import com.aid.media.provider.ProviderSubmitResult;
 import com.aid.media.provider.ProviderTaskResult;
 import com.aid.media.provider.VideoProviderClient;
@@ -44,10 +45,23 @@ public class KlingVideoProviderClient implements VideoProviderClient {
 
     @Override
     public ProviderSubmitResult submit(AiModelConfigVo modelConfig, MediaVideoGenerateRequest request) {
-        validateBaseUrl(modelConfig);
-        Map<String, Object> body = prepareSubmissionBody(modelConfig, request);
-        String raw = submitWithRetry(buildSubmitUrl(modelConfig), modelConfig.getApiKey(), JSONUtil.toJsonStr(com.aid.model.definition.ModelConfiguredRequestBody.apply(modelConfig, body, request)));
-        return parseSubmitResponse(raw);
+        String url,apiKey,json;
+        try {
+            validateBaseUrl(modelConfig);apiKey=modelConfig.getApiKey();requireApiKey(apiKey);
+            Map<String,Object> body=prepareSubmissionBody(modelConfig,request);
+            json=JSONUtil.toJsonStr(com.aid.model.definition.ModelConfiguredRequestBody.apply(modelConfig,body,request));
+            url=buildSubmitUrl(modelConfig);
+        } catch (RuntimeException localPreparation) {
+            return ProviderSubmissionFailures.localPreparationFailure(localPreparation);
+        }
+        HttpResult response = submitWithRetry(url,apiKey,json);
+        int status = response.statusCode();
+        if (status >= 300 && status <= 599) {
+            log.warn("Kling submit HTTP rejection, httpStatus={}, requestId={}, responseLength={}",
+                status, safeRequestId(response.requestId()), StrUtil.length(response.body()));
+            return ProviderSubmissionFailures.httpResponse(status, response.body(), modelConfig.getModelCode());
+        }
+        return parseSubmitResponse(response.body());
     }
 
     static Map<String, Object> prepareSubmissionBody(AiModelConfigVo modelConfig,
@@ -103,7 +117,12 @@ public class KlingVideoProviderClient implements VideoProviderClient {
         }
         JsonNode task = root == null ? null : root.path("data");
         if (task != null && task.isArray()) {
-            task = task.isEmpty() ? null : task.get(0);
+            JsonNode matched = null;
+            for (JsonNode candidate : task) {
+                if (providerTaskId.equals(firstText(candidate, "id", "task_id"))) matched = candidate;
+            }
+            if (matched == null && task.size() == 1 && StrUtil.isBlank(firstText(task.get(0), "id", "task_id"))) matched = task.get(0);
+            task = matched;
         }
         if (task == null || !task.isObject()) {
             return anomaly(raw, "上游响应缺少任务数据", null);
@@ -127,6 +146,8 @@ public class KlingVideoProviderClient implements VideoProviderClient {
             .status(normalized)
             .resultUrl(output.url())
             .videoDurationSeconds(output.durationSeconds())
+            .videoBillingDurationSeconds(readBillingSeconds(task.path("usage").path("output_duration")))
+            .inputVideoBillingDurationSeconds(readBillingSeconds(task.path("usage").path("input_duration")))
             .errorMessage(error)
             .rawErrorMessage(rawError)
             .rawResponse(raw)
@@ -136,7 +157,17 @@ public class KlingVideoProviderClient implements VideoProviderClient {
             .build();
     }
 
-    private String submitWithRetry(String url, String apiKey, String body) {
+    private static BigDecimal readBillingSeconds(JsonNode value) {
+        if (value == null || value.isMissingNode() || value.isNull()) return null;
+        try {
+            BigDecimal seconds = new BigDecimal(value.asText());
+            return seconds.signum() >= 0 && seconds.compareTo(BigDecimal.valueOf(Integer.MAX_VALUE)) <= 0 ? seconds : null;
+        } catch (NumberFormatException ex) {
+            return null;
+        }
+    }
+
+    private HttpResult submitWithRetry(String url, String apiKey, String body) {
         HttpResult last = null;
         int code = -1;
         for (int attempt = 1; attempt <= SUBMIT_MAX_ATTEMPTS; attempt++) {
@@ -145,7 +176,7 @@ public class KlingVideoProviderClient implements VideoProviderClient {
                 JsonNode root = JSONUtil.isTypeJSON(last.body()) ? ProviderResponseHelper.readTree(last.body()) : null;
                 code = businessCode(root);
                 if (KlingErrorClassifier.isSuccess(last.statusCode(), code)) {
-                    return last.body();
+                    return last;
                 }
                 // 创建任务没有幂等承诺。仅 1302/1303 明确表示限流/并发未受理，可安全重试；
                 // 网络异常、5xx/500x 可能已创建成功，绝不自动重放 POST，避免重复扣费。
@@ -162,8 +193,7 @@ public class KlingVideoProviderClient implements VideoProviderClient {
                 throw new ServiceException("提交结果未知");
             }
         }
-        int httpStatus = last == null ? 0 : last.statusCode();
-        throw submissionRejectedException(httpStatus, code, last == null ? null : last.body());
+        return last;
     }
 
     /**
@@ -178,8 +208,7 @@ public class KlingVideoProviderClient implements VideoProviderClient {
         String requestId = firstNonBlank(
             ProviderResponseHelper.readText(root, "request_id"),
             ProviderResponseHelper.readText(root, "requestId"));
-        String safeRequestId = StrUtil.sub(StrUtil.trimToEmpty(requestId)
-            .replace("\r", "").replace("\n", "").replace("\t", ""), 0, 128);
+        String safeRequestId = safeRequestId(requestId);
 
         Map<String, Object> audit = new LinkedHashMap<>();
         audit.put("http_status", httpStatus);
@@ -199,6 +228,10 @@ public class KlingVideoProviderClient implements VideoProviderClient {
             KlingErrorClassifier.safeMessage(httpStatus, businessCode, upstreamMessage),
             httpStatus > 0 ? httpStatus : null)
             .setDetailMessage(auditDetail);
+    }
+
+    private static String safeRequestId(String requestId) {
+        return StrUtil.sub(StrUtil.trimToEmpty(requestId).replaceAll("[^A-Za-z0-9._:-]", ""), 0, 128);
     }
 
     static int countActuallyDispatchedImages(AiModelConfigVo config, MediaVideoGenerateRequest request) {
@@ -227,7 +260,7 @@ public class KlingVideoProviderClient implements VideoProviderClient {
             .body(body)
             .timeout(KlingConstants.HTTP_TIMEOUT_MS)
             .execute()) {
-            return new HttpResult(response.getStatus(), response.body());
+            return new HttpResult(response.getStatus(), response.body(), response.header("X-Request-ID"));
         }
     }
 
@@ -238,7 +271,7 @@ public class KlingVideoProviderClient implements VideoProviderClient {
             .header("Content-Type", "application/json")
             .timeout(KlingConstants.HTTP_TIMEOUT_MS)
             .execute()) {
-            return new HttpResult(response.getStatus(), response.body());
+            return new HttpResult(response.getStatus(), response.body(), response.header("X-Request-ID"));
         }
     }
 
@@ -360,11 +393,11 @@ public class KlingVideoProviderClient implements VideoProviderClient {
     private void requireApiKey(String apiKey) {
         if (StrUtil.isBlank(apiKey)) {
             log.warn("Kling API key missing");
-            throw new ServiceException("可灵 API Key 未配置");
+            throw com.aid.media.provider.ProviderSubmissionFailures.notSent("可灵 API Key 未配置");
         }
     }
 
-    private record HttpResult(int statusCode, String body) {
+    private record HttpResult(int statusCode, String body, String requestId) {
     }
 
     private record VideoOutput(String url, Integer durationSeconds) {

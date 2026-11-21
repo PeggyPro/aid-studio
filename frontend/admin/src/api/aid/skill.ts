@@ -1,6 +1,8 @@
 import { request } from '@/utils/request';
 import type { ApiResponse } from '@/types/common';
 
+export type SkillId = string | number;
+
 export interface SkillRequestOptions {
   /** 只绕过已完成结果的短时缓存；同业务键的进行中请求仍会合并。 */
   force?: boolean;
@@ -88,7 +90,7 @@ function normalizedJson(value: unknown) {
 const readRequests = createRequestCoordinator(800);
 const mutationInflight = new Map<string, { fingerprint: string; promise: Promise<ApiResponse<unknown>> }>();
 
-function skillReadPredicate(skillId?: number) {
+function skillReadPredicate(skillId?: SkillId) {
   return (key: string) => skillId == null || key.startsWith('skills:')
     || key.startsWith('dependencies:')
     || key.startsWith('version:')
@@ -96,7 +98,7 @@ function skillReadPredicate(skillId?: number) {
     || key.includes(`:skill:${skillId}:`);
 }
 
-function invalidateSkillReads(skillId?: number) {
+function invalidateSkillReads(skillId?: SkillId) {
   readRequests.invalidate(skillReadPredicate(skillId));
 }
 
@@ -104,7 +106,7 @@ function coordinatedMutation<T>(
   resourceKey: string,
   fingerprint: string,
   operation: () => Promise<ApiResponse<T>>,
-  skillId?: number
+  skillId?: SkillId
 ) {
   const existing = mutationInflight.get(resourceKey);
   if (existing) {
@@ -124,46 +126,68 @@ function coordinatedMutation<T>(
 }
 
 export interface SkillListQuery {
+  skillId?: SkillId;
+  includeDeleted?: boolean;
   pageNum: number;
   pageSize: number;
   keyword?: string;
   status?: '0' | '1';
+  ownerType?: 'PLATFORM' | 'USER';
+  ownerUserId?: SkillId;
 }
 
 export interface AdminSkillSummary {
-  id: number;
+  id: SkillId;
   skillCode: string;
   name: string;
   description?: string;
   capabilityDescription?: string;
   iconUrl?: string;
   ownerType: string;
+  ownerUserId?: SkillId | null;
   visibility: string;
   invocationScope: string;
-  currentVersionId?: number | null;
+  currentVersionId?: SkillId | null;
   status: '0' | '1';
   delFlag: '0' | '1';
   modelCode: string;
   reasoningPolicy: 'DISABLED' | 'OPTIONAL' | 'REQUIRED';
+  cacheToDisk?: boolean;
+  moderationReason?: string;
+  moderatedBy?: string;
+  moderatedAt?: string;
   updateTime?: string;
 }
 
 export interface SkillIdentitySavePayload {
-  id: number;
+  id: SkillId;
   name: string;
   description?: string;
   capabilityDescription?: string;
   iconUrl?: string;
+  visibility: 'PRIVATE' | 'PUBLIC';
+  invocationScope: 'ENTRYPOINT' | 'INTERNAL';
+  cacheToDisk?: boolean;
   status: '0' | '1';
 }
 
+export interface SkillCreatePayload {
+  skillCode: string;
+  name: string;
+  description?: string;
+  iconUrl?: string;
+  visibility?: 'PRIVATE' | 'PUBLIC';
+  invocationScope?: 'ENTRYPOINT' | 'INTERNAL';
+  templateVersionId?: SkillId;
+}
+
 export interface SkillRunItem {
-  id: number;
-  userId: number;
-  skillId: number;
-  skillVersionId: number;
-  projectId: number;
-  episodeId: number;
+  id: SkillId;
+  userId: SkillId;
+  skillId: SkillId;
+  skillVersionId: SkillId;
+  projectId?: SkillId | null;
+  episodeId?: SkillId | null;
   skillConfigHash: string;
   modelCode: string;
   invokeSource: string;
@@ -176,8 +200,8 @@ export interface SkillRunItem {
   clientRequestDigest?: string;
   executionSnapshotDigest?: string;
   resolvedConfigDigest?: string;
-  rootRunId?: number;
-  parentRunId?: number;
+  rootRunId?: SkillId;
+  parentRunId?: SkillId;
   inputJson?: string;
   outputJson?: string;
   errorMessage?: string;
@@ -187,16 +211,16 @@ export interface SkillRunItem {
 }
 
 export interface SkillRunTaskItem {
-  stepId: number;
+  stepId: SkillId;
   stepSeq: number;
   stepKey: string;
   stepExecutionId: string;
-  skillId: number;
-  skillVersionId: number;
+  skillId: SkillId;
+  skillVersionId: SkillId;
   actionMode: string;
   workflowAttempt: number;
   orchestrationStatus: string;
-  mediaTaskId?: number;
+  mediaTaskId?: SkillId;
   mediaStatus?: string;
   billingStatus?: string;
   /** Decimal string returned by the audit API; do not coerce to IEEE-754 number. */
@@ -212,16 +236,18 @@ export type SkillRunSummary = Omit<SkillRunItem,
 export interface SkillRunQuery {
   pageNum: number;
   pageSize: number;
-  skillId?: number;
-  userId?: number;
+  skillId?: SkillId;
+  userId?: SkillId;
   status?: string;
 }
 
 export interface SkillTextModelOption {
   modelCode: string;
   modelName?: string;
+  modelType?: string;
   capabilityJson?: string;
   capability?: Record<string, unknown>;
+  capabilities?: { code: string; label?: string; enabled?: boolean }[];
   modelLogo?: string;
   providerName?: string;
   providerLogo?: string;
@@ -234,6 +260,7 @@ export interface SkillTextModelOption {
 
 export interface SkillDraftResource {
   resourceKey: string;
+  filePath: string;
   resourceType: string;
   mimeType: string;
   content: string;
@@ -242,16 +269,19 @@ export interface SkillDraftResource {
 
 export interface SkillDraftRelation {
   relationKey: string;
-  childSkillId: number;
-  childVersionId: number;
+  childSkillId: SkillId;
+  childVersionId: SkillId;
   requiredFlag: boolean;
 }
 
 export interface SkillPackagePayload {
-  skillId: number;
-  baseVersionId?: number;
+  skillId: SkillId;
+  baseVersionId?: SkillId;
+  skillMarkdown: string;
   modelCode: string;
   defaultModelCode: string;
+  /** Immutable model configuration text; round-trip unchanged so provider-specific keys survive. */
+  modelConfigJson?: string;
   selectableModelCodes: string[];
   systemPrompt: string;
   inputSchemaJson: string;
@@ -265,7 +295,7 @@ export interface SkillPackagePayload {
 }
 
 export interface SkillDraftDetail extends SkillPackagePayload {
-  draftId?: number;
+  draftId?: SkillId;
   baseVersionCode?: string;
   skillCode: string;
   executorType: string;
@@ -275,8 +305,8 @@ export interface SkillDraftDetail extends SkillPackagePayload {
 }
 
 export interface SkillVersionSummary {
-  id: number;
-  skillId: number;
+  id: SkillId;
+  skillId: SkillId;
   versionCode: string;
   publishStatus: string;
   packageDigest: string;
@@ -287,27 +317,27 @@ export interface SkillVersionSummary {
 }
 
 export interface SkillVersionListQuery {
-  skillId: number;
+  skillId: SkillId;
   pageNum: number;
   pageSize: number;
 }
 
 export interface SkillVersionResource extends SkillDraftResource {
-  id: number;
+  id: SkillId;
   objectKey: string;
   contentDigest: string;
   sizeBytes: number;
 }
 
 export interface SkillVersionRelation extends SkillDraftRelation {
-  id: number;
+  id: SkillId;
   childSkillCode: string;
   childVersionCode: string;
 }
 
 export interface SkillVersionDetail {
-  id: number;
-  skillId: number;
+  id: SkillId;
+  skillId: SkillId;
   skillCode: string;
   versionCode: string;
   visibility: string;
@@ -323,6 +353,7 @@ export interface SkillVersionDetail {
   inputSchemaJson: string;
   outputSchemaJson: string;
   systemPrompt: string;
+  skillMarkdown: string;
   definitionJson?: string;
   maxOutputTokens: number;
   contextWindowTokens: number;
@@ -348,44 +379,44 @@ export interface SkillValidationResult {
 }
 
 export interface SkillDependencyVersionOption {
-  id: number;
+  id: SkillId;
   versionCode: string;
   current: boolean;
 }
 
 export interface SkillDependencyOption {
-  skillId: number;
+  skillId: SkillId;
   skillCode: string;
   name: string;
-  currentVersionId?: number | null;
+  currentVersionId?: SkillId | null;
 }
 
 export interface SkillDependencyListQuery {
-  skillId: number;
+  skillId: SkillId;
   pageNum: number;
   pageSize: number;
   keyword?: string;
 }
 
 export interface SkillDependencyVersionListQuery {
-  parentSkillId: number;
-  childSkillId: number;
+  parentSkillId: SkillId;
+  childSkillId: SkillId;
   pageNum: number;
   pageSize: number;
   keyword?: string;
 }
 
 export interface SkillDependencyLabel {
-  childSkillId: number;
+  childSkillId: SkillId;
   childSkillCode: string;
   childSkillName: string;
-  childVersionId: number;
+  childVersionId: SkillId;
   childVersionCode: string;
   current: boolean;
 }
 
 export interface SkillDraftSavePayload extends SkillPackagePayload {
-  draftId?: number;
+  draftId?: SkillId;
   draftDigest?: string;
 }
 
@@ -394,7 +425,10 @@ export function listSkills(data: SkillListQuery, options?: SkillRequestOptions) 
     data.pageNum,
     data.pageSize,
     data.keyword || '',
-    data.status || ''
+    data.status || '',
+    data.skillId == null ? '' : String(data.skillId), data.includeDeleted,
+    data.ownerType || '',
+    data.ownerUserId == null ? '' : String(data.ownerUserId)
   ])}`;
   return readRequests.run(requestKey,
     () => request<AdminSkillSummary[]>({ url: '/aid/skill/list', method: 'post', data }), options);
@@ -405,17 +439,55 @@ export function editSkillIdentity(data: SkillIdentitySavePayload) {
     () => request({ url: '/aid/skill/identity/edit', method: 'post', data }), data.id);
 }
 
-export function updateSkillStatus(id: number, status: '0' | '1') {
+export interface RegisteredToolOption {
+  code?: string;
+  toolCode: string;
+  name: string;
+  description?: string;
+  enabled?: boolean;
+}
+
+export interface SkillPublicationSettings {
+  allowUserPublicSkills: boolean;
+}
+
+export function createSkill(data: SkillCreatePayload) {
+  return coordinatedMutation('skill:create', `create:${normalizedJson(data)}`,
+    () => request<AdminSkillSummary>({ url: '/aid/skill/create', method: 'post', data }));
+}
+
+export function getSkillPublicationSettings(options?: SkillRequestOptions) {
+  return readRequests.run('skill:publication:settings',
+    () => request<SkillPublicationSettings>({
+      url: '/aid/skill/publication/settings', method: 'post', data: {}
+    }), options);
+}
+
+export function saveSkillPublicationSettings(data: SkillPublicationSettings) {
+  return coordinatedMutation('skill:publication:settings', `settings:${normalizedJson(data)}`,
+    () => request<void>({
+      url: '/aid/skill/publication/settings/save', method: 'post', data
+    }));
+}
+
+export function unpublishUserSkill(id: SkillId, reason: string) {
+  const data = { id, reason };
+  return coordinatedMutation(`skill:${id}`, `moderation-unpublish:${normalizedJson(data)}`,
+    () => request({ url: '/aid/skill/moderation/unpublish', method: 'post', data }), id);
+}
+
+export function updateSkillStatus(id: SkillId, status: '0' | '1') {
   return coordinatedMutation(`skill:${id}`, `status:${status}`,
     () => request({ url: '/aid/skill/status', method: 'post', data: { id, status } }), id);
 }
 
-export function removeSkill(id: number) {
+export function removeSkill(id: SkillId) {
   return coordinatedMutation(`skill:${id}`, 'remove',
-    () => request({ url: '/aid/skill/remove', method: 'post', data: { id } }), id);
+    () => request({ url: '/aid/skill/remove', method: 'post', data: { id },
+      suppressConflictToast: true }), id);
 }
 
-export function restoreSkill(id: number) {
+export function restoreSkill(id: SkillId) {
   return coordinatedMutation(`skill:${id}`, 'restore',
     () => request({ url: '/aid/skill/restore', method: 'post', data: { id } }), id);
 }
@@ -423,6 +495,12 @@ export function restoreSkill(id: number) {
 export function listSkillTextModels(options?: SkillRequestOptions) {
   return readRequests.run('models',
     () => request<SkillTextModelOption[]>({ url: '/aid/skill/model/options', method: 'post', data: {} }), options);
+}
+
+export function listRegisteredToolOptions(options?: SkillRequestOptions) {
+  return readRequests.run('skill:tool:options',
+    () => request<RegisteredToolOption[]>({ url: '/aid/runtime-plan-agent/tool/options', method: 'post', data: {},
+      headers: { 'X-Aid-Runtime-Agent-Family': 'LEGACY_PLAN' } }), options);
 }
 
 export function listSkillRuns(data: SkillRunQuery, options?: SkillRequestOptions) {
@@ -433,9 +511,22 @@ export function listSkillRuns(data: SkillRunQuery, options?: SkillRequestOptions
     () => request<SkillRunSummary[]>({ url: '/aid/skill/run/list', method: 'post', data }), options);
 }
 
-export function getSkillRun(id: number, options?: SkillRequestOptions) {
+export function getSkillRun(id: SkillId, options?: SkillRequestOptions) {
   return readRequests.run(`run:${id}`,
     () => request<SkillRunItem>({ url: '/aid/skill/run/detail', method: 'post', data: { id } }), options);
+}
+
+export function listSkillRuntimeRuns(data: { skillId?: SkillId; userId?: SkillId; status?: string;
+  pageNum: number; pageSize: number }, options?: SkillRequestOptions) {
+  return readRequests.run(`runtime-runs:skill:${normalizedJson(data)}`,
+    () => request<import('./legacyRuntimePlanAgent').RuntimeAgentRun[]>({
+      url: '/aid/skill/runtime-run/list', method: 'post', data }), options);
+}
+
+export function getSkillRuntimeRun(runId: SkillId, options?: SkillRequestOptions) {
+  return readRequests.run(`runtime-run:${runId}`,
+    () => request<import('./legacyRuntimePlanAgent').RuntimeAgentRun>({
+      url: '/aid/skill/runtime-run/detail', method: 'post', data: { runId } }), options);
 }
 
 export function listSkillVersions(data: SkillVersionListQuery, options?: SkillRequestOptions) {
@@ -444,18 +535,18 @@ export function listSkillVersions(data: SkillVersionListQuery, options?: SkillRe
     () => request<SkillVersionSummary[]>({
       url: '/aid/skill/version/list', method: 'post', data
     }).then((response) => response as ApiResponse<SkillVersionSummary[]> & {
-      currentVersionId: number | null;
+      currentVersionId: SkillId | null;
     }), options);
 }
 
-export function getSkillVersion(id: number, options?: SkillRequestOptions) {
+export function getSkillVersion(id: SkillId, options?: SkillRequestOptions) {
   return readRequests.run(`version:${id}`,
     () => request<SkillVersionDetail>({
       url: '/aid/skill/version/detail', method: 'post', data: { id }
     }), options);
 }
 
-export function getSkillDraft(skillId: number, baseVersionId?: number, options?: SkillRequestOptions) {
+export function getSkillDraft(skillId: SkillId, baseVersionId?: SkillId, options?: SkillRequestOptions) {
   return readRequests.run(`draft:skill:${skillId}:base:${baseVersionId ?? 'current'}`,
     () => request<SkillDraftDetail>({
       url: '/aid/skill/draft/detail', method: 'post', data: { skillId, baseVersionId }
@@ -486,9 +577,10 @@ export function listSkillDependencyVersionOptions(
 }
 
 export function getSkillDependencyLabels(
-  parentSkillId: number, versionIds: number[], options?: SkillRequestOptions
+  parentSkillId: SkillId, versionIds: SkillId[], options?: SkillRequestOptions
 ) {
-  const normalizedIds = [...new Set(versionIds)].sort((left, right) => left - right).slice(0, 16);
+  const normalizedIds = [...new Set(versionIds)].sort((left, right) =>
+    String(left).localeCompare(String(right))).slice(0, 16);
   const data = { parentSkillId, versionIds: normalizedIds };
   return readRequests.run(`dependencies:labels:${normalizedJson(data)}`,
     () => request<SkillDependencyLabel[]>({
@@ -502,7 +594,7 @@ export function saveSkillDraft(data: SkillDraftSavePayload) {
     () => request<SkillDraftDetail>({ url: '/aid/skill/draft/save', method: 'post', data }), data.skillId);
 }
 
-export function discardSkillDraft(skillId: number, draftId: number, draftDigest: string) {
+export function discardSkillDraft(skillId: SkillId, draftId: SkillId, draftDigest: string) {
   const data = { draftId, draftDigest };
   return coordinatedMutation(`draft:${draftId}`, `draft-discard:${draftDigest}`,
     () => request({ url: '/aid/skill/draft/discard', method: 'post', data }), skillId);
@@ -515,14 +607,14 @@ export function validateSkillDraft(data: SkillPackagePayload, options?: SkillReq
     }), options);
 }
 
-export function publishSkillDraft(draftId: number, draftDigest: string, versionCode: string) {
+export function publishSkillDraft(draftId: SkillId, draftDigest: string, versionCode: string) {
   const data = { draftId, draftDigest, versionCode };
   return coordinatedMutation(`draft:${draftId}`, `draft-publish:${draftDigest}:${versionCode}`,
     () => request<SkillVersionDetail>({ url: '/aid/skill/draft/publish', method: 'post', data }));
 }
 
 export function activateSkillVersion(
-  skillId: number, versionId: number, expectedCurrentVersionId: number | null
+  skillId: SkillId, versionId: SkillId, expectedCurrentVersionId: SkillId | null
 ) {
   const data = { skillId, versionId, expectedCurrentVersionId };
   return coordinatedMutation(`skill:${skillId}`, `version-activate:${normalizedJson(data)}`,

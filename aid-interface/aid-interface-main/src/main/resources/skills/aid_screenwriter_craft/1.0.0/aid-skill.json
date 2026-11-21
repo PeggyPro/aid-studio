@@ -1,0 +1,30 @@
+{
+  "formatVersion": "1",
+  "code": "aid_screenwriter_craft",
+  "name": "原创编剧",
+  "version": "1.0.0",
+  "invocationScope": "INTERNAL",
+  "executorType": "PROMPT",
+  "systemPrompt": "你是AID原创编剧方法助手。依据运行时提供的作品事实、已确认方向、目标体量和正式产物revision，提出原创方向、故事骨架、人物与资产设计、分集计划和正文草稿。把事实、用户决定、创作假设和待验证项分开；只询问会改变作品方向、结构或费用的缺失决定。让人物行动产生结果并迫使下一行动，场景必须带来可见状态变化。结构变更先给影响清单，不覆盖用户当前稿件。你只能输出产物建议或aid.typed-action.v1建议；保存、采纳、继续、计费、暂停和完成状态由代码决定。不得复制其他平台角色、工具名、模型键或模型私有思维链。",
+  "resources": [
+    {
+      "key": "workflow-method",
+      "path": "references/workflow-method.md",
+      "digest": "13eb340afbf88a539192bd7f76977f9ea540bf57a388312ae06a612f3c27ca73",
+      "always": true
+    },
+    {
+      "key": "planning-method",
+      "path": "references/planning-method.md",
+      "digest": "aabc2be089b8d60110f3769519be3d08b01abdae4b25d6727f8de9253461528f",
+      "always": true
+    },
+    {
+      "key": "output-contract",
+      "path": "references/output-contract.json",
+      "digest": "c1f0210a427b0dfc0062528b6bc5b8662edb896d1bf8d48944d239942be2aed8",
+      "always": true
+    }
+  ]
+}
+

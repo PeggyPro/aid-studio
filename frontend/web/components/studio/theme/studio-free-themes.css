@@ -1,0 +1,2129 @@
+/*
+ * 自由画布公共视觉层。
+ * 组件只消费语义材料变量；替换 UI 风格时修改主题 token，不改画布业务组件。
+ * 流程画布不进入本文件作用域；连线只在这里映射颜色，运动结构仍由公共边组件统一维护。
+ */
+:root[data-studio-free-theme='opal'],
+:root[data-studio-free-theme='opal'] .studio-workspace--free,
+[data-studio-free-theme-scope='opal'],
+.studio-free-theme-scope--opal {
+  --studio-bg: #e9edf4;
+  --studio-surface: #f7f9fc;
+  --studio-surface-strong: #eef2f8;
+  --studio-surface-2: #e3e8f0;
+  --studio-floating: rgba(248, 250, 255, 0.78);
+  --studio-border: rgba(77, 97, 132, 0.16);
+  --studio-border-strong: rgba(55, 88, 181, 0.3);
+  --studio-text: #152033;
+  --studio-muted: #3a4a63;
+  --studio-accent: #3758b5;
+  --studio-accent-soft: #637fbd;
+  --studio-node-ring: #3758b5;
+  --studio-node-bg: #f9fbff;
+  --studio-node-bg-soft: #eef2f8;
+  --studio-node-border: rgba(77, 97, 132, 0.17);
+  --studio-node-border-strong: rgba(55, 88, 181, 0.5);
+  --studio-slider-rail: rgba(77, 97, 132, 0.24);
+  --studio-slider-track: linear-gradient(90deg, #637fbd, #3758b5);
+  --studio-slider-handle-ring: rgba(55, 88, 181, 0.86);
+  --studio-shadow: 0 24px 64px rgba(80, 108, 153, 0.2);
+  --studio-edge-base: color-mix(in srgb, var(--studio-muted) 42%, transparent);
+  --studio-edge-flow: color-mix(in srgb, var(--studio-accent) 42%, #a4bde8);
+  --studio-edge-flow-glow: color-mix(in srgb, var(--studio-accent) 20%, transparent);
+  /* Light theme glows inward: a deep ink crest inside a lighter wash. */
+  --studio-edge-pulse: #5a86f7;
+  --studio-edge-pulse-core: #1c3fc4;
+  --studio-edge-pulse-track: rgba(61, 108, 240, 0.4);
+  --studio-theme-canvas: #e9edf4;
+  --studio-theme-grid: rgba(67, 85, 125, 0.22);
+  --studio-theme-panel: rgba(248, 250, 255, 0.60);
+  --studio-theme-panel-solid: rgba(248, 250, 255, 0.86);
+  --studio-theme-radius: 18px;
+  --studio-theme-shine: rgba(255, 255, 255, 0.98);
+  --studio-theme-reflection: 42%;
+  --studio-theme-rim: 90%;
+  --studio-theme-depth: 32px;
+  --studio-theme-sheen: 145deg;
+  --studio-theme-tint: rgba(99, 135, 222, 0.09);
+  --studio-theme-header-panel: rgba(248, 250, 255, 0.60);
+  --studio-theme-header-blur: 28px;
+  --studio-theme-panel-reflection: rgba(255, 255, 255, 0.72);
+  --studio-theme-control: rgba(60, 80, 130, 0.05);
+  --studio-theme-control-hover: rgba(60, 80, 130, 0.085);
+  --studio-theme-control-active: rgba(139, 170, 239, 0.2);
+  --studio-theme-control-border: rgba(77, 97, 132, 0.13);
+  --studio-theme-node: #f9fbff;
+  --studio-theme-node-soft: #f1f4fa;
+  --studio-theme-node-empty: #f5f7fb;
+  --studio-text-background-neutral: #f9fbff;
+  --studio-text-background-paper: #fffaf0;
+  --studio-text-background-mist: #edf4fb;
+  --studio-text-background-lavender: #f2effb;
+  --studio-text-background-sage: #eef5ee;
+  --studio-theme-node-reflection: rgba(255, 255, 255, 0.26);
+  --studio-theme-media: #e5eaf2;
+  --studio-theme-minimap-node: rgba(55, 88, 181, 0.48);
+  --studio-theme-minimap-mask: rgba(226, 232, 243, 0.74);
+  --studio-theme-lod-edge: rgba(77, 97, 132, 0.24);
+  --studio-theme-lod-node: rgba(247, 249, 253, 0.96);
+  --studio-theme-lod-node-failed: rgba(181, 91, 101, 0.78);
+  --studio-theme-lod-selection: #3758b5;
+  --studio-theme-lod-media: rgba(99, 127, 189, 0.22);
+  --studio-theme-lod-empty: rgba(77, 97, 132, 0.09);
+  --studio-theme-lod-text: rgba(21, 32, 51, 0.92);
+  --studio-theme-shadow: rgba(80, 108, 153, 0.2);
+  --studio-theme-shadow-strong: rgba(80, 108, 153, 0.28);
+  --studio-theme-inverse-text: #f7f9fc;
+  --studio-theme-glass-blur: 28px;
+  --studio-theme-saturation: 130%;
+  --studio-generation-node: #fbfcfe;
+  --studio-generation-text: #152033;
+  --studio-generation-muted: #5a6780;
+  --studio-generation-faint: rgba(22,34,58,.08);
+  --studio-theme-glass-selected: rgba(255, 255, 255, 0.62);
+  --studio-theme-glass-rim: rgba(255, 255, 255, 0.96);
+  --studio-theme-glass-sheen: rgba(255, 255, 255, 0.55);
+  --studio-theme-glass-ink: #2d4ea6;
+  --studio-theme-glass-glow: rgba(55, 88, 181, 0.22);
+  --studio-theme-glass-drop: 0 1px 1.5px rgba(60, 80, 120, 0.1), 0 6px 14px -8px rgba(60, 80, 120, 0.3);
+  --studio-theme-popover: #fbfcfe;
+  --studio-theme-modal: #fafbfd;
+  --studio-theme-pop-rim: rgba(255, 255, 255, 0.95);
+  --studio-theme-pop-edge: rgba(60, 80, 120, 0.12);
+  --studio-theme-pop-shadow: 0 0 0 0.5px rgba(60, 80, 120, 0.08), 0 2px 6px -2px rgba(60, 80, 120, 0.12), 0 18px 44px -18px rgba(50, 70, 120, 0.34);
+  --studio-theme-scrim: rgba(28, 38, 60, 0.22);
+  --studio-theme-field: rgba(40, 62, 112, 0.045);
+  --studio-theme-field-hover: rgba(40, 62, 112, 0.07);
+  --studio-theme-field-shadow: inset 0 1px 2px rgba(40, 62, 112, 0.07);
+  --studio-theme-focus: rgba(55, 88, 181, 0.18);
+  --studio-theme-row-hover: rgba(60, 90, 160, 0.05);
+  --studio-theme-row-selected: rgba(55, 88, 181, 0.075);
+  --studio-theme-scroll-thumb: rgba(60, 80, 120, 0.24);
+  --studio-theme-scroll-thumb-hover: rgba(60, 80, 120, 0.4);
+  --studio-theme-primary-top: #4b6ed0;
+  --studio-theme-primary-bottom: #3152ab;
+  --studio-theme-primary-ink: #f7f9fc;
+  --studio-theme-primary-rim: rgba(255, 255, 255, 0.38);
+  --studio-theme-primary-glow: rgba(55, 88, 181, 0.38);
+  --studio-theme-disabled: rgba(60, 80, 120, 0.08);
+  --studio-theme-disabled-ink: rgba(37, 51, 75, 0.42);
+  --studio-theme-chrome: #fbfcfe;
+  --studio-theme-chrome-well: #f1f3f7;
+  --studio-theme-chrome-edge: rgba(22, 34, 58, 0.08);
+  --studio-theme-chrome-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 0 0 1px rgba(22, 34, 58, 0.03), 0 12px 30px -14px rgba(50, 70, 110, 0.24);
+  --studio-theme-chrome-ink: #152033;
+  --studio-theme-chrome-tool-ink: #3a4658;
+  --studio-theme-chrome-muted: #5a6780;
+  --studio-theme-chrome-hover: rgba(22, 34, 58, 0.04);
+  --studio-theme-chrome-hover-ink: #26334a;
+  --studio-theme-chrome-tab-hover-ink: #33415a;
+  --studio-theme-chrome-press: rgba(22, 34, 58, 0.065);
+  --studio-theme-chrome-on: rgba(22, 34, 58, 0.08);
+  --studio-theme-send-capsule:
+    linear-gradient(180deg, rgba(255, 255, 255, 0) 0%, rgba(22, 34, 58, 0.02) 55%, rgba(22, 34, 58, 0.05) 100%),
+    rgba(22, 34, 58, 0.035);
+  --studio-theme-send-capsule-edge:
+    inset 0 0 0 1px rgba(22, 34, 58, 0.07),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8),
+    inset 0 -7px 9px -7px rgba(22, 34, 58, 0.08),
+    inset 7px 0 8px -8px rgba(22, 34, 58, 0.06),
+    inset -7px 0 8px -8px rgba(22, 34, 58, 0.06);
+  --studio-theme-send-disc:
+    radial-gradient(120% 90% at 50% 110%, rgba(255, 255, 255, 0.28), transparent 60%),
+    linear-gradient(180deg, #2a3446, #3d4a60);
+  --studio-theme-send-disc-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12), 0 1px 2px rgba(20, 30, 50, 0.3);
+  --studio-theme-send-disc-ink: #f7f9fc;
+  --studio-theme-send-idle-disc:
+    linear-gradient(180deg, rgba(255, 255, 255, 0) 0%, rgba(22, 34, 58, 0.02) 55%, rgba(22, 34, 58, 0.05) 100%),
+    rgba(22, 34, 58, 0.06);
+  --studio-theme-send-idle-ink: rgba(21, 32, 51, 0.35);
+}
+
+:root[data-studio-free-theme='soft-mist'],
+:root[data-studio-free-theme='soft-mist'] .studio-workspace--free,
+[data-studio-free-theme-scope='soft-mist'],
+.studio-free-theme-scope--soft-mist {
+  --studio-bg: var(--studio-matte-canvas);
+  --studio-surface: var(--studio-matte-popover);
+  --studio-surface-strong: var(--studio-matte-field);
+  --studio-surface-2: var(--studio-matte-field);
+  --studio-floating: var(--studio-matte-popover);
+  --studio-border: var(--studio-matte-line);
+  --studio-border-strong: var(--studio-matte-ghost-border);
+  --studio-text: var(--studio-matte-text);
+  --studio-muted: var(--studio-matte-muted);
+  --studio-accent: var(--studio-matte-mark);
+  --studio-accent-soft: var(--studio-matte-text-2);
+  --studio-node-ring: var(--studio-matte-mark);
+  /* 画布图形材料与弹层材料分别取色，缩小时仍可辨认节点边界。 */
+  --studio-graph-background: #101215;
+  --studio-node-bg: #25282d;
+  --studio-node-bg-soft: #202328;
+  --studio-node-border: rgba(219, 228, 242, 0.24);
+  --studio-node-border-strong: rgba(220, 229, 242, 0.48);
+  --studio-theme-node-icon-opacity: 0.72;
+  --studio-slider-rail: rgba(183, 191, 203, 0.28);
+  --studio-slider-track: var(--studio-matte-mark);
+  --studio-slider-handle-ring: var(--studio-matte-mark);
+  --studio-shadow: 0 24px 70px rgba(0, 0, 0, 0.38);
+  --studio-edge-base: rgba(168, 179, 197, 0.52);
+  --studio-edge-flow: color-mix(in srgb, var(--studio-accent) 58%, #8ea6b8);
+  --studio-edge-flow-glow: color-mix(in srgb, var(--studio-accent) 26%, transparent);
+  --studio-edge-pulse: #9fc2ff;
+  --studio-edge-pulse-core: #ffffff;
+  --studio-edge-pulse-track: rgba(170, 200, 255, 0.3);
+  --studio-theme-canvas: #0c0c0c;
+  --studio-theme-grid: var(--studio-matte-grid);
+  --studio-theme-panel: var(--studio-matte-popover);
+  --studio-theme-panel-solid: var(--studio-matte-popover);
+  --studio-theme-radius: 20px;
+  --studio-theme-shine: transparent;
+  --studio-theme-reflection: 12%;
+  --studio-theme-rim: 55%;
+  --studio-theme-depth: 22px;
+  --studio-theme-sheen: 155deg;
+  --studio-theme-tint: transparent;
+  --studio-theme-header-panel: rgba(39, 43, 49, 0.42);
+  --studio-theme-header-blur: 20px;
+  --studio-theme-panel-reflection: transparent;
+  --studio-theme-control: var(--studio-matte-ctl);
+  --studio-theme-control-hover: var(--studio-matte-hover);
+  --studio-theme-control-active: var(--studio-matte-sel);
+  --studio-theme-control-border: var(--studio-matte-ctl-border);
+  --studio-theme-node: var(--studio-node-bg);
+  --studio-generation-node: #1d1f23;
+  --studio-generation-text: #e8eaed;
+  --studio-generation-muted: #9aa0a8;
+  --studio-generation-faint: rgba(255,255,255,.07);
+  --studio-theme-node-soft: #22252a;
+  --studio-theme-node-empty: #23262b;
+  --studio-text-background-neutral: #25282d;
+  --studio-text-background-paper: #302d28;
+  --studio-text-background-mist: #242c34;
+  --studio-text-background-lavender: #2c2936;
+  --studio-text-background-sage: #28312d;
+  --studio-theme-node-reflection: transparent;
+  --studio-theme-media: #191b1f;
+  --studio-theme-minimap-node: rgba(216, 227, 242, 0.48);
+  --studio-theme-minimap-mask: rgba(17, 19, 23, 0.76);
+  --studio-theme-lod-edge: rgba(147, 156, 171, 0.18);
+  --studio-theme-lod-node: rgba(70, 76, 88, 0.9);
+  --studio-theme-lod-node-failed: rgba(164, 76, 84, 0.78);
+  --studio-theme-lod-selection: #c8d1e2;
+  --studio-theme-lod-media: rgba(150, 164, 187, 0.24);
+  --studio-theme-lod-empty: rgba(205, 213, 226, 0.09);
+  --studio-theme-lod-text: rgba(242, 244, 248, 0.92);
+  --studio-theme-shadow: rgba(0, 0, 0, 0.34);
+  --studio-theme-shadow-strong: rgba(0, 0, 0, 0.5);
+  --studio-theme-inverse-text: var(--studio-matte-primary-ink);
+  --studio-theme-glass-blur: 0px;
+  --studio-theme-saturation: 100%;
+  --studio-generation-ink: color-mix(in srgb, var(--studio-accent) 78%, var(--studio-bg));
+  --studio-generation-halo: color-mix(in srgb, var(--studio-accent) 9%, transparent);
+  --studio-theme-glass-selected: var(--studio-matte-sel);
+  --studio-theme-glass-rim: transparent;
+  --studio-theme-glass-sheen: transparent;
+  --studio-theme-glass-ink: var(--studio-matte-sel-ink);
+  --studio-theme-glass-glow: transparent;
+  --studio-theme-glass-drop: 0 0 transparent;
+  --studio-theme-popover: var(--studio-matte-popover);
+  --studio-theme-modal: var(--studio-matte-modal);
+  --studio-theme-pop-rim: var(--studio-matte-rim);
+  --studio-theme-pop-edge: var(--studio-matte-edge);
+  --studio-theme-pop-shadow: var(--studio-matte-pop-shadow);
+  --studio-theme-scrim: var(--studio-matte-scrim);
+  --studio-theme-field: var(--studio-matte-field);
+  --studio-theme-field-hover: var(--studio-matte-field);
+  --studio-theme-field-shadow: var(--studio-matte-field-shadow);
+  --studio-theme-focus: var(--studio-matte-focus);
+  --studio-theme-row-hover: var(--studio-matte-hover);
+  --studio-theme-row-selected: var(--studio-matte-sel);
+  --studio-theme-scroll-thumb: rgba(220,230,245,.18);
+  --studio-theme-scroll-thumb-hover: rgba(220, 230, 245, 0.34);
+  --studio-theme-primary-top: #e4e7eb;
+  --studio-theme-primary-bottom: #c9cdd3;
+  --studio-theme-primary-ink: var(--studio-matte-primary-ink);
+  --studio-theme-primary-rim: rgba(255,255,255,.55);
+  --studio-theme-primary-glow: transparent;
+  --studio-theme-disabled: rgba(220, 230, 245, 0.06);
+  --studio-theme-disabled-ink: rgba(233, 237, 243, 0.38);
+  /* 浮动工具条与节点输入面板：哑光容器，靠明度分层；控件只有填充，没有描边、高光和投影。 */
+  --studio-theme-chrome: var(--studio-matte-chrome);
+  --studio-theme-chrome-well: var(--studio-matte-field);
+  --studio-theme-chrome-edge: var(--studio-matte-edge);
+  --studio-theme-chrome-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035), 0 0 0 1px rgba(0, 0, 0, 0.55), 0 14px 34px -14px rgba(0, 0, 0, 0.65);
+  --studio-theme-chrome-ink: var(--studio-matte-text);
+  --studio-theme-chrome-tool-ink: var(--studio-matte-text-2);
+  --studio-theme-chrome-muted: var(--studio-matte-muted);
+  --studio-theme-chrome-hover: var(--studio-matte-hover);
+  --studio-theme-chrome-hover-ink: var(--studio-matte-text);
+  --studio-theme-chrome-tab-hover-ink: var(--studio-matte-text-2);
+  --studio-theme-chrome-press: var(--studio-matte-hover);
+  --studio-theme-chrome-on: var(--studio-matte-sel);
+  /* 发送组是唯一的玻璃：中性无色相，光沉在底部和两侧，顶部只有一根细边。 */
+  --studio-theme-send-capsule:
+    linear-gradient(180deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.035) 55%, rgba(255, 255, 255, 0.085) 100%),
+    rgba(255, 255, 255, 0.045);
+  --studio-theme-send-capsule-edge:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.075),
+    inset 0 1px 0 rgba(255, 255, 255, 0.09),
+    inset 0 -7px 9px -7px rgba(255, 255, 255, 0.16),
+    inset 7px 0 8px -8px rgba(255, 255, 255, 0.12),
+    inset -7px 0 8px -8px rgba(255, 255, 255, 0.12);
+  --studio-theme-send-disc:
+    radial-gradient(120% 90% at 50% 110%, rgba(255, 255, 255, 0.55), transparent 60%),
+    linear-gradient(180deg, #c9cdd3, #e4e7eb);
+  --studio-theme-send-disc-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35), inset 0 -1px 0 rgba(255, 255, 255, 0.6), 0 1px 2px rgba(0, 0, 0, 0.5);
+  --studio-theme-send-disc-ink: #16181b;
+  --studio-theme-send-idle-disc:
+    linear-gradient(180deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.035) 55%, rgba(255, 255, 255, 0.085) 100%),
+    rgba(255, 255, 255, 0.06);
+  --studio-theme-send-idle-ink: rgba(232, 234, 237, 0.4);
+  --studio-theme-selection-fill: var(--studio-matte-sel);
+  --studio-theme-selection-shadow: var(--studio-matte-sel-shadow);
+  --studio-theme-hover-shadow: none;
+  --studio-theme-raised-fill: var(--studio-matte-ctl);
+  --studio-theme-raised-hover: var(--studio-matte-hover);
+  --studio-theme-raised-shadow: none;
+  --studio-theme-panel-fill: var(--studio-matte-popover);
+  --studio-theme-primary-fill: var(--studio-matte-primary);
+  --studio-theme-primary-shadow: var(--studio-matte-primary-shadow);
+  --studio-theme-primary-hover-filter: brightness(1.05);
+  --studio-theme-primary-hover-shadow: var(--studio-matte-primary-shadow);
+  --studio-theme-scrim-filter: none;
+  --studio-theme-modal-shadow: var(--studio-ui-popover-shadow);
+  --studio-theme-text-secondary: var(--studio-matte-text-2);
+  --studio-theme-faint: var(--studio-matte-faint);
+  --studio-theme-option-border: var(--studio-matte-ctl-border);
+  --studio-theme-option-hover-border: var(--studio-matte-ctl-border);
+  --studio-theme-model-icon: var(--studio-matte-field);
+  --studio-theme-model-row: transparent;
+  --studio-theme-segment-fill: var(--studio-matte-field);
+  --studio-theme-segment-selected: rgba(255,255,255,.1);
+  --studio-theme-segment-ink: var(--studio-matte-sel-ink);
+  --studio-theme-placeholder: var(--studio-theme-node-empty);
+  --studio-theme-placeholder-icon: #2d323a;
+  --studio-theme-placeholder-border: var(--studio-node-border);
+  --studio-theme-placeholder-shimmer: var(--studio-matte-shimmer);
+  --studio-theme-node-shadow: none;
+  --studio-theme-input-shadow: none;
+  --studio-theme-loading-content: '';
+  --studio-theme-chrome-selected-ink: var(--studio-matte-sel-ink);
+  --studio-theme-upload-field: var(--studio-matte-field);
+  --studio-theme-dashed-border: var(--studio-matte-dash);
+}
+
+/* 组件样式的唯一材料入口。仅自由画布定义，其他页面使用组件原值回退。
+ * 文字、控件、媒体覆盖、状态色分开建模，禁止用全局滤镜或 SVG fill 覆盖。
+ */
+html[data-studio-free-theme],
+[data-studio-free-theme-scope],
+.studio-free-theme-scope--opal,
+.studio-free-theme-scope--soft-mist {
+  --studio-ui-text: var(--studio-text);
+  --studio-ui-muted: var(--studio-muted);
+  --studio-ui-disabled: color-mix(in srgb, var(--studio-muted) 48%, transparent);
+  --studio-ui-accent: var(--studio-accent);
+  --studio-ui-inverse: var(--studio-theme-inverse-text);
+  --studio-ui-surface: var(--studio-theme-panel-solid);
+  --studio-ui-panel-section: transparent;
+  --studio-ui-control: var(--studio-theme-control);
+  --studio-ui-hover: var(--studio-theme-control-hover);
+  /* 控件材料按「悬停 < 常驻 < 选中」逐级加厚；光只来自顶边，不使用固定位置光斑。 */
+  --studio-ui-selected:
+    var(--studio-theme-selection-fill, linear-gradient(180deg, var(--studio-theme-glass-sheen), transparent 58%), linear-gradient(var(--studio-theme-glass-selected), var(--studio-theme-glass-selected)));
+  --studio-ui-selected-ink: var(--studio-theme-glass-ink);
+  /* 按钮的层次只靠填充和顶边高光区分，不画描边环，避免小按钮悬停时变成“描边方框”。 */
+  --studio-ui-selected-shadow:
+    var(--studio-theme-selection-shadow, var(--studio-theme-glass-drop), inset 0 1px 0 var(--studio-theme-glass-rim), inset 0 -8px 10px -9px var(--studio-theme-glass-glow));
+  --studio-ui-hover-shadow: var(--studio-theme-hover-shadow, inset 0 1px 0 color-mix(in srgb, var(--studio-theme-glass-rim) 40%, transparent));
+  --studio-ui-raised:
+    var(--studio-theme-raised-fill, linear-gradient(180deg, var(--studio-theme-glass-sheen), transparent 60%), linear-gradient(var(--studio-theme-control), var(--studio-theme-control)));
+  --studio-ui-raised-shadow: var(--studio-theme-raised-shadow, inset 0 1px 0 color-mix(in srgb, var(--studio-theme-glass-rim) 50%, transparent));
+  --studio-ui-raised-hover:
+    var(--studio-theme-raised-hover, linear-gradient(180deg, var(--studio-theme-glass-sheen), transparent 60%), linear-gradient(var(--studio-theme-control-hover), var(--studio-theme-control-hover)));
+  --studio-ui-control-ink: var(--studio-muted);
+  --studio-ui-hover-ink: var(--studio-text);
+  --studio-ui-press: var(--studio-theme-control-active);
+  --studio-ui-field: var(--studio-theme-field);
+  --studio-ui-field-hover: var(--studio-theme-field-hover);
+  --studio-ui-field-shadow: var(--studio-theme-field-shadow);
+  --studio-ui-focus-ring: 0 0 0 3px var(--studio-theme-focus);
+  --studio-ui-row-hover: var(--studio-theme-row-hover);
+  --studio-ui-row-selected: var(--studio-theme-row-selected);
+  --studio-ui-popover: var(--studio-theme-popover);
+  --studio-ui-modal: var(--studio-theme-modal);
+  --studio-ui-popover-shadow:
+    var(--studio-theme-pop-shadow),
+    inset 0 1px 0 var(--studio-theme-pop-rim),
+    inset 0 0 0 1px var(--studio-theme-pop-edge);
+  --studio-ui-popover-blur: none;
+  --studio-ui-scrim: var(--studio-theme-scrim);
+  --studio-ui-primary: var(--studio-theme-primary-fill, linear-gradient(180deg, var(--studio-theme-primary-top), var(--studio-theme-primary-bottom)));
+  --studio-ui-primary-ink: var(--studio-theme-primary-ink);
+  --studio-ui-primary-shadow: var(--studio-theme-primary-shadow, inset 0 1px 0 var(--studio-theme-primary-rim), 0 6px 14px -8px var(--studio-theme-primary-glow));
+  --studio-ui-disabled-fill: var(--studio-theme-disabled);
+  --studio-ui-disabled-ink: var(--studio-theme-disabled-ink);
+  --studio-ui-border: var(--studio-border);
+  --studio-ui-border-strong: var(--studio-border-strong);
+  --studio-ui-scrollbar: var(--studio-theme-scroll-thumb);
+  --studio-ui-scrollbar-hover: var(--studio-theme-scroll-thumb-hover);
+  --studio-ui-shadow: var(--studio-theme-shadow);
+  --studio-ui-shine: color-mix(in srgb, var(--studio-theme-shine) 40%, transparent);
+  --studio-ui-popup-radius: 8px;
+  --studio-ui-panel-inset: 12px;
+  --studio-ui-control-radius: 8px;
+  --studio-ui-media-overlay: rgba(17, 21, 28, 0.72);
+  --studio-ui-media-overlay-hover: rgba(22, 28, 38, 0.84);
+  --studio-ui-media-overlay-border: rgba(255, 255, 255, 0.2);
+  --studio-ui-media-overlay-text: #f7f9fc;
+  --studio-ui-panel:
+    var(--studio-theme-panel-fill, radial-gradient(ellipse at 8% 0, var(--studio-theme-panel-reflection), transparent 62%), linear-gradient(var(--studio-theme-sheen), color-mix(in srgb, var(--studio-theme-shine) 12%, transparent), transparent 48%, var(--studio-theme-tint)), var(--studio-theme-panel-solid));
+  --studio-ui-blur: var(--studio-theme-glass-blur);
+  --studio-ui-saturation: var(--studio-theme-saturation);
+  /* 复用创作组件的既有材料契约，不让默认青色/深色穿透页面主题。 */
+  --create-surface-modal: var(--studio-theme-modal);
+  --create-surface-panel: var(--studio-surface);
+  --create-surface-canvas: var(--studio-bg);
+  --create-surface-input: var(--studio-theme-field);
+  --create-border-custom: var(--studio-border);
+  --create-border-dashed: var(--studio-theme-dashed-border, var(--studio-border-strong));
+  --gray-100: var(--studio-border);
+  --gray-200: var(--studio-border-strong);
+  --home-cyan: var(--studio-accent);
+  --home-grad-btn: var(--studio-ui-primary);
+  --home-grad: var(--home-grad-btn);
+  --gradient-primary: var(--home-grad-btn);
+  --gradient-accent: var(--home-grad-btn);
+  --gradient-warm: var(--home-grad-btn);
+  --studio-ui-text-gradient: linear-gradient(var(--studio-accent), var(--studio-accent));
+  --accent-50: color-mix(in srgb, var(--studio-accent) 5%, transparent);
+  --accent-100: color-mix(in srgb, var(--studio-accent) 10%, transparent);
+  --accent-200: color-mix(in srgb, var(--studio-accent) 16%, transparent);
+  --accent-300: color-mix(in srgb, var(--studio-accent) 28%, transparent);
+  --accent-400: color-mix(in srgb, var(--studio-accent) 42%, transparent);
+  --accent-500: var(--studio-accent);
+  --accent-600: var(--studio-accent);
+  --accent-700: var(--studio-accent);
+  --accent-800: var(--studio-accent);
+  --accent-900: var(--studio-accent);
+  --studio-ui-text-secondary: var(--studio-theme-text-secondary, var(--studio-text));
+  --studio-ui-faint: var(--studio-theme-faint, var(--studio-muted));
+  --studio-ui-control-border: var(--studio-theme-control-border);
+  --studio-ui-option-border: var(--studio-theme-option-border, var(--studio-border));
+  --studio-ui-ghost-border: var(--studio-border-strong);
+  --studio-ui-input-shadow: var(--studio-theme-input-shadow, var(--studio-theme-field-shadow));
+}
+
+html[data-studio-free-theme] :is(.ant-btn-primary, .home-grad-btn) {
+  --studio-ui-text-gradient: linear-gradient(var(--studio-theme-inverse-text), var(--studio-theme-inverse-text));
+}
+
+/* 主操作是同一块带色玻璃；禁用退为中性灰，不用半透明主色，避免看起来像“可点但淡了”。 */
+html[data-studio-free-theme] :is(
+  .studio-layer-split-panel__btn--primary,
+  .studio-audio-edit .studio-audio-edit__submit,
+  .studio-subject .studio-subject__submit,
+  .studio-video-transform-dock > .studio-video-transform-dock__submit,
+  .studio-video-subtitle-toolbar .studio-canvas-tooltip-trigger > .studio-video-subtitle-toolbar__submit,
+  .studio-video-subtitle-toolbar .studio-video-subtitle-toolbar__submit,
+  .studio-runtime-workspace__primary
+) {
+  color: var(--studio-ui-primary-ink);
+  border-color: transparent;
+  background: var(--studio-ui-primary);
+  box-shadow: var(--studio-ui-primary-shadow);
+}
+
+html[data-studio-free-theme] :is(
+  .studio-layer-split-panel__btn--primary,
+  .studio-audio-edit .studio-audio-edit__submit,
+  .studio-subject .studio-subject__submit,
+  .studio-video-transform-dock > .studio-video-transform-dock__submit,
+  .studio-video-subtitle-toolbar .studio-canvas-tooltip-trigger > .studio-video-subtitle-toolbar__submit,
+  .studio-video-subtitle-toolbar .studio-video-subtitle-toolbar__submit,
+  .studio-runtime-workspace__primary
+):hover:not(:disabled) {
+  color: var(--studio-ui-primary-ink);
+  background: var(--studio-ui-primary);
+  box-shadow: var(--studio-theme-primary-hover-shadow, var(--studio-ui-primary-shadow), 0 10px 22px -14px var(--studio-theme-primary-glow));
+  filter: var(--studio-theme-primary-hover-filter, brightness(1.06));
+}
+
+html[data-studio-free-theme] :is(
+  .studio-layer-split-panel__btn--primary,
+  .studio-audio-edit .studio-audio-edit__submit,
+  .studio-subject .studio-subject__submit,
+  .studio-video-transform-dock > .studio-video-transform-dock__submit,
+  .studio-video-subtitle-toolbar .studio-canvas-tooltip-trigger > .studio-video-subtitle-toolbar__submit,
+  .studio-video-subtitle-toolbar .studio-video-subtitle-toolbar__submit,
+  .studio-runtime-workspace__primary
+):disabled,
+html[data-studio-free-theme] .ant-btn-primary:is(:disabled, .ant-btn-disabled) {
+  opacity: 1;
+  color: var(--studio-ui-disabled-ink) !important;
+  border-color: transparent !important;
+  background: var(--studio-ui-disabled-fill) !important;
+  box-shadow: none;
+  filter: none;
+}
+
+html[data-studio-free-theme] .studio-layer-split-panel__btn--primary :is(.studio-credit-amount, .studio-credit-amount b) {
+  color: inherit;
+}
+
+html[data-studio-free-theme] .ant-btn-primary:not(:disabled):not(.ant-btn-disabled) {
+  box-shadow: var(--studio-ui-primary-shadow);
+}
+
+html[data-studio-free-theme] .ant-btn-primary:not(:disabled):not(.ant-btn-disabled):hover {
+  box-shadow: var(--studio-theme-primary-hover-shadow, var(--studio-ui-primary-shadow), 0 10px 22px -14px var(--studio-theme-primary-glow));
+  filter: var(--studio-theme-primary-hover-filter, brightness(1.06));
+}
+
+/* 表面材料由挂载层级决定：组件只消费 --studio-ui-surface，浮层与弹窗在容器上换成更不透明的材料，
+   背后画布内容不会透字；新增浮层只要挂在 antd Popover/Dropdown/Modal 内即可自动获得。 */
+html[data-studio-free-theme] :is(.ant-popover, .ant-dropdown),
+[data-studio-free-theme-scope] :is(.ant-popover, .ant-dropdown) {
+  --studio-ui-surface: var(--studio-ui-popover);
+  --studio-ui-panel: var(--studio-ui-popover);
+}
+
+html[data-studio-free-theme] .ant-modal-root,
+[data-studio-free-theme-scope] .ant-modal-root {
+  --studio-ui-surface: var(--studio-ui-modal);
+  --studio-ui-panel: var(--studio-ui-modal);
+}
+
+html[data-studio-free-theme] .ant-modal-root .ant-modal-mask {
+  background: var(--studio-ui-scrim);
+  backdrop-filter: var(--studio-theme-scrim-filter, blur(6px) saturate(120%));
+  -webkit-backdrop-filter: var(--studio-theme-scrim-filter, blur(6px) saturate(120%));
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-free-theme-switch.ant-btn {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  color: var(--studio-text);
+  border: 1px solid transparent;
+  background: var(--studio-ui-raised);
+  box-shadow: var(--studio-ui-raised-shadow);
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-free-theme-switch.ant-btn:hover {
+  color: var(--studio-text);
+  border-color: transparent;
+  background:
+    linear-gradient(180deg, var(--studio-theme-glass-sheen), transparent 60%),
+    var(--studio-theme-control-hover);
+  box-shadow: var(--studio-ui-raised-shadow);
+}
+
+.studio-free-theme-switch__icon {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.studio-free-theme-switch__icon small {
+  position: absolute;
+  right: -7px;
+  top: -6px;
+  min-width: 12px;
+  padding: 0 2px;
+  border-radius: 999px;
+  color: var(--studio-theme-inverse-text);
+  background: var(--studio-accent);
+  font-size: 7px;
+  font-weight: 700;
+  line-height: 12px;
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free,
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free .studio-canvas {
+  background: var(--studio-graph-background, var(--studio-theme-canvas));
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free {
+  --studio-chrome-label-size: var(--studio-ui-font-control);
+  --studio-composer-chip-size: var(--studio-ui-font-control);
+  --studio-composer-prompt-size: var(--studio-ui-font-control);
+  --studio-composer-placeholder-size: var(--studio-ui-font-control);
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .canvas-agent-composer :is(textarea, .canvas-agent-composer__typewriter) {
+  font-size: 14px;
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free :is(.react-flow, .react-flow__background) {
+  --xy-background-color: transparent;
+  --xy-background-color-default: transparent;
+  --xy-background-color-props: transparent;
+  background-color: transparent;
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free .react-flow__background {
+  -webkit-mask-image: linear-gradient(transparent, #000 10%, #000 88%, transparent);
+  mask-image: linear-gradient(transparent, #000 10%, #000 88%, transparent);
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free .react-flow__background .studio-canvas-grid-dot {
+  fill: var(--studio-theme-grid);
+  /* Demo uses a constant .8px dot while only the 24px pitch follows canvas zoom. */
+  r: 0.8px;
+}
+
+/* 顶部：左侧无边框身份胶囊，右侧保持独立操作按钮。 */
+html[data-studio-free-theme] .studio-topbar__tools {
+  min-width: 0;
+  display: flex;
+  justify-content: center;
+}
+
+html[data-studio-free-theme] .studio-topbar__tools .studio-canvas-toolbar {
+  position: static;
+  transform: none;
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free .studio-topbar {
+  height: 56px;
+  padding-top: 8px;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free .studio-workspace__body {
+  height: calc(100dvh - 56px);
+}
+
+@media (max-width: 1000px) {
+  :is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free .studio-topbar {
+    height: 104px;
+    flex-wrap: wrap;
+    gap: 0 8px;
+  }
+  html[data-studio-free-theme] .studio-topbar__tools {
+    order: 3;
+    flex-basis: 100%;
+  }
+  :is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free .studio-workspace__body {
+    height: calc(100dvh - 104px);
+  }
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free .studio-topbar__project {
+  min-height: 40px;
+  gap: 10px;
+  padding: 3px 14px 3px 8px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--studio-theme-header-panel);
+  box-shadow: none;
+  backdrop-filter: blur(var(--studio-theme-header-blur));
+  -webkit-backdrop-filter: blur(var(--studio-theme-header-blur));
+}
+
+/* 顶栏中间工具条与左侧身份胶囊同一块底色。投影只留一层贴边的短阴影，不用浮层玻璃的大投影。 */
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free .studio-topbar .studio-canvas-toolbar {
+  border: 1px solid color-mix(in srgb, var(--studio-text) 18%, transparent);
+  background: var(--studio-theme-header-panel);
+  box-shadow:
+    var(--studio-ui-raised-shadow),
+    0 1px 2px color-mix(in srgb, var(--studio-theme-shadow) 50%, transparent),
+    0 10px 22px -16px var(--studio-theme-shadow);
+  backdrop-filter: blur(var(--studio-theme-header-blur));
+  -webkit-backdrop-filter: blur(var(--studio-theme-header-blur));
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free .studio-topbar__aid-trigger {
+  width: auto;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border-radius: 999px;
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free .studio-topbar__aid-logo {
+  --aid-logo-color: var(--studio-text);
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free .studio-topbar__project-chevron {
+  color: var(--studio-text);
+  font-size: 10px;
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free .studio-topbar__project-divider {
+  width: 1px;
+  height: 22px;
+  flex: 0 0 1px;
+  background: var(--studio-border);
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free .studio-title-input.ant-input {
+  padding-inline: 0;
+  color: var(--studio-text);
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free .studio-title-input.ant-input:hover,
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free .studio-title-input.ant-input:focus {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free .studio-topbar__right > .ant-btn,
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free .studio-topbar__ai-create {
+  border: 1px solid transparent;
+  border-radius: 999px;
+  color: var(--studio-text);
+  background:
+    linear-gradient(180deg, var(--studio-theme-glass-sheen), transparent 60%),
+    var(--studio-theme-tint);
+  box-shadow: var(--studio-ui-raised-shadow);
+  backdrop-filter: blur(14px) saturate(var(--studio-theme-saturation));
+  -webkit-backdrop-filter: blur(14px) saturate(var(--studio-theme-saturation));
+}
+
+/* 悬停只让同一片玻璃更亮，不退化成纯色填充。 */
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free .studio-topbar__right > .ant-btn:hover,
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free .studio-topbar__right > .ant-btn:focus-visible,
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free .studio-topbar__ai-create:hover,
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free .studio-topbar__ai-create:focus-visible {
+  color: var(--studio-text) !important;
+  border-color: transparent !important;
+  background:
+    linear-gradient(180deg, var(--studio-theme-glass-sheen), transparent 60%),
+    var(--studio-theme-control-hover) !important;
+  box-shadow: var(--studio-ui-raised-shadow), 0 8px 18px -12px var(--studio-theme-shadow-strong);
+  transform: translateY(-1px);
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free .studio-topbar__ai-create.home-composer-flow::before,
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free .studio-node-agent-dock__box.home-composer-flow::before {
+  display: none;
+}
+
+html[data-studio-free-theme] .studio-loading-screen {
+  color: var(--studio-text);
+  background: var(--studio-theme-canvas);
+}
+
+html[data-studio-free-theme] .studio-loading-screen__brand,
+html[data-studio-free-theme] .studio-loading-screen__brand span {
+  color: var(--studio-text);
+}
+
+html[data-studio-free-theme] .studio-loading-screen .ant-skeleton {
+  padding: 28px;
+  border: 1px solid var(--studio-border);
+  border-radius: var(--studio-theme-radius);
+  background: var(--studio-theme-panel-solid);
+  box-shadow: 0 16px 40px var(--studio-theme-shadow);
+}
+
+/* 模型菜单是列表不是卡片墙：行间距收紧，悬停浅底，选中行底 + 强调色勾。 */
+html[data-studio-free-theme] .studio-model-menu {
+  background: transparent;
+}
+
+html[data-studio-free-theme] .studio-model-menu__list {
+  gap: 2px;
+}
+
+html[data-studio-free-theme] .studio-model-menu__list > button {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+
+html[data-studio-free-theme] .studio-model-menu__list > button:not(.is-active):hover {
+  background: var(--studio-ui-row-hover);
+}
+
+html[data-studio-free-theme] .studio-model-menu__list > button {
+  min-height: 52px;
+  border-radius: 10px;
+}
+
+html[data-studio-free-theme] .studio-model-menu__list > button.is-active {
+  border-color: transparent;
+  background: var(--studio-ui-row-selected);
+  box-shadow: none;
+}
+
+html[data-studio-free-theme] .studio-model-menu__list > button.is-active:hover {
+  background: var(--studio-theme-selection-fill, color-mix(in srgb, var(--studio-ui-row-selected), var(--studio-ui-row-hover)));
+}
+
+html[data-studio-free-theme] .studio-model-menu__list > button.is-active strong {
+  color: var(--studio-ui-selected-ink);
+}
+
+html[data-studio-free-theme] :is(.canvas-skill-picker__check, .studio-canvas-dropdown-menu__check) {
+  color: var(--studio-accent);
+  font-size: 13px;
+}
+
+/* 图标底座是平的：只留一层浅底，不描边、不投影，列表才不会看起来像一排按钮。 */
+html[data-studio-free-theme] :is(.studio-model-menu__list > button > i, .canvas-skill-glyph) {
+  border-color: transparent;
+  border-radius: 9px;
+  background: var(--studio-theme-model-icon, var(--studio-theme-control-hover));
+  box-shadow: none;
+}
+
+html[data-studio-free-theme] .studio-model-menu__tabs button.is-active {
+  color: var(--studio-ui-selected-ink);
+  background: var(--studio-theme-segment-selected, var(--studio-ui-row-selected));
+}
+
+html[data-studio-free-theme] .studio-composer-popover--canvas .studio-params-panel {
+  width: min(var(--studio-params-panel-width, 360px), calc(100vw - 32px));
+  padding: var(--studio-params-panel-padding, 16px);
+}
+
+html[data-studio-free-theme] :is(.studio-params-panel__group--ratios, .studio-params-panel__group--choices) > div {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(48px, 1fr));
+}
+html[data-studio-free-theme] :is(.studio-params-panel__group--ratios, .studio-params-panel__group--choices) button {
+  min-width: 0;
+  min-height: 40px;
+  padding-inline: 4px;
+  border-radius: 9px;
+}
+html[data-studio-free-theme] .studio-params-panel__group--ratios button {
+  flex-direction: column;
+  min-height: 49px;
+}
+.studio-params-panel__fixed-count {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--studio-ui-muted);
+  font-size: 12px;
+}
+
+html[data-studio-free-theme] .studio-params-panel__group--segmented > div {
+  padding: 3px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: var(--studio-ui-field);
+  box-shadow: var(--studio-ui-field-shadow);
+}
+
+html[data-studio-free-theme] .studio-params-panel__group--segmented button {
+  flex: 1 1 64px;
+  min-height: 30px;
+  border-color: transparent;
+  border-radius: 8px;
+  background: transparent;
+}
+
+html[data-studio-free-theme] .studio-canvas-tool.ant-btn {
+  border-radius: 999px;
+}
+
+html[data-studio-free-theme] .studio-composer-chip--model,
+html[data-studio-free-theme] .studio-composer-chip--mode,
+html[data-studio-free-theme] .studio-composer-chip--params {
+  border-color: transparent !important;
+  background: var(--studio-ui-raised) !important;
+  box-shadow: var(--studio-ui-raised-shadow);
+}
+
+html[data-studio-free-theme] :is(.studio-composer-chip--model, .studio-composer-chip--mode, .studio-composer-chip--params):hover:not(:disabled):not(.is-active):not(.ant-popover-open):not([aria-expanded='true']) {
+  color: var(--studio-ui-hover-ink);
+  background: var(--studio-ui-raised-hover) !important;
+  box-shadow: var(--studio-ui-raised-shadow);
+}
+
+/* 侧栏、画布助手与节点弹窗：与节点工具同一套哑光实底。大面积容器叠反光、色调渐变和背景模糊会发灰发花，
+ * 这里只保留一层实底；内部卡片、输入区和按钮按「凹槽 < 常驻 < 悬停 < 选中」靠明度分层。 */
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free :is(
+  .studio-left-panel,
+  .studio-right-panel,
+  .studio-node-dialog
+) {
+  --studio-floating: var(--studio-theme-chrome);
+  --studio-ui-panel: var(--studio-theme-chrome);
+  --studio-ui-surface: var(--studio-theme-chrome-well);
+  --studio-ui-blur: 0px;
+  --studio-ui-border: var(--studio-theme-chrome-edge);
+  --studio-ui-shine: transparent;
+  --studio-ui-control: var(--studio-theme-chrome-hover);
+  --studio-ui-hover: var(--studio-theme-chrome-press);
+  --studio-ui-hover-ink: var(--studio-theme-chrome-hover-ink);
+  --studio-ui-hover-shadow: none;
+  --studio-ui-press: var(--studio-theme-chrome-on);
+  --studio-ui-raised: transparent;
+  --studio-ui-raised-hover: var(--studio-theme-chrome-press);
+  --studio-ui-raised-shadow: none;
+  --studio-ui-selected: var(--studio-theme-chrome-on);
+  --studio-ui-selected-ink: var(--studio-theme-chrome-selected-ink, var(--studio-theme-chrome-ink));
+  --studio-ui-selected-shadow: none;
+}
+
+/* 自由画布右栏外层只是定位壳（组件样式里即透明），材质只画在内容层，避免两层圆角不同的底叠在一起。 */
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free :is(
+  .studio-left-panel,
+  .studio-right-panel:not(.studio-right-panel--free),
+  .studio-right-panel--free > .studio-right-panel__content,
+  .studio-node-dialog
+) {
+  border-color: var(--studio-theme-chrome-edge);
+  background: var(--studio-theme-chrome);
+  box-shadow: var(--studio-theme-chrome-shadow);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free .canvas-agent-composer {
+  background: var(--studio-theme-chrome-well);
+  box-shadow: none;
+}
+
+/* 节点工具外壳：浮动工具条、空节点下一步条、节点输入面板，以及工具栏点开的各功能条 / 面板，统一哑光实底。
+   外壳在此重定义控件与面板材料，内部按钮、凹槽和嵌套面板继续消费同名变量即可得到同一套简约态；
+   新增工具外壳只需加入此列表。浮层挂在画布根上并自带浮层材料，不受影响。 */
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free :is(
+  .studio-canvas-glass-toolbar,
+  .studio-node-media-toolbar,
+  .studio-selection-toolbar,
+  .studio-group-toolbar,
+  .studio-grid-storyboard-toolbar,
+  .studio-node-agent-dock__box,
+  .studio-image-tool-bar,
+  .studio-image-mask-bottom--repaint,
+  .studio-layer-split-top,
+  .studio-layer-split-panel,
+  .studio-layer-compose-panel,
+  .studio-touch-edit-bar,
+  .studio-touch-edit-region-menu,
+  .studio-touch-edit-content,
+  .studio-video-subtitle-toolbar,
+  .studio-video-clip-dock,
+  .studio-video-transform-dock
+) {
+  --studio-ui-panel: var(--studio-theme-chrome);
+  --studio-ui-surface: var(--studio-theme-chrome-well);
+  --studio-ui-blur: 0px;
+  --studio-ui-hover: var(--studio-theme-chrome-hover);
+  --studio-ui-hover-ink: var(--studio-theme-chrome-hover-ink);
+  --studio-ui-hover-shadow: none;
+  --studio-ui-press: var(--studio-theme-chrome-press);
+  --studio-ui-raised: transparent;
+  --studio-ui-raised-hover: var(--studio-theme-chrome-hover);
+  --studio-ui-raised-shadow: none;
+  --studio-ui-selected: var(--studio-theme-chrome-on);
+  --studio-ui-selected-ink: var(--studio-theme-chrome-selected-ink, var(--studio-theme-chrome-ink));
+  --studio-ui-selected-shadow: none;
+  border-color: var(--studio-theme-chrome-edge);
+  background: var(--studio-theme-chrome);
+  box-shadow: var(--studio-theme-chrome-shadow);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free :is(
+  .studio-node-media-toolbar,
+  .studio-selection-toolbar,
+  .studio-group-toolbar,
+  .studio-grid-storyboard-toolbar
+) {
+  --studio-ui-control-ink: var(--studio-theme-chrome-tool-ink);
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free .studio-node-empty-next-steps__rail {
+  --studio-ui-control-ink: var(--studio-theme-chrome-muted);
+  --studio-ui-hover-ink: var(--studio-theme-chrome-tab-hover-ink);
+}
+
+/* 输入面板内嵌的工具面板以面板本身为外壳，不再叠第二层底色和描边。 */
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free .studio-node-agent-dock__box :is(.studio-emotion-panel, .studio-audio-edit) {
+  border-color: transparent;
+  background: transparent;
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free .studio-node-agent-dock__box .studio-video-clip {
+  border-color: var(--studio-theme-chrome-edge);
+  box-shadow: none;
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free :is(
+  .studio-canvas-glass-toolbar,
+  .studio-node-agent-dock__box
+) :is(
+  .studio-canvas-glass-toolbar__btn,
+  .studio-composer-chip,
+  .studio-composer__assistant,
+  .studio-composer__upload,
+  .studio-composer__expand,
+  .studio-composer__refs > button
+) {
+  transition: background-color 0.16s ease, color 0.16s ease;
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free :is(
+  .studio-canvas-glass-toolbar,
+  .studio-node-agent-dock__box
+) :is(
+  .studio-canvas-glass-toolbar__btn,
+  .studio-composer-chip,
+  .studio-composer__assistant,
+  .studio-composer__upload,
+  .studio-composer__expand,
+  .studio-composer__refs > button
+):active:not(:disabled):not(.is-active):not(.ant-dropdown-open):not(.ant-popover-open):not([aria-expanded='true']):not([aria-pressed='true']) {
+  background: var(--studio-ui-press) !important;
+}
+
+/* 输入面板底部的模型 / 模式 / 参数：简约无底，文字与正文同色。 */
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free .studio-node-agent-dock__box :is(
+  .studio-composer-chip--model,
+  .studio-composer-chip--mode,
+  .studio-composer-chip--params
+) {
+  color: var(--studio-theme-chrome-ink);
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free .studio-node-agent-dock__box :is(
+  .studio-composer-chip--model,
+  .studio-composer-chip--mode,
+  .studio-composer-chip--params
+):hover:not(:disabled) {
+  color: var(--studio-theme-chrome-ink);
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free .studio-node-agent-dock__box :is(
+  .studio-composer-chip--model,
+  .studio-composer-chip--mode,
+  .studio-composer-chip--params
+) .studio-composer-chip__arrow {
+  color: var(--studio-theme-chrome-ink);
+  opacity: 0.55;
+}
+
+/* 发送组（画布内所有工具面板）：积分与发送共用一枚玻璃胶囊，发送是一块磨砂亮盘；积分不足仍走红色警示。 */
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free .studio-canvas .studio-credit-send:not(.is-insufficient) .composer-send-button.has-leading-content {
+  background: var(--studio-theme-send-capsule);
+  box-shadow: var(--studio-theme-send-capsule-edge);
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free .studio-canvas .studio-credit-send .composer-send-button.has-leading-content {
+  height: 34px;
+  padding: 3px 3px 3px 11px;
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free .studio-canvas .studio-credit-send .composer-send-button__glyph {
+  border-radius: 999px;
+  background: var(--studio-theme-send-disc);
+  box-shadow: var(--studio-theme-send-disc-shadow);
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free .studio-canvas .studio-credit-send .composer-send-button__glyph > .composer-send-button__disc {
+  fill: transparent;
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free .studio-canvas .studio-credit-send .composer-send-button__glyph > .composer-send-button__mark {
+  fill: var(--studio-theme-send-disc-ink);
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free .studio-canvas .studio-credit-send .composer-send-button__glyph.is-empty {
+  background: var(--studio-theme-send-idle-disc);
+  box-shadow: var(--studio-theme-send-capsule-edge);
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free .studio-canvas .studio-credit-send .composer-send-button__glyph.is-empty > .composer-send-button__mark {
+  fill: var(--studio-theme-send-idle-ink);
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free .studio-canvas .studio-credit-send .studio-credit-amount {
+  gap: 8px;
+  padding-right: 0;
+  color: var(--studio-theme-chrome-muted);
+  font-size: 12px;
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free .studio-canvas .studio-credit-send:not(.is-insufficient) .studio-credit-amount b {
+  color: var(--studio-theme-chrome-ink);
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free .studio-canvas .studio-credit-send .studio-credit-amount b {
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free :is(
+  .studio-panel-heading strong,
+  .studio-node-card__heading strong,
+  .studio-node-card__empty strong,
+  .studio-script-workspace__agent-empty strong
+) {
+  color: var(--studio-text);
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free :is(
+  .studio-start-panel .ant-collapse-header,
+  .studio-left-collapse .ant-collapse-header,
+  .studio-right-panel__content .ant-collapse-header
+) {
+  color: var(--studio-text) !important;
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free :is(
+  .studio-start-grid > div button,
+  .studio-library-card,
+  .studio-task,
+  .studio-focus-card,
+  .studio-delivery-summary,
+  .studio-panel-section,
+  .studio-node-list button
+) {
+  color: var(--studio-text);
+  border-color: var(--studio-theme-control-border);
+  background: var(--studio-theme-control);
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free :is(
+  .studio-left-panel .ant-input,
+  .studio-right-panel .ant-input,
+  .studio-left-panel .ant-input-affix-wrapper,
+  .studio-right-panel .ant-input-affix-wrapper,
+  .studio-left-panel .ant-select-selector,
+  .studio-right-panel .ant-select-selector
+) {
+  color: var(--studio-text) !important;
+  border-color: transparent !important;
+  background: var(--studio-ui-field) !important;
+  box-shadow: var(--studio-ui-field-shadow) !important;
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free :is(
+  .studio-left-panel .ant-input,
+  .studio-right-panel .ant-input,
+  .studio-left-panel .ant-input-affix-wrapper,
+  .studio-right-panel .ant-input-affix-wrapper,
+  .studio-left-panel .ant-select-selector,
+  .studio-right-panel .ant-select-selector
+):hover {
+  background: var(--studio-ui-field-hover) !important;
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free :is(
+  .studio-left-panel .ant-input,
+  .studio-right-panel .ant-input,
+  .studio-left-panel .ant-input-affix-wrapper,
+  .studio-right-panel .ant-input-affix-wrapper,
+  .studio-left-panel .ant-select-selector,
+  .studio-right-panel .ant-select-selector
+):focus-within {
+  border-color: transparent !important;
+  background: var(--studio-ui-field-hover) !important;
+  box-shadow: var(--studio-ui-field-shadow), var(--studio-ui-focus-ring) !important;
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free :is(.studio-left-panel, .studio-right-panel) .ant-input-affix-wrapper > .ant-input {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free :is(
+  .studio-left-panel .ant-tabs-tab,
+  .studio-right-panel .ant-tabs-tab
+) {
+  color: var(--studio-muted);
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free :is(
+  .studio-left-panel .ant-tabs-tab:hover,
+  .studio-right-panel .ant-tabs-tab:hover,
+  .studio-left-panel .ant-tabs-tab-active .ant-tabs-tab-btn,
+  .studio-right-panel .ant-tabs-tab-active .ant-tabs-tab-btn
+) {
+  color: var(--studio-text) !important;
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free :is(
+  .studio-left-panel .ant-tabs-ink-bar,
+  .studio-right-panel .ant-tabs-ink-bar
+) {
+  background: var(--studio-accent);
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free :is(
+  .studio-panel-help--lead,
+  .studio-chat-message--user,
+  .studio-node-list__icon,
+  .studio-impact-list span,
+  .studio-delivery-summary div
+) {
+  color: var(--studio-text);
+  background: var(--studio-theme-control);
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free :is(
+  .studio-chat-message__choices button,
+  .studio-chat-message__actions button
+) {
+  color: var(--studio-text);
+  border-color: var(--studio-theme-control-border);
+  background: var(--studio-theme-control);
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free :is(
+  .studio-chat-message__choices button,
+  .studio-chat-message__actions button
+):hover {
+  border-color: var(--studio-border-strong);
+  background: var(--studio-theme-control-hover);
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free :is(
+  .studio-start-grid > div button,
+  .studio-node-list button
+):hover {
+  color: var(--studio-text);
+  border-color: var(--studio-border-strong);
+  background: var(--studio-theme-control-hover);
+}
+
+/* 节点主体保持安静，玻璃只出现在被操作的浮层和控件上。 */
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free :is(.studio-node-media-toolbar, .studio-grid-storyboard-toolbar, .studio-selection-toolbar, .studio-group-toolbar) {
+  gap: 1px;
+  padding: 5px;
+  border-radius: 999px;
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free :is(
+  .studio-canvas-glass-toolbar__btn,
+  .studio-composer-chip,
+  .studio-composer__assistant,
+  .studio-composer__upload,
+  .studio-composer__expand,
+  .studio-emotion-roles button,
+  .studio-emotion-close,
+  .studio-emotion-panel select
+) {
+  border: 1px solid transparent;
+  border-radius: var(--studio-ui-control-radius);
+  background: transparent;
+  box-shadow: none;
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free .studio-canvas-glass-toolbar__btn--labeled {
+  height: 32px;
+  gap: 5px;
+  padding: 0 7px;
+  font-size: var(--studio-ui-font-control);
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free .studio-node-agent-dock__box {
+  container: studio-node-composer / inline-size;
+  border-radius: var(--studio-theme-radius);
+  padding: var(--studio-node-composer-padding, 10px 11px 9px);
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free .studio-node-agent-dock__box .studio-composer-chip {
+  height: 30px;
+  min-height: 30px;
+  padding-inline: 9px;
+  font-size: var(--studio-composer-chip-size);
+}
+
+/* 提示区和底栏之间只留 composer 的列间距。再加 margin / padding 会在文字和工具栏中间空出一条。 */
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free .studio-node-agent-dock__box .studio-composer__footer {
+  margin-top: 0;
+  padding-top: 0;
+  gap: 6px;
+  border-top: 0;
+  box-shadow: none;
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .canvas-agent-composer {
+  border-color: transparent;
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free .studio-node-agent-dock__box .studio-composer__footer .studio-composer-chip {
+  padding-inline: 7px;
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free .studio-node-agent-dock__box .studio-composer__tools {
+  gap: 3px;
+}
+
+/* 多功能输入区内的操作页签：底座是凹进去的井，选中页是浮起的一片玻璃，与工具栏选中态同一材料。 */
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free :is(
+  .studio-image-ai-panel__tabs,
+  .studio-image-ai-panel__segment,
+  .studio-video-depth-panel__resolutions,
+  .studio-image-multi-angle-tabs,
+  .studio-image-lighting-viewport__tabs
+) {
+  border: 1px solid transparent;
+  background: var(--studio-ui-field);
+  box-shadow: var(--studio-ui-field-shadow);
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free :is(
+  .studio-image-ai-panel__tabs button,
+  .studio-image-ai-panel__segment button,
+  .studio-video-depth-panel__resolutions button,
+  .studio-image-multi-angle-tabs button,
+  .studio-image-lighting-viewport__tabs button
+) {
+  border: 1px solid transparent;
+  background: transparent;
+  box-shadow: none;
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free :is(
+  .studio-image-ai-panel__tabs button,
+  .studio-image-ai-panel__segment button,
+  .studio-video-depth-panel__resolutions button,
+  .studio-image-multi-angle-tabs button,
+  .studio-image-lighting-viewport__tabs button
+):hover:not(:disabled):not(.is-active):not([aria-selected='true']) {
+  color: var(--studio-text);
+  background: var(--studio-ui-row-hover);
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free :is(
+  .studio-image-ai-panel__tabs button.is-active,
+  .studio-image-ai-panel__segment button.is-active,
+  .studio-video-depth-panel__resolutions button[aria-selected='true'],
+  .studio-image-multi-angle-tabs button.is-active,
+  .studio-image-lighting-viewport__tabs button.is-active
+) {
+  color: var(--studio-ui-selected-ink);
+  border-color: transparent;
+  background: var(--studio-ui-selected);
+  box-shadow: var(--studio-ui-selected-shadow);
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free :is(.studio-node-agent-dock__box--lighting, .studio-node-agent-dock__box--multi-angle) {
+  padding: 0;
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free .studio-node-card {
+  border-radius: var(--studio-theme-radius);
+  color: var(--studio-text);
+  border-color: var(--studio-node-border);
+  background: linear-gradient(150deg, var(--studio-theme-node-reflection), transparent 46%), var(--studio-theme-node);
+  box-shadow: var(--studio-theme-node-shadow, 0 14px 30px -20px var(--studio-theme-shadow-strong), inset 0 1px rgba(255, 255, 255, 0.18));
+  /* 背景、边框、投影都吃主题变量。插值时内层预览已换色，卡片内边距会闪出一圈深色边。 */
+  transition: transform 160ms ease;
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free .studio-node-card:is(.is-selected, .studio-node-card--generating) {
+  border-color: var(--studio-node-border-strong);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--studio-accent) 12%, transparent), 0 20px 42px -24px var(--studio-theme-shadow-strong);
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free .studio-node-card__header:hover {
+  background: linear-gradient(180deg, var(--studio-theme-panel-solid), transparent 82%);
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free :is(
+  .studio-node-card__heading strong,
+  .studio-node-card__text-preview p,
+  .studio-node-fulltext-modal__content,
+  .studio-node-card__empty button,
+  .studio-node-card__text-preview button
+) {
+  color: var(--studio-text);
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free .studio-node-card__preview {
+  background: var(--studio-theme-media);
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free :is(
+  .studio-image-pending-preview__title,
+  .studio-image-pending-preview__action,
+  .studio-node-card__storyboard-preview strong,
+  .studio-node-card__storyboard-steps > span.is-active
+) {
+  color: var(--studio-text);
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free :is(
+  .studio-node-external-title__chip,
+  .studio-image-pending-preview__action,
+  .studio-node-card__storyboard-steps i,
+  .studio-node-card__storyboard-workflow > button
+) {
+  color: var(--studio-text);
+  border-color: transparent;
+  background: var(--studio-ui-raised);
+  box-shadow: var(--studio-ui-raised-shadow);
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free :is(
+  .studio-image-pending-preview__action,
+  .studio-node-card__storyboard-workflow > button
+):hover {
+  color: var(--studio-text);
+  border-color: transparent;
+  background:
+    linear-gradient(180deg, var(--studio-theme-glass-sheen), transparent 60%),
+    var(--studio-theme-control-hover);
+  box-shadow: var(--studio-ui-raised-shadow);
+}
+
+/* 导演台入口叠在媒体画面上，使用独立覆盖材料，不能继承月白的深色正文。 */
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free .studio-node-card__director-open {
+  color: var(--studio-ui-media-overlay-text);
+  border-color: var(--studio-ui-media-overlay-border);
+  background: var(--studio-ui-media-overlay);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28), inset 0 1px rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(12px) saturate(120%);
+  -webkit-backdrop-filter: blur(12px) saturate(120%);
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free .studio-node-card__director-open:hover {
+  color: var(--studio-ui-media-overlay-text);
+  border-color: color-mix(in srgb, var(--studio-ui-media-overlay-text) 34%, transparent);
+  background: var(--studio-ui-media-overlay-hover);
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free .studio-node-card--image-only,
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free .studio-node-card--image-only:has(.studio-image-pending-preview),
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free .studio-node-card--image-only:has(.studio-node-empty-preview) {
+  background: var(--studio-theme-node);
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free .studio-node-handle > span {
+  color: var(--studio-muted);
+  border-color: var(--studio-theme-control-border);
+  background: var(--studio-theme-panel-solid);
+  box-shadow: 0 4px 14px var(--studio-theme-shadow), inset 0 1px rgba(255, 255, 255, 0.16);
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free .studio-node-shell:is(:hover, .is-selected, :has(.studio-node-card.is-selected)) .studio-node-handle > span {
+  color: var(--studio-text);
+  border-color: var(--studio-border-strong);
+  background: var(--studio-theme-panel-solid);
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free :is(
+  .studio-node-card--placeholder,
+  .studio-node-card--image-only.studio-node-card--placeholder,
+  .studio-node-empty-preview,
+  .studio-node-empty-preview__stage,
+  .studio-node-card__empty
+) {
+  background: var(--studio-theme-node);
+  box-shadow: none;
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free :is(
+  .studio-node-empty-preview__watermark,
+  .studio-node-card__hero-icon
+) {
+  color: var(--studio-muted);
+  opacity: var(--studio-theme-node-icon-opacity, 0.42);
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free :is(
+  .studio-node-empty-preview__upload,
+  .studio-node-card__empty button,
+  .studio-node-card__text-preview button
+) {
+  min-height: 30px;
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--studio-text);
+  border-color: var(--studio-theme-control-border);
+  background: transparent;
+  box-shadow: none;
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free :is(
+  .studio-node-empty-preview__upload,
+  .studio-node-card__empty button,
+  .studio-node-card__text-preview button
+):hover {
+  color: var(--studio-text);
+  border-color: transparent;
+  background: var(--studio-ui-hover);
+  box-shadow: var(--studio-ui-hover-shadow);
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free .studio-node-empty-next-steps__rail.studio-canvas-glass-toolbar {
+  gap: 4px;
+  padding: 4px 6px;
+  border-radius: 999px;
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free .studio-node-empty-next-steps__chip.studio-composer-chip {
+  height: 30px;
+  min-height: 30px;
+  padding-inline: 10px;
+  border-radius: 999px;
+  font-size: 12px;
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free :is(
+  .studio-node-content-header__action,
+  .studio-canvas-glass-toolbar__btn,
+  .studio-canvas-tool.ant-btn,
+  .studio-canvas-controls__zoom,
+  .studio-composer__expand,
+  .studio-composer__assistant,
+  .studio-composer__upload
+) {
+  color: var(--studio-ui-control-ink);
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free :is(
+  .studio-node-content-header__action,
+  .studio-canvas-glass-toolbar__btn,
+  .studio-canvas-tool.ant-btn,
+  .studio-canvas-controls__zoom,
+  .studio-composer__expand,
+  .studio-composer__assistant,
+  .studio-composer__upload
+):is(:hover, :focus-visible):not(:disabled):not(.is-active):not(.ant-dropdown-open):not([aria-expanded='true']):not([aria-pressed='true']) {
+  color: var(--studio-ui-hover-ink) !important;
+  border-color: transparent !important;
+  background: var(--studio-ui-hover) !important;
+  box-shadow: var(--studio-ui-hover-shadow);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free .studio-canvas .react-flow__minimap.studio-canvas-minimap {
+  border-color: var(--studio-theme-control-border);
+  background: var(--studio-theme-panel-solid);
+  box-shadow: 0 16px 40px var(--studio-theme-shadow);
+}
+
+/* 无内容工作区与空节点使用同一套中性层级，不使用额外彩色捷径。 */
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free :is(
+  .studio-canvas-empty,
+  .studio-canvas-empty-guide__chat-banner,
+  .studio-canvas-empty-guide__shortcut
+) {
+  color: var(--studio-text);
+  border-color: var(--studio-theme-control-border);
+  background:
+    radial-gradient(ellipse at 8% 0, var(--studio-theme-panel-reflection), transparent 62%),
+    var(--studio-theme-panel);
+  box-shadow: 0 20px 54px -24px var(--studio-theme-shadow-strong), inset 0 1px rgba(255, 255, 255, 0.16);
+  backdrop-filter: blur(var(--studio-theme-glass-blur)) saturate(var(--studio-theme-saturation));
+  -webkit-backdrop-filter: blur(var(--studio-theme-glass-blur)) saturate(var(--studio-theme-saturation));
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free :is(
+  .studio-canvas-empty strong,
+  .studio-canvas-empty-guide__hint,
+  .studio-canvas-empty-guide__hint-text,
+  .studio-canvas-empty-guide__chat-copy strong,
+  .studio-canvas-empty-guide__shortcut
+) {
+  color: var(--studio-text);
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free :is(
+  .studio-canvas-empty-guide__hint-badge,
+  .studio-canvas-empty-guide__chat-icon,
+  .studio-canvas-empty-guide__shortcut-icon,
+  .studio-canvas-empty-guide__shortcut-badge,
+  .studio-canvas-empty__orb
+) {
+  color: var(--studio-accent) !important;
+  border-color: var(--studio-theme-control-border);
+  background: var(--studio-theme-control-active) !important;
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free .studio-canvas-empty-guide__chat-action,
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free .studio-canvas-empty .ant-btn-primary {
+  color: var(--studio-ui-primary-ink);
+  border-color: transparent;
+  background: var(--studio-ui-primary);
+  box-shadow: var(--studio-ui-primary-shadow);
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free .studio-canvas-empty-guide__chat-banner::before {
+  background: linear-gradient(90deg, transparent, var(--studio-accent), transparent);
+  opacity: 0.32;
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free .studio-canvas-theme-toggle {
+  color: var(--studio-ui-selected-ink) !important;
+  background: var(--studio-ui-selected) !important;
+  box-shadow: var(--studio-ui-selected-shadow);
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free :is(
+  .studio-canvas-toolbar__divider,
+  .studio-canvas-controls__divider,
+  .studio-canvas-glass-toolbar__divider
+) {
+  background-color: var(--studio-border);
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free :is(
+  .studio-node-dialog__header,
+  .studio-node-dialog__context
+) {
+  border-color: var(--studio-border);
+}
+
+/* 节点底部多功能输入区：焦点不绘制文本域边框，选择态用克制的镜片质感。 */
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free .studio-node-agent-dock__box :is(textarea, .studio-composer-prompt-editor .tiptap) {
+  color: var(--studio-text);
+  border: 0;
+  outline: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free .studio-node-agent-dock__box :is(textarea, .studio-composer-prompt-editor .tiptap):focus,
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free .studio-node-agent-dock__box :is(textarea, .studio-composer-prompt-editor .tiptap):focus-visible {
+  border: 0;
+  outline: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free :is(
+  .studio-composer-chip,
+  .studio-composer__refs > button,
+  .studio-emotion-roles button,
+  .studio-emotion-close,
+  .studio-emotion-panel select
+) {
+  color: var(--studio-ui-control-ink);
+  border: 1px solid transparent;
+  background: transparent;
+}
+
+:is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free :is(
+  .studio-composer-chip,
+  .studio-composer__refs > button,
+  .studio-emotion-roles button,
+  .studio-emotion-close,
+  .studio-emotion-panel select
+):hover:not(:disabled) {
+  color: var(--studio-ui-hover-ink);
+  border-color: transparent;
+  background: var(--studio-ui-hover);
+  box-shadow: var(--studio-ui-hover-shadow);
+}
+
+/* 选中与展开是同一片加厚玻璃：顶边高光 + 底部强调色辉光 + 一圈淡环，优先于悬停。 */
+html[data-studio-free-theme] :is(
+  .studio-workspace--free .studio-canvas-glass-toolbar__btn,
+  .studio-workspace--free .studio-node-content-header__action,
+  .studio-workspace--free .studio-canvas-tool.ant-btn,
+  .studio-workspace--free .studio-canvas-controls__zoom,
+  .studio-workspace--free .studio-composer-chip,
+  .studio-workspace--free .studio-composer__assistant,
+  .studio-workspace--free .studio-composer__refs > button,
+  .studio-workspace--free .studio-emotion-roles button,
+  .studio-params-panel__group button
+):is(.is-active, .ant-dropdown-open, [aria-expanded='true'], [aria-selected='true'], [aria-pressed='true']):not(:disabled) {
+  color: var(--studio-ui-selected-ink) !important;
+  border-color: transparent !important;
+  background: var(--studio-ui-selected) !important;
+  box-shadow: var(--studio-ui-selected-shadow);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+html[data-studio-free-theme] :is(.studio-composer-chip > i, .studio-composer-chip__arrow) {
+  color: var(--studio-muted);
+}
+
+/* 对话面板底部的工具图标：悬停只是一层浅玻璃，开启的模式 / 已选 Skill 才是加厚玻璃，都不描边。 */
+html[data-studio-free-theme] .canvas-agent-tool-select.studio-composer-chip {
+  color: var(--studio-muted);
+  border-color: transparent;
+  border-radius: 8px;
+  background: transparent;
+  box-shadow: none;
+}
+
+html[data-studio-free-theme] .canvas-agent-tool-select.studio-composer-chip:hover:not(:disabled):not(.is-active):not(.is-skill-selected) {
+  color: var(--studio-text);
+  border-color: transparent;
+  background: var(--studio-ui-hover);
+  box-shadow: var(--studio-ui-hover-shadow);
+}
+
+html[data-studio-free-theme] .canvas-agent-tool-select.studio-composer-chip:is(.is-active, .is-skill-selected, .ant-popover-open, [aria-expanded='true']):not(:disabled) {
+  color: var(--studio-ui-selected-ink) !important;
+  border-color: transparent !important;
+  background: var(--studio-ui-selected) !important;
+  box-shadow: var(--studio-ui-selected-shadow);
+}
+
+/* 图片编辑（擦除 / 重绘 / 图层分离）的顶部与底部工具条：外壳见节点工具外壳，按钮与节点头部工具栏同一套悬停 / 选中。 */
+html[data-studio-free-theme] :is(
+  .studio-image-tool-bar > button,
+  .studio-image-tool-bar--mask-top .studio-image-tool-bar__tool,
+  .studio-layer-split-top > button,
+  .studio-layer-split-top > a
+):hover:not(:disabled):not(.is-active) {
+  color: var(--studio-ui-hover-ink);
+  background: var(--studio-ui-hover);
+  box-shadow: var(--studio-ui-hover-shadow);
+}
+
+html[data-studio-free-theme] :is(
+  .studio-image-tool-bar--mask-top > button.is-active,
+  .studio-image-tool-bar--mask-top .studio-image-tool-bar__tool.is-active,
+  .studio-image-tool-bar__chip.is-active,
+  .studio-image-tool-bar__text.is-active
+) {
+  color: var(--studio-ui-selected-ink);
+  background: var(--studio-ui-selected) !important;
+  box-shadow: var(--studio-ui-selected-shadow);
+}
+
+html[data-studio-free-theme] :is(.studio-image-tool-bar__divider, .studio-layer-split-top__divider) {
+  background: var(--studio-ui-border);
+}
+
+html[data-studio-free-theme] .studio-layer-split-panel__region {
+  background: transparent;
+}
+
+html[data-studio-free-theme] .studio-layer-split-panel__region:hover:not(.is-active) {
+  background: var(--studio-ui-row-hover);
+}
+
+html[data-studio-free-theme] .studio-layer-split-panel__region.is-active {
+  color: var(--studio-ui-selected-ink);
+  background: var(--studio-ui-row-selected);
+}
+
+html[data-studio-free-theme] .studio-layer-split-panel__btn--ghost {
+  color: var(--studio-text);
+  background: var(--studio-ui-raised);
+  box-shadow: var(--studio-ui-raised-shadow);
+}
+
+html[data-studio-free-theme] .studio-layer-split-panel__btn--ghost:hover {
+  background: var(--studio-ui-raised-hover);
+}
+
+/* 所有浮层共用一块外壳：Portal 浮层继承 html 上的 token，发丝边与投影由 --studio-ui-popover-shadow 统一提供。
+   自带背景的浮层（Skill 选择、创建菜单、悬停预览）直接列在这里，antd 容器保持透明。 */
+html[data-studio-free-theme] :is(
+  .studio-canvas-menu-overlay--canvas .ant-dropdown-menu,
+  .studio-canvas-menu-overlay--submenu .ant-dropdown-menu,
+  .studio-toolbar-more-menu--canvas.ant-dropdown-menu,
+  .studio-pane-context-menu__root,
+  .studio-pane-context-menu__flyout,
+  .studio-pane-context-menu__nested,
+  .studio-composer-popover .ant-popover-inner,
+  .studio-canvas-controls__zoom-popover .ant-popover-inner,
+  .studio-composer-popover .ant-popover-container,
+  .studio-canvas-controls__zoom-popover .ant-popover-container,
+  .studio-canvas-dropdown-popover .ant-popover-container,
+  .studio-user-menu-popover .ant-popover-inner,
+  .studio-user-menu-popover .ant-popover-container,
+  .studio-publish-share-popover .ant-popover-inner,
+  .studio-publish-share-popover .ant-popover-container,
+  .studio-video-shortcuts-popover .ant-popover-container,
+  .studio-canvas-shortcuts-popover .ant-popover-inner,
+  .studio-canvas-shortcuts-popover .ant-popover-container,
+  .canvas-skill-picker,
+  .canvas-skill-picker__create-menu,
+  .canvas-skill-preview
+) {
+  color: var(--studio-text);
+  border-color: transparent !important;
+  background: var(--studio-ui-popover) !important;
+  box-shadow: var(--studio-ui-popover-shadow) !important;
+  backdrop-filter: var(--studio-ui-popover-blur);
+  -webkit-backdrop-filter: var(--studio-ui-popover-blur);
+}
+
+html[data-studio-free-theme] :is(
+  .studio-canvas-menu-overlay--canvas .ant-dropdown-menu,
+  .studio-canvas-menu-overlay--submenu .ant-dropdown-menu,
+  .studio-toolbar-more-menu--canvas.ant-dropdown-menu,
+  .studio-pane-context-menu__root,
+  .studio-pane-context-menu__flyout,
+  .studio-pane-context-menu__nested,
+  .studio-composer-popover .ant-popover-inner,
+  .studio-canvas-controls__zoom-popover .ant-popover-inner,
+  .studio-composer-popover .ant-popover-container,
+  .studio-canvas-controls__zoom-popover .ant-popover-container
+) {
+  border-radius: var(--studio-ui-popup-radius);
+}
+
+/* 快捷键、发布与分享、我的 Skill 是整块画布浮层，不是 8px 的小菜单。
+   antd 会在 container / content / body 上再垫一圈内边距，必须在这一层清掉，
+   圆角也只由主题半径决定，避免各面板再写一套对不齐的外壳。 */
+html[data-studio-free-theme] :is(
+  .studio-canvas-shortcuts-popover,
+  .studio-user-menu-popover,
+  .studio-publish-share-popover
+) :is(.ant-popover-container, .ant-popover-inner, .ant-popover-content, .ant-popover-inner-content),
+html[data-studio-free-theme] .studio-personal-skill-modal :is(.ant-modal-container, .ant-modal-content, .ant-modal-body) {
+  padding: 0 !important;
+}
+
+html[data-studio-free-theme] :is(
+  .studio-canvas-shortcuts-popover,
+  .studio-user-menu-popover,
+  .studio-publish-share-popover
+) :is(.ant-popover-container, .ant-popover-inner) {
+  overflow: hidden;
+  border-radius: var(--studio-theme-radius) !important;
+}
+
+html[data-studio-free-theme] .studio-personal-skill-modal :is(.ant-modal-container, .ant-modal-content) {
+  overflow: hidden;
+  border-radius: var(--studio-theme-radius) !important;
+  background: var(--studio-ui-modal) !important;
+}
+
+html[data-studio-free-theme] :is(
+  .studio-model-menu__list > button,
+  .studio-params-panel__group button,
+  .studio-composer-menu button,
+  .studio-grid-cell-menu > button
+) {
+  border-radius: var(--studio-ui-control-radius);
+}
+
+html[data-studio-free-theme] :is(
+  .studio-canvas-menu-overlay--canvas .ant-dropdown-menu-item,
+  .studio-canvas-menu-overlay--canvas .ant-dropdown-menu-submenu-title,
+  .studio-canvas-menu-overlay--submenu .ant-dropdown-menu-item,
+  .studio-canvas-menu-overlay--submenu .ant-dropdown-menu-submenu-title,
+  .studio-toolbar-more-menu--canvas.ant-dropdown-menu > .ant-dropdown-menu-item,
+  .studio-toolbar-more-menu--canvas.ant-dropdown-menu > .ant-dropdown-menu-submenu > .ant-dropdown-menu-submenu-title,
+  .studio-pane-context-menu button,
+  .studio-composer-menu button,
+  .studio-canvas-controls__zoom-action,
+  .studio-canvas-controls__zoom-preset
+) {
+  color: var(--studio-text) !important;
+}
+
+html[data-studio-free-theme] :is(
+  .studio-canvas-menu-overlay--canvas .ant-dropdown-menu-item,
+  .studio-canvas-menu-overlay--canvas .ant-dropdown-menu-submenu-title,
+  .studio-canvas-menu-overlay--submenu .ant-dropdown-menu-item,
+  .studio-canvas-menu-overlay--submenu .ant-dropdown-menu-submenu-title,
+  .studio-toolbar-more-menu--canvas.ant-dropdown-menu > .ant-dropdown-menu-item,
+  .studio-toolbar-more-menu--canvas.ant-dropdown-menu > .ant-dropdown-menu-submenu > .ant-dropdown-menu-submenu-title,
+  .studio-pane-context-menu button,
+  .studio-composer-menu button,
+  .studio-canvas-controls__zoom-action,
+  .studio-canvas-controls__zoom-preset
+):is(:hover, :focus-visible, .ant-dropdown-menu-item-active, .ant-dropdown-menu-submenu-open) {
+  color: var(--studio-text) !important;
+  background: var(--studio-ui-row-hover) !important;
+}
+
+/* 列表行不做卡片：悬停只铺一层浅底，选中才上强调色的底和字，两者不会再看起来一样。 */
+html[data-studio-free-theme] :is(
+  .studio-canvas-menu-overlay--canvas .ant-dropdown-menu-item,
+  .studio-canvas-menu-overlay--submenu .ant-dropdown-menu-item,
+  .studio-toolbar-more-menu--canvas.ant-dropdown-menu > .ant-dropdown-menu-item,
+  .studio-pane-context-menu button,
+  .studio-composer-menu button,
+  .studio-canvas-controls__zoom-action,
+  .studio-canvas-controls__zoom-preset
+):is(.is-active, .ant-dropdown-menu-item-selected, [aria-selected='true'], [aria-checked='true']) {
+  color: var(--studio-ui-selected-ink) !important;
+  background: var(--studio-ui-row-selected) !important;
+}
+
+html[data-studio-free-theme] :is(
+  .canvas-skill-picker__row,
+  .canvas-skill-picker__create-menu button,
+  .studio-mention-panel__primary > button,
+  .studio-mention-panel__secondary > button,
+  .studio-grid-cell-menu > button
+):hover:not(:disabled):not(.is-selected):not(.is-active) {
+  background: var(--studio-ui-row-hover);
+}
+
+html[data-studio-free-theme] :is(
+  .canvas-skill-picker__row.is-selected,
+  .studio-mention-panel__primary > button.is-active,
+  .studio-mention-panel__secondary > button.is-active,
+  .studio-grid-cell-menu > button.is-active
+) {
+  border-color: transparent;
+  background: var(--studio-ui-row-selected);
+}
+
+html[data-studio-free-theme] .canvas-skill-picker__row.is-selected strong {
+  color: var(--studio-ui-selected-ink);
+}
+
+/* 收藏星只在行被关注时出现，已收藏常亮，避免一列星号抢过标题。 */
+html[data-studio-free-theme] .canvas-skill-picker__star {
+  opacity: 0.45;
+  transition: opacity 0.14s ease, color 0.14s ease, background 0.14s ease;
+}
+
+html[data-studio-free-theme] :is(
+  .canvas-skill-picker__row:hover,
+  .canvas-skill-picker__row:focus-within,
+  .canvas-skill-picker__row.is-selected
+) .canvas-skill-picker__star,
+html[data-studio-free-theme] .canvas-skill-picker__star[aria-pressed='true'] {
+  opacity: 1;
+}
+
+html[data-studio-free-theme] .canvas-skill-picker__star:hover {
+  color: var(--studio-text);
+  background: var(--studio-ui-row-hover);
+}
+
+html[data-studio-free-theme] .canvas-skill-picker__star[aria-pressed='true'] {
+  color: var(--studio-ui-selected-ink);
+  background: transparent;
+}
+
+html[data-studio-free-theme] :is(.canvas-skill-picker__header-button, .canvas-skill-gallery__rail-next) {
+  border-color: transparent;
+  background: var(--studio-ui-raised);
+  box-shadow: var(--studio-ui-raised-shadow);
+}
+
+html[data-studio-free-theme] :is(.canvas-skill-picker__header-button, .canvas-skill-gallery__rail-next):hover {
+  color: var(--studio-text);
+  border-color: transparent;
+  background:
+    linear-gradient(180deg, var(--studio-theme-glass-sheen), transparent 60%),
+    var(--studio-theme-control-hover);
+}
+
+html[data-studio-free-theme] .canvas-skill-picker__copy em {
+  background: var(--studio-ui-field);
+}
+
+html[data-studio-free-theme] .canvas-skill-picker__footer {
+  border-top-color: var(--studio-theme-control-border);
+}
+
+html[data-studio-free-theme] .canvas-skill-gallery__close:hover {
+  background: var(--studio-ui-row-hover);
+}
+
+html[data-studio-free-theme] .canvas-skill-gallery__card {
+  border-color: transparent;
+  background: var(--studio-theme-control);
+  box-shadow: inset 0 0 0 1px var(--studio-theme-control-border), inset 0 1px 0 var(--studio-theme-glass-rim);
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+html[data-studio-free-theme] .canvas-skill-gallery__card:is(:hover, :focus-within) {
+  transform: translateY(-2px);
+  box-shadow:
+    inset 0 0 0 1px var(--studio-theme-control-border),
+    inset 0 1px 0 var(--studio-theme-glass-rim),
+    0 16px 32px -20px var(--studio-theme-shadow-strong);
+}
+
+/* 输入类控件统一为凹进去的井：静止无描边，悬停略加深，聚焦给一圈柔和的强调色环。 */
+html[data-studio-free-theme] :is(
+  .canvas-skill-picker__search,
+  .canvas-skill-gallery__search,
+  .studio-mention-panel__search,
+  .studio-image-ai-panel__select,
+  .studio-layer-split-panel__select,
+  .studio-layer-split-panel__prompt,
+  .studio-smart-edit-inspector__select,
+  .studio-touch-edit-region-menu__input
+) {
+  border-color: transparent;
+  background: var(--studio-ui-field);
+  box-shadow: var(--studio-ui-field-shadow);
+  transition: background 0.14s ease, box-shadow 0.14s ease;
+}
+
+html[data-studio-free-theme] :is(
+  .canvas-skill-picker__search,
+  .canvas-skill-gallery__search,
+  .studio-mention-panel__search,
+  .studio-image-ai-panel__select,
+  .studio-layer-split-panel__select,
+  .studio-layer-split-panel__prompt,
+  .studio-smart-edit-inspector__select,
+  .studio-touch-edit-region-menu__input
+):hover:not(:disabled) {
+  background: var(--studio-ui-field-hover);
+}
+
+html[data-studio-free-theme] :is(
+  .canvas-skill-picker__search,
+  .canvas-skill-gallery__search,
+  .studio-mention-panel__search,
+  .studio-layer-split-panel__prompt,
+  .studio-touch-edit-region-menu__input
+):focus-within,
+html[data-studio-free-theme] :is(
+  .studio-image-ai-panel__select,
+  .studio-layer-split-panel__select,
+  .studio-smart-edit-inspector__select
+):is(:focus-visible, [aria-expanded='true'], .ant-popover-open) {
+  border-color: transparent;
+  background: var(--studio-ui-field-hover);
+  box-shadow: var(--studio-ui-field-shadow), var(--studio-ui-focus-ring);
+}
+
+html[data-studio-free-theme] .studio-add-menu__item > i {
+  color: var(--studio-muted);
+}
+
+html[data-studio-free-theme] :is(.studio-add-menu__item strong, .studio-composer-menu button) {
+  color: var(--studio-text);
+}
+
+html[data-studio-free-theme] :is(.studio-add-menu__item small, .studio-pane-context-menu button > small) {
+  color: var(--studio-muted);
+}
+
+html[data-studio-free-theme] .create-flow-modal .ant-modal-content,
+html[data-studio-free-theme] .create-flow-modal .ant-modal-container,
+.create-flow-modal:is(.studio-free-theme-scope--opal, .studio-free-theme-scope--soft-mist) .ant-modal-content,
+.create-flow-modal:is(.studio-free-theme-scope--opal, .studio-free-theme-scope--soft-mist) .ant-modal-container {
+  color: var(--studio-text);
+  border: 1px solid transparent;
+  border-radius: var(--studio-theme-radius);
+  background: var(--studio-ui-modal);
+  box-shadow: var(--studio-theme-modal-shadow, var(--studio-ui-popover-shadow), 0 24px 70px -20px var(--studio-theme-shadow-strong));
+}
+
+/* 业务弹窗各自声明背景，这里只统一外壳的发丝边与投影，不改布局。 */
+html[data-studio-free-theme] :is(
+  .canvas-skill-gallery-modal,
+  .studio-personal-skill-modal,
+  .canvas-skill-import-modal,
+  .studio-text-sessions,
+  .studio-prompt-assistant-modal--canvas,
+  .studio-storyboard-workflow-modal,
+  .studio-storyboard-editor-modal,
+  .studio-storyboard-prompt-modal,
+  .studio-storyboard-asset-picker,
+  .studio-asset-library-modal--canvas,
+  .studio-material-library,
+  .studio-camera-library,
+  .studio-disclaimer-modal--canvas,
+  .studio-image-lighting-modal,
+  .studio-subject-modal
+) :is(.ant-modal-content, .ant-modal-container) {
+  border-color: transparent !important;
+  box-shadow: var(--studio-theme-modal-shadow, var(--studio-ui-popover-shadow), 0 28px 80px -24px var(--studio-theme-shadow-strong)) !important;
+}
+
+html[data-studio-free-theme] .create-flow-modal :is(.ant-modal-title, .ant-modal-close),
+.create-flow-modal:is(.studio-free-theme-scope--opal, .studio-free-theme-scope--soft-mist) :is(.ant-modal-title, .ant-modal-close) {
+  color: var(--studio-text);
+}
+
+/* main-base has legacy dark confirm colors; free-canvas themes own their contrast. */
+html[data-studio-free-theme] :is(.app-confirm-wrap, .create-flow-modal) .ant-modal-confirm-body,
+html[data-studio-free-theme] .ant-modal.app-confirm-modal .ant-modal-confirm-body,
+html[data-studio-free-theme] :is(.app-confirm-wrap, .create-flow-modal) .ant-modal-confirm-title,
+html[data-studio-free-theme] .ant-modal.app-confirm-modal .ant-modal-confirm-title,
+.create-flow-modal:is(.studio-free-theme-scope--opal, .studio-free-theme-scope--soft-mist) :is(.ant-modal-confirm-body, .ant-modal-confirm-title) {
+  color: var(--studio-text) !important;
+}
+
+html[data-studio-free-theme] :is(.app-confirm-wrap, .create-flow-modal) .ant-modal-confirm-content,
+html[data-studio-free-theme] .ant-modal.app-confirm-modal .ant-modal-confirm-content,
+.create-flow-modal:is(.studio-free-theme-scope--opal, .studio-free-theme-scope--soft-mist) .ant-modal-confirm-content {
+  color: var(--studio-muted) !important;
+}
+
+/* 自由画布内所有滚动容器共用一套细滚动条。组件里零散声明的 scrollbar-width: thin 会让 Chromium 放弃
+   ::-webkit-scrollbar 并显示带箭头的系统滚动条，这里在支持 webkit 伪元素的浏览器中统一收回；
+   需要隐藏滚动条的容器必须同时声明 ::-webkit-scrollbar { display: none }。 */
+@supports selector(::-webkit-scrollbar) {
+  html[data-studio-free-theme] *,
+  [data-studio-free-theme-scope] * {
+    scrollbar-width: auto !important;
+    scrollbar-color: auto !important;
+  }
+}
+
+@supports not selector(::-webkit-scrollbar) {
+  :where(html[data-studio-free-theme], [data-studio-free-theme-scope]) * {
+    scrollbar-color: var(--studio-ui-scrollbar) transparent;
+  }
+}
+
+:where(html[data-studio-free-theme], [data-studio-free-theme-scope]) ::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+:where(html[data-studio-free-theme], [data-studio-free-theme-scope]) ::-webkit-scrollbar-track,
+:where(html[data-studio-free-theme], [data-studio-free-theme-scope]) ::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+:where(html[data-studio-free-theme], [data-studio-free-theme-scope]) ::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background: var(--studio-ui-scrollbar) padding-box;
+}
+
+:where(html[data-studio-free-theme], [data-studio-free-theme-scope]) ::-webkit-scrollbar-thumb:hover {
+  background: var(--studio-ui-scrollbar-hover) padding-box;
+}
+
+:where(html[data-studio-free-theme], [data-studio-free-theme-scope]) ::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  :is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free :is(button, .ant-btn) {
+    transition:
+      color 160ms ease,
+      border-color 180ms ease,
+      background-color 180ms ease,
+      box-shadow 260ms ease,
+      transform 320ms cubic-bezier(0.22, 1, 0.36, 1),
+      scale 320ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  :is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free button:not(:disabled):active {
+    scale: 0.97;
+    transition-duration: 80ms;
+  }
+
+  :is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free button.studio-canvas-liquid-orb.is-ready:not(.is-dragging),
+  :is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free button.studio-canvas-liquid-orb.is-ready:not(.is-dragging):active {
+    scale: 1;
+    transition: transform 180ms cubic-bezier(0.22, 0.8, 0.32, 1);
+  }
+
+  :is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free button.studio-canvas-liquid-orb.is-dragging,
+  :is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free button.studio-canvas-liquid-orb.is-dragging:active,
+  :is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free button.studio-canvas-liquid-orb:not(.is-ready),
+  :is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free button.studio-canvas-liquid-orb:not(.is-ready):active {
+    scale: 1;
+    transition: none;
+  }
+}
+
+@supports not (backdrop-filter: blur(1px)) {
+  :is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free :is(
+    .studio-topbar__project,
+    .studio-canvas-toolbar
+  ),
+  :is(html[data-studio-free-theme], [data-studio-free-theme-scope]) .studio-workspace--free .studio-topbar .studio-canvas-toolbar {
+    background: var(--studio-theme-panel-solid);
+  }
+}

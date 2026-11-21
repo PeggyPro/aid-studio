@@ -47,6 +47,19 @@ public class ComposeBillingServiceImpl implements ComposeBillingService {
     private final IAccountUpdateService accountUpdateService;
 
     @Override
+    public ComposeBillingSnapshot quote(long estimatedSeconds, String resolution) {
+        if (estimatedSeconds <= 0 || estimatedSeconds > 3600) {
+            throw new com.aid.common.exception.ServiceException("合成时长必须在1至3600秒内");
+        }
+        ComposeBillingSnapshot snapshot = buildSnapshot(estimatedSeconds, resolution);
+        if (snapshot.getFrozenCredits() == null || snapshot.getFrozenCredits().signum() < 0
+                || snapshot.getCreditPerMinute() == null || snapshot.getCreditPerMinute().signum() < 0) {
+            throw new com.aid.common.exception.ServiceException("合成计价配置无效");
+        }
+        return snapshot;
+    }
+
+    @Override
     public ComposeBillingSnapshot freeze(Long userId, long estimatedSeconds, String resolution, String traceId) {
         ComposeBillingSnapshot snapshot = buildSnapshot(estimatedSeconds, resolution);
         BigDecimal frozen = snapshot.getFrozenCredits();

@@ -49,8 +49,10 @@ public final class ModelConfigurationMerge {
             JsonNode old = result.get(key);
             if (value.isNull()) {
                 result.remove(key);
-            } else if (value.isObject() && old != null && old.isObject()) {
-                result.set(key, mergeObject((ObjectNode) old, (ObjectNode) value));
+            } else if (value.isObject()) {
+                // 新增对象也遵循相同的递归删除协议，不能把嵌套 null 当成最终配置写入。
+                ObjectNode baseline = old instanceof ObjectNode object ? object : MAPPER.createObjectNode();
+                result.set(key, mergeObject(baseline, (ObjectNode) value));
             } else if ("skus".equals(key) && value.isArray()) {
                 result.set(key, mergeSkus(old, (ArrayNode) value));
             } else {

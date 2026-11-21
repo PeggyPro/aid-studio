@@ -8,6 +8,8 @@ import com.aid.billing.service.BillingQuoteAssembler;
 import com.aid.billing.vo.BillingQuoteVO;
 import com.aid.common.exception.ServiceException;
 import com.aid.media.dto.MediaImageGenerateRequest;
+import com.aid.media.dto.MediaTextGenerateRequest;
+import com.aid.media.dto.MediaVideoGenerateRequest;
 import com.aid.media.dto.PreparedMediaBillingInput;
 import com.aid.media.service.MediaBillingQuotePreparer;
 import com.aid.media.service.MediaBillingQuoteService;
@@ -27,6 +29,28 @@ public class MediaBillingQuoteServiceImpl implements MediaBillingQuoteService
     public BillingQuoteVO quoteImage(String quoteType, MediaImageGenerateRequest request, int quantity)
     {
         PreparedMediaBillingInput prepared = mediaBillingQuotePreparer.prepareImageBilling(request);
+        return assemble(quoteType, prepared, quantity, false);
+    }
+
+    @Override
+    public BillingQuoteVO quoteText(String quoteType, MediaTextGenerateRequest request, int quantity)
+    {
+        PreparedMediaBillingInput prepared = mediaBillingQuotePreparer.prepareTextBilling(request);
+        return assemble(quoteType, prepared, quantity, false);
+    }
+
+    @Override
+    public BillingQuoteVO quoteVideo(String quoteType, MediaVideoGenerateRequest request, int quantity)
+    {
+        PreparedMediaBillingInput prepared = mediaBillingQuotePreparer.prepareVideoBilling(request);
+        return assemble(quoteType, prepared, quantity, false);
+    }
+
+    @Override
+    public BillingQuoteVO quoteReadOnlyVideo(
+            String quoteType, MediaVideoGenerateRequest request, int quantity)
+    {
+        PreparedMediaBillingInput prepared = mediaBillingQuotePreparer.prepareReadOnlyVideoBilling(request);
         return assemble(quoteType, prepared, quantity, false);
     }
 

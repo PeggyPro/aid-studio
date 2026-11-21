@@ -8,7 +8,7 @@ export interface StudioNodeRect {
   height: number
 }
 
-export const STUDIO_NODE_PLACEMENT_GAP = 28
+export const STUDIO_NODE_PLACEMENT_GAP = 80
 
 export function studioNodeRectsOverlap(
   a: StudioNodeRect,
@@ -21,6 +21,21 @@ export function studioNodeRectsOverlap(
     a.y + a.height + gap <= b.y ||
     b.y + b.height + gap <= a.y
   )
+}
+
+/**
+ * 把节点左上角换算成：卡片加上下方附加高度后的整体，中心落在目标点。
+ * 画布坐标的 position 是左上角；直接把视口中心写进去时，卡片和输入区都会出现在中线以下。
+ */
+export function centerStudioNodeAtPoint(
+  point: { x: number; y: number },
+  size: { width: number; height: number },
+  trailingHeight = 0
+): { x: number; y: number } {
+  return {
+    x: point.x - size.width / 2,
+    y: point.y - (size.height + trailingHeight) / 2
+  }
 }
 
 /** 在目标点附近寻找不与已有节点重叠的位置（先下再右螺旋扫描）。 */
@@ -64,6 +79,28 @@ export function placeStudioNodeWithoutOverlap(
     x: desired.x,
     y: desired.y + occupied.length * (size.height + gap)
   }
+}
+
+/** Extend the anchor's row in the requested direction, clearing every occupied card. */
+export function placeStudioNodeBeside(
+  anchor: StudioNodeRect,
+  size: { width: number; height: number },
+  occupied: StudioNodeRect[],
+  direction: 'left' | 'right' = 'right'
+): { x: number; y: number } {
+  const gap = STUDIO_NODE_PLACEMENT_GAP
+  const next = {
+    ...size,
+    x: direction === 'right' ? anchor.x + anchor.width + gap : anchor.x - gap - size.width,
+    y: anchor.y
+  }
+  const row = [...occupied].sort((a, b) => direction === 'right' ? a.x - b.x : b.x + b.width - a.x - a.width)
+  for (const rect of row) {
+    if (studioNodeRectsOverlap(next, rect, gap)) {
+      next.x = direction === 'right' ? rect.x + rect.width + gap : rect.x - size.width - gap
+    }
+  }
+  return { x: next.x, y: next.y }
 }
 
 export function toStudioNodeRect(node: Pick<StudioCanvasNode, 'position' | 'data'>): StudioNodeRect {

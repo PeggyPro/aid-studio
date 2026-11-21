@@ -1,10 +1,11 @@
 package com.aid.web.controller.common;
 
+import com.aid.common.aid.image.ManagedImageIO;
+
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 import jakarta.annotation.Resource;
-import javax.imageio.ImageIO;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.util.FastByteArrayOutputStream;
@@ -80,7 +81,7 @@ public class CaptchaController
         FastByteArrayOutputStream os = new FastByteArrayOutputStream();
         try
         {
-            ImageIO.write(image, "jpg", os);
+            ManagedImageIO.write(image, "jpg", os);
         }
         catch (IOException e)
         {

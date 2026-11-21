@@ -13,7 +13,10 @@ const config = {
         if (/node_modules/i.test(file)) return true
         // 根字号档位保持 px；侧栏与 compact 相关文件自行控制 rem 换算
         if (/root-font-size\.css$/i.test(file)) return true
+        if (/(?:studio-free-control-tokens|studio-matte-palette)\.css$/i.test(file)) return true
         if (/home-new-sidebar\.css$/i.test(file)) return true
+        if (/(?:studio-notifications|studio-library-modals|style-analysis-wait)\.css$/i.test(file)) return true
+        if (/components[\\/]common[\\/]UserMenuDropdown\.css$/i.test(file)) return true
         if (/create-flow-compact-viewport\.css$/i.test(file)) return true
         if (/compact-viewport-btn-radius\.css$/i.test(file)) return true
         return false

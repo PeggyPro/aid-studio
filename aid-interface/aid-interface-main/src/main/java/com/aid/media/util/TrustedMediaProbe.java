@@ -28,7 +28,7 @@ public class TrustedMediaProbe {
         Path file = null;
         Process process = null;
         try {
-            file = Files.createTempFile("aid-media-probe-", ".bin");
+            file = Files.createTempFile(com.aid.common.config.AidAppConfig.getTemporaryDirectory(), "aid-media-probe-", ".bin");
             Files.write(file, bytes);
             process = new ProcessBuilder(config.getMpsProperties().getFfprobePath(), "-v", "error",
                     "-protocol_whitelist", "file,pipe", "-select_streams", "a:0", "-show_entries",
@@ -71,6 +71,60 @@ public class TrustedMediaProbe {
         } catch (NumberFormatException ignored) {
             return null;
         }
+    }
+
+    /** Validates complete generated video bytes before a provider success can be settled. */
+    public VideoMetadata video(byte[] bytes) {
+        if (bytes == null || bytes.length < 12 || bytes.length > 256 * 1024 * 1024)
+            throw new InvalidVideoException("视频文件大小不支持");
+        Path file = null;
+        Process process = null;
+        try {
+            file = Files.createTempFile(com.aid.common.config.AidAppConfig.getTemporaryDirectory(), "aid-video-probe-", ".mp4");
+            Files.write(file, bytes);
+            process = new ProcessBuilder(config.getMpsProperties().getFfprobePath(), "-v", "error",
+                    "-protocol_whitelist", "file,pipe", "-show_entries",
+                    "stream=codec_type,codec_name,width,height,avg_frame_rate,duration:format=duration,format_name",
+                    "-of", "json", file.toString()).redirectErrorStream(true).start();
+            if (!process.waitFor(8, TimeUnit.SECONDS)) throw new ServiceException("视频文件解析超时");
+            if (process.exitValue() != 0) throw new InvalidVideoException("视频文件无效");
+            byte[] output = process.getInputStream().readNBytes(65537);
+            if (output.length > 65536) throw new ServiceException("视频文件解析失败");
+            JsonNode root = MAPPER.readTree(output);
+            JsonNode video = null;
+            boolean audio = false;
+            for (JsonNode stream : root.path("streams")) {
+                if ("video".equals(stream.path("codec_type").asText()) && video == null) video = stream;
+                audio |= "audio".equals(stream.path("codec_type").asText());
+            }
+            if (video == null || video.path("width").asInt() <= 0 || video.path("height").asInt() <= 0)
+                throw new InvalidVideoException("上游未返回有效视频轨道");
+            BigDecimal duration = positiveDuration(root.path("format").path("duration").asText());
+            if (duration == null) duration = positiveDuration(video.path("duration").asText());
+            if (duration == null) throw new InvalidVideoException("视频时长不可用");
+            String[] rate = video.path("avg_frame_rate").asText().split("/");
+            BigDecimal fps = rate.length == 2 ? new BigDecimal(rate[0]).divide(new BigDecimal(rate[1]), 6, RoundingMode.HALF_UP)
+                    : new BigDecimal(rate[0]);
+            if (fps.signum() <= 0 || !root.path("format").path("format_name").asText().contains("mp4"))
+                throw new InvalidVideoException("上游视频格式无效");
+            return new VideoMetadata(duration.multiply(BigDecimal.valueOf(1000)).setScale(0, RoundingMode.CEILING).longValueExact(),
+                    bytes.length, video.path("width").asInt(), video.path("height").asInt(), fps, audio);
+        } catch (InterruptedException failure) {
+            Thread.currentThread().interrupt(); throw new ServiceException("视频文件解析中断");
+        } catch (InvalidVideoException failure) { throw failure;
+        } catch (ServiceException failure) { throw failure; }
+        catch (Exception failure) { throw new ServiceException("视频文件解析失败"); }
+        finally {
+            if (process != null && process.isAlive()) process.destroyForcibly();
+            if (file != null) try { Files.deleteIfExists(file); }
+            catch (Exception failure) { log.warn("视频探测临时文件待清理: {}", file); }
+        }
+    }
+
+    public record VideoMetadata(long durationMs, long sizeBytes, int width, int height, BigDecimal fps, boolean audio) { }
+
+    public static final class InvalidVideoException extends RuntimeException {
+        public InvalidVideoException(String message) { super(message); }
     }
 
     public record Metadata(long durationMs, long sizeBytes, int sampleRate, int channels, String format, String codec) { }

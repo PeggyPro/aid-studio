@@ -48,8 +48,23 @@ public class ComposeCompletionServiceImpl implements ComposeCompletionService {
 
     private final ComposeBatchSlotCoordinator composeBatchSlotCoordinator;
 
+    @jakarta.annotation.Resource
+    private com.aid.billing.service.BillingFacadeService runtimeBilling;
+
     @Override
     public void onSucceeded(AidMediaTask task, ProviderTaskResult result) {
+        if (com.aid.billing.dto.BillingBudgetContext.isBudgetManagedBizTaskType(task.getBizTaskType())) {
+            var snapshot = JSON.parseObject(task.getBillingSnapshotJson(), com.aid.billing.model.BillingSnapshot.class);
+            long seconds = result != null && result.getOutputDurationSeconds() != null
+                    && result.getOutputDurationSeconds() > 0 ? result.getOutputDurationSeconds()
+                    : Objects.requireNonNullElse(snapshot.getExpectedDurationSeconds(), 0);
+            task.setOutputDurationSeconds(seconds);
+            if (!runtimeBilling.settleBilling(task, seconds > 0 ? java.util.Map.of("actualDuration", seconds) : java.util.Map.of())) {
+                throw new com.aid.common.exception.ServiceException("合成计费收口待恢复");
+            }
+            persistRuntimeBilling(task);
+            return;
+        }
         ComposeBillingSnapshot snapshot = parseSnapshot(task);
         // 实际输出秒数：优先取 MPS 解析值，缺失回退预估秒数（避免漏结算）
         long actualSeconds = resolveActualSeconds(result, snapshot);
@@ -78,6 +93,13 @@ public class ComposeCompletionServiceImpl implements ComposeCompletionService {
 
     @Override
     public void onFailed(AidMediaTask task, ProviderTaskResult result) {
+        if (com.aid.billing.dto.BillingBudgetContext.isBudgetManagedBizTaskType(task.getBizTaskType())) {
+            if (!runtimeBilling.refundBilling(task)) {
+                throw new com.aid.common.exception.ServiceException("合成退款收口待恢复");
+            }
+            persistRuntimeBilling(task);
+            return;
+        }
         ComposeBillingSnapshot snapshot = parseSnapshot(task);
         if (Objects.nonNull(snapshot)) {
             composeBillingService.refund(task.getUserId(), snapshot, task.getBillingTraceId());
@@ -100,6 +122,18 @@ public class ComposeCompletionServiceImpl implements ComposeCompletionService {
             composeBatchSlotCoordinator.releaseVoiceover(task.getComposeBatchId());
         }
         log.info("合成失败收口完成, taskId={}", task.getId());
+    }
+
+    private void persistRuntimeBilling(AidMediaTask task) {
+        LambdaUpdateWrapper<AidMediaTask> update = new LambdaUpdateWrapper<>();
+        update.eq(AidMediaTask::getId, task.getId());
+        update.set(AidMediaTask::getBillingStatus, task.getBillingStatus());
+        update.set(AidMediaTask::getActualCost, task.getActualCost());
+        update.set(AidMediaTask::getFrozenAmount, task.getFrozenAmount());
+        update.set(AidMediaTask::getBillingSnapshotJson, task.getBillingSnapshotJson());
+        if (task.getOutputDurationSeconds() != null) update.set(AidMediaTask::getOutputDurationSeconds, task.getOutputDurationSeconds());
+        update.set(AidMediaTask::getUpdateTime, new Date());
+        if (aidMediaTaskMapper.update(null, update) != 1) throw new com.aid.common.exception.ServiceException("合成账务状态保存失败");
     }
 
     @Override

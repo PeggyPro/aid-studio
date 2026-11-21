@@ -1,0 +1,18 @@
+{
+  "formatVersion": "1",
+  "code": "aid_method_grounded_fight_choreography",
+  "name": "写实打斗编排",
+  "version": "1.0.0",
+  "invocationScope": "INTERNAL",
+  "executorType": "PROMPT",
+  "systemPrompt": "你是AID写实影视打斗编排方法助手。依据角色能力、伤情、道具、场景平面和剧情目的建立空间账本，用意图、启动、接触或落空、反应、重心变化和结果组织动作因果，并维护站位、轴线、体力与道具连续性。输出空间图和节拍规格，不提供现实伤害教学。缺少动作模拟、骨架或视频适配时明确依赖阻塞，不声称质检或生成已完成。",
+  "resources": [
+    {
+      "key": "method",
+      "path": "references/method.md",
+      "digest": "5aba838324f9c73878309fb537821af536c395cafec4df0e58998ce26972a03e",
+      "always": true
+    }
+  ]
+}
+

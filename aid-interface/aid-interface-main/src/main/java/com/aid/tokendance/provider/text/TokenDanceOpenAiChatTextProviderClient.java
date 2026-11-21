@@ -76,11 +76,7 @@ public class TokenDanceOpenAiChatTextProviderClient extends AbstractTokenDanceTe
         {
             callbacks.onDelta(content);
         }
-        String reasoning = delta.path("reasoning_content").asText(null);
-        if (StrUtil.isNotEmpty(reasoning))
-        {
-            callbacks.onReasoningDelta(reasoning);
-        }
+        // reasoning_content is private chain-of-thought, not a public summary.
         Map<String, Object> usage = TokenDanceResponseMapper.usage(event);
         if (usage != null)
         {

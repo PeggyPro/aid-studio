@@ -131,6 +131,7 @@ export function AssetCardCancelIcon({ label, onClick }: AssetCardCancelIconProps
       ref={rootRef}
       className="asset-card-cancel-icon"
       role="button"
+      aria-label={label}
       tabIndex={0}
       onMouseEnter={showHint}
       onMouseLeave={scheduleHide}

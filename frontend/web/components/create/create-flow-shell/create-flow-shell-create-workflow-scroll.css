@@ -6,12 +6,12 @@
   inset: 0;
   border-radius: inherit;
   pointer-events: none;
-  background: linear-gradient(
+  background: var(--ui-surface, linear-gradient(
     180deg,
     rgba(255, 255, 255, 0.14) 0%,
     rgba(255, 255, 255, 0.04) 28%,
     transparent 62%
-  );
+  ));
   z-index: 0;
 }
 
@@ -25,7 +25,7 @@
 }
 
 .create-page .create-workflow__scroll::-webkit-scrollbar-thumb {
-  background: rgba(74, 231, 253, 0.25);
+  background: var(--ui-raised, rgba(74, 231, 253, 0.25));
   border-radius: 4px;
 }
 
@@ -37,7 +37,7 @@
 .create-page .create-workflow__progress {
   font-size: 12px;
   font-weight: 600;
-  color: var(--home-muted, #8e97a5);
+  color: var(--home-muted, var(--ui-muted, #8e97a5));
   white-space: nowrap;
 }
 

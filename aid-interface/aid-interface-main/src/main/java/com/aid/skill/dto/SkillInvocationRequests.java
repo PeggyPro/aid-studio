@@ -1,5 +1,9 @@
 package com.aid.skill.dto;
 
+import com.aid.assistant.skill.AssistantSkillBudgetEnvelope;
+import com.aid.runtime.assistant.admission.RuntimeOperationSubmissionClaim;
+import com.alibaba.fastjson2.annotation.JSONField;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
@@ -19,6 +23,18 @@ public final class SkillInvocationRequests {
     @Data
     @Schema(description = "统一 Skill 调用")
     public static class InvokeRequest {
+        /** Trusted server-only budget identity; external JSON cannot supply or override it. */
+        @JsonIgnore
+        @JSONField(serialize = false, deserialize = false)
+        @Schema(hidden = true)
+        private transient AssistantSkillBudgetEnvelope assistantBudgetEnvelope;
+
+        /** Trusted server-only outer-runtime claim; never serialized into API payloads or persisted input JSON. */
+        @JsonIgnore
+        @JSONField(serialize = false, deserialize = false)
+        @Schema(hidden = true)
+        private transient RuntimeOperationSubmissionClaim assistantSubmissionClaim;
+
         @NotBlank(message = "Skill编码必填")
         @Size(max = 64, message = "Skill编码过长")
         private String skillCode;

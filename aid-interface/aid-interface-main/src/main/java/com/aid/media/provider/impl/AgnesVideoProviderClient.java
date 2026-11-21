@@ -81,10 +81,11 @@ public class AgnesVideoProviderClient implements VideoProviderClient {
         if (StringUtils.isBlank(apiKey)) {
             log.error("Agnes 视频提交失败: apiKey 为空, modelCode={}",
                     modelConfig == null ? null : modelConfig.getModelCode());
-            return ProviderSubmitResult.builder().rawResponse(AgnesConstants.ERROR_API_KEY_EMPTY).build();
+            throw com.aid.media.provider.ProviderSubmissionFailures.notSent("Agnes 视频模型未配置 API 密钥");
         }
 
         String model = resolveEffectiveModel(modelConfig, request);
+        validateLegacyReferenceInputs(modelConfig, request);
         String submitUrl = buildApiUrl(modelConfig.getBaseUrl(), modelConfig.getApiSuffix());
         Map<String, Object> body;
         if (AgnesVideo25RequestBuilder.supportsModelName(model)) {
@@ -106,11 +107,14 @@ public class AgnesVideoProviderClient implements VideoProviderClient {
         log.info("Agnes 视频提交, url={}, model={}, mode={}, seconds={}", submitUrl, model,
                 body.get(AgnesConstants.JSON_MODE), body.get("seconds"));
 
-        String raw = doPost(submitUrl, apiKey, modelConfig.getAuthHeader(), modelConfig.getAuthPrefix(), json);
+        HttpReply response = doPost(submitUrl, apiKey, modelConfig.getAuthHeader(), modelConfig.getAuthPrefix(), json);
+        if (response.status() >= 300) return AgnesVideoSubmissionFailures.classify(
+                response.status(), response.body(), model);
+        String raw = response.body();
         JsonNode root = ProviderResponseHelper.readTree(raw);
         if (root == null) {
             log.error("Agnes 视频提交响应解析失败, model={}, responseLen={}", model, StringUtils.length(raw));
-            return ProviderSubmitResult.builder().rawResponse(raw).build();
+            return com.aid.media.provider.ProviderSubmissionFailures.unknownResponse("上游提交响应无法解析，未取得可核对的任务标识");
         }
 
         JsonNode errorNode = root.path("error");
@@ -118,9 +122,17 @@ public class AgnesVideoProviderClient implements VideoProviderClient {
             String errMsg = errorNode.path("message").asText("未知错误");
             log.error("Agnes 视频提交上游错误, model={}, error={}, responseLen={}",
                     model, errMsg, StringUtils.length(raw));
-            return ProviderSubmitResult.builder()
-                    .rawResponse(StringUtils.abbreviate(raw, AgnesConstants.LOG_RESPONSE_SNIPPET_MAX))
-                    .build();
+            String accepted = ProviderResponseHelper.readText(root,
+                    "video_id", "data.video_id", "task_id", "id", "data.task_id", "data.id",
+                    "video_url", "data.video_url", "metadata.url");
+            if (StringUtils.isNotBlank(accepted)) {
+                ProviderSubmitResult uncertain = com.aid.media.provider.ProviderSubmissionFailures.unknownResponse(
+                        "上游同时返回错误和任务结果，需核实结果");
+                uncertain.setProviderTaskId(ProviderResponseHelper.readText(root,
+                        "video_id", "data.video_id", "task_id", "id", "data.task_id", "data.id"));
+                return uncertain;
+            }
+            return com.aid.media.provider.ProviderSubmissionFailures.reportedFailure(raw, model);
         }
 
         //    Agnes 旧版 /v1/videos/{task_id} 查询端点存在「上游已完成、查询仍恒返回 queued」的缺陷，
@@ -132,11 +144,11 @@ public class AgnesVideoProviderClient implements VideoProviderClient {
         String directUrl = ProviderResponseHelper.readText(root,
                 "video_url", "data.video_url", "metadata.url");
         if (StringUtils.isBlank(taskId) && StringUtils.isBlank(directUrl)) {
-            // 既无任务 ID 也无直出 URL：提交失败，透传错误
+            // 既无任务 ID 也无直出 URL：结果未确认，保留可核对的诊断
             String error = ProviderResponseHelper.readText(root, "error.message", "message", "error");
             log.error("Agnes 视频提交未返回任务ID, model={}, error={}, responseLen={}",
                     model, error, StringUtils.length(raw));
-            return ProviderSubmitResult.builder().rawResponse(StringUtils.defaultIfBlank(error, raw)).build();
+            return com.aid.media.provider.ProviderSubmissionFailures.unknownResponse(StringUtils.defaultIfBlank(error, "上游未返回任务标识或视频结果"));
         }
         return ProviderSubmitResult.builder()
                 .providerTaskId(taskId)
@@ -217,6 +229,7 @@ public class AgnesVideoProviderClient implements VideoProviderClient {
         }
         String lower = status.trim().toLowerCase();
         return AgnesConstants.STATUS_QUEUED.equals(lower)
+                || AgnesConstants.STATUS_PENDING.equals(lower)
                 || AgnesConstants.STATUS_IN_PROGRESS.equals(lower)
                 || AgnesConstants.STATUS_COMPLETED.equals(lower)
                 || AgnesConstants.STATUS_FAILED.equals(lower);
@@ -581,7 +594,9 @@ public class AgnesVideoProviderClient implements VideoProviderClient {
             return null;
         }
     }
-    private String doPost(String url, String apiKey, String authHeader, String authPrefix, String json) {
+    private record HttpReply(int status, String body) { }
+
+    private HttpReply doPost(String url, String apiKey, String authHeader, String authPrefix, String json) {
         String headerName = StringUtils.isNotBlank(authHeader) ? authHeader : HttpConstants.HEADER_AUTHORIZATION;
         String prefix = authPrefix != null ? authPrefix : HttpConstants.AUTH_BEARER_PREFIX;
         try (HttpResponse response = HttpRequest.post(url)
@@ -590,7 +605,7 @@ public class AgnesVideoProviderClient implements VideoProviderClient {
                 .body(json)
                 .timeout(SUBMIT_TIMEOUT_MS)
                 .execute()) {
-            return response.body();
+            return new HttpReply(response.getStatus(), response.body());
         }
     }
 
@@ -605,7 +620,15 @@ public class AgnesVideoProviderClient implements VideoProviderClient {
             return response.body();
         }
     }
-    private String resolveEffectiveModel(AiModelConfigVo modelConfig, MediaVideoGenerateRequest request) {
+    public static void validateLegacyReferenceInputs(AiModelConfigVo modelConfig, MediaVideoGenerateRequest request) {
+        if (modelConfig == null || !AgnesConstants.PROVIDER_CODE.equalsIgnoreCase(modelConfig.getProviderCode())) return;
+        if (!AgnesVideo25RequestBuilder.supportsModelName(resolveEffectiveModel(modelConfig, request))
+                && AgnesVideo25RequestBuilder.hasVideoInput(request)) {
+            throw com.aid.media.provider.ProviderSubmissionFailures.notSent("该模型不支持参考视频，请更换模型或移除参考视频");
+        }
+    }
+
+    private static String resolveEffectiveModel(AiModelConfigVo modelConfig, MediaVideoGenerateRequest request) {
         String resolved = ModelCodeResolver.resolveUpstreamModel(modelConfig,
                 request == null ? null : request.getModelName());
         return StringUtils.isNotBlank(resolved) ? resolved : AgnesConstants.DEFAULT_VIDEO_MODEL;

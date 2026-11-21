@@ -102,13 +102,16 @@ export function applyProjectDetailToCreationStore(
   detail: UserProjectRow,
   projectId: number,
   options?: {
+    /** Studio 已有显式剧集 scope 时不得临时切回 null，否则会清空同 scope 的最后成功数据。 */
     explicitSeriesEpisodeId?: number | null
+    /** 切作品时不得把上一作品缺省风格带入新作品。 */
     preservePreviousProjectStyle?: boolean
   }
 ) {
   const currentSetting = options?.preservePreviousProjectStyle === false
     ? {
         ...createInitialCreationState().formData.globalSetting,
+        // 风格库属于用户级缓存，不是作品业务字段，可以跨作品保留。
         myStyles: store.formData.globalSetting.myStyles ?? []
       }
     : store.formData.globalSetting
@@ -171,7 +174,9 @@ export async function hydrateCreationStoreFromProjectDetail(
     force?: boolean
     /** await 期间上下文可能已切换（快速切作品）：返回 false 则丢弃本次结果，不写 store */
     shouldApply?: () => boolean
+    /** Studio 已有显式剧集 scope 时保留该 scope，避免同集刷新被临时 reset。 */
     explicitSeriesEpisodeId?: number | null
+    /** false 用于切作品，禁止继承上一作品缺省风格。 */
     preservePreviousProjectStyle?: boolean
   }
 ): Promise<UserProjectRow | null> {

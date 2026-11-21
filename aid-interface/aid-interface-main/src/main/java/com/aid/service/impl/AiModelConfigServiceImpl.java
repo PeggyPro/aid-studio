@@ -145,6 +145,30 @@ public class AiModelConfigServiceImpl implements IAiModelConfigService {
         return buildConfigVo(model, userId, true);
     }
 
+    @Override
+    public AiModelConfigVo selectTaskCredentials(Long modelId, String modelCode, Long userId,
+                                                String capabilityCode, String bindingCode) {
+        AiModelConfigVo credentials = selectTaskCredentials(modelId, modelCode, userId);
+        if (credentials == null) return null;
+        String providerQueryPath = credentials.getTaskQuerySuffix();
+        // 有绑定身份的任务不能回落到供应商共享路径，否则图片默认路径可能覆盖视频查询。
+        credentials.setTaskQuerySuffix(null);
+        if (StrUtil.isBlank(capabilityCode) || StrUtil.isBlank(bindingCode)) return credentials;
+        modelDefinitions.definitions(modelId).stream()
+                .filter(definition -> java.util.Objects.equals(capabilityCode, definition.getCode()))
+                .flatMap(definition -> definition.getBindings() == null
+                        ? java.util.stream.Stream.empty() : definition.getBindings().stream())
+                .filter(route -> java.util.Objects.equals(bindingCode, route.getCode()))
+                .findFirst().ifPresent(route -> {
+                    credentials.setCapabilityCode(capabilityCode);
+                    credentials.setBindingCode(bindingCode);
+                    credentials.setProtocol(route.getProtocol());
+                    credentials.setTaskQuerySuffix(StrUtil.isNotBlank(route.getTaskQuerySuffix())
+                            ? route.getTaskQuerySuffix() : providerQueryPath);
+                });
+        return credentials;
+    }
+
     private AiModelConfigVo buildConfigVo(AidAiModel model, Long userId, boolean existingTask) {
         if (model == null) {
             return null;
@@ -240,8 +264,6 @@ public class AiModelConfigServiceImpl implements IAiModelConfigService {
         vo.setBillingRuleJson(model.getBillingRuleJson());
         vo.setBillingVersion(model.getBillingVersion());
         vo.setIsFree(Boolean.TRUE.equals(model.getIsFree()));
-        vo.setImageUrlProxyEnabled(Boolean.TRUE.equals(model.getImageUrlProxyEnabled()));
-        vo.setImageUrlProxyTemplate(model.getImageUrlProxyTemplate());
         // 服务商字段（已处理用户覆盖）
         vo.setBaseUrl(effectiveBaseUrl);
         vo.setApiKey(effectiveApiKey);

@@ -16,6 +16,8 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
     "public/tac/**",
+    // Unmodified, locally hosted MediaPipe WASM runtime (license in emotion/).
+    "public/studio/emotion/vision/**",
   ]),
   {
     plugins: {

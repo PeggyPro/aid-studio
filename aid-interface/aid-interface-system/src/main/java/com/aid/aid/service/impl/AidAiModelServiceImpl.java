@@ -2,18 +2,14 @@ package com.aid.aid.service.impl;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.stream.Collectors;
 import cn.hutool.core.collection.CollectionUtil;
 import cn.hutool.core.util.StrUtil;
-import cn.hutool.json.JSONUtil;
 import com.aid.aid.support.ModelInputRequirementResolver;
-import com.aid.aid.support.ModelImageUrlProxyTemplate;
 import com.aid.common.exception.ServiceException;
 import com.aid.common.utils.DateUtils;
 import com.aid.common.utils.SecurityUtils;
@@ -24,16 +20,16 @@ import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import com.aid.aid.service.support.ModelBillingActivationValidator;
 import com.aid.aid.service.support.ModelConfigurationMerge;
+import com.aid.aid.service.support.ModelReferenceGuard;
+import org.springframework.transaction.annotation.Transactional;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.aid.aid.mapper.AidAiModelMapper;
 import com.aid.aid.domain.AidAiModel;
-import com.aid.aid.domain.AidAiModelFuncConfig;
 import com.aid.aid.domain.AidAiProvider;
 import com.aid.aid.domain.vo.AidRealModelGroupVo;
 import com.aid.aid.domain.vo.AidRealModelItemVo;
-import com.aid.aid.service.IAidAiModelFuncConfigService;
 import com.aid.aid.service.IAidAiModelService;
 import com.aid.aid.service.IAidAiProviderService;
 
@@ -65,9 +61,8 @@ public class AidAiModelServiceImpl extends ServiceImpl<AidAiModelMapper, AidAiMo
     @Autowired
     private IAidAiProviderService aidAiProviderService;
 
-    /** 功能模型池配置：删除模型前校验池内引用 */
     @Autowired
-    private IAidAiModelFuncConfigService aidAiModelFuncConfigService;
+    private ModelReferenceGuard modelReferenceGuard;
 
     /**
      * 查询AI底层模型配置与算力计费
@@ -163,11 +158,6 @@ public class AidAiModelServiceImpl extends ServiceImpl<AidAiModelMapper, AidAiMo
         ModelConfigurationMerge.validate(aidAiModel.getCapabilityJson());
         ModelConfigurationMerge.validate(aidAiModel.getBillingRuleJson());
         aidAiModel.setConfigVersion(0L);
-        if (aidAiModel.getImageUrlProxyEnabled() == null) {
-            aidAiModel.setImageUrlProxyEnabled(Boolean.FALSE);
-        }
-        aidAiModel.setImageUrlProxyTemplate(ModelImageUrlProxyTemplate.normalizeAndValidate(
-                aidAiModel.getImageUrlProxyEnabled(), aidAiModel.getImageUrlProxyTemplate()));
         validateModelCodeNotBlank(aidAiModel.getModelCode());
         validateAndNormalizeApiSuffix(aidAiModel);
         ModelBillingActivationValidator.validateIfRequiredAndEnabled(aidAiModel);
@@ -200,8 +190,7 @@ public class AidAiModelServiceImpl extends ServiceImpl<AidAiModelMapper, AidAiMo
                 Wrappers.<AidAiModel>lambdaQuery()
                         .select(AidAiModel::getId, AidAiModel::getStatus, AidAiModel::getBillingMode,
                                 AidAiModel::getBillingRuleJson, AidAiModel::getCostCredits,
-                                AidAiModel::getCapabilityJson, AidAiModel::getConfigVersion,
-                                AidAiModel::getImageUrlProxyEnabled, AidAiModel::getImageUrlProxyTemplate)
+                                AidAiModel::getCapabilityJson, AidAiModel::getConfigVersion)
                         .eq(AidAiModel::getId, aidAiModel.getId())
                         .last("limit 1"),
                 false);
@@ -221,15 +210,6 @@ public class AidAiModelServiceImpl extends ServiceImpl<AidAiModelMapper, AidAiMo
         if (aidAiModel.getBillingRuleJson() != null) {
             aidAiModel.setBillingRuleJson(ModelConfigurationMerge.merge(
                     before.getBillingRuleJson(), aidAiModel.getBillingRuleJson()));
-        }
-        Boolean effectiveProxyEnabled = aidAiModel.getImageUrlProxyEnabled() == null
-                ? before.getImageUrlProxyEnabled() : aidAiModel.getImageUrlProxyEnabled();
-        String effectiveProxyTemplate = aidAiModel.getImageUrlProxyTemplate() == null
-                ? before.getImageUrlProxyTemplate() : aidAiModel.getImageUrlProxyTemplate();
-        String normalizedProxyTemplate = ModelImageUrlProxyTemplate.normalizeAndValidate(
-                effectiveProxyEnabled, effectiveProxyTemplate);
-        if (aidAiModel.getImageUrlProxyTemplate() != null) {
-            aidAiModel.setImageUrlProxyTemplate(normalizedProxyTemplate);
         }
         AidAiModel effective = mergeBillingFields(before, aidAiModel);
         // 明确声明严格计费的模型，只要保存后的有效配置仍为启用态，就持续校验；因此已启用后清空
@@ -280,9 +260,11 @@ public class AidAiModelServiceImpl extends ServiceImpl<AidAiModelMapper, AidAiMo
      * @return 结果
      */
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public int deleteAidAiModelByIds(Long[] ids)
     {
-        validateModelNotReferenced(Arrays.asList(ids));
+        modelReferenceGuard.assertDeletable(ids == null ? null : Arrays.asList(ids));
+        if (ids.length == 0) return 0;
         return this.update(Wrappers.<AidAiModel>lambdaUpdate()
                 .in(AidAiModel::getId, Arrays.asList(ids))
                 .eq(AidAiModel::getDelFlag, DEL_FLAG_NORMAL)
@@ -299,9 +281,10 @@ public class AidAiModelServiceImpl extends ServiceImpl<AidAiModelMapper, AidAiMo
      * @return 结果
      */
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public int deleteAidAiModelById(Long id)
     {
-        validateModelNotReferenced(Arrays.asList(id));
+        modelReferenceGuard.assertDeletable(Arrays.asList(id));
         return this.update(Wrappers.<AidAiModel>lambdaUpdate()
                 .eq(AidAiModel::getId, id)
                 .eq(AidAiModel::getDelFlag, DEL_FLAG_NORMAL)
@@ -431,55 +414,6 @@ public class AidAiModelServiceImpl extends ServiceImpl<AidAiModelMapper, AidAiMo
         return StrUtil.isBlank(realModelCode) ? StrUtil.trim(modelCode) : StrUtil.trim(realModelCode);
     }
 
-    /**
-     * 校验待删除模型未被功能模型池引用，被引用时拒绝删除。
-     *
-     * @param ids 待删除模型主键集合
-     */
-    private void validateModelNotReferenced(List<Long> ids)
-    {
-        if (CollectionUtil.isEmpty(ids)) {
-            return;
-        }
-        // 引用校验查询：只取功能名与模型池 ID 列表（含停用配置，防止恢复后引用悬空）
-        List<AidAiModelFuncConfig> configs = aidAiModelFuncConfigService.list(
-                Wrappers.<AidAiModelFuncConfig>lambdaQuery()
-                        .select(AidAiModelFuncConfig::getId, AidAiModelFuncConfig::getFuncName,
-                                AidAiModelFuncConfig::getModelIds)
-                        .eq(AidAiModelFuncConfig::getDelFlag, DEL_FLAG_NORMAL));
-        if (CollectionUtil.isEmpty(configs)) {
-            return;
-        }
-        for (AidAiModelFuncConfig config : configs) {
-            Set<Long> poolIds = parseModelIds(config.getModelIds());
-            for (Long id : ids) {
-                if (poolIds.contains(id)) {
-                    log.error("AidAiModel 删除失败：模型仍被功能模型池引用, modelId={}, funcName={}, configId={}",
-                            id, config.getFuncName(), config.getId());
-                    throw new ServiceException("模型被模型池引用");
-                }
-            }
-        }
-    }
-
-    /**
-     * 解析模型池 ID JSON 数组，格式异常时返回空集合。
-     *
-     * @param modelIdsJson 模型池 ID JSON 数组字符串
-     */
-    private Set<Long> parseModelIds(String modelIdsJson)
-    {
-        if (StrUtil.isBlank(modelIdsJson)) {
-            return Collections.emptySet();
-        }
-        try {
-            List<Long> parsed = JSONUtil.toList(modelIdsJson, Long.class);
-            return parsed.stream().filter(Objects::nonNull).collect(Collectors.toSet());
-        } catch (Exception e) {
-            log.warn("模型池 model_ids 解析失败，按空处理: {}", modelIdsJson, e);
-            return Collections.emptySet();
-        }
-    }
 
     /**
      * 查询全部未删除服务商的名称映射。

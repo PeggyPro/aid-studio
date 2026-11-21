@@ -50,6 +50,9 @@ public interface IMediaGenerationService {
 
     MediaTaskResponse submitText(MediaTextGenerateRequest request);
 
+    /** Link the owning business step after task creation and before dispatch. */
+    MediaTaskResponse submitText(MediaTextGenerateRequest request, java.util.function.LongConsumer onPrepared);
+
     // 业务含义：文本流式生成，立即返回由 Controller 持有 SSE，业务线程推送增量与 taskId。
     void generateTextStream(MediaTextGenerateRequest request, MediaTextStreamSink sink);
 
@@ -64,6 +67,15 @@ public interface IMediaGenerationService {
 
     // 业务含义：查询任务状态，可选是否联动上游轮询。
     MediaTaskResponse queryTask(Long taskId, boolean pollRemote);
+
+    /**
+     * 按可信任务所有者查询本地任务快照，不依赖当前线程登录身份，也不触发远端轮询。
+     *
+     * @param taskId 任务 ID
+     * @param ownerUserId 任务所有者用户 ID
+     * @return 任务快照
+     */
+    MediaTaskResponse queryTaskByOwner(Long taskId, Long ownerUserId);
 
     /**
      * 查询任务当前状态（仅读本地 DB，不触发远端轮询、不累加重试计数）。

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect } from 'react';
 import { Layout } from 'antd';
 import { Outlet, useLocation } from 'react-router-dom';
 
@@ -6,6 +6,8 @@ import AppSidebar from './components/AppSidebar';
 import AppHeader from './components/AppHeader';
 import TagsView from './components/TagsView';
 import AppMain from './components/AppMain';
+import StorageConfigNotice from './components/StorageConfigNotice';
+import RouteRecoveryBoundary from '@/router/components/RouteRecoveryBoundary';
 import { useAppStore } from '@/store/useAppStore';
 import { useSettingsStore } from '@/store/useSettingsStore';
 
@@ -81,8 +83,11 @@ export default function MainLayout() {
           </div>
         )}
         <Content className={`app-layout__content ${fixedHeader ? 'has-fixed-header' : ''} ${tagsView ? 'has-tags' : ''}`}>
+          <StorageConfigNotice />
           <AppMain>
-            <Outlet />
+            <RouteRecoveryBoundary key={location.pathname + location.search}>
+              <Outlet />
+            </RouteRecoveryBoundary>
           </AppMain>
         </Content>
       </Layout>

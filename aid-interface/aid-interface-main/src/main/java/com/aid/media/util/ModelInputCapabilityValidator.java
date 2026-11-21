@@ -508,16 +508,12 @@ public final class ModelInputCapabilityValidator {
         Set<String> videos = new LinkedHashSet<>();
         for (String key : VIDEO_SINGLE_KEYS) addUrl(videos, options == null ? null : options.get(key));
         for (String key : VIDEO_LIST_KEYS) addUrls(videos, options == null ? null : options.get(key));
-        Set<String> referenceAudios = new LinkedHashSet<>();
+        int audioCount = 0;
         List<ReferenceAudioInput> audios = request.getReferenceAudios();
         if (audios != null) {
-            audios.stream().filter(Objects::nonNull)
-                    .map(ReferenceAudioInput::getSampleUrl).filter(StrUtil::isNotBlank)
-                    .forEach(referenceAudios::add);
+            audioCount = (int) audios.stream().filter(Objects::nonNull)
+                    .map(ReferenceAudioInput::getSampleUrl).filter(StrUtil::isNotBlank).distinct().count();
         }
-        addUrl(referenceAudios, request.getVoiceId());
-        addUrls(referenceAudios, options == null ? null : options.get("referenceAudioVoiceIds"));
-        int audioCount = referenceAudios.size();
         Object lipSyncAudio = options == null ? null : options.get("audio_url");
         if (lipSyncAudio != null && StrUtil.isNotBlank(String.valueOf(lipSyncAudio))) {
             audioCount = Math.max(audioCount, 1);

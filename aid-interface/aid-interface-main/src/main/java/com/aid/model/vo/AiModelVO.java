@@ -19,6 +19,18 @@ public class AiModelVO implements Serializable
 {
     private static final long serialVersionUID = 1L;
 
+    /** 当前音频能力的官方输入表单与素材约束。 */
+    private java.util.Map<String, Object> audio;
+
+    /** Server-only execution support; never a public model parameter. */
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    @com.alibaba.fastjson2.annotation.JSONField(serialize = false, deserialize = false)
+    private Boolean runtimeMusicSupported;
+
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    @com.alibaba.fastjson2.annotation.JSONField(serialize = false, deserialize = false)
+    private java.util.Map<String,Object> runtimeMusicInputSupport;
+
     /** 模型ID */
     private Long id;
 
@@ -75,6 +87,9 @@ public class AiModelVO implements Serializable
 
     /** 服务商展示名称 (如: 字节火山引擎, OpenAI) */
     private String providerName;
+
+    /** 服务商稳定公开编码，用于精确选择；不包含路由或凭据。 */
+    private String providerCode;
 
     /** 兼容展示LOGO：模型LOGO优先，为空时回退服务商LOGO。 */
     @com.aid.common.aid.oss.annotation.MediaUrl

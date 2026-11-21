@@ -41,6 +41,11 @@ type ListBurstSlot
 
 const storyboardListInflight = new Map<string, Promise<UserStoryboardListRow[]>>()
 const storyboardListBurst: ListBurstSlot<UserStoryboardListRow[]> = { current: null }
+type StoryboardListRead = Promise<UserStoryboardListRow[]>
+const storyboardListReads = new WeakMap<StoryboardListRead, {
+  result: StoryboardListRead
+  replaceWith: (replacement: StoryboardListRead) => void
+}>()
 
 /** 分镜写操作完成后清理列表并发/短时缓存，确保随后刷新读取最新副本内容。 */
 export function invalidateStoryboardListCache(): void {
@@ -51,10 +56,44 @@ export function invalidateStoryboardListCache(): void {
 const imagePromptResolveInflight = new Map<string, Promise<StoryboardImagePromptResolveData>>()
 const imagePromptResolveBurst: ListBurstSlot<StoryboardImagePromptResolveData> = { current: null }
 
+function observeStoryboardListRead(read: StoryboardListRead) {
+  const existing = storyboardListReads.get(read)
+  if (existing) return existing
+
+  let replacement: StoryboardListRead | undefined
+  let resolveReplacement!: (next: StoryboardListRead) => void
+  const redirected = new Promise<UserStoryboardListRow[]>(resolve => { resolveReplacement = resolve })
+  const observer = {
+    result: Promise.race([read, redirected]).then(
+      rows => replacement ?? rows,
+      error => {
+        if (replacement) return replacement
+        throw error
+      }
+    ),
+    replaceWith: (next: StoryboardListRead) => {
+      replacement = next
+      resolveReplacement(next)
+    }
+  }
+  storyboardListReads.set(read, observer)
+  return observer
+}
+
 /** 分镜工作台：查询分镜列表 POST /api/user/storyboard/list */
-export async function userStoryboardList(body: UserStoryboardListRequest): Promise<UserStoryboardListRow[]> {
+export async function userStoryboardList(
+  body: UserStoryboardListRequest,
+  options?: { refresh?: boolean }
+): Promise<UserStoryboardListRow[]> {
   const key = stableRequestKey(body)
-  return runListDedupe(key, storyboardListInflight, storyboardListBurst, async () => {
+  let previousRead: StoryboardListRead | undefined
+  if (options?.refresh) {
+    previousRead = storyboardListInflight.get(key)
+    storyboardListInflight.delete(key)
+    storyboardListBurst.entries?.delete(key)
+    if (storyboardListBurst.current?.key === key) storyboardListBurst.current = null
+  }
+  const read = runListDedupe(key, storyboardListInflight, storyboardListBurst, async () => {
     const res = await request.post<ApiEnvelope<UserStoryboardListRow[]>>(
       '/api/user/storyboard/list',
       body
@@ -62,6 +101,10 @@ export async function userStoryboardList(body: UserStoryboardListRequest): Promi
     const data = unwrap(res)
     return Array.isArray(data) ? data : []
   })
+  // 生成终态后的读取接管仍在途的旧请求，避免旧列表迟到后覆盖新分镜。
+  const { result } = observeStoryboardListRead(read)
+  if (previousRead) observeStoryboardListRead(previousRead).replaceWith(result)
+  return result
 }
 
 /** 分镜工作台：查询分镜详情 POST /api/user/storyboard/detail */

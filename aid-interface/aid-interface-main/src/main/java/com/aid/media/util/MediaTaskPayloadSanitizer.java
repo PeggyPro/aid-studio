@@ -58,6 +58,8 @@ public final class MediaTaskPayloadSanitizer {
     );
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+    public static final String DELIVERY_AUTHORIZED_IMAGES = "deliveryAuthorizedReferenceImages";
+    public static final String MANAGED_REFERENCE_IMAGES = "managedReferenceImages";
 
     private MediaTaskPayloadSanitizer() {
     }
@@ -70,7 +72,16 @@ public final class MediaTaskPayloadSanitizer {
      */
     public static String serializeRequest(Object request) {
         String json;
-        if (request instanceof com.aid.media.dto.MediaVideoGenerateRequest) {
+        if (request instanceof com.aid.media.dto.MediaImageGenerateRequest image) {
+            cn.hutool.json.JSONObject payload = JSONUtil.parseObj(image);
+            payload.remove(MANAGED_REFERENCE_IMAGES);
+            payload.remove(DELIVERY_AUTHORIZED_IMAGES);
+            if (image.getManagedReferenceImages() != null && !image.getManagedReferenceImages().isEmpty())
+                payload.set(MANAGED_REFERENCE_IMAGES, image.getManagedReferenceImages());
+            if (image.getDeliveryAuthorizedReferenceImages() != null && !image.getDeliveryAuthorizedReferenceImages().isEmpty())
+                payload.set(DELIVERY_AUTHORIZED_IMAGES, image.getDeliveryAuthorizedReferenceImages());
+            json = payload.toString();
+        } else if (request instanceof com.aid.media.dto.MediaVideoGenerateRequest) {
             // Hutool 不保证遵循 Jackson 的 JsonIgnore；内部可信对象只活在当前解析链路。
             cn.hutool.json.JSONObject payload = JSONUtil.parseObj(request);
             payload.remove("resolvedReferenceVideos");

@@ -317,7 +317,7 @@ public class AliyunImsVideoProviderClient implements VideoProviderClient
             {
                 clip.put("Out", decimal(item.getSourceEndSeconds()));
             }
-            if (audio && item.getVolume() != null)
+            if (item.getVolume() != null)
             {
                 clip.put("Effects", List.of(Map.of("Type", "Volume", "Gain", item.getVolume())));
             }

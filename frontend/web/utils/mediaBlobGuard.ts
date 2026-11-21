@@ -1,8 +1,8 @@
-/** 媒体 Blob 校验：拦截 SPA HTML / JSON 等非媒体响应，避免喂给 WebAV MP4Clip。 */
+/** 媒体 Blob 校验：拦截 SPA HTML / JSON 等非媒体响应，避免喂给媒体解码器。 */
 
 const HTML_OR_JSON_TYPE = /text\/html|application\/json/i
-const MEDIA_TYPE_HINT =
-  /^(video|audio)\//i
+const IMAGE_TYPE_HINT = /^image\//i
+const MEDIA_TYPE_HINT = /^(video|audio|image)\//i
 const FTYP_MARK = [0x66, 0x74, 0x79, 0x70] // ftyp
 
 export function isRejectedMediaContentType(contentType: string | null | undefined): boolean {
@@ -48,6 +48,8 @@ export async function blobLooksLikeMp4(blob: Blob): Promise<boolean> {
 export async function isUsableMediaBlob(blob: Blob | null | undefined): Promise<boolean> {
   if (!blob || blob.size <= 0) return false
   if (isRejectedMediaContentType(blob.type)) return false
+  // 图片会继续交给 createImageBitmap / img 解码；不能套用 WebAV 的大文件阈值。
+  if (IMAGE_TYPE_HINT.test(blob.type)) return true
   if (await blobLooksLikeMp4(blob)) return true
   return hasMediaContentTypeHint(blob.type) && blob.size > 1024
 }

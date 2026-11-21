@@ -1,5 +1,6 @@
 package com.aid.media.provider;
 
+import cn.hutool.core.util.StrUtil;
 import com.aid.aid.domain.media.AidMediaTask;
 import com.aid.common.exception.ServiceException;
 import com.aid.media.dto.MediaTextGenerateRequest.TextMessageItem;
@@ -46,6 +47,54 @@ public final class TextToolResultSupport {
             message.setContent(task.getResultText());
             return message;
         } catch (Exception ignored) { return null; }
+    }
+
+    /** Reads a native Assistant receipt without allowing corrupt tool state to become plain text. */
+    public static TextMessageItem readNative(AidMediaTask task) {
+        if (task == null || !"TEXT".equals(task.getMediaType()) || !"SUCCEEDED".equals(task.getStatus()))
+            throw new ServiceException("工具结果状态无效");
+        try {
+            TextMessageItem live = null;
+            if (task.getLiveTextTurn() != null) {
+                live = JSON.convertValue(task.getLiveTextTurn(), TextMessageItem.class);
+                if (live == null || !"assistant".equals(live.getRole()))
+                    throw new ServiceException("工具结果存档无效");
+            }
+
+            TextMessageItem archived = StrUtil.isBlank(task.getResponseJson())
+                    ? null : readArchivedToolMessage(task.getResponseJson());
+            boolean liveHasTools = live != null && live.getToolCalls() != null
+                    && !live.getToolCalls().isEmpty();
+            if (live != null && !liveHasTools) {
+                if (archived != null) throw new ServiceException("工具结果存档无效");
+                // Some providers return reasoning metadata with an ordinary final answer. It is
+                // trusted only for this live turn and must still become a plain CHAT decision.
+                return null;
+            }
+            if (liveHasTools && (archived == null
+                    || !JSON.valueToTree(live.getToolCalls()).equals(JSON.valueToTree(archived.getToolCalls()))))
+                throw new ServiceException("工具结果存档无效");
+
+            TextMessageItem message = liveHasTools ? live : archived;
+            if (message == null) return null;
+            message.setContent(task.getResultText());
+            return message;
+        } catch (ServiceException invalid) {
+            throw invalid;
+        } catch (Exception invalid) {
+            throw new ServiceException("工具结果存档无效");
+        }
+    }
+
+    private static TextMessageItem readArchivedToolMessage(String value) throws Exception {
+        var root = JSON.readTree(value);
+        if (root == null || root.size() != 1 || !root.path(KEY).isObject())
+            throw new ServiceException("工具结果存档无效");
+        TextMessageItem message = JSON.treeToValue(root.path(KEY), TextMessageItem.class);
+        if (message == null || !"assistant".equals(message.getRole())
+                || message.getToolCalls() == null || message.getToolCalls().isEmpty())
+            throw new ServiceException("工具结果存档无效");
+        return message;
     }
 
     /** 终态归档只保留本组件生成的函数结果摘要，不保留原始上游响应或思考上下文。 */

@@ -11,7 +11,6 @@ import {
   captureCreationLiveGenScope,
   matchesCreationLiveGenScope
 } from '~/composables/useCreationLiveGenScopeGuard'
-import { EMPTY_COUNT_PROGRESS } from '~/utils/taskSseProgressText'
 import { applyStoryboardScriptPanelsFromApi } from '~/composables/useCreateFlowStoryboardSync'
 import {
   getPersistedStoryboardScriptPanels,
@@ -89,9 +88,6 @@ export function useStoryboardScriptGenerationActions(opts: {
 
   const clearStoryboardScriptToEmptyState = () => {
     applyStoryboardScriptPanelsFromApi([])
-    if (!getStore().isGeneratingStoryboard && !getStore().isGeneratingStoryboardImageBatch) {
-      getStore().clearStoryboardScriptGenerationOutcome()
-    }
     if (!getStore().isGeneratingStoryboard) getStore().setStoryboardProgress(0, 0)
   }
 
@@ -140,7 +136,10 @@ export function useStoryboardScriptGenerationActions(opts: {
     sceneIds?: number[]
     manualAgentModelPick?: boolean
   }) => {
-    if (!(await workbench.getProjectEpisodeContext())) {
+    const routeContext = captureCreationLiveGenScope()
+    const context = await workbench.getProjectEpisodeContext()
+    if (pageDisposedRef.current || !matchesCreationLiveGenScope(routeContext)) return
+    if (!context) {
       message.warning(STORYBOARD_WORKBENCH_NEED_PROJECT_MSG)
       return
     }
@@ -149,7 +148,6 @@ export function useStoryboardScriptGenerationActions(opts: {
     getStore().setStoryboardError(null)
     prepareGeneratingProgress()
 
-    const routeContext = captureCreationLiveGenScope()
     try {
       const result = await storyboardScriptGen.runBatchGenerate(panelsRef.current, {
         manualAgentModelPick:
@@ -157,15 +155,7 @@ export function useStoryboardScriptGenerationActions(opts: {
         ...(options?.sceneIds?.length ? { sceneIds: options.sceneIds } : {})
       })
       if (pageDisposedRef.current) return
-      if (!matchesCreationLiveGenScope(routeContext)) {
-        getStore().mergeStep4PlusLiveGenForScopeKey(routeContext.scopeKey, {
-          isGeneratingStoryboard: false,
-          storyboardGenerationProgress: { ...EMPTY_COUNT_PROGRESS },
-          storyboardGenerationError: null,
-          storyboardScriptActiveTaskId: null
-        })
-        return
-      }
+      if (!matchesCreationLiveGenScope(routeContext)) return
       if (result.ok) {
         syncStoryboardScriptPanelsFromTaskResult(result.panels)
         getStore().setStoryboardGenerating(false)
@@ -179,16 +169,14 @@ export function useStoryboardScriptGenerationActions(opts: {
         return
       }
       const taskStillRunning = shouldSilentStoryboardBatchToast(result.message)
-      const persisted = syncStoryboardScriptPanelsFromTaskResult(result.panels)
+      syncStoryboardScriptPanelsFromTaskResult(result.panels)
       if (taskStillRunning) {
         getStore().setStoryboardGenerating(true)
         getStore().setStoryboardError(null)
         return
       }
-      if (persisted.length) {
-        getStore().setStoryboardError(result.message || '分镜生成失败，请稍后重试。')
-      }
-      getStore().stopStoryboardGeneration()
+      getStore().setStoryboardError(result.message || '分镜生成失败，请稍后重试。')
+      getStore().setStoryboardGenerating(false)
       getStore().setStoryboardProgress(0, 0)
       message.error(result.message || '分镜生成失败')
     } catch (error: unknown) {
@@ -199,21 +187,22 @@ export function useStoryboardScriptGenerationActions(opts: {
         getStore().setStoryboardError(null)
         return
       }
-      if (getPersistedStoryboardScriptPanels(panelsRef.current).length) {
-        getStore().setStoryboardError(failMessage)
-      } else {
+      if (!getPersistedStoryboardScriptPanels(panelsRef.current).length) {
         clearStoryboardScriptToEmptyState()
         onChangeRef.current([])
       }
-      getStore().stopStoryboardGeneration()
+      getStore().setStoryboardError(failMessage)
+      getStore().setStoryboardGenerating(false)
       getStore().setStoryboardProgress(0, 0)
-      message.error('分镜生成失败')
+      message.error(failMessage)
     }
   }
 
   const stopGeneration = async () => {
+    const scope = captureCreationLiveGenScope()
     generationStoppedRef.current = true
     await storyboardScriptGen.requestStop()
+    if (pageDisposedRef.current || !matchesCreationLiveGenScope(scope)) return
     getStore().stopStoryboardGeneration()
     message.info('已停止生成')
   }
@@ -225,31 +214,39 @@ export function useStoryboardScriptGenerationActions(opts: {
       return
     }
     setIsResumingPartialFailed(true)
+    const scope = captureCreationLiveGenScope()
     generationStoppedRef.current = false
     getStore().setStoryboardGenerating(true)
     getStore().setStoryboardError(null)
-    getStore().setStoryboardScriptPartialFailedData(null)
     try {
       const result = await storyboardScriptGen.resumePartialFailedGenerate(taskId, panelsRef.current)
+      if (pageDisposedRef.current || !matchesCreationLiveGenScope(scope)) return
       syncStoryboardScriptPanelsFromTaskResult(result.panels)
       if (result.ok) {
+        getStore().setStoryboardGenerating(false)
         message.success('分镜续生完成')
         onGenerationCompleteRef.current(result.panels)
-      } else if (result.message) {
-        message.warning(result.message)
+      } else if (shouldSilentStoryboardBatchToast(result.message)) {
+        getStore().setStoryboardGenerating(true)
+        getStore().setStoryboardError(null)
+      } else {
+        const failMessage = result.message || '分镜续生失败，请重试。'
+        getStore().setStoryboardError(failMessage)
+        getStore().setStoryboardGenerating(false)
+        message.warning(failMessage)
       }
     } catch (error: unknown) {
+      if (pageDisposedRef.current || !matchesCreationLiveGenScope(scope)) return
       const errorMessage = error instanceof Error ? error.message : '续生失败'
-      if (getPersistedStoryboardScriptPanels(panelsRef.current).length) {
-        getStore().setStoryboardError(errorMessage)
-      } else {
+      if (!getPersistedStoryboardScriptPanels(panelsRef.current).length) {
         clearStoryboardScriptToEmptyState()
         onChangeRef.current([])
       }
+      getStore().setStoryboardError(errorMessage)
+      getStore().setStoryboardGenerating(false)
       message.error(errorMessage)
     } finally {
       setIsResumingPartialFailed(false)
-      if (!getStore().storyboardGenerationError) getStore().setStoryboardGenerating(false)
     }
   }
 

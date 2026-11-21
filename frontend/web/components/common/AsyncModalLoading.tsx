@@ -17,7 +17,7 @@ export function AsyncModalLoading() {
         aria-live="polite"
         aria-busy="true"
       >
-        <LoadingOutlined spin className="async-modal-loading__icon text-[#00abd8] text-[20px]" />
+        <LoadingOutlined spin className="async-modal-loading__icon text-[#00abd8] text-[20px] flow-generation-spinner" />
         <span>正在打开编辑器...</span>
       </div>
     </div>

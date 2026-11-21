@@ -1,5 +1,8 @@
 package com.aid.media.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.aid.billing.dto.BillingBudgetContext;
+import com.alibaba.fastjson2.annotation.JSONField;
 import lombok.Data;
 
 import java.util.Map;
@@ -31,6 +34,26 @@ public class MediaAudioGenerateRequest {
     /** 归一化后的调用配置标识，参与请求幂等。 */
     @com.fasterxml.jackson.annotation.JsonIgnore
     private String invocationIdentity;
+
+    /** 服务端从已验证参数和素材提取的计价输入，外部JSON不能覆盖。 */
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    @JSONField(serialize = false, deserialize = false)
+    private transient Map<String, Object> verifiedAudioBillingInput;
+
+    /** 服务端暂存的内嵌音频句柄，仅URL进入重放快照，不接受外部JSON。 */
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    private Map<String,String> stagedAudioInputs;
+
+    /** 官方入口按登录用户隔离的提交幂等身份；外部不能直接覆盖。 */
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    private String officialIdempotencyKey;
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    private String officialInputDigest;
+
+    /** 服务端编排注入的Run预算上下文，不接受外部JSON。 */
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    @JSONField(serialize = false, deserialize = false)
+    private transient BillingBudgetContext billingBudgetContext;
 
     /** 项目ID（可选），用于按项目归类任务 */
     private Long projectId;
@@ -94,4 +117,12 @@ public class MediaAudioGenerateRequest {
 
     /** 试听模式（可选，默认 false）：true 时同步返回 base64 音频、不上传对象存储、不落库 */
     private boolean previewMode;
+
+    /** 内部逻辑调用幂等键；外部请求不能指定。 */
+    @JsonProperty(access = JsonProperty.Access.READ_ONLY)
+    private String callId;
+
+    /** 内部可读步骤身份，仅用于审计。 */
+    @JsonProperty(access = JsonProperty.Access.READ_ONLY)
+    private String callIdentity;
 }

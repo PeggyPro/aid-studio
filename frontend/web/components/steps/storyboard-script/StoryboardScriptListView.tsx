@@ -1,5 +1,9 @@
 'use client'
 
+import { flowRowMotionStyle } from '~/utils/v10Motion'
+
+import { FlowActionIcon } from '~/components/common/FlowActionIcon'
+
 import type { MutableRefObject } from 'react'
 import { ReactSortable } from 'react-sortablejs'
 import type { SortableEvent } from 'sortablejs'
@@ -69,7 +73,7 @@ export function StoryboardScriptListView(props: StoryboardScriptListViewProps) {
     onPreviewStoryboardImage,
     onDownloadStoryboardImage,
     onDeleteStoryboardImage,
-    showStoryboardPartialBanner,
+    showStoryboardErrorBanner,
     generationError,
     canResumePartialFailed,
     isResumingPartialFailed,
@@ -164,7 +168,7 @@ export function StoryboardScriptListView(props: StoryboardScriptListViewProps) {
             </div>
           </div>
         ) : null}
-        <div className="storyboard-list-item" data-panel-index={index}>
+        <div className="storyboard-list-item" style={flowRowMotionStyle(index)} data-panel-index={index}>
           <div className="storyboard-list-header">
             <span
               className="storyboard-drag-handle"
@@ -244,7 +248,7 @@ export function StoryboardScriptListView(props: StoryboardScriptListViewProps) {
                   {generating ? (
                     <div className="asset-visual-generating-block" role="status" aria-live="polite">
                       <div className="asset-visual-generating-block__shimmer" aria-hidden="true" />
-                      <LoadingOutlined spin className="asset-visual-generating-block__icon" />
+                      <LoadingOutlined spin className="asset-visual-generating-block__icon flow-generation-spinner" />
                       <p className="asset-visual-generating-block__text">正在生成分镜图…</p>
                     </div>
                   ) : cover ? (
@@ -281,7 +285,7 @@ export function StoryboardScriptListView(props: StoryboardScriptListViewProps) {
                             e.stopPropagation()
                             onPreviewStoryboardImage(index, getPanelCoverImageIndex(panel))
                           }}
-                          icon={<img src={iconPreview} alt="" className="footer-action-icon" />}
+                          icon={<FlowActionIcon src={iconPreview} className="footer-action-icon" />}
                         >
                           预览
                         </Button>
@@ -290,7 +294,7 @@ export function StoryboardScriptListView(props: StoryboardScriptListViewProps) {
                             e.stopPropagation()
                             onOpenStoryboardImage(index)
                           }}
-                          icon={<img src={iconReplace} alt="" className="footer-action-icon" />}
+                          icon={<FlowActionIcon src={iconReplace} className="footer-action-icon" />}
                         >
                           替换
                         </Button>
@@ -299,7 +303,7 @@ export function StoryboardScriptListView(props: StoryboardScriptListViewProps) {
                             e.stopPropagation()
                             onDownloadStoryboardImage(index, getPanelCoverImageIndex(panel))
                           }}
-                          icon={<img src={iconDownload} alt="" className="footer-action-icon" />}
+                          icon={<FlowActionIcon src={iconDownload} className="footer-action-icon" />}
                         >
                           下载
                         </Button>
@@ -355,7 +359,7 @@ export function StoryboardScriptListView(props: StoryboardScriptListViewProps) {
                           e.stopPropagation()
                           onPreviewReferenceImages(panel)
                         }}
-                        icon={<img src={iconPreview} alt="" className="footer-action-icon" />}
+                        icon={<FlowActionIcon src={iconPreview} className="footer-action-icon" />}
                       >
                         预览
                       </Button>
@@ -407,8 +411,8 @@ export function StoryboardScriptListView(props: StoryboardScriptListViewProps) {
 
   return (
     <div ref={listRef} className="storyboard-list">
-      {showStoryboardPartialBanner ? (
-        <div className="storyboard-partial-banner">
+      {showStoryboardErrorBanner ? (
+        <div className="storyboard-partial-banner" role="alert">
           <div className="storyboard-partial-banner__text">{generationError}</div>
           {canResumePartialFailed ? (
             <BillingQuoteConfirm

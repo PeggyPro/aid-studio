@@ -26,6 +26,7 @@ env_get() {
 }
 
 docker_profile_enabled() { [[ "$1" == 'mysql' ]]; }
+docker() { echo 'FAIL: test attempted to invoke the Docker daemon' >&2; return 1; }
 
 trace_startup() { printf '%s\n' "$1" >> "${orderFile}"; }
 ensure_docker_image() { trace_startup image; }
@@ -63,6 +64,11 @@ docker_managed_mysql_root_exec() {
   printf 'initialized\n' > "${stateFile}"
 }
 
+mark_sql_baseline_from_dir() {
+  [[ "$1" == "${ROOT_DIR}/sql" ]] || return 1
+  printf 'history\n' >> "${callLog}"
+}
+
 docker_container_diagnostics() { printf 'diagnostics|%s\n' "$*" >> "${callLog}"; }
 
 # 空库必须仅补导入一次基线，随后用业务账号校验核心表。
@@ -71,6 +77,8 @@ wait_docker_database_schema_ready >/dev/null
   || { echo 'FAIL: empty managed MySQL was not initialized' >&2; exit 1; }
 [[ "$(grep -c '^root|' "${callLog}")" == '1' ]] \
   || { echo 'FAIL: empty managed MySQL imported the baseline more than once' >&2; exit 1; }
+[[ "$(grep -c '^history$' "${callLog}")" == '1' ]] \
+  || { echo 'FAIL: empty managed MySQL did not record its migration baseline' >&2; exit 1; }
 grep -Fq -- '--default-character-set=utf8mb4 aid' "${callLog}" \
   || { echo 'FAIL: baseline import did not use the configured database' >&2; exit 1; }
 grep -q '^business|' "${callLog}" \
@@ -83,7 +91,7 @@ if wait_docker_database_schema_ready >/dev/null 2>&1; then
   echo 'FAIL: partially initialized managed MySQL was accepted' >&2
   exit 1
 fi
-if grep -q '^root|' "${callLog}"; then
+if grep -Eq '^root\||^history$' "${callLog}"; then
   echo 'FAIL: partially initialized managed MySQL was overwritten by a repeated baseline import' >&2
   exit 1
 fi

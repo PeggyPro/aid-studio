@@ -31,6 +31,8 @@ import java.util.Set;
 public class VerifiedMediaInputService {
     private static final BigDecimal MB = BigDecimal.valueOf(1024L * 1024L);
     private final VerifiedMediaMetadataService metadata;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private ManagedTextImageService managedImages;
 
     public void configured(AiModelConfigVo model, Object request) {
         com.aid.model.definition.ModelMaterialValidator.validate(model, request, metadata);
@@ -45,6 +47,38 @@ public class VerifiedMediaInputService {
         collectOptions(images, request.getOptions(), "referenceImages", "images", "key_images", "image_settings");
         long bytes = validateImages(images, rules);
         for (JsonNode rule : rules) range(rule, null, "maxInputMediaTotalFileSizeMb", BigDecimal.valueOf(bytes).divide(MB));
+    }
+
+    /** Read-only quote uses the same aspect limits as submission without probing the source bytes. */
+    public void videoQuoteImageAspectRatios(AiModelConfigVo model, MediaVideoGenerateRequest request) {
+        var snapshots = request.getQuoteReferenceImages();
+        if (snapshots == null || snapshots.isEmpty()) return;
+        JsonNode root = ModelCapabilityResolver.parseCapability(model.getCapabilityJson());
+        List<JsonNode> aspectRules = rules(root, ModelInputCapabilityValidator.videoScene(model, request)).stream()
+                .filter(rule -> positiveLimit(rule, "referenceImageMinAspectRatio") != null
+                        || positiveLimit(rule, "referenceImageMaxAspectRatio") != null)
+                .toList();
+        if (aspectRules.isEmpty()) return;
+        Set<String> missing = new LinkedHashSet<>();
+        int index = 0;
+        for (var entry : snapshots.entrySet()) {
+            index++;
+            var image = entry.getValue();
+            try {
+                image.requireValid(entry.getKey(), "参考图");
+            } catch (ServiceException rejected) {
+                if (MediaPreparationErrorCode.read(rejected.getDetailMessage())
+                        != MediaPreparationErrorCode.MEDIA_INPUT_METADATA_REQUIRED) throw rejected;
+                missing.add(image.getResourceId().toString());
+                continue;
+            }
+            for (JsonNode rule : aspectRules) {
+                validateReferenceImageAspectRatio(rule, image.getWidth(), image.getHeight(), index);
+            }
+        }
+        if (!missing.isEmpty()) {
+            throw MediaPreparationErrorCode.imageMetadataRequired("references", List.copyOf(missing));
+        }
     }
 
     public void video(AiModelConfigVo model, MediaVideoGenerateRequest request) {
@@ -141,9 +175,14 @@ public class VerifiedMediaInputService {
         for (JsonNode rule : rules) range(rule, null, "maxInputMediaTotalFileSizeMb", BigDecimal.valueOf(totalBytes).divide(MB));
     }
 
+    public void normalizeText(AiModelConfigVo model, MediaTextGenerateRequest request, boolean verifyMetadata) {
+        TextModelCapabilityValidator.normalizeAndValidate(model, request, verifyMetadata,
+                metadata::isConfiguredStorageUrl);
+    }
+
     public void text(AiModelConfigVo model, MediaTextGenerateRequest request) {
         configured(model, request);
-        TextModelCapabilityValidator.validateStructure(model, request);
+        TextModelCapabilityValidator.validateStructure(model, request, metadata::isConfiguredStorageUrl);
         if (request.getMessages() == null) return;
         JsonNode capability = ModelCapabilityResolver.parseCapability(model.getCapabilityJson());
         BigDecimal totalBytes = BigDecimal.ZERO;
@@ -153,6 +192,16 @@ public class VerifiedMediaInputService {
                 String type = part.getType().toLowerCase(Locale.ROOT);
                 if (!Set.of("image", "audio", "video").contains(type)) continue;
                 String title = type.substring(0, 1).toUpperCase(Locale.ROOT) + type.substring(1);
+                if (ManagedTextImageService.isReference(part.getUrl())) {
+                    if (!"image".equals(type) || managedImages == null) throw new com.aid.common.exception.ServiceException("内部图片引用不可用于当前输入");
+                    var image = managedImages.resolve(request.getUserId(), part.getUrl());
+                    var actual = new VerifiedMediaMetadataService.Metadata(image.bytes().length, null, image.width(), image.height(), null,
+                            image.mimeType().substring("image/".length()), null, 1);
+                    part.setSizeBytes(actual.sizeBytes()); part.setWidth(actual.width()); part.setHeight(actual.height()); part.setMimeType(image.mimeType());
+                    totalBytes = totalBytes.add(BigDecimal.valueOf(actual.sizeBytes()));
+                    validate(actual, capability, "inputImage");
+                    continue;
+                }
                 if (!requiresMetadata(capability, "maxInput" + title) && !requiresMetadata(capability, "input" + title)
                         && !requiresMetadata(capability, "maxInputMediaTotal")) continue;
                 var actual = metadata.inspect(part.getUrl(), type);
@@ -173,10 +222,15 @@ public class VerifiedMediaInputService {
     private long validateImages(Set<String> images, List<JsonNode> rules) {
         if (rules.stream().noneMatch(rule -> requiresMetadata(rule, "referenceImage") || requiresMetadata(rule, "maxInputMediaTotal"))) return 0L;
         long bytes = 0;
+        int index = 0;
         for (String url : images) {
+            index++;
             var actual = metadata.inspect(url, "image");
             bytes = Math.addExact(bytes, actual.sizeBytes());
-            for (JsonNode rule : rules) validate(actual, rule, "referenceImage");
+            for (JsonNode rule : rules) {
+                validate(actual, rule, "referenceImage");
+                validateReferenceImageAspectRatio(rule, actual.width(), actual.height(), index);
+            }
         }
         return bytes;
     }
@@ -209,14 +263,45 @@ public class VerifiedMediaInputService {
         range(rule, prefix + "MinHeight", prefix + "MaxHeight", BigDecimal.valueOf(value.height()));
         range(rule, prefix + "MinFps", prefix + "MaxFps", value.fps());
         range(rule, prefix + "MinPixels", prefix + "MaxPixels", BigDecimal.valueOf(value.width()).multiply(BigDecimal.valueOf(value.height())));
-        BigDecimal ratio = value.height() > 0 ? BigDecimal.valueOf(value.width()).divide(BigDecimal.valueOf(value.height()), 12, RoundingMode.HALF_UP) : null;
-        range(rule, prefix + "MinAspectRatio", prefix + "MaxAspectRatio", ratio);
+        if (!"referenceImage".equals(prefix)) {
+            range(rule, prefix + "MinAspectRatio", prefix + "MaxAspectRatio",
+                    aspectRatio(value.width(), value.height()));
+        }
         JsonNode formats = rule.path(prefix + "Formats");
         if (formats.isArray() && !formats.isEmpty()) {
             boolean accepted = false;
             for (JsonNode item : formats) if ("*".equals(item.asText()) || normalize(item.asText()).equals(normalize(value.format()))) accepted = true;
             if (!accepted) throw new ServiceException("素材格式不支持");
         }
+    }
+
+    private void validateReferenceImageAspectRatio(JsonNode rule, int width, int height, int index) {
+        BigDecimal minimum = positiveLimit(rule, "referenceImageMinAspectRatio");
+        BigDecimal maximum = positiveLimit(rule, "referenceImageMaxAspectRatio");
+        if (minimum == null && maximum == null) return;
+        BigDecimal actual = aspectRatio(width, height);
+        if (actual == null) throw new ServiceException("参考图尺寸无效");
+        if (minimum != null && actual.compareTo(minimum) < 0
+                || maximum != null && actual.compareTo(maximum) > 0) {
+            String allowed = minimum == null ? "不超过" + maximum.stripTrailingZeros().toPlainString()
+                    : maximum == null ? "至少" + minimum.stripTrailingZeros().toPlainString()
+                    : minimum.stripTrailingZeros().toPlainString() + "至" + maximum.stripTrailingZeros().toPlainString();
+            throw MediaPreparationErrorCode.MEDIA_INPUTS_INVALID.reject(
+                    "第%d张参考图的宽高比为%s（%d×%d），要求%s。请裁剪或更换这张图。".formatted(
+                            index, actual.setScale(6, RoundingMode.HALF_UP).stripTrailingZeros().toPlainString(),
+                            width, height, allowed));
+        }
+    }
+
+    private static BigDecimal aspectRatio(int width, int height) {
+        return height > 0 ? BigDecimal.valueOf(width)
+                .divide(BigDecimal.valueOf(height), 12, RoundingMode.HALF_UP) : null;
+    }
+
+    private static BigDecimal positiveLimit(JsonNode rule, String key) {
+        JsonNode value = rule.get(key);
+        return value != null && value.isNumber() && value.decimalValue().signum() > 0
+                ? value.decimalValue() : null;
     }
 
     private void range(JsonNode rule, String minKey, String maxKey, BigDecimal value) {

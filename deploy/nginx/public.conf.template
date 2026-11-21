@@ -17,6 +17,36 @@ location = /sitemap.xml {
     proxy_set_header X-Forwarded-Host $host;
     proxy_set_header X-Forwarded-Proto $scheme;
 }
+location ^~ /aid/ws/ {
+    set $aid_realtime_port $server_port;
+    if ($http_host ~ ":(?<aid_ws_public_port>[0-9]+)$") { set $aid_realtime_port $aid_ws_public_port; }
+    proxy_pass ${NGINX_BACKEND_ORIGIN}/ws/;
+    proxy_http_version 1.1;
+    proxy_set_header Host $http_host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Host $http_host;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Forwarded-Port $aid_realtime_port;
+    proxy_set_header Forwarded "";
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+}
+location = /aid/api/user/studio/director/virtual-camera/ws {
+    set $aid_realtime_port $server_port;
+    if ($http_host ~ ":(?<aid_camera_public_port>[0-9]+)$") { set $aid_realtime_port $aid_camera_public_port; }
+    proxy_pass ${NGINX_BACKEND_ORIGIN}/api/user/studio/director/virtual-camera/ws;
+    proxy_http_version 1.1;
+    proxy_set_header Host $http_host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Host $http_host;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Forwarded-Port $aid_realtime_port;
+    proxy_set_header Forwarded "";
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+}
 location /aid/ {
     proxy_pass ${NGINX_BACKEND_ORIGIN}/;
     proxy_set_header Host $proxy_host;

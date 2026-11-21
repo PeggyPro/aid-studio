@@ -40,10 +40,14 @@ import Auth from '@/components/Auth';
 import IconPicker from '@/components/IconPicker';
 import MenuIcon from '@/layouts/components/MenuIcon';
 import PageHeader from '@/components/PageHeader';
+import { organizeNavigation, type NavigationItem } from '@/utils/adminNavigation';
+import { getAuthoringAccess, type AuthoringAccess } from '@/utils/adminWorkspaces';
+import { useAuth } from '@/hooks/useAuth';
 import { handleTree } from '@/utils/ruoyi';
 
 interface MenuRow {
   menuId: number;
+  navigationKey?: string;
   menuName: string;
   parentId: number;
   orderNum: number;
@@ -62,6 +66,24 @@ interface MenuRow {
   createTime?: string;
 }
 
+function navigationRows(rows: MenuRow[], authoring: AuthoringAccess): MenuRow[] {
+  function collect(row: MenuRow): NavigationItem<MenuRow>[] {
+    if (row.status !== '0' || row.visible !== '0' || row.menuType === 'F') return [];
+    const item = { key: String(row.menuId), title: row.menuName, icon: row.icon, value: row };
+    if (row.menuType === 'C') return [{ ...item, view: row.component }];
+    const children = (row.children ?? []).flatMap(collect);
+    return children.length ? [{ ...item, children }] : [];
+  }
+  let groupId = -1;
+  function toRow(item: NavigationItem<MenuRow>): MenuRow {
+    if (item.value) return { ...item.value, navigationKey: item.key, menuName: item.title, children: item.children?.map(toRow) };
+    return { menuId: groupId--, parentId: 0, menuName: item.title, icon: item.icon,
+      orderNum: 0, menuType: 'M', status: '0', visible: '0', isFrame: '1', isCache: '0',
+      children: item.children?.map(toRow) };
+  }
+  return organizeNavigation(rows.flatMap(collect), authoring).map(toRow);
+}
+
 const menuTypeLabel: Record<string, string> = { M: '目录', C: '菜单', F: '按钮' };
 const menuTypeTagColor: Record<string, string> = { M: 'blue', C: 'green', F: 'orange' };
 
@@ -78,6 +100,12 @@ export default function MenuManagePage() {
   const [queryForm] = Form.useForm();
   const [editForm] = Form.useForm();
   const [rows, setRows] = useState<MenuRow[]>([]);
+  const [rawTree, setRawTree] = useState(false);
+  const { hasPermi } = useAuth();
+  const { skill, agent } = getAuthoringAccess(hasPermi);
+  const displayedRows = React.useMemo(
+    () => rawTree ? rows : navigationRows(rows, { skill, agent }), [rawTree, rows, skill, agent]
+  );
   const [loading, setLoading] = useState(false);
   const [dialog, setDialog] = useState<{ open: boolean; row?: Partial<MenuRow>; title: string }>({
     open: false,
@@ -92,7 +120,7 @@ export default function MenuManagePage() {
     const keys: React.Key[] = [];
     const walk = (ns: MenuRow[]) => {
       ns.forEach((n) => {
-        keys.push(n.menuId);
+        keys.push(n.navigationKey ?? n.menuId);
         if (n.children?.length) walk(n.children);
       });
     };
@@ -107,7 +135,7 @@ export default function MenuManagePage() {
       const list = res.data || [];
       const tree = handleTree<MenuRow>(list, 'menuId');
       setRows(tree);
-      if (expandAll) setExpandedKeys(collectKeys(tree));
+      if (expandAll) setExpandedKeys(collectKeys(rawTree ? tree : navigationRows(tree, { skill, agent })));
     } finally {
       setLoading(false);
     }
@@ -215,7 +243,7 @@ export default function MenuManagePage() {
       key: '__ops__',
       width: 220,
       fixed: 'right',
-      render: (_: any, row: MenuRow) => (
+      render: (_: any, row: MenuRow) => row.menuId < 0 ? null : (
         <Space size={0} wrap>
           <Auth permission="system:menu:edit">
             <Button type="link" size="small" icon={<EditOutlined />} onClick={() => openEdit(row)}>
@@ -280,6 +308,10 @@ export default function MenuManagePage() {
       <Card className="page-card" bordered={false}>
         <div className="crud-page__toolbar">
           <Space>
+            <Radio.Group value={rawTree} onChange={event => { setRawTree(event.target.value); setExpandAll(false); setExpandedKeys([]); }}>
+              <Radio.Button value={false}>导航分类</Radio.Button>
+              <Radio.Button value={true}>全部路由与权限</Radio.Button>
+            </Radio.Group>
             <Auth permission="system:menu:add">
               <Button type="primary" icon={<PlusOutlined />} onClick={() => openAdd()}>
                 新增
@@ -290,7 +322,7 @@ export default function MenuManagePage() {
               onClick={() => {
                 const next = !expandAll;
                 setExpandAll(next);
-                setExpandedKeys(next ? collectKeys(rows) : []);
+                setExpandedKeys(next ? collectKeys(displayedRows) : []);
               }}
             >
               展开/折叠
@@ -298,9 +330,9 @@ export default function MenuManagePage() {
           </Space>
         </div>
         <Table<MenuRow>
-          rowKey="menuId"
+          rowKey={row => row.navigationKey ?? row.menuId}
           columns={columns}
-          dataSource={rows}
+          dataSource={displayedRows}
           loading={loading}
           pagination={false}
           scroll={{ x: 'max-content' }}

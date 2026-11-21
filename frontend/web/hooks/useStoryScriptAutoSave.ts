@@ -2,7 +2,7 @@
 
 import { message, Modal } from 'antd'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { getRouteLikeSnapshot } from '~/hooks/useRouteLike'
+import { getRouteLikeSnapshot, useRouteLike } from '~/hooks/useRouteLike'
 import { useCreationStore } from '~/stores/creation'
 import {
   resolveStoryScriptEditorHtmlAfterApiLoad,
@@ -10,7 +10,6 @@ import {
 } from '~/utils/htmlPlain'
 import {
   getStoryScriptAutoSaveCoordinator,
-  storyScriptScopeKey,
   type StoryScriptAutoSaveCoordinator,
   type StoryScriptFlushResult,
   type StoryScriptPersistenceState
@@ -28,16 +27,16 @@ const INITIAL_STATE: StoryScriptPersistenceState = {
  * 剧本自动保存：停止输入5秒保存，持续编辑最多等待20秒，并统一处理重试与内容冲突。
  */
 export function useStoryScriptAutoSave(
-  htmlContent: string,
   applyEditorContent?: (html: string) => void
 ) {
+  const route = useRouteLike()
+  const projectId = useCreationStore((state) => state.currentProjectId)
+  const episodeId = useCreationStore((state) => state.currentEpisodeId)
+  const projectType = useCreationStore((state) => state.currentProjectType)
   const [saveState, setSaveState] = useState<StoryScriptPersistenceState>(INITIAL_STATE)
   const coordinatorRef = useRef<StoryScriptAutoSaveCoordinator | null>(null)
-  const unsubscribeRef = useRef<(() => void) | null>(null)
-  const initializedScopesRef = useRef(new Set<string>())
-  const resolveGenerationRef = useRef(0)
+  const pendingEdits = useRef<Promise<StoryScriptAutoSaveCoordinator | null>>(Promise.resolve(null))
   const dialogOpenRef = useRef(false)
-  const disposedRef = useRef(false)
   const applyEditorContentRef = useRef(applyEditorContent)
 
   useEffect(() => {
@@ -45,61 +44,66 @@ export function useStoryScriptAutoSave(
   }, [applyEditorContent])
 
   useEffect(() => {
-    const generation = ++resolveGenerationRef.current
-    const apiText = storyScriptOriginalTextForApi(htmlContent)
+    let active = true
+    let unsubscribe: (() => void) | undefined
 
-    void (async () => {
-      const ctx = await resolveStoryScriptSaveContext(
-        useCreationStore.getState(),
-        getRouteLikeSnapshot()
-      )
-      if (!ctx || disposedRef.current || generation !== resolveGenerationRef.current) return
-
-      const key = storyScriptScopeKey(ctx)
-      const previous = coordinatorRef.current
-      if (previous && storyScriptScopeKey(previous.context) !== key) {
-        void previous.flush()
-        unsubscribeRef.current?.()
-        unsubscribeRef.current = null
-      }
+    void resolveStoryScriptSaveContext(useCreationStore.getState(), route).then((ctx) => {
+      if (!ctx || !active) return
 
       const coordinator = getStoryScriptAutoSaveCoordinator(ctx)
       coordinatorRef.current = coordinator
-      if (!unsubscribeRef.current) {
-        unsubscribeRef.current = coordinator.subscribe(() => setSaveState(coordinator.getState()))
-      }
+      unsubscribe = coordinator.subscribe(() => setSaveState(coordinator.getState()))
       setSaveState(coordinator.getState())
+    })
 
-      const shouldSchedule = initializedScopesRef.current.has(key)
-      coordinator.updateContent(apiText, shouldSchedule)
-      initializedScopesRef.current.add(key)
-    })()
-  }, [htmlContent])
+    return () => {
+      active = false
+      unsubscribe?.()
+      coordinatorRef.current = null
+    }
+  }, [route, projectId, episodeId, projectType])
+
+  const queueEdit = useCallback((html: string) => {
+    const scope = resolveStoryScriptSaveContext(useCreationStore.getState(), getRouteLikeSnapshot())
+    const text = storyScriptOriginalTextForApi(html)
+    pendingEdits.current = pendingEdits.current.then(async (previous) => {
+      const ctx = await scope
+      if (!ctx) return previous
+
+      const coordinator = getStoryScriptAutoSaveCoordinator(ctx)
+      if (previous && previous !== coordinator) void previous.flush()
+      coordinator.updateContent(text)
+      return coordinator
+    })
+  }, [])
+
+  const flushAutoSave = useCallback(async (): Promise<StoryScriptFlushResult> => {
+    const displayed = coordinatorRef.current
+    const edited = await pendingEdits.current
+    if (edited && displayed && edited !== displayed) void edited.flush()
+    return (displayed ?? edited)?.flush() ?? 'clean'
+  }, [])
 
   useEffect(() => {
-    disposedRef.current = false
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'hidden') void coordinatorRef.current?.flush()
+      if (document.visibilityState === 'hidden') void flushAutoSave()
     }
     const handlePageHide = () => {
-      void coordinatorRef.current?.flush()
+      void flushAutoSave()
     }
     const handleOnline = () => {
-      void coordinatorRef.current?.retryNow()
+      void flushAutoSave()
     }
     document.addEventListener('visibilitychange', handleVisibilityChange)
     window.addEventListener('pagehide', handlePageHide)
     window.addEventListener('online', handleOnline)
     return () => {
-      disposedRef.current = true
       document.removeEventListener('visibilitychange', handleVisibilityChange)
       window.removeEventListener('pagehide', handlePageHide)
       window.removeEventListener('online', handleOnline)
-      void coordinatorRef.current?.flush()
-      unsubscribeRef.current?.()
-      unsubscribeRef.current = null
+      void flushAutoSave()
     }
-  }, [])
+  }, [flushAutoSave])
 
   useEffect(() => {
     const coordinator = coordinatorRef.current
@@ -137,9 +141,5 @@ export function useStoryScriptAutoSave(
     })
   }, [saveState.conflict])
 
-  const flushAutoSave = useCallback(async (): Promise<StoryScriptFlushResult> => {
-    return coordinatorRef.current?.flush() ?? 'clean'
-  }, [])
-
-  return { flushAutoSave, saveState }
+  return { queueEdit, flushAutoSave, saveState }
 }

@@ -126,11 +126,11 @@ export function useCreateFlowShellLiveGenBootstrap(options: {
   const routeProjectId = route.query.projectId
   const routeEpisodeId = route.query.episodeId
 
-  // 原 onMounted + watch([store ids, route.query ids], flush: 'post')
+  // 切步骤时原页面释放跟随，壳层需要接管同一作品里仍进行中的分镜脚本任务。
   useEffect(() => {
     if (!enabled) return
     scheduleRef.current()
-  }, [currentProjectId, currentEpisodeId, routeProjectId, routeEpisodeId, enabled])
+  }, [currentProjectId, currentEpisodeId, route.path, routeProjectId, routeEpisodeId, enabled])
 
   return { scheduleShellLiveGenBootstrap }
 }

@@ -73,6 +73,15 @@
     }
   }
 
+  &__storage-notice {
+    margin-bottom: 16px;
+    .ant-alert-action { margin-left: 16px; }
+    @media (max-width: 600px) {
+      flex-wrap: wrap;
+      .ant-alert-action { margin: 10px 0 0 24px; }
+    }
+  }
+
   &.is-mobile {
     .app-layout__sider {
       position: fixed;

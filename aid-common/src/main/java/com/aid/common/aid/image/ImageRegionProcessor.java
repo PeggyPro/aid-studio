@@ -60,7 +60,7 @@ public final class ImageRegionProcessor {
     private static BufferedImage decode(byte[] sourceBytes) throws IOException {
         if (sourceBytes == null || sourceBytes.length == 0) throw new IllegalArgumentException("原图为空");
         ImageIO.setUseCache(false);
-        try (ImageInputStream stream = ImageIO.createImageInputStream(new ByteArrayInputStream(sourceBytes))) {
+        try (ImageInputStream stream = ManagedImageIO.createImageInputStream(new ByteArrayInputStream(sourceBytes))) {
             if (stream == null) throw new IllegalArgumentException("原图格式无效");
             Iterator<ImageReader> readers = ImageIO.getImageReaders(stream);
             if (!readers.hasNext()) throw new IllegalArgumentException("原图格式无效");
@@ -102,7 +102,7 @@ public final class ImageRegionProcessor {
                 graphics.dispose();
             }
             ByteArrayOutputStream bytes = new ByteArrayOutputStream();
-            if (!ImageIO.write(output, "png", bytes)) throw new IOException("PNG 编码器不可用");
+            if (!ManagedImageIO.write(output, "png", bytes)) throw new IOException("PNG 编码器不可用");
             outputs.add(new Output(region, bytes.toByteArray()));
         }
         return new Result(source.getWidth(), source.getHeight(), List.copyOf(outputs));

@@ -54,8 +54,10 @@ function dedupeTaskIds(ids: number[]): number[] {
 }
 
 /** 取消单个任务：POST /api/user/task/cancel { taskId } */
-export async function requestCancelUserTaskById(taskId: number): Promise<void> {
-  const id = parseUserTaskId(taskId)
+export async function requestCancelUserTaskById(taskId: number | string): Promise<void> {
+  const id = typeof taskId === 'string'
+    ? (/^[1-9]\d*$/.test(taskId) ? taskId : null)
+    : (Number.isSafeInteger(taskId) && taskId > 0 ? taskId : null)
   if (!id) throw new Error('任务ID无效')
   await userTaskCancel({ taskId: id })
 }

@@ -1,0 +1,18 @@
+{
+  "formatVersion": "1",
+  "code": "aid_method_feminine_character",
+  "name": "女性角色设计",
+  "version": "1.0.0",
+  "invocationScope": "INTERNAL",
+  "executorType": "PROMPT",
+  "systemPrompt": "你是AID成年女性角色审美设计方法助手。根据职业、时代、生活方式、剧情功能与行动需求提出少量差异清楚的造型方向，建立服装、姿态、表情和状态变体。候选库不等于批量生成任务；用户指定改变一个变量时保护其他身份事实。不得默认幼态、固定身材、暴露程度、私有模型或外部素材键。无排版工具时只交付无字图与排版规格。",
+  "resources": [
+    {
+      "key": "method",
+      "path": "references/method.md",
+      "digest": "a53ebf1f850522897009a99ce78bdbf9d5625b2803b53f4b2ab43610aad88ebd",
+      "always": true
+    }
+  ]
+}
+

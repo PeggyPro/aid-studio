@@ -3,6 +3,9 @@ package com.aid.skill.service.impl;
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.crypto.SecureUtil;
 import com.aid.common.exception.ServiceException;
+import com.aid.aid.domain.AidAiModel;
+import com.aid.aid.service.support.ModelReferenceGuard;
+import com.aid.businessgroup.service.BusinessGroupService;
 import com.aid.skill.domain.AidSkill;
 import com.aid.skill.domain.AidSkillDraft;
 import com.aid.skill.domain.AidSkillRelation;
@@ -16,17 +19,23 @@ import com.aid.skill.mapper.AidSkillResourceMapper;
 import com.aid.skill.mapper.AidSkillVersionMapper;
 import com.aid.skill.service.ISkillPackageAdminService;
 import com.aid.skill.service.SkillPackageDigestCalculator;
+import com.aid.skill.service.SkillCoverPolicy;
 import com.aid.skill.service.SkillPackageResourceLoader;
+import com.aid.skill.service.PackageDocumentReferences;
 import com.aid.skill.service.SkillRuntimeCapabilities;
 import com.aid.skill.service.SkillModelConfiguration;
 import com.aid.skill.service.SkillModelService;
 import com.aid.skill.vo.SkillAdminVO;
 import com.aid.skill.vo.SkillPackageAdminVO;
+import com.aid.core.service.ISysConfigService;
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.Validator;
+import jakarta.validation.groups.Default;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.RequiredArgsConstructor;
@@ -58,6 +67,7 @@ public class SkillPackageAdminServiceImpl implements ISkillPackageAdminService {
     private static final String NORMAL = "0";
     private static final String DELETED = "1";
     private static final String ENABLED = "0";
+    private static final String DISABLED = "1";
     private static final String EDITING = "EDITING";
     private static final String DISCARDED = "DISCARDED";
     private static final String PUBLISHED = "PUBLISHED";
@@ -65,6 +75,8 @@ public class SkillPackageAdminServiceImpl implements ISkillPackageAdminService {
     private static final long MAX_RESOURCE_BYTES = 512L * 1024L;
     private static final Set<String> RESOURCE_TYPES = Set.of("REFERENCE", "INSTRUCTION");
     private static final Set<String> MIME_TYPES = Set.of("text/markdown", "text/plain");
+    private static final String SKILL_DOCUMENT_KEY = "__skill_md";
+    private static final String PUBLICATION_CONFIG_KEY = "aid.skill.allowUserPublicSkills";
 
     private final AidSkillMapper skillMapper;
     private final AidSkillDraftMapper draftMapper;
@@ -72,8 +84,66 @@ public class SkillPackageAdminServiceImpl implements ISkillPackageAdminService {
     private final AidSkillResourceMapper resourceMapper;
     private final AidSkillRelationMapper relationMapper;
     private final SkillModelService skillModelService;
+    private final ModelReferenceGuard modelReferenceGuard;
     private final SkillPackageResourceLoader packageResourceLoader;
+    private final BusinessGroupService businessGroupService;
     private final TransactionTemplate transactionTemplate;
+    private final ISysConfigService sysConfigService;
+    private final SkillCoverPolicy skillCoverPolicy;
+
+    private final Validator validator;
+
+    @Override
+    public SkillPackageAdminVO.DraftDetail copyVersionToNewSkill(Long skillId, Long templateVersionId,
+                                                                 Long operatorId, String operatorName) {
+        AidSkill target = requireSkill(skillId);
+        if (!"PLATFORM".equals(target.getOwnerType()) || target.getOwnerUserId() != null
+                || !"PRIVATE".equals(target.getVisibility()) || !DISABLED.equals(target.getStatus())
+                || target.getCurrentVersionId() != null
+                || versionMapper.selectCount(Wrappers.<AidSkillVersion>lambdaQuery()
+                    .eq(AidSkillVersion::getSkillId, target.getId())) != 0L) {
+            throw new ServiceException("模板只能复制到未发布的平台Skill");
+        }
+        AidSkillVersion source = requireVersion(templateVersionId);
+        AidSkill sourceIdentity = requireSkill(source.getSkillId());
+        boolean platformSource = "PLATFORM".equals(sourceIdentity.getOwnerType());
+        boolean publicUserSource = "USER".equals(sourceIdentity.getOwnerType())
+                && "PUBLIC".equals(sourceIdentity.getVisibility());
+        if ((!platformSource && !publicUserSource)
+                || !("PUBLIC".equals(sourceIdentity.getVisibility())
+                    || "PRIVATE".equals(sourceIdentity.getVisibility()))) {
+            throw new ServiceException("模板不可访问");
+        }
+        boolean publicFormalVersion = "PUBLIC".equals(source.getVisibility())
+                && PUBLISHED.equals(source.getPublishStatus());
+        boolean privateFormalVersion = "PRIVATE".equals(source.getVisibility())
+                && "PRIVATE".equals(source.getPublishStatus());
+        boolean validPublicationPair = publicUserSource
+                ? publicFormalVersion || privateFormalVersion
+                : Objects.equals(source.getVisibility(), sourceIdentity.getVisibility())
+                    && (publicFormalVersion || privateFormalVersion);
+        if (!Objects.equals(sourceIdentity.getCurrentVersionId(), source.getId())
+                || !Objects.equals(source.getSkillId(), sourceIdentity.getId())
+                || !Objects.equals(source.getInvocationScope(), sourceIdentity.getInvocationScope())
+                || !NORMAL.equals(sourceIdentity.getStatus())
+                || !validPublicationPair
+                || !NORMAL.equals(source.getStatus()) || !NORMAL.equals(source.getDelFlag())
+                || source.getPackageDigest() == null
+                || !source.getPackageDigest().matches("[0-9a-f]{64}")) {
+            throw new ServiceException("模板正式版本不可用");
+        }
+        packageResourceLoader.verifyVersion(sourceIdentity.getSkillCode(), source);
+        if (StrUtil.isBlank(packageResourceLoader.readPublishedSkillMarkdown(
+                sourceIdentity.getSkillCode(), source))) {
+            throw new ServiceException("模板缺少正式SKILL.md");
+        }
+        DraftDocument seed = seedDocument(sourceIdentity, source);
+        SkillPackageAdminRequests.DraftSaveRequest copy = new SkillPackageAdminRequests.DraftSaveRequest();
+        copy.setSkillId(target.getId());
+        copy.setBaseVersionId(null);
+        copyPayload(seed, copy);
+        return saveDraft(copy, operatorId, operatorName);
+    }
 
     @Override
     public SkillPackageAdminVO.VersionPageResult listVersions(
@@ -99,8 +169,112 @@ public class SkillPackageAdminServiceImpl implements ISkillPackageAdminService {
     public SkillPackageAdminVO.VersionDetail getVersion(Long versionId) {
         AidSkillVersion version = requireVersion(versionId);
         AidSkill skill = requireSkillLight(version.getSkillId());
+        String skillMarkdown = packageResourceLoader.readVerifiedDraftUpgradeSkillMarkdown(
+                skill.getSkillCode(), version);
+        return toVersionDetail(skill, version, skillMarkdown);
+    }
+
+    @Override
+    public void assertIdentityScopeCompatible(Long skillId, String invocationScope,
+                                              boolean allowDisabledMismatch) {
+        AidSkill skill = requireSkill(skillId);
+        if (skill.getCurrentVersionId() == null) return;
+        AidSkillVersion version = requireCurrentVersion(skill);
+        if (!allowDisabledMismatch && !Objects.equals(invocationScope, version.getInvocationScope())) {
+            throw new ServiceException("调用范围须通过新版本发布后变更");
+        }
+    }
+
+    @Override
+    public void assertCurrentVersionPublishable(Long skillId) {
+        AidSkill skill = requireSkill(skillId);
+        requireCurrentVersionPublishable(skill);
+    }
+
+    @Override
+    public void assertCurrentVersionRunnable(Long skillId, String targetVisibility) {
+        AidSkill skill = requireSkill(skillId);
+        AidSkillVersion version = requireCurrentVersionPublishable(skill);
+        if ("PLATFORM".equals(skill.getOwnerType()) && "PUBLIC".equals(targetVisibility)
+                && (!"PUBLIC".equals(version.getVisibility())
+                || !PUBLISHED.equals(version.getPublishStatus()))) {
+            throw new ServiceException("平台公开Skill须先发布并激活公开版本");
+        }
+    }
+
+    private AidSkillVersion requireCurrentVersionPublishable(AidSkill skill) {
+        AidSkillVersion version = requireCurrentVersion(skill);
+        if (!ENABLED.equals(version.getStatus()) || !NORMAL.equals(version.getDelFlag())
+                || !Set.of("PRIVATE", PUBLISHED).contains(version.getPublishStatus())) {
+            throw new ServiceException("当前Skill版本不可公开");
+        }
+        if (!Objects.equals(skill.getInvocationScope(), version.getInvocationScope())) {
+            throw new ServiceException("当前Skill版本调用范围不一致");
+        }
+        SkillModelConfiguration configuredModels = SkillModelConfiguration.from(version);
+        List<Long> modelIds = skillModelService.activeModels(configuredModels.selectableModelCodes(),
+                SkillModelService.outputKind(version)).values().stream().map(AidAiModel::getId).toList();
+        List<Long> sortedModelIds = modelIds.stream().sorted().toList();
+        for (int offset = 0; offset < sortedModelIds.size(); offset += 100) {
+            modelReferenceGuard.lockModels(sortedModelIds.subList(
+                    offset, Math.min(offset + 100, sortedModelIds.size())));
+        }
+        if (!configuredModels.isValid() || skillModelService.activeModels(
+                configuredModels.selectableModelCodes(), SkillModelService.outputKind(version)).size()
+                != configuredModels.selectableModelCodes().size()) {
+            throw new ServiceException("当前Skill版本模型不可用");
+        }
+        requireRelationsAvailable(skill, version);
+        requirePublicRelationsAvailable(version);
+        businessGroupService.assertSkillSchemaCompatible(skill.getId(),
+                version.getInputSchemaJson(), version.getOutputSchemaJson());
         packageResourceLoader.verifyVersion(skill.getSkillCode(), version);
-        return toVersionDetail(skill, version);
+        if (StrUtil.isBlank(packageResourceLoader.readPublishedSkillMarkdown(
+                skill.getSkillCode(), version))) {
+            throw new ServiceException("当前Skill版本缺少SKILL.md，请先发布正式包版本");
+        }
+        return version;
+    }
+
+    private void requirePublicRelationsAvailable(AidSkillVersion parentVersion) {
+        List<AidSkillRelation> relations = relationMapper.selectList(Wrappers.<AidSkillRelation>lambdaQuery()
+                .select(AidSkillRelation::getChildSkillId, AidSkillRelation::getChildVersionId,
+                        AidSkillRelation::getRelationKey)
+                .eq(AidSkillRelation::getParentVersionId, parentVersion.getId())
+                .eq(AidSkillRelation::getDelFlag, NORMAL));
+        Set<Long> childIds = relations.stream().map(AidSkillRelation::getChildSkillId)
+                .filter(Objects::nonNull).collect(Collectors.toSet());
+        Set<Long> childVersionIds = relations.stream().map(AidSkillRelation::getChildVersionId)
+                .filter(Objects::nonNull).collect(Collectors.toSet());
+        Map<Long, AidSkill> children = childIds.isEmpty() ? Map.of()
+                : skillMapper.selectList(Wrappers.<AidSkill>lambdaQuery()
+                        .select(AidSkill::getId, AidSkill::getOwnerType, AidSkill::getVisibility,
+                                AidSkill::getStatus, AidSkill::getDelFlag)
+                        .in(AidSkill::getId, childIds)).stream()
+                .collect(Collectors.toMap(AidSkill::getId, Function.identity()));
+        Map<Long, AidSkillVersion> childVersions = childVersionIds.isEmpty() ? Map.of()
+                : versionMapper.selectList(Wrappers.<AidSkillVersion>lambdaQuery()
+                        .select(AidSkillVersion::getId, AidSkillVersion::getSkillId,
+                                AidSkillVersion::getVisibility, AidSkillVersion::getPublishStatus,
+                                AidSkillVersion::getStatus, AidSkillVersion::getDelFlag)
+                        .in(AidSkillVersion::getId, childVersionIds)).stream()
+                .collect(Collectors.toMap(AidSkillVersion::getId, Function.identity()));
+        for (AidSkillRelation relation : relations) {
+            AidSkill child = children.get(relation.getChildSkillId());
+            AidSkillVersion childVersion = childVersions.get(relation.getChildVersionId());
+            if (child == null || !"PUBLIC".equals(child.getVisibility())
+                    || !Set.of("PLATFORM", "USER").contains(child.getOwnerType())
+                    || !ENABLED.equals(child.getStatus()) || !NORMAL.equals(child.getDelFlag())
+                    || childVersion == null || !Objects.equals(childVersion.getSkillId(), child.getId())
+                    || !ENABLED.equals(childVersion.getStatus()) || !NORMAL.equals(childVersion.getDelFlag())
+                    || !Set.of("PRIVATE", "PUBLIC").contains(childVersion.getVisibility())
+                    || !Set.of("PRIVATE", PUBLISHED).contains(childVersion.getPublishStatus())
+                    || ("PLATFORM".equals(child.getOwnerType())
+                    && (!"PUBLIC".equals(childVersion.getVisibility())
+                    || !PUBLISHED.equals(childVersion.getPublishStatus())))) {
+                throw new ServiceException("公开Skill依赖包含不可公开子Skill");
+            }
+        }
     }
 
     @Override
@@ -241,6 +415,7 @@ public class SkillPackageAdminServiceImpl implements ISkillPackageAdminService {
     @Override
     public SkillPackageAdminVO.DraftDetail saveDraft(SkillPackageAdminRequests.DraftSaveRequest request,
                                                       Long operatorId, String operatorName) {
+        requireDraftShape(request);
         AidSkill skill = requireSkill(request.getSkillId());
         if (!baseVersionValid(skill, request.getBaseVersionId())) {
             log.warn("Skill草稿基础版本错误, skillId={}, versionId={}",
@@ -248,6 +423,15 @@ public class SkillPackageAdminServiceImpl implements ISkillPackageAdminService {
             throw new ServiceException("基础版本错误");
         }
         DraftDocument incoming = document(request, request.getBaseVersionId());
+        if (com.aid.skill.service.StyleAnalysisService.SKILL_CODE.equals(skill.getSkillCode())) {
+            incoming.setInputSchemaJson(skill.getInputSchemaJson());
+            incoming.setOutputSchemaJson(skill.getOutputSchemaJson());
+            JSONObject definition = JSON.parseObject(incoming.getDefinitionJson());
+            if (definition == null) definition = new JSONObject();
+            definition.put("stream", false);
+            definition.put("structuredOutputEnabled", true);
+            incoming.setDefinitionJson(definition.toJSONString());
+        }
         normalizeModelConfiguration(incoming);
         String incomingJson = canonicalDraftJson(incoming);
         String incomingDigest = SecureUtil.sha256(incomingJson);
@@ -282,6 +466,7 @@ public class SkillPackageAdminServiceImpl implements ISkillPackageAdminService {
                         log.error("Skill草稿创建失败, skillId={}, operatorId={}", skill.getId(), operatorId);
                         throw new ServiceException("草稿保存失败");
                     }
+                    packageResourceLoader.refreshAfterCommit(skill.getId(), null);
                 } catch (DuplicateKeyException error) {
                     AidSkillDraft winner = draftMapper.selectOne(Wrappers.<AidSkillDraft>lambdaQuery()
                             .eq(AidSkillDraft::getSkillId, skill.getId())
@@ -324,6 +509,7 @@ public class SkillPackageAdminServiceImpl implements ISkillPackageAdminService {
                 log.warn("Skill草稿更新冲突, draftId={}, operatorId={}", request.getDraftId(), operatorId);
                 throw new ServiceException("草稿已变化");
             }
+            packageResourceLoader.refreshAfterCommit(skill.getId(), null);
             return current;
         });
         return toDraftDetail(skill, saved, incoming);
@@ -403,7 +589,9 @@ public class SkillPackageAdminServiceImpl implements ISkillPackageAdminService {
                 throw new ServiceException("草稿不存在");
             }
             if (PUBLISHED.equals(draft.getStatus())) {
-                return publishedReceipt(draft, request);
+                PublishedCoordinate receipt = publishedReceipt(draft, request);
+                packageResourceLoader.refreshAfterCommit(receipt.skillId(), receipt.versionId());
+                return receipt;
             }
             if (!EDITING.equals(draft.getStatus())) {
                 log.warn("Skill草稿状态不可发布, draftId={}, status={}", draft.getId(), draft.getStatus());
@@ -432,9 +620,21 @@ public class SkillPackageAdminServiceImpl implements ISkillPackageAdminService {
                 log.warn("Skill草稿校验失败, draftId={}, errors={}", draft.getId(), validation.getErrors().size());
                 throw new ServiceException("草稿校验失败");
             }
+            validatePublication(skill);
+            SkillModelConfiguration configuredModels = normalizeModelConfiguration(document);
+            List<Long> modelIds = skillModelService.activeModels(configuredModels.selectableModelCodes(),
+                    draftOutputKind(document.getDefinitionJson())).values().stream()
+                    .map(AidAiModel::getId).toList();
+            modelReferenceGuard.lockModels(modelIds);
+            if (skillModelService.activeModels(configuredModels.selectableModelCodes(),
+                    draftOutputKind(document.getDefinitionJson())).size() != configuredModels.selectableModelCodes().size())
+                throw new ServiceException("Skill 模型已变化，请重新校验", 409);
+            lockAndVerifyDraftRelations(skill, document);
             Date now = new Date();
             String operator = operator(operatorId, operatorName);
             AidSkillVersion version = buildVersion(skill, document, request.getVersionCode(), operator, now);
+            businessGroupService.assertSkillSchemaCompatible(skill.getId(),
+                    version.getInputSchemaJson(), version.getOutputSchemaJson());
             List<AidSkillResource> resources = buildResources(skill, version, document, operator, now);
             List<AidSkillRelation> relations = buildRelations(document, operator, now);
             version.setManifestJson(buildManifest(skill, version, resources));
@@ -489,6 +689,7 @@ public class SkillPackageAdminServiceImpl implements ISkillPackageAdminService {
                 log.warn("Skill草稿发布收口冲突, draftId={}", draft.getId());
                 throw new ServiceException("草稿已变化");
             }
+            packageResourceLoader.refreshAfterCommit(skill.getId(), version.getId());
             return new PublishedCoordinate(skill.getId(), version.getId());
         });
         return getVersion(coordinate.versionId());
@@ -537,6 +738,7 @@ public class SkillPackageAdminServiceImpl implements ISkillPackageAdminService {
                         request.getSkillId(), request.getVersionId());
                 throw new ServiceException("版本归属错误");
             }
+            requirePublicPlatformVersion(skill, target);
             if (Objects.equals(skill.getCurrentVersionId(), target.getId())) {
                 return;
             }
@@ -549,7 +751,30 @@ public class SkillPackageAdminServiceImpl implements ISkillPackageAdminService {
                 log.warn("Skill版本已停用, versionId={}", request.getVersionId());
                 throw new ServiceException("版本不可用");
             }
+            if (!Objects.equals(skill.getInvocationScope(), target.getInvocationScope())) {
+                throw new ServiceException("版本调用范围与Skill身份不一致");
+            }
+            if ("PUBLIC".equals(skill.getVisibility())) {
+                validatePublication(skill);
+                if (StrUtil.isBlank(packageResourceLoader.readPublishedSkillMarkdown(
+                        skill.getSkillCode(), target))) {
+                    throw new ServiceException("目标Skill版本缺少SKILL.md");
+                }
+            }
+            SkillModelConfiguration configuredModels = SkillModelConfiguration.from(target);
+            List<Long> modelIds = skillModelService.activeModels(configuredModels.selectableModelCodes(),
+                    SkillModelService.outputKind(target)).values().stream()
+                    .map(AidAiModel::getId).toList();
+            modelReferenceGuard.lockModels(modelIds);
+            if (!configuredModels.isValid() || skillModelService.activeModels(configuredModels.selectableModelCodes(),
+                    SkillModelService.outputKind(target)).size() != configuredModels.selectableModelCodes().size())
+                throw new ServiceException("Skill 模型已变化，请重新选择版本", 409);
             requireRelationsAvailable(skill, target);
+            if ("PUBLIC".equals(skill.getVisibility())) {
+                requirePublicRelationsAvailable(target);
+            }
+            businessGroupService.assertSkillSchemaCompatible(skill.getId(),
+                    target.getInputSchemaJson(), target.getOutputSchemaJson());
             AidSkill update = new AidSkill();
             update.setId(skill.getId());
             update.setCurrentVersionId(target.getId());
@@ -578,12 +803,25 @@ public class SkillPackageAdminServiceImpl implements ISkillPackageAdminService {
                 log.warn("Skill版本切换冲突, skillId={}, versionId={}", skill.getId(), target.getId());
                 throw new ServiceException("当前版本已变化");
             }
+            packageResourceLoader.refreshAfterCommit(skill.getId(), target.getId());
         });
+    }
+
+    private void requirePublicPlatformVersion(AidSkill skill, AidSkillVersion version) {
+        if ("PLATFORM".equals(skill.getOwnerType()) && "PUBLIC".equals(skill.getVisibility())
+                && (!"PUBLIC".equals(version.getVisibility())
+                || !PUBLISHED.equals(version.getPublishStatus()))) {
+            throw new ServiceException("平台公开Skill只能激活公开发布版本");
+        }
     }
 
     private SkillPackageAdminVO.ValidationResult validatePackage(
             SkillPackageAdminRequests.PackagePayload payload, AidSkill knownSkill) {
         SkillPackageAdminVO.ValidationResult result = new SkillPackageAdminVO.ValidationResult();
+        validator.validate(payload, Default.class, SkillPackageAdminRequests.PublishReady.class).stream()
+                .sorted(Comparator.comparing(violation -> violation.getPropertyPath().toString()))
+                .forEach(violation -> issue(result.getErrors(),
+                        violation.getPropertyPath().toString(), violation.getMessage()));
         SkillModelConfiguration modelConfig = normalizeModelConfiguration(payload);
         result.setDraftDigest(SecureUtil.sha256(canonicalDraftJson(
                 document(payload, payload.getBaseVersionId()))));
@@ -597,9 +835,50 @@ public class SkillPackageAdminServiceImpl implements ISkillPackageAdminService {
         }
         validateJsonObject(payload.getInputSchemaJson(), "inputSchemaJson", "输入结构错误", result);
         validateJsonObject(payload.getOutputSchemaJson(), "outputSchemaJson", "输出结构错误", result);
+        for (String field : List.of("inputSchemaJson", "outputSchemaJson")) {
+            try {
+                com.aid.skill.service.SkillContractExamples.validate(field,
+                        field.equals("inputSchemaJson") ? payload.getInputSchemaJson() : payload.getOutputSchemaJson());
+            } catch (RuntimeException invalid) {
+                issue(result.getErrors(), field, invalid.getMessage());
+            }
+        }
         validateJsonObject(StrUtil.blankToDefault(payload.getDefinitionJson(), "{}"),
                 "definitionJson", "定义内容错误", result);
         validateStructuredOutputSetting(payload.getDefinitionJson(), result);
+        if (skill != null && "USER".equals(skill.getOwnerType())
+                && "ENTRYPOINT".equals(skill.getInvocationScope())) {
+            String outputKind = draftOutputKind(payload.getDefinitionJson());
+            if (!"TEXT".equals(outputKind) && !"IMAGE".equals(outputKind))
+                issue(result.getErrors(), "definitionJson.outputKind",
+                        "画布个人Skill支持TEXT方法包或IMAGE直接图片包；视频等制作流程请使用TEXT方法并由授权工具执行");
+            if (payload.getRelations() != null && !payload.getRelations().isEmpty())
+                issue(result.getErrors(), "relations", "画布个人方法由助手编排工具，不支持嵌套子Skill执行关系");
+        }
+        if (skill != null && "ENTRYPOINT".equals(skill.getInvocationScope())
+                && "IMAGE".equals(draftOutputKind(payload.getDefinitionJson()))) {
+            if (!com.aid.skill.service.SkillImageExecutionContract.supportsDefinition(payload.getDefinitionJson()))
+                issue(result.getErrors(), "definitionJson.capabilityCode", "图片Skill需要受支持的图片能力");
+            if (!com.aid.skill.service.SkillImageExecutionContract.supportsSchemas(
+                    payload.getInputSchemaJson(), payload.getOutputSchemaJson()))
+                issue(result.getErrors(), "inputSchemaJson", "图片Skill的输入和结果必须符合共享图片执行契约");
+        }
+        if (skill != null && "PROMPT".equals(skill.getExecutorType())
+                && Set.of("INTERNAL", "ENTRYPOINT").contains(skill.getInvocationScope())) {
+            try {
+                if ("TEXT".equals(draftOutputKind(payload.getDefinitionJson()))) {
+                    try {
+                        com.aid.skill.service.SkillMethodInputContract.objectParameters(payload.getInputSchemaJson());
+                    } catch (RuntimeException invalid) {
+                        issue(result.getErrors(), "inputSchemaJson", invalid.getMessage());
+                    }
+                    com.aid.skill.service.SkillMethodOutputContract.validateForPublication(
+                            payload.getDefinitionJson(), payload.getOutputSchemaJson());
+                }
+            } catch (RuntimeException invalid) {
+                issue(result.getErrors(), "outputSchemaJson", invalid.getMessage());
+            }
+        }
         if (payload.getContextWindowTokens() != null && payload.getMaxOutputTokens() != null
                 && payload.getSafetyMarginTokens() != null
                 && (long) payload.getMaxOutputTokens() + payload.getSafetyMarginTokens()
@@ -608,11 +887,23 @@ public class SkillPackageAdminServiceImpl implements ISkillPackageAdminService {
         }
         if (!modelConfig.isValid()) {
             issue(result.getErrors(), "defaultModelCode", "默认模型必须属于可选模型");
-        } else if (skillModelService.activeModels(modelConfig.selectableModelCodes()).size()
+        } else if (skillModelService.activeModels(modelConfig.selectableModelCodes(),
+                draftOutputKind(payload.getDefinitionJson())).size()
                 != modelConfig.selectableModelCodes().size()) {
-            issue(result.getErrors(), "selectableModelCodes", "存在已停用或不可用模型");
+            issue(result.getErrors(), "selectableModelCodes", "存在已停用、不可用或输出类型不匹配的模型");
+        }
+        if (StrUtil.isNotBlank(payload.getModelConfigJson())
+                && parseModelConfig(payload.getModelConfigJson()) == null) {
+            issue(result.getErrors(), "modelConfigJson", "模型配置必须为JSON对象");
+        }
+        if (StrUtil.isBlank(payload.getSystemPrompt())) {
+            issue(result.getErrors(), "systemPrompt", "系统提示词不能为空");
+        }
+        if (StrUtil.isBlank(payload.getSkillMarkdown())) {
+            issue(result.getErrors(), "skillMarkdown", "Skill说明不能为空");
         }
         validateResources(payload.getResources(), result);
+        validateDocumentReferences(payload, result);
         if (skill != null) {
             if (!baseVersionValid(skill, payload.getBaseVersionId())) {
                 issue(result.getErrors(), "baseVersionId", "基础版本错误");
@@ -623,10 +914,78 @@ public class SkillPackageAdminServiceImpl implements ISkillPackageAdminService {
         return result;
     }
 
+    private void validateDocumentReferences(SkillPackageAdminRequests.PackagePayload payload,
+                                            SkillPackageAdminVO.ValidationResult result) {
+        Map<String, String> documents = new LinkedHashMap<>();
+        Map<String, String> fields = new LinkedHashMap<>();
+        documents.put("SKILL.md", payload.getSkillMarkdown());
+        documents.put("system_prompt.md", payload.getSystemPrompt());
+        fields.put("SKILL.md", "skillMarkdown");
+        fields.put("system_prompt.md", "systemPrompt");
+        List<SkillPackageAdminRequests.ResourceItem> resources = safeResources(payload.getResources());
+        for (int index = 0; index < resources.size(); index++) {
+            SkillPackageAdminRequests.ResourceItem resource = resources.get(index);
+            if (resource == null) continue;
+            String path = normalizedResourcePath(resource);
+            if (safeReferencePath(path)) {
+                documents.put(path, resource.getContent());
+                fields.put(path, "resources[" + index + "].content");
+            }
+        }
+        for (PackageDocumentReferences.MissingReference reference : PackageDocumentReferences.validate(documents)) {
+            issue(result.getErrors(), fields.get(reference.sourcePath()), "第" + reference.line()
+                    + "行引用的包内文件不存在或路径越界：" + reference.targetPath());
+        }
+    }
+
+    private static String draftOutputKind(String definitionJson) {
+        if (StrUtil.isBlank(definitionJson)) return "TEXT";
+        try {
+            String value = JSON.parseObject(definitionJson).getString("outputKind");
+            String kind = StrUtil.blankToDefault(value, "TEXT").toUpperCase(java.util.Locale.ROOT);
+            return Set.of("TEXT", "IMAGE", "VIDEO").contains(kind) ? kind : "INVALID";
+        } catch (RuntimeException error) {
+            return "INVALID";
+        }
+    }
+
+    private void requireDraftShape(SkillPackageAdminRequests.PackagePayload payload) {
+        validator.validate(payload, Default.class).stream()
+                .sorted(Comparator.comparing(violation -> violation.getPropertyPath().toString()))
+                .map(ConstraintViolation::getMessage)
+                .findFirst()
+                .ifPresent(message -> {
+                    throw new ServiceException(message);
+                });
+        SkillPackageAdminVO.ValidationResult result = new SkillPackageAdminVO.ValidationResult();
+        if (StrUtil.isNotBlank(payload.getInputSchemaJson())) {
+            validateJsonObject(payload.getInputSchemaJson(),
+                    "inputSchemaJson", "输入结构错误", result);
+        }
+        if (StrUtil.isNotBlank(payload.getOutputSchemaJson())) {
+            validateJsonObject(payload.getOutputSchemaJson(),
+                    "outputSchemaJson", "输出结构错误", result);
+        }
+        if (StrUtil.isNotBlank(payload.getDefinitionJson())) {
+            validateJsonObject(payload.getDefinitionJson(),
+                    "definitionJson", "定义内容错误", result);
+            validateStructuredOutputSetting(payload.getDefinitionJson(), result);
+        }
+        if (StrUtil.isNotBlank(payload.getModelConfigJson())
+                && parseModelConfig(payload.getModelConfigJson()) == null) {
+            issue(result.getErrors(), "modelConfigJson", "模型配置必须为JSON对象");
+        }
+        validateResources(payload.getResources(), result);
+        if (!result.getErrors().isEmpty()) {
+            throw new ServiceException(result.getErrors().get(0).getMessage());
+        }
+    }
+
     private void validateResources(List<SkillPackageAdminRequests.ResourceItem> source,
                                    SkillPackageAdminVO.ValidationResult result) {
         List<SkillPackageAdminRequests.ResourceItem> resources = source == null ? List.of() : source;
         Set<String> keys = new HashSet<>();
+        Set<String> paths = new HashSet<>();
         long totalBytes = 0;
         for (int index = 0; index < resources.size(); index++) {
             SkillPackageAdminRequests.ResourceItem resource = resources.get(index);
@@ -635,8 +994,14 @@ public class SkillPackageAdminServiceImpl implements ISkillPackageAdminService {
                 issue(result.getErrors(), field, "资源内容错误");
                 continue;
             }
-            if (!keys.add(resource.getResourceKey())) {
+            if (StrUtil.isBlank(resource.getResourceKey())) {
+                issue(result.getErrors(), field + ".resourceKey", "资源标识必填");
+            } else if (!keys.add(resource.getResourceKey())) {
                 issue(result.getErrors(), field + ".resourceKey", "资源标识重复");
+            }
+            String filePath = normalizedResourcePath(resource);
+            if (!safeReferencePath(filePath) || !paths.add(filePath)) {
+                issue(result.getErrors(), field + ".filePath", "资源路径错误或重复");
             }
             String resourceType = StrUtil.blankToDefault(resource.getResourceType(), "REFERENCE")
                     .toUpperCase();
@@ -702,14 +1067,15 @@ public class SkillPackageAdminServiceImpl implements ISkillPackageAdminService {
                 .filter(Objects::nonNull).collect(Collectors.toSet());
         Map<Long, AidSkill> children = childSkillIds.isEmpty() ? Map.of()
                 : skillMapper.selectList(Wrappers.<AidSkill>lambdaQuery()
-                .select(AidSkill::getId, AidSkill::getSkillCode, AidSkill::getInvocationScope,
+                .select(AidSkill::getId, AidSkill::getSkillCode, AidSkill::getOwnerType,
+                        AidSkill::getOwnerUserId, AidSkill::getVisibility, AidSkill::getInvocationScope,
                         AidSkill::getStatus, AidSkill::getDelFlag)
                 .in(AidSkill::getId, childSkillIds)).stream()
                 .collect(Collectors.toMap(AidSkill::getId, Function.identity()));
         Map<Long, AidSkillVersion> childVersions = childVersionIds.isEmpty() ? Map.of()
                 : versionMapper.selectList(Wrappers.<AidSkillVersion>lambdaQuery()
                 .select(AidSkillVersion::getId, AidSkillVersion::getSkillId,
-                        AidSkillVersion::getInvocationScope, AidSkillVersion::getStatus,
+                        AidSkillVersion::getPublishStatus, AidSkillVersion::getInvocationScope, AidSkillVersion::getStatus,
                         AidSkillVersion::getDelFlag)
                 .in(AidSkillVersion::getId, childVersionIds)).stream()
                 .collect(Collectors.toMap(AidSkillVersion::getId, Function.identity()));
@@ -735,11 +1101,17 @@ public class SkillPackageAdminServiceImpl implements ISkillPackageAdminService {
                     || !"INTERNAL".equals(child.getInvocationScope())
                     || !ENABLED.equals(child.getStatus()) || !NORMAL.equals(child.getDelFlag())
                     || !"INTERNAL".equals(childVersion.getInvocationScope())
+                    || !Set.of("PRIVATE", PUBLISHED).contains(childVersion.getPublishStatus())
                     || !ENABLED.equals(childVersion.getStatus())
-                    || !NORMAL.equals(childVersion.getDelFlag())) {
+                    || !NORMAL.equals(childVersion.getDelFlag())
+                    || !relationVisibleToParent(skill, child)) {
                 issue(result.getErrors(), field, "子版本不可用");
             } else if (!Objects.equals(relation.getRelationKey(), child.getSkillCode())) {
                 issue(result.getErrors(), field + ".relationKey", "关系标识须等于子Skill编码");
+            } else if ("PUBLIC".equals(skill.getVisibility())
+                    && (!"PUBLIC".equals(child.getVisibility())
+                    || !Set.of("PLATFORM", "USER").contains(child.getOwnerType()))) {
+                issue(result.getErrors(), field, "公开Skill只能固定公开子Skill");
             }
         }
         Set<String> requiredChildren = new HashSet<>(requiredChildren(payload.getDefinitionJson()));
@@ -759,7 +1131,7 @@ public class SkillPackageAdminServiceImpl implements ISkillPackageAdminService {
 
     private Set<String> platformRequiredChildren(AidSkill skill) {
         if ("screenplay".equals(skill.getSkillCode())) {
-            return Set.of("screenplay-write", "screenplay-review");
+            return Set.of("screenplay_write", "screenplay_review");
         }
         return Set.of();
     }
@@ -834,15 +1206,15 @@ public class SkillPackageAdminServiceImpl implements ISkillPackageAdminService {
         version.setVersionCode(versionCode);
         version.setVisibility(skill.getVisibility());
         version.setInvocationScope(skill.getInvocationScope());
-        version.setPublishStatus("PRIVATE");
+        version.setPublishStatus("PUBLIC".equals(skill.getVisibility()) ? "PUBLISHED" : "PRIVATE");
         version.setExecutorType(skill.getExecutorType());
         SkillModelConfiguration modelConfig = normalizeModelConfiguration(document);
         version.setModelCode(modelConfig.defaultModelCode());
-        version.setModelConfigJson(modelConfig.toJson());
-        version.setInputSchemaJson(compactObject(document.getInputSchemaJson()));
-        version.setOutputSchemaJson(compactObject(document.getOutputSchemaJson()));
+        version.setModelConfigJson(preservedModelConfigJson(document, modelConfig));
+        version.setInputSchemaJson(document.getInputSchemaJson());
+        version.setOutputSchemaJson(document.getOutputSchemaJson());
         version.setSystemPrompt(document.getSystemPrompt());
-        version.setDefinitionJson(compactObject(StrUtil.blankToDefault(document.getDefinitionJson(), "{}")));
+        version.setDefinitionJson(StrUtil.blankToDefault(document.getDefinitionJson(), "{}"));
         version.setMaxOutputTokens(document.getMaxOutputTokens());
         version.setContextWindowTokens(document.getContextWindowTokens());
         version.setSafetyMarginTokens(document.getSafetyMarginTokens());
@@ -859,12 +1231,31 @@ public class SkillPackageAdminServiceImpl implements ISkillPackageAdminService {
     private List<AidSkillResource> buildResources(AidSkill skill, AidSkillVersion version,
                                                    DraftDocument document, String operator, Date now) {
         List<AidSkillResource> result = new ArrayList<>();
+        AidSkillResource skillDocument = new AidSkillResource();
+        skillDocument.setResourceKey(SKILL_DOCUMENT_KEY);
+        skillDocument.setResourceType("PACKAGE");
+        skillDocument.setObjectKey("database:skills/" + skill.getOwnerType().toLowerCase()
+                + "/" + ownerPartition(skill) + "/" + skill.getSkillCode() + "/"
+                + version.getVersionCode() + "/SKILL.md");
+        skillDocument.setContentText(document.getSkillMarkdown());
+        skillDocument.setContentDigest(SecureUtil.sha256(document.getSkillMarkdown()));
+        skillDocument.setMimeType("text/markdown");
+        skillDocument.setSizeBytes((long) document.getSkillMarkdown().getBytes(StandardCharsets.UTF_8).length);
+        skillDocument.setRouteJson("{}");
+        skillDocument.setStatus(ENABLED);
+        skillDocument.setDelFlag(NORMAL);
+        skillDocument.setCreateBy(operator);
+        skillDocument.setCreateTime(now);
+        skillDocument.setUpdateBy(operator);
+        skillDocument.setUpdateTime(now);
+        result.add(skillDocument);
         for (SkillPackageAdminRequests.ResourceItem item : safeResources(document.getResources())) {
             AidSkillResource resource = new AidSkillResource();
             resource.setResourceKey(StrUtil.trim(item.getResourceKey()));
             resource.setResourceType(StrUtil.blankToDefault(item.getResourceType(), "REFERENCE").toUpperCase());
-            resource.setObjectKey("database:skills/" + skill.getSkillCode() + "/"
-                    + version.getVersionCode() + "/" + item.getResourceKey());
+            resource.setObjectKey("database:skills/" + skill.getOwnerType().toLowerCase()
+                    + "/" + ownerPartition(skill) + "/" + skill.getSkillCode() + "/"
+                    + version.getVersionCode() + "/" + normalizedResourcePath(item));
             resource.setContentText(item.getContent());
             resource.setContentDigest(SecureUtil.sha256(item.getContent()));
             resource.setMimeType(StrUtil.blankToDefault(item.getMimeType(), "text/markdown").toLowerCase());
@@ -909,8 +1300,19 @@ public class SkillPackageAdminServiceImpl implements ISkillPackageAdminService {
         manifest.put("invocationScope", version.getInvocationScope());
         manifest.put("source", "DATABASE");
         manifest.put("digestAlgorithm", SkillPackageDigestCalculator.ALGORITHM_V3);
-        manifest.put("resources", resources.stream().map(resource -> Map.of(
+        AidSkillResource skillDocument = resources.stream()
+                .filter(resource -> SKILL_DOCUMENT_KEY.equals(resource.getResourceKey()))
+                .findFirst().orElseThrow(() -> new ServiceException("Skill说明缺失"));
+        Map<String, Object> files = new LinkedHashMap<>();
+        files.put("skill", Map.of("path", "SKILL.md", "digest", skillDocument.getContentDigest()));
+        files.put("systemPrompt", Map.of("path", "system_prompt.md",
+                "digest", SecureUtil.sha256(version.getSystemPrompt())));
+        manifest.put("files", files);
+        manifest.put("resources", resources.stream()
+                .filter(resource -> !SKILL_DOCUMENT_KEY.equals(resource.getResourceKey()))
+                .map(resource -> Map.of(
                 "key", resource.getResourceKey(), "digest", resource.getContentDigest(),
+                "path", relativeObjectPath(resource.getObjectKey()),
                 "route", JSON.parseObject(resource.getRouteJson()))).toList());
         return JSON.toJSONString(manifest);
     }
@@ -948,7 +1350,8 @@ public class SkillPackageAdminServiceImpl implements ISkillPackageAdminService {
                 .collect(Collectors.toMap(AidSkillVersion::getId, Function.identity()));
         SkillModelConfiguration modelConfig = SkillModelConfiguration.from(parentVersion);
         if (!modelConfig.isValid()
-                || skillModelService.activeModels(modelConfig.selectableModelCodes()).size()
+                || skillModelService.activeModels(modelConfig.selectableModelCodes(),
+                SkillModelService.outputKind(parentVersion)).size()
                 != modelConfig.selectableModelCodes().size()) {
             log.warn("Skill目标版本模型不可用, versionId={}, modelCode={}",
                     parentVersion.getId(), parentVersion.getModelCode());
@@ -956,6 +1359,7 @@ public class SkillPackageAdminServiceImpl implements ISkillPackageAdminService {
         }
         Map<String, AidSkillVersion> packages = new LinkedHashMap<>();
         packages.put(parent.getSkillCode(), parentVersion);
+        List<AidSkillVersion> childVersions = new ArrayList<>();
         for (AidSkillRelation relation : relations) {
             AidSkill child = children.get(relation.getChildSkillId());
             AidSkillVersion version = versions.get(relation.getChildVersionId());
@@ -965,17 +1369,100 @@ public class SkillPackageAdminServiceImpl implements ISkillPackageAdminService {
                     || !"INTERNAL".equals(child.getInvocationScope())
                     || !ENABLED.equals(child.getStatus()) || !NORMAL.equals(child.getDelFlag())
                     || !"INTERNAL".equals(version.getInvocationScope())
-                    || !ENABLED.equals(version.getStatus()) || !NORMAL.equals(version.getDelFlag())) {
+                    || !Set.of("PRIVATE", PUBLISHED).contains(version.getPublishStatus())
+                    || !ENABLED.equals(version.getStatus()) || !NORMAL.equals(version.getDelFlag())
+                    || !relationVisibleToParent(parent, child)) {
                 log.warn("Skill固定子版本不可用, parentVersionId={}, relationKey={}",
                         parentVersion.getId(), relation.getRelationKey());
                 throw new ServiceException("子版本不可用");
             }
             packages.put(child.getSkillCode(), version);
+            childVersions.add(version);
         }
+        requireModelsAvailable(childVersions, "子版本模型不可用");
         packageResourceLoader.verifyVersions(packages);
     }
 
-    private SkillPackageAdminVO.VersionDetail toVersionDetail(AidSkill skill, AidSkillVersion version) {
+    /** 发布时锁定固定依赖的身份和版本，并在同一事务中重新验证可见性、模型与包摘要。 */
+    private void lockAndVerifyDraftRelations(AidSkill parent, DraftDocument document) {
+        List<SkillPackageAdminRequests.RelationItem> relations = safeRelations(document.getRelations());
+        Set<Long> childSkillIds = relations.stream().filter(Objects::nonNull)
+                .map(SkillPackageAdminRequests.RelationItem::getChildSkillId)
+                .filter(Objects::nonNull).collect(Collectors.toSet());
+        Set<Long> childVersionIds = relations.stream().filter(Objects::nonNull)
+                .map(SkillPackageAdminRequests.RelationItem::getChildVersionId)
+                .filter(Objects::nonNull).collect(Collectors.toSet());
+        if (childSkillIds.isEmpty() && childVersionIds.isEmpty()) return;
+        Map<Long, AidSkill> children = skillMapper.selectList(Wrappers.<AidSkill>lambdaQuery()
+                        .in(AidSkill::getId, childSkillIds).orderByAsc(AidSkill::getId)
+                        .last("for update")).stream()
+                .collect(Collectors.toMap(AidSkill::getId, Function.identity()));
+        Map<Long, AidSkillVersion> versions = versionMapper.selectList(Wrappers.<AidSkillVersion>lambdaQuery()
+                        .in(AidSkillVersion::getId, childVersionIds).orderByAsc(AidSkillVersion::getId)
+                        .last("for update")).stream()
+                .collect(Collectors.toMap(AidSkillVersion::getId, Function.identity()));
+        Map<String, AidSkillVersion> packages = new LinkedHashMap<>();
+        for (SkillPackageAdminRequests.RelationItem relation : relations) {
+            AidSkill child = relation == null ? null : children.get(relation.getChildSkillId());
+            AidSkillVersion version = relation == null ? null : versions.get(relation.getChildVersionId());
+            if (child == null || version == null || !Objects.equals(version.getSkillId(), child.getId())
+                    || !Objects.equals(relation.getRelationKey(), child.getSkillCode())
+                    || !"INTERNAL".equals(child.getInvocationScope())
+                    || !ENABLED.equals(child.getStatus()) || !NORMAL.equals(child.getDelFlag())
+                    || !"INTERNAL".equals(version.getInvocationScope())
+                    || !Set.of("PRIVATE", PUBLISHED).contains(version.getPublishStatus())
+                    || !ENABLED.equals(version.getStatus()) || !NORMAL.equals(version.getDelFlag())
+                    || !relationVisibleToParent(parent, child)
+                    || ("PUBLIC".equals(parent.getVisibility())
+                    && (!"PUBLIC".equals(child.getVisibility())
+                    || !Set.of("PLATFORM", "USER").contains(child.getOwnerType())))) {
+                throw new ServiceException("子版本已变化，请重新校验", 409);
+            }
+            if (packages.put(child.getSkillCode(), version) != null) {
+                throw new ServiceException("子Skill重复", 409);
+            }
+        }
+        requireModelsAvailable(versions.values(), "子版本模型不可用");
+        packageResourceLoader.verifyVersions(packages);
+    }
+
+    private void requireModelsAvailable(java.util.Collection<AidSkillVersion> versions, String message) {
+        if (versions == null || versions.isEmpty()) return;
+        Set<Long> modelIds = new LinkedHashSet<>();
+        for (AidSkillVersion version : versions) {
+            SkillModelConfiguration config = SkillModelConfiguration.from(version);
+            if (!config.isValid()) throw new ServiceException(message);
+            modelIds.addAll(skillModelService.activeModels(config.selectableModelCodes(),
+                    SkillModelService.outputKind(version)).values().stream()
+                    .map(AidAiModel::getId).toList());
+        }
+        List<Long> sortedModelIds = modelIds.stream().sorted().toList();
+        for (int offset = 0; offset < sortedModelIds.size(); offset += 100) {
+            modelReferenceGuard.lockModels(sortedModelIds.subList(
+                    offset, Math.min(offset + 100, sortedModelIds.size())));
+        }
+        for (AidSkillVersion version : versions) {
+            SkillModelConfiguration config = SkillModelConfiguration.from(version);
+            if (skillModelService.activeModels(config.selectableModelCodes(),
+                    SkillModelService.outputKind(version)).size() != config.selectableModelCodes().size()) {
+                throw new ServiceException(message);
+            }
+        }
+    }
+
+    private static boolean relationVisibleToParent(AidSkill parent, AidSkill child) {
+        if (parent == null || child == null) return false;
+        if ("PUBLIC".equals(child.getVisibility())) return true;
+        if (!"PRIVATE".equals(child.getVisibility())) return false;
+        if ("PLATFORM".equals(parent.getOwnerType())) {
+            return "PLATFORM".equals(child.getOwnerType());
+        }
+        return "USER".equals(parent.getOwnerType()) && "USER".equals(child.getOwnerType())
+                && Objects.equals(parent.getOwnerUserId(), child.getOwnerUserId());
+    }
+
+    private SkillPackageAdminVO.VersionDetail toVersionDetail(AidSkill skill, AidSkillVersion version,
+                                                               String skillMarkdown) {
         SkillPackageAdminVO.VersionDetail result = new SkillPackageAdminVO.VersionDetail();
         result.setId(version.getId());
         result.setSkillId(version.getSkillId());
@@ -1004,22 +1491,37 @@ public class SkillPackageAdminServiceImpl implements ISkillPackageAdminService {
         result.setCreateBy(version.getCreateBy());
         result.setCreateTime(version.getCreateTime());
         List<AidSkillResource> resources = selectPublishedResources(version);
-        result.setResources(resources.stream().map(resource -> toResource(version, resource)).toList());
+        result.setSkillMarkdown(skillMarkdown);
+        result.setResources(toResources(skill.getSkillCode(), version, resources));
         result.setRelations(loadRelationItems(version.getId()));
         return result;
     }
 
-    private SkillPackageAdminVO.ResourceItem toResource(AidSkillVersion version, AidSkillResource resource) {
+    private List<SkillPackageAdminVO.ResourceItem> toResources(String skillCode, AidSkillVersion version,
+                                                                List<AidSkillResource> resources) {
+        List<SkillPackageAdminVO.ResourceItem> result = new ArrayList<>();
+        Set<String> editableResourcePaths = new HashSet<>();
+        for (AidSkillResource resource : resources) {
+            if (SKILL_DOCUMENT_KEY.equals(resource.getResourceKey())) continue;
+            SkillPackageAdminVO.ResourceItem item = toResource(skillCode, version, resource);
+            requireUniqueEditableResourcePath(editableResourcePaths, item.getFilePath());
+            result.add(item);
+        }
+        return List.copyOf(result);
+    }
+
+    private SkillPackageAdminVO.ResourceItem toResource(String skillCode, AidSkillVersion version, AidSkillResource resource) {
         SkillPackageAdminVO.ResourceItem result = new SkillPackageAdminVO.ResourceItem();
         result.setId(resource.getId());
         result.setResourceKey(resource.getResourceKey());
+        result.setFilePath(editableResourcePath(resource));
         result.setResourceType(resource.getResourceType());
         result.setObjectKey(resource.getObjectKey());
         result.setContentDigest(resource.getContentDigest());
         result.setMimeType(resource.getMimeType());
         result.setSizeBytes(resource.getSizeBytes());
         result.setRouteJson(resource.getRouteJson());
-        result.setContent(packageResourceLoader.readPublishedResource(version, resource));
+        result.setContent(packageResourceLoader.readPublishedResource(skillCode, version, resource));
         return result;
     }
 
@@ -1081,13 +1583,15 @@ public class SkillPackageAdminServiceImpl implements ISkillPackageAdminService {
     }
 
     private DraftDocument seedDocument(AidSkill skill, AidSkillVersion version) {
-        packageResourceLoader.verifyVersion(skill.getSkillCode(), version);
+        String skillMarkdown = packageResourceLoader.readVerifiedDraftUpgradeSkillMarkdown(
+                skill.getSkillCode(), version);
         DraftDocument document = new DraftDocument();
         document.setBaseVersionId(version.getId());
         document.setSkillId(version.getSkillId());
         SkillModelConfiguration modelConfig = SkillModelConfiguration.from(version);
         document.setModelCode(modelConfig.defaultModelCode());
         document.setDefaultModelCode(modelConfig.defaultModelCode());
+        document.setModelConfigJson(version.getModelConfigJson());
         document.setSelectableModelCodes(new ArrayList<>(modelConfig.selectableModelCodes()));
         document.setSystemPrompt(version.getSystemPrompt());
         document.setInputSchemaJson(version.getInputSchemaJson());
@@ -1097,12 +1601,18 @@ public class SkillPackageAdminServiceImpl implements ISkillPackageAdminService {
         document.setContextWindowTokens(version.getContextWindowTokens());
         document.setSafetyMarginTokens(version.getSafetyMarginTokens());
         List<AidSkillResource> resources = selectPublishedResources(version);
-        document.setResources(resources.stream().map(resource -> {
+        document.setSkillMarkdown(skillMarkdown == null ? defaultSkillMarkdown(skill) : skillMarkdown);
+        Set<String> editableResourcePaths = new HashSet<>();
+        document.setResources(resources.stream()
+                .filter(resource -> !SKILL_DOCUMENT_KEY.equals(resource.getResourceKey())).map(resource -> {
             SkillPackageAdminRequests.ResourceItem item = new SkillPackageAdminRequests.ResourceItem();
             item.setResourceKey(resource.getResourceKey());
+            String filePath = editableResourcePath(resource);
+            requireUniqueEditableResourcePath(editableResourcePaths, filePath);
+            item.setFilePath(filePath);
             item.setResourceType(resource.getResourceType());
             item.setMimeType(resource.getMimeType());
-            item.setContent(packageResourceLoader.readPublishedResource(version, resource));
+            item.setContent(packageResourceLoader.readPublishedResource(skill.getSkillCode(), version, resource));
             item.setRouteJson(resource.getRouteJson());
             return item;
         }).toList());
@@ -1126,6 +1636,7 @@ public class SkillPackageAdminServiceImpl implements ISkillPackageAdminService {
         document.setSelectableModelCodes(StrUtil.isBlank(skill.getModelCode())
                 ? new ArrayList<>() : new ArrayList<>(List.of(skill.getModelCode())));
         document.setSystemPrompt(skill.getSystemPrompt());
+        document.setSkillMarkdown(defaultSkillMarkdown(skill));
         document.setInputSchemaJson(skill.getInputSchemaJson());
         document.setOutputSchemaJson(skill.getOutputSchemaJson());
         document.setDefinitionJson(StrUtil.blankToDefault(skill.getDefinitionJson(), "{}"));
@@ -1176,9 +1687,11 @@ public class SkillPackageAdminServiceImpl implements ISkillPackageAdminService {
         target.setBaseVersionId(source.getBaseVersionId());
         target.setModelCode(source.getModelCode());
         target.setDefaultModelCode(source.getDefaultModelCode());
+        target.setModelConfigJson(source.getModelConfigJson());
         target.setSelectableModelCodes(new ArrayList<>(source.getSelectableModelCodes() == null
                 ? List.of() : source.getSelectableModelCodes()));
         target.setSystemPrompt(source.getSystemPrompt());
+        target.setSkillMarkdown(source.getSkillMarkdown());
         target.setInputSchemaJson(source.getInputSchemaJson());
         target.setOutputSchemaJson(source.getOutputSchemaJson());
         target.setDefinitionJson(source.getDefinitionJson());
@@ -1196,8 +1709,10 @@ public class SkillPackageAdminServiceImpl implements ISkillPackageAdminService {
         value.put("skillId", document.getSkillId());
         value.put("modelCode", document.getModelCode());
         value.put("defaultModelCode", document.getDefaultModelCode());
+        value.put("modelConfigJson", document.getModelConfigJson());
         value.put("selectableModelCodes", document.getSelectableModelCodes());
         value.put("systemPrompt", document.getSystemPrompt());
+        value.put("skillMarkdown", document.getSkillMarkdown());
         value.put("inputSchemaJson", document.getInputSchemaJson());
         value.put("outputSchemaJson", document.getOutputSchemaJson());
         value.put("definitionJson", document.getDefinitionJson());
@@ -1212,6 +1727,7 @@ public class SkillPackageAdminServiceImpl implements ISkillPackageAdminService {
                         return resource;
                     }
                     resource.put("resourceKey", item.getResourceKey());
+                    resource.put("filePath", normalizedResourcePath(item));
                     resource.put("resourceType", item.getResourceType());
                     resource.put("mimeType", item.getMimeType());
                     resource.put("content", item.getContent());
@@ -1335,9 +1851,16 @@ public class SkillPackageAdminServiceImpl implements ISkillPackageAdminService {
 
     private SkillModelConfiguration normalizeModelConfiguration(
             SkillPackageAdminRequests.PackagePayload payload) {
+        JSONObject original = parseModelConfig(payload.getModelConfigJson());
         String defaultCode = StrUtil.blankToDefault(
-                StrUtil.trim(payload.getDefaultModelCode()), StrUtil.trim(payload.getModelCode()));
+                StrUtil.trim(payload.getDefaultModelCode()), StrUtil.blankToDefault(
+                        StrUtil.trim(payload.getModelCode()), original == null
+                                ? null : original.getString("defaultModelCode")));
         List<String> candidates = payload.getSelectableModelCodes();
+        if ((candidates == null || candidates.isEmpty()) && original != null
+                && original.getJSONArray("selectableModelCodes") != null) {
+            candidates = original.getJSONArray("selectableModelCodes").toJavaList(String.class);
+        }
         SkillModelConfiguration config = SkillModelConfiguration.normalized(defaultCode, candidates, true);
         payload.setDefaultModelCode(config.defaultModelCode());
         payload.setSelectableModelCodes(new ArrayList<>(config.selectableModelCodes()));
@@ -1345,8 +1868,102 @@ public class SkillPackageAdminServiceImpl implements ISkillPackageAdminService {
         return config;
     }
 
+    private String preservedModelConfigJson(SkillPackageAdminRequests.PackagePayload payload,
+                                            SkillModelConfiguration normalized) {
+        String originalText = payload.getModelConfigJson();
+        JSONObject original = parseModelConfig(originalText);
+        if (original == null) return normalized.toJson();
+        SkillModelConfiguration originalProjection = SkillModelConfiguration.normalized(
+                original.getString("defaultModelCode"),
+                original.getJSONArray("selectableModelCodes") == null ? List.of()
+                        : original.getJSONArray("selectableModelCodes").toJavaList(String.class), true);
+        if (Objects.equals(originalProjection, normalized)) return originalText;
+        original.put("defaultModelCode", normalized.defaultModelCode());
+        original.put("selectableModelCodes", normalized.selectableModelCodes());
+        return original.toJSONString();
+    }
+
+    private JSONObject parseModelConfig(String text) {
+        if (StrUtil.isBlank(text)) return null;
+        try {
+            return JSON.parseObject(text);
+        } catch (RuntimeException error) {
+            return null;
+        }
+    }
+
     private String compactObject(String text) {
         return JSON.toJSONString(JSON.parseObject(text));
+    }
+
+    private void validatePublication(AidSkill skill) {
+        if (!"PUBLIC".equals(skill.getVisibility())) {
+            return;
+        }
+        if ("USER".equals(skill.getOwnerType()) && !Boolean.parseBoolean(StrUtil.blankToDefault(
+                sysConfigService.selectConfigByKey(PUBLICATION_CONFIG_KEY), "false"))) {
+            throw new ServiceException("用户公开Skill已关闭");
+        }
+        if (!skillCoverPolicy.validUploadedCover(skill)) {
+            throw new ServiceException("请先上传Skill封面");
+        }
+    }
+
+    private static String normalizedResourcePath(SkillPackageAdminRequests.ResourceItem item) {
+        if (item == null) return "";
+        if (StrUtil.isNotBlank(item.getFilePath())) return StrUtil.trim(item.getFilePath());
+        return defaultReferencePath(item.getResourceKey());
+    }
+
+    private static boolean safeReferencePath(String path) {
+        if (StrUtil.isBlank(path) || !path.startsWith("references/") || path.contains("\\")) return false;
+        String[] segments = path.split("/", -1);
+        for (String segment : segments) {
+            if (segment.isEmpty() || ".".equals(segment) || "..".equals(segment)) return false;
+        }
+        return path.length() <= 192 && path.chars().noneMatch(value -> value < 0x20 || value == 0x7f);
+    }
+
+    private static String relativeObjectPath(String objectKey) {
+        if (StrUtil.isBlank(objectKey)) return null;
+        int reference = objectKey.indexOf("references/");
+        if (reference >= 0) return objectKey.substring(reference);
+        if (objectKey.endsWith("/SKILL.md")) return "SKILL.md";
+        return null;
+    }
+
+    private static String editableResourcePath(AidSkillResource resource) {
+        String path = relativeObjectPath(resource.getObjectKey());
+        if (StrUtil.isBlank(path)) {
+            path = defaultReferencePath(resource.getResourceKey());
+        }
+        if (!safeReferencePath(path)) {
+            throw new ServiceException("Skill资源路径无效");
+        }
+        return path;
+    }
+
+    private static String defaultReferencePath(String resourceKey) {
+        String key = StrUtil.trim(resourceKey);
+        if (StrUtil.isBlank(key)) return "";
+        return "references/" + key + (key != null && key.contains(".") ? "" : ".md");
+    }
+
+    private static void requireUniqueEditableResourcePath(Set<String> paths, String path) {
+        if (!paths.add(path)) {
+            throw new ServiceException("Skill资源路径重复");
+        }
+    }
+
+    private static String ownerPartition(AidSkill skill) {
+        return "USER".equals(skill.getOwnerType())
+                ? String.valueOf(skill.getOwnerUserId()) : "platform";
+    }
+
+    private static String defaultSkillMarkdown(AidSkill skill) {
+        StringBuilder markdown = new StringBuilder("# ").append(skill.getName()).append("\n\n");
+        if (StrUtil.isNotBlank(skill.getDescription())) markdown.append(skill.getDescription()).append("\n");
+        return markdown.toString();
     }
 
     private void issue(List<SkillPackageAdminVO.ValidationIssue> target, String field, String message) {

@@ -73,6 +73,8 @@ export function buildMultiAnglePromptParts(
   const yawTags = mapYawDegreesToPromptTags(yawDegrees)
   const pitchTags = mapPitchDegreesToPromptTags(pitchDegrees)
   const focalTags = mapFocalUi0to10ToPromptTags(focalUi0to10)
-  const concat = [yawTags, pitchTags, focalTags].join(', ')
+  const yaw = ((yawDegrees % 360) + 360) % 360
+  const direction = yaw > 180 ? 'camera on the left side of the subject' : yaw > 0 && yaw < 180 ? 'camera on the right side of the subject' : ''
+  const concat = [yawTags, direction, `camera azimuth ${yaw} degrees, elevation ${pitchDegrees} degrees`, pitchTags, focalTags].filter(Boolean).join(', ')
   return { yawTags, pitchTags, focalTags, concat }
 }

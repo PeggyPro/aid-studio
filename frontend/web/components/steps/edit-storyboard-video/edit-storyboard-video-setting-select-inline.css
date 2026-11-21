@@ -7,18 +7,18 @@
 }
 
 html.app-shell-create .edit-storyboard-video-modal .setting-select-inline.ant-select {
-  --ant-select-selector-bg: #0a0d12;
-  --ant-color-border: rgba(78, 94, 122, 0.42);
+  --ant-select-selector-bg: var(--ui-bg, #0a0d12);
+  --ant-color-border: var(--ui-hair, rgba(78, 94, 122, 0.42));
 }
 
 html.app-shell-create .edit-storyboard-video-modal .setting-select-inline .ant-select-selector,
 .edit-storyboard-video-modal .setting-select-inline .ant-select-selector {
   height: calc(44px * var(--create-editor-scale, 1)) !important;
   border-radius: calc(8px * var(--create-editor-scale, 1)) !important;
-  background: #0a0d12 !important;
-  background-color: #0a0d12 !important;
-  border: calc(1px * var(--create-editor-scale, 1)) solid rgba(78, 94, 122, 0.42) !important;
-  border-color: rgba(78, 94, 122, 0.42) !important;
+  background: var(--ui-bg, #0a0d12) !important;
+  background-color: var(--ui-bg, #0a0d12) !important;
+  border: calc(1px * var(--create-editor-scale, 1)) solid var(--ui-hair, rgba(78, 94, 122, 0.42)) !important;
+  border-color: var(--ui-hair, rgba(78, 94, 122, 0.42)) !important;
   box-shadow: none !important;
   display: flex !important;
   flex-wrap: nowrap !important;
@@ -37,16 +37,16 @@ html.app-shell-create .edit-storyboard-video-modal .setting-select-inline.ant-se
 .edit-storyboard-video-modal .setting-select-inline .ant-select-selector:hover,
 .edit-storyboard-video-modal .setting-select-inline.ant-select-focused .ant-select-selector,
 .edit-storyboard-video-modal .setting-select-inline.ant-select-open .ant-select-selector {
-  background: #0a0d12 !important;
-  background-color: #0a0d12 !important;
-  border-color: rgba(120, 140, 170, 0.45) !important;
+  background: var(--ui-bg, #0a0d12) !important;
+  background-color: var(--ui-bg, #0a0d12) !important;
+  border-color: var(--ui-ring, rgba(120, 140, 170, 0.45)) !important;
   box-shadow: none !important;
 }
 
 .edit-storyboard-video-modal .setting-select-inline .ant-select-selection-item {
   line-height: calc(42px * var(--create-editor-scale, 1)) !important;
   font-size: calc(13px * var(--create-editor-scale, 1));
-  color: #d7e8ff !important;
+  color: var(--ui-text, #d7e8ff) !important;
   overflow: hidden !important;
   text-overflow: ellipsis !important;
   white-space: nowrap !important;
@@ -88,7 +88,7 @@ html.app-shell-create .edit-storyboard-video-modal .setting-select-inline.ant-se
 /* 挂 body 的下拉浮层：转为具名全局类（wrapClassName 契约见 GenerateModelConfigBlock selectPopupClassName） */
 .video-modal-select-dropdown .ant-select-item-option-active:not(.ant-select-item-option-disabled),
 .video-modal-select-dropdown .ant-select-item-option-selected:not(.ant-select-item-option-disabled) {
-  background: rgba(18, 18, 18, 1) !important;
+  background: var(--ui-bg, rgba(18, 18, 18, 1)) !important;
 }
 
 .edit-storyboard-video-modal .generate-btn {

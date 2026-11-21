@@ -10,10 +10,18 @@ import com.aid.aid.domain.media.AidMediaResult;
 import com.aid.aid.domain.media.AidMediaTask;
 import com.aid.aid.mapper.AidMediaTaskMapper;
 import com.aid.aid.mapper.AidMediaResultMapper;
+import com.aid.billing.dto.BillingBudgetContext;
 import com.aid.billing.service.BillingFacadeService;
 import com.aid.compose.ComposeConstants;
 import com.aid.compose.service.ComposeCompletionService;
 import com.aid.media.enums.MediaTaskStatus;
+import com.aid.media.enums.MediaBillingStatus;
+import com.aid.media.admission.MediaTaskCancellationAdmissionDecision;
+import com.aid.media.admission.MediaTaskCancellationAdmissionGate;
+import com.aid.media.admission.MediaTaskCancellationPurpose;
+import com.aid.media.admission.MediaTaskCancellationRequest;
+import com.aid.media.admission.MediaTaskCancellationResult;
+import com.aid.media.event.MediaQueueSlotReleasedEvent;
 import com.aid.media.event.MediaTaskCompletedEvent;
 import com.aid.media.event.MediaTaskOssPersistedEvent;
 import com.aid.media.provider.ProviderTaskResult;
@@ -55,9 +63,13 @@ import java.util.Set;
 @RequiredArgsConstructor(onConstructor_ = @org.springframework.beans.factory.annotation.Autowired)
 public class TaskCompletionServiceImpl implements TaskCompletionService {
 
+
     private final AidMediaTaskMapper aidMediaTaskMapper;
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private AidMediaResultMapper aidMediaResultMapper;
+
+    @jakarta.annotation.Resource
+    private com.aid.compose.service.RuntimeComposeResultArchive runtimeComposeResultArchive;
     private final BillingFacadeService billingFacadeService;
     private final MediaConcurrencyLimiter concurrencyLimiter;
     private final ApplicationEventPublisher eventPublisher;
@@ -77,8 +89,46 @@ public class TaskCompletionServiceImpl implements TaskCompletionService {
     @org.springframework.beans.factory.annotation.Autowired
     private MediaEtaRecorder mediaEtaRecorder;
 
+    /** Runtime/Skill ownership proof; deliberately called before any task row lock. */
+    @org.springframework.beans.factory.annotation.Autowired
+    private MediaTaskCancellationAdmissionGate mediaTaskCancellationAdmissionGate;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.aid.aid.mapper.MediaExecutionPermitMapper executionPermitMapper;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.aid.billing.service.ExistingTextSettlementRecovery existingTextSettlementRecovery;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    private org.springframework.beans.factory.ObjectProvider<com.aid.media.reconciliation.MediaSubmissionReconciliationService> submissionReconciliations;
+
+    private record ManualFailureContext(Long operatorId, String reason) { }
+
+    private record LocalFailureContext(com.aid.media.model.MediaTaskFailureReason reason,
+                                       String providerTaskId) { }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean completeManualFailure(Long taskId, Date expectedUpdateTime, Long operatorId, String reason) {
+        if (operatorId == null || operatorId <= 0 || StrUtil.isBlank(reason)
+                || reason.trim().length() < 2 || reason.length() > 500)
+            throw new ServiceException("人工确认失败需要有效操作人和处理原因");
+        AidMediaTask task = aidMediaTaskMapper.selectOne(
+                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<AidMediaTask>()
+                        .eq(AidMediaTask::getId, taskId).last("FOR UPDATE"));
+        if (task == null || !Objects.equals(expectedUpdateTime, task.getUpdateTime())
+                || task.getStatus() == null || !List.of("PENDING", "WAIT_POLL", "WAIT_CALLBACK", "PROCESSING").contains(task.getStatus())
+                || task.getMediaType() == null || !List.of("IMAGE", "VIDEO", "AUDIO", "TEXT").contains(task.getMediaType())) return false;
+        return completeTaskInternal(taskId, ProviderTaskResult.builder().status(MediaTaskStatus.FAILED.name())
+                .providerStatus("MANUAL_FAILED").errorMessage(reason)
+                .taskError(TaskErrorResult.of(com.aid.common.error.TaskErrorCode.TASK_INTERRUPTED, reason))
+                .terminalConfirmed(true).querySuccessful(false).build(), true, false, null,
+                new ManualFailureContext(operatorId, reason.trim()));
+    }
+
     /** 媒体类型：合成任务，走独立计费/回写分支 */
     private static final String COMPOSE_MEDIA_TYPE = ComposeConstants.MEDIA_TYPE_COMPOSE;
+    private static final long CANVAS_PROVIDER_CAPACITY_DELAY_MS = 30_000L;
 
     /** 保留模块内既有直接构造调用的源兼容；文件存储已不再参与通用终态构造。 */
     TaskCompletionServiceImpl(AidMediaTaskMapper aidMediaTaskMapper,
@@ -98,6 +148,91 @@ public class TaskCompletionServiceImpl implements TaskCompletionService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public boolean completeTask(Long taskId, ProviderTaskResult taskResult) {
+        return completeTaskInternal(taskId, taskResult, false, false);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean completeSubmissionFailure(Long taskId, com.aid.media.provider.ProviderSubmitResult receipt) {
+        return completeTaskInternal(taskId, submissionFailureResult(receipt), false, true);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean completeExecutionFailure(Long taskId, String executionToken, String providerTaskId,
+            com.aid.media.model.MediaTaskFailureReason reason, String message) {
+        Objects.requireNonNull(reason, "Failure reason required");
+        boolean accepted = StrUtil.isNotBlank(providerTaskId);
+        if (accepted != (reason == com.aid.media.model.MediaTaskFailureReason.UPSTREAM_QUERY_UNAVAILABLE))
+            throw new IllegalArgumentException("Failure reason does not match submission phase");
+        String safeMessage = com.aid.media.provider.ProviderErrorSanitizer.safeMessage(message,
+                accepted ? "上游连续查询失败，本次任务已结束并退还积分" : "生成请求失败，本次任务已结束并退还积分");
+        return completeTaskInternal(taskId, ProviderTaskResult.builder()
+                .status(MediaTaskStatus.FAILED.name()).providerStatus(reason.name())
+                .errorMessage(safeMessage)
+                .taskError(TaskErrorResult.of(com.aid.common.error.TaskErrorCode.TASK_INTERRUPTED, safeMessage))
+                .querySuccessful(false).terminalConfirmed(false).build(), !accepted,
+                executionToken, null, new LocalFailureContext(reason, providerTaskId));
+    }
+
+    private static ProviderTaskResult submissionFailureResult(com.aid.media.provider.ProviderSubmitResult receipt) {
+        var snapshot = com.aid.media.reconciliation.ProviderSubmissionReceiptSnapshot.capture(receipt);
+        if (snapshot == null || !snapshot.hasTerminalFailure())
+            throw new ServiceException("MEDIA_SUBMISSION_FAILURE_EVIDENCE_REQUIRED");
+        var safe = snapshot.restore();
+        return ProviderTaskResult.builder()
+                .status(MediaTaskStatus.FAILED.name())
+                .errorMessage(com.aid.media.provider.ProviderErrorSanitizer.safeMessage(
+                        safe.getSubmissionErrorMessage(), "媒体处理失败：" + safe.getConfirmedFailureCode()))
+                .taskError(TaskErrorSnapshot.read(safe.getErrorDetailJson()))
+                .errorDetailJson(safe.getErrorDetailJson())
+                .usage(safe.getUsage())
+                .providerStatus(safe.getConfirmedFailureCode())
+                .querySuccessful(Boolean.TRUE).terminalConfirmed(Boolean.TRUE).build();
+    }
+
+    private boolean completeTaskInternal(Long taskId, ProviderTaskResult taskResult,
+                                        boolean trustedAdminFailure, boolean submissionFailure) {
+        return completeTaskInternal(taskId, taskResult, trustedAdminFailure, submissionFailure, null);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean completeSynchronousExecutionFailure(Long taskId, String executionToken) {
+        AidMediaTask task = aidMediaTaskMapper.selectById(taskId);
+        if (executionToken == null || executionToken.isBlank() || task == null
+                || !Objects.equals(executionToken, task.getExecutionPermitToken())) return false;
+        var permit = executionPermitMapper.selectByToken(executionToken);
+        var evidence = com.aid.media.reconciliation.SynchronousExecutionFailureEvidence.capture(task, permit);
+        if (evidence == null) return false;
+        return completeExecutionFailure(taskId, executionToken, null,
+                "SUBMITTING".equals(permit.getExecutionMode())
+                        ? com.aid.media.model.MediaTaskFailureReason.SUBMISSION_FAILED
+                        : com.aid.media.model.MediaTaskFailureReason.SYNCHRONOUS_INTERRUPTED,
+                com.aid.media.reconciliation.SynchronousExecutionFailureEvidence.MESSAGE);
+    }
+
+    private boolean completeTaskInternal(Long taskId, ProviderTaskResult taskResult,
+                                        boolean trustedAdminFailure, boolean submissionFailure,
+                                        String expectedExecutionToken) {
+        return completeTaskInternal(taskId, taskResult, trustedAdminFailure, submissionFailure, expectedExecutionToken, null);
+    }
+
+    private boolean completeTaskInternal(Long taskId, ProviderTaskResult taskResult,
+                                        boolean trustedAdminFailure, boolean submissionFailure,
+                                        String expectedExecutionToken, ManualFailureContext manual) {
+        return completeTaskInternal(taskId, taskResult, trustedAdminFailure,
+                submissionFailure, expectedExecutionToken, manual, null);
+    }
+
+    private boolean completeTaskInternal(Long taskId, ProviderTaskResult taskResult, boolean submissionFailure,
+                                        String token, ManualFailureContext manual, LocalFailureContext localFailure) {
+        return completeTaskInternal(taskId, taskResult, false, submissionFailure, token, manual, localFailure);
+    }
+
+    private boolean completeTaskInternal(Long taskId, ProviderTaskResult taskResult, boolean trustedAdminFailure,
+                                        boolean submissionFailure, String expectedExecutionToken,
+                                        ManualFailureContext manual, LocalFailureContext localFailure) {
         AidMediaTask task = aidMediaTaskMapper.selectById(taskId);
         if (Objects.isNull(task)) {
             log.warn("completeTask 任务不存在, taskId={}", taskId);
@@ -105,6 +240,17 @@ public class TaskCompletionServiceImpl implements TaskCompletionService {
         }
 
         String currentStatus = task.getStatus();
+        if (expectedExecutionToken != null
+                && !Objects.equals(expectedExecutionToken, task.getExecutionPermitToken())) return false;
+        if (localFailure != null && !Objects.equals(
+                StrUtil.blankToDefault(localFailure.providerTaskId(), ""),
+                StrUtil.blankToDefault(task.getProviderTaskId(), ""))) return false;
+        if (submissionFailure && (!MediaTaskStatus.PENDING.name().equals(currentStatus)
+                || StrUtil.isNotBlank(task.getProviderTaskId()))) return false;
+        boolean pendingAcceptedTerminal = !submissionFailure && MediaTaskStatus.PENDING.name().equals(currentStatus)
+                && StrUtil.isNotBlank(task.getProviderTaskId())
+                && (localFailure != null || Boolean.TRUE.equals(taskResult.getQuerySuccessful())
+                && Boolean.TRUE.equals(taskResult.getTerminalConfirmed()));
         boolean directLocalCompose = COMPOSE_MEDIA_TYPE.equals(task.getMediaType())
             && com.aid.compose.config.MpsConfigManager.MODE_LOCAL_FFMPEG.equals(task.getProtocol())
             && MediaTaskStatus.PENDING.name().equals(currentStatus)
@@ -113,14 +259,14 @@ public class TaskCompletionServiceImpl implements TaskCompletionService {
         boolean canTransition = MediaTaskStatus.WAIT_POLL.name().equals(currentStatus)
             || MediaTaskStatus.WAIT_CALLBACK.name().equals(currentStatus)
             || MediaTaskStatus.PROCESSING.name().equals(currentStatus)
-            || directLocalCompose;
+            || directLocalCompose || submissionFailure || pendingAcceptedTerminal || manual != null;
         if (!canTransition) {
             log.info("completeTask 任务已终态, taskId={}, status={}", taskId, currentStatus);
             return false;
         }
 
         // 已有上游任务ID时，查询异常或未经厂商文档终态确认的结果不得进入结算/退款。
-        if (StrUtil.isNotBlank(task.getProviderTaskId())
+        if (!trustedAdminFailure && localFailure == null && StrUtil.isNotBlank(task.getProviderTaskId())
                 && (!Boolean.TRUE.equals(taskResult.getQuerySuccessful())
                 || !Boolean.TRUE.equals(taskResult.getTerminalConfirmed()))) {
             log.warn("completeTask 拒绝未经上游终态确认的收口, taskId={}, providerTaskId={}, providerStatus={}",
@@ -165,16 +311,34 @@ public class TaskCompletionServiceImpl implements TaskCompletionService {
             }
         }
 
-        String userStr = task.getUserId() != null ? String.valueOf(task.getUserId()) : "";
+        String userStr = manual != null ? String.valueOf(manual.operatorId())
+                : task.getUserId() != null ? String.valueOf(task.getUserId()) : "";
         LambdaUpdateWrapper<AidMediaTask> casWrapper = new LambdaUpdateWrapper<>();
         casWrapper.eq(AidMediaTask::getId, taskId);
-        if (directLocalCompose) {
+        if (manual != null) {
+            casWrapper.eq(AidMediaTask::getStatus, currentStatus);
+        } else if (directLocalCompose || submissionFailure || pendingAcceptedTerminal) {
             casWrapper.eq(AidMediaTask::getStatus, MediaTaskStatus.PENDING.name());
         } else {
             casWrapper.in(AidMediaTask::getStatus,
                 MediaTaskStatus.WAIT_POLL.name(),
                 MediaTaskStatus.WAIT_CALLBACK.name(),
                 MediaTaskStatus.PROCESSING.name());
+        }
+        // Recheck acceptance atomically: an ID attached after the initial read must win over rejection replay.
+        if (submissionFailure) {
+            casWrapper.and(noAcceptance -> noAcceptance.isNull(AidMediaTask::getProviderTaskId)
+                    .or().eq(AidMediaTask::getProviderTaskId, ""));
+            if (expectedExecutionToken != null)
+                casWrapper.eq(AidMediaTask::getExecutionPermitToken, expectedExecutionToken);
+        }
+        if (pendingAcceptedTerminal)
+            casWrapper.eq(AidMediaTask::getProviderTaskId, task.getProviderTaskId());
+        if (localFailure != null) {
+            if (StrUtil.isNotBlank(localFailure.providerTaskId()))
+                casWrapper.eq(AidMediaTask::getProviderTaskId, localFailure.providerTaskId());
+            if (expectedExecutionToken != null)
+                casWrapper.eq(AidMediaTask::getExecutionPermitToken, expectedExecutionToken);
         }
         Date terminalTime = new Date();
         casWrapper.set(AidMediaTask::getStatus, targetStatus);
@@ -189,6 +353,18 @@ public class TaskCompletionServiceImpl implements TaskCompletionService {
 
         if (MediaTaskStatus.SUCCEEDED.name().equals(targetStatus)) {
             casWrapper.set(AidMediaTask::getOriginUrl, taskResult.getResultUrl());
+            if (MediaType.VIDEO.name().equals(task.getMediaType())
+                    && taskResult.getPersistedResultUrls() != null && !taskResult.getPersistedResultUrls().isEmpty()) {
+                casWrapper.set(AidMediaTask::getOssUrl, taskResult.getPersistedResultUrls().get(0));
+                if (taskResult.getOutputDurationSeconds() != null)
+                    casWrapper.set(AidMediaTask::getOutputDurationSeconds, taskResult.getOutputDurationSeconds());
+            }
+            if(MediaType.AUDIO.name().equals(task.getMediaType()) && taskResult.getAudioOutputs()!=null && !taskResult.getAudioOutputs().isEmpty()) {
+                var first=taskResult.getAudioOutputs().get(0);
+                if(Boolean.TRUE.equals(first.getPersisted()))casWrapper.set(AidMediaTask::getOssUrl,first.getUrl());
+                if(first.getDurationMs()!=null)casWrapper.set(AidMediaTask::getOutputDurationSeconds,(first.getDurationMs()+999)/1000);
+            }
+            if(taskResult.getResultText()!=null)casWrapper.set(AidMediaTask::getResultText,taskResult.getResultText());
             if (tencentStoredAudio != null) {
                 casWrapper.set(AidMediaTask::getOssUrl, tencentStoredAudio.storedUrls().get(0));
             }
@@ -207,8 +383,11 @@ public class TaskCompletionServiceImpl implements TaskCompletionService {
             }
         } else {
             TaskErrorResult error = normalizeProviderFailure(taskId, task.getModelName(), taskResult);
+            String failureEvidence = MediaType.TEXT.name().equals(task.getMediaType())
+                    ? TextFailureBillingPolicy.mergeFailureEvidence(task.getErrorDetailJson(), taskResult.getErrorDetailJson())
+                    : task.getErrorDetailJson();
             casWrapper.set(AidMediaTask::getErrorDetailJson,
-                    TextFailureBillingPolicy.mergeErrorSnapshot(task.getErrorDetailJson(), error));
+                    TextFailureBillingPolicy.mergeErrorSnapshot(failureEvidence, error));
             casWrapper.set(AidMediaTask::getErrorMessage,
                 MediaTaskPayloadSanitizer.sanitizeForStorage(error.getUserMessage()));
         }
@@ -222,6 +401,19 @@ public class TaskCompletionServiceImpl implements TaskCompletionService {
         if (MediaTaskStatus.SUCCEEDED.name().equals(targetStatus)) {
             if (tencentStoredAudio == null) {
                 persistResultManifest(task, normalizeResultUrls(taskResult), userStr);
+                if (MediaType.VIDEO.name().equals(task.getMediaType()) && taskResult.getPersistedResultUrls() != null) {
+                    for (int index = 0; index < taskResult.getPersistedResultUrls().size(); index++) {
+                        LambdaUpdateWrapper<AidMediaResult> stored = new LambdaUpdateWrapper<>();
+                        stored.eq(AidMediaResult::getTaskId, task.getId()).eq(AidMediaResult::getResultIndex, index)
+                                .set(AidMediaResult::getOssUrl, taskResult.getPersistedResultUrls().get(index))
+                                .set(AidMediaResult::getMimeType, taskResult.getPersistedResultMimeTypes().get(index))
+                                .set(AidMediaResult::getFileSize, taskResult.getPersistedResultFileSizes().get(index));
+                        if (aidMediaResultMapper.update(null, stored) != 1) throw new ServiceException("视频结果登记失败");
+                    }
+                }
+                if (MediaType.AUDIO.name().equals(task.getMediaType())) {
+                    com.aid.media.provider.audio.AudioResultManifestSupport.persist(task, taskResult.getAudioOutputs(), aidMediaResultMapper);
+                }
                 if (tencentStoredVideo != null) {
                     persistTencentStoredVideoManifest(task, tencentStoredVideo, userStr);
                 }
@@ -239,11 +431,20 @@ public class TaskCompletionServiceImpl implements TaskCompletionService {
         }
         mediaTaskArchiveService.archiveAfterCommit(preparedPayload);
 
+        AidMediaTask originalBeforeTerminal = task;
         task = aidMediaTaskMapper.selectById(taskId);
+
+        if (localFailure != null)
+            submissionReconciliations.getObject().recordLocalTerminalFailure(task, localFailure.reason());
+
+        runtimeComposeResultArchive.ensureManifest(task);
 
         // 模型健康采集：本方法是回调/轮询双路径的 CAS 收口点，同一任务只进一次，天然去重；
         // 此处的 SUCCEEDED/FAILED 均来自上游返回结果（含超时无响应关单），符合"只记上游错误"口径。
-        recordModelHealth(task, targetStatus, taskResult);
+        if (!trustedAdminFailure && localFailure == null
+                && !com.aid.media.reconciliation.SynchronousExecutionFailureEvidence.STATUS.equals(taskResult.getProviderStatus())) {
+            recordModelHealth(task, targetStatus, taskResult);
+        }
 
         // 回调与轮询双路径经本方法 CAS 收口，同一 taskId 仅进入一次，故结算/退款天然幂等。
         if (COMPOSE_MEDIA_TYPE.equals(task.getMediaType())) {
@@ -267,19 +468,26 @@ public class TaskCompletionServiceImpl implements TaskCompletionService {
 
         Map<String, Object> settleUsage = buildSettleUsage(task, taskResult);
         boolean billingWon;
-        if (MediaTaskStatus.SUCCEEDED.name().equals(targetStatus)) {
+        if (com.aid.media.reconciliation.SynchronousExecutionFailureEvidence.STATUS.equals(taskResult.getProviderStatus())
+                && existingTextSettlementRecovery != null
+                && existingTextSettlementRecovery.recover(originalBeforeTerminal, task)) {
+            billingWon = true;
+        } else if (MediaTaskStatus.SUCCEEDED.name().equals(targetStatus)) {
             billingWon = billingFacadeService.settleBilling(
                 task, settleUsage);
             log.info("completeTask 任务成功, taskId={}, billingWon={}", taskId, billingWon);
-        } else if (MediaType.TEXT.name().equals(task.getMediaType())
+        } else if (!trustedAdminFailure && com.aid.billing.util.CompositeVideoUsageCalculator.usesCompositePricing(task.getBillingSnapshotJson())
+                && com.aid.billing.util.CompositeVideoUsageCalculator.hasObservedUsage(settleUsage)) {
+            billingWon = billingFacadeService.settleBilling(task, settleUsage);
+        } else if (!trustedAdminFailure && MediaType.TEXT.name().equals(task.getMediaType())
                 && task.getBillingStatus() != null
                 && TextFailureBillingPolicy.shouldSettle(false,
                     task.getUpstreamAcceptTime() != null, task.getProtocol(),
                     task.getErrorDetailJson(), settleUsage)) {
-            // Provider 已受理/已开始调用后，即使失败且 usage 缺失也按预冻结上限保守结算。
+            // 失败调用只按实际用量结算；缺失用量时沿原冻结流水退款。
             billingWon = billingFacadeService.settleBilling(
                 task, settleUsage);
-            log.info("completeTask 文本Provider调用后失败，保守结算, taskId={}, billingWon={}",
+            log.info("completeTask 文本Provider调用后失败，按实际用量结算, taskId={}, billingWon={}",
                 taskId, billingWon);
         } else {
             billingWon = billingFacadeService.refundBilling(task);
@@ -307,6 +515,9 @@ public class TaskCompletionServiceImpl implements TaskCompletionService {
             }
         }
 
+        if (manual != null)
+            submissionReconciliations.getObject().recordOperatorTerminalFailure(task, manual.operatorId(), manual.reason());
+
         // 必须在 afterCommit 中执行，确保 DB 终态落库成功后才释放名额和拉起新任务。
         registerAfterCommitRelease(task);
 
@@ -323,7 +534,9 @@ public class TaskCompletionServiceImpl implements TaskCompletionService {
         }
         for (int index = 0; index < resultUrls.size(); index++) {
             aidMediaResultMapper.upsertTaskResult(
-                    task.getId(), index, task.getMediaType(), resultUrls.get(index), operator);
+                    task.getId(), index, COMPOSE_MEDIA_TYPE.equals(task.getMediaType())
+                            && com.aid.billing.dto.BillingBudgetContext.isBudgetManagedBizTaskType(task.getBizTaskType())
+                            ? MediaType.VIDEO.name() : task.getMediaType(), resultUrls.get(index), operator);
         }
     }
 
@@ -501,6 +714,15 @@ public class TaskCompletionServiceImpl implements TaskCompletionService {
      * 统一终态入口按媒体类型传递实际用量，保证按张 / 按秒的结算依据不丢失。
      */
     private Map<String, Object> buildSettleUsage(AidMediaTask task, ProviderTaskResult taskResult) {
+        if (MediaType.TEXT.name().equals(task.getMediaType())) {
+            Map<String, Object> actual = com.aid.media.provider.ProviderUsageSupport.actualUsage(
+                    com.aid.media.provider.ProviderUsageSupport.merge(
+                            TextFailureBillingPolicy.observedUsage(task.getErrorDetailJson()), taskResult.getUsage()));
+            return actual.isEmpty() ? null : actual;
+        }
+        if (MediaType.AUDIO.name().equals(task.getMediaType()) && taskResult.getUsage() != null) {
+            return new HashMap<>(taskResult.getUsage());
+        }
         if (Objects.equals(task.getMediaType(), MediaType.IMAGE.name())) {
             int actualCount = 0;
             if (Objects.nonNull(taskResult.getResultCount()) && taskResult.getResultCount() > 0) {
@@ -517,6 +739,7 @@ public class TaskCompletionServiceImpl implements TaskCompletionService {
         }
         if (Objects.equals(task.getMediaType(), MediaType.VIDEO.name())) {
             Map<String, Object> usage = new HashMap<>();
+            if (taskResult.getUsage() != null) usage.putAll(taskResult.getUsage());
             if (taskResult.getProviderCredits() != null && taskResult.getProviderCredits().signum() > 0) {
                 usage.put("actualProviderCredits", taskResult.getProviderCredits());
             }
@@ -531,6 +754,14 @@ public class TaskCompletionServiceImpl implements TaskCompletionService {
             if (Objects.nonNull(taskResult.getInputImageCount())
                     && taskResult.getInputImageCount() >= 0) {
                 usage.put("actualInputImageCount", taskResult.getInputImageCount());
+            }
+            if (taskResult.getVideoBillingDurationSeconds() != null
+                    && taskResult.getVideoBillingDurationSeconds().signum() > 0) {
+                usage.put("actualDuration", taskResult.getVideoBillingDurationSeconds());
+            }
+            if (taskResult.getInputVideoBillingDurationSeconds() != null
+                    && taskResult.getInputVideoBillingDurationSeconds().signum() >= 0) {
+                usage.put("actualInputVideoSeconds", taskResult.getInputVideoBillingDurationSeconds());
             }
             if (Objects.nonNull(taskResult.getCompletionTokens())
                     && taskResult.getCompletionTokens() > 0) {
@@ -604,19 +835,19 @@ public class TaskCompletionServiceImpl implements TaskCompletionService {
     private void registerAfterCommitRelease(AidMediaTask task) {
         Long userId = task.getUserId();
         Long tid = task.getId();
-        // 释放需带模型编码：四维限流按 全局/用户/模型/供应商 各自计数，缺一会导致模型/供应商维度泄漏。
-        String modelName = task.getModelName();
+        // 捕获本次不可变许可编号，迟到回调不能释放同任务后续重新取得的许可。
+        String executionPermit = task.getExecutionPermitToken();
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    concurrencyLimiter.release(userId, modelName);
+                    concurrencyLimiter.releaseToken(executionPermit);
                     eventPublisher.publishEvent(new MediaTaskCompletedEvent(this, tid, userId));
                 }
             });
         } else {
             // 无事务上下文时直接执行（降级）。
-            concurrencyLimiter.release(userId, modelName);
+            concurrencyLimiter.releaseToken(executionPermit);
             eventPublisher.publishEvent(new MediaTaskCompletedEvent(this, tid, userId));
         }
     }
@@ -630,21 +861,21 @@ public class TaskCompletionServiceImpl implements TaskCompletionService {
     private void registerAfterCommitReleaseForUnsubmitted(AidMediaTask task, boolean wasPending) {
         Long userId = task.getUserId();
         Long tid = task.getId();
-        // 释放需带模型编码：四维限流按 全局/用户/模型/供应商 各自计数，缺一会导致模型/供应商维度泄漏。
-        String modelName = task.getModelName();
+        // 捕获本次不可变许可编号，迟到回调不能释放同任务后续重新取得的许可。
+        String executionPermit = task.getExecutionPermitToken();
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
                     if (wasPending) {
-                        concurrencyLimiter.release(userId, modelName);
+                        concurrencyLimiter.releaseToken(executionPermit);
                     }
                     eventPublisher.publishEvent(new MediaTaskCompletedEvent(this, tid, userId));
                 }
             });
         } else {
             if (wasPending) {
-                concurrencyLimiter.release(userId, modelName);
+                concurrencyLimiter.releaseToken(executionPermit);
             }
             eventPublisher.publishEvent(new MediaTaskCompletedEvent(this, tid, userId));
         }
@@ -654,94 +885,11 @@ public class TaskCompletionServiceImpl implements TaskCompletionService {
     @Transactional(rollbackFor = Exception.class)
     public boolean closeUnsubmittedTask(Long taskId, String errorMessage) {
         AidMediaTask task = aidMediaTaskMapper.selectById(taskId);
-        if (Objects.isNull(task)) {
-            log.warn("closeUnsubmittedTask 任务不存在, taskId={}", taskId);
-            return false;
-        }
-        String currentStatus = task.getStatus();
-        boolean canClose = MediaTaskStatus.PENDING.name().equals(currentStatus);
-        if (!canClose) {
-            log.info("closeUnsubmittedTask 任务已推进, taskId={}, status={}", taskId, currentStatus);
-            return false;
-        }
-        // 本入口只允许 PENDING，它已占用上游并发坑位，收口后必须释放。
-        final boolean wasPending = true;
-        //    竞态——若期间状态已变，CAS 失败、留待下一轮重判，避免 wasPending 与实际占槽情况不一致导致漏释放。
-        String userStr = task.getUserId() != null ? String.valueOf(task.getUserId()) : "";
-        LambdaUpdateWrapper<AidMediaTask> casWrapper = new LambdaUpdateWrapper<>();
-        casWrapper.eq(AidMediaTask::getId, taskId);
-        casWrapper.eq(AidMediaTask::getStatus, currentStatus);
-        casWrapper.set(AidMediaTask::getStatus, MediaTaskStatus.FAILED.name());
-        casWrapper.set(AidMediaTask::getTerminalTime, new Date());
-        casWrapper.set(AidMediaTask::getErrorDetailJson, TextFailureBillingPolicy.mergeErrorSnapshot(
-                task.getErrorDetailJson(), ErrorNormalizer.normalize(
-                        String.valueOf(taskId), null, task.getModelName(), -1, errorMessage)));
-        casWrapper.set(AidMediaTask::getErrorMessage,
-            MediaTaskPayloadSanitizer.sanitizeForStorage(errorMessage));
-        MediaTaskArchiveService.PreparedTerminalPayload preparedPayload =
-            mediaTaskArchiveService.prepareTerminalPayload(
-                task, MediaTaskStatus.FAILED.name(), task.getResponseJson());
-        if (!Objects.equals(preparedPayload.getRequestJson(), task.getRequestJson())) {
-            casWrapper.set(AidMediaTask::getRequestJson, preparedPayload.getRequestJson());
-        }
-        casWrapper.set(AidMediaTask::getResponseJson, preparedPayload.getResponseJson());
-        casWrapper.set(AidMediaTask::getUpdateBy, userStr);
-        casWrapper.set(AidMediaTask::getUpdateTime, new Date());
-        int rows = aidMediaTaskMapper.update(null, casWrapper);
-        if (rows == 0) {
-            log.info("closeUnsubmittedTask CAS 失败, taskId={} 已被其他路径处理", taskId);
-            return false;
-        }
-        mediaTaskArchiveService.archiveAfterCommit(preparedPayload);
-        task = aidMediaTaskMapper.selectById(taskId);
-        if (COMPOSE_MEDIA_TYPE.equals(task.getMediaType())) {
-            ProviderTaskResult zombieResult = ProviderTaskResult.builder()
-                .status(MediaTaskStatus.FAILED.name())
-                .errorMessage(errorMessage)
-                .build();
-            composeCompletionService.onFailed(task, zombieResult);
-            registerAfterCommitReleaseForUnsubmitted(task, wasPending);
-            return true;
-        }
-        boolean settleProviderCall = MediaType.TEXT.name().equals(task.getMediaType())
-            && task.getBillingStatus() != null
-            && TextFailureBillingPolicy.shouldSettle(false,
-                task.getUpstreamAcceptTime() != null, task.getProtocol(),
-                task.getErrorDetailJson(), Map.of());
-        boolean billingWon = settleProviderCall
-            ? billingFacadeService.settleBilling(task, Map.of())
-            : billingFacadeService.refundBilling(task);
-        log.info("closeUnsubmittedTask 关闭僵尸任务, taskId={}, billingWon={}", taskId, billingWon);
-        if (billingWon) {
-            LambdaUpdateWrapper<AidMediaTask> billingUpdate = new LambdaUpdateWrapper<>();
-            billingUpdate.eq(AidMediaTask::getId, taskId);
-            billingUpdate.set(AidMediaTask::getBillingStatus, task.getBillingStatus());
-            billingUpdate.set(AidMediaTask::getFrozenAmount, task.getFrozenAmount());
-            billingUpdate.set(AidMediaTask::getUpdateBy, userStr);
-            billingUpdate.set(AidMediaTask::getUpdateTime, new Date());
-            aidMediaTaskMapper.update(null, billingUpdate);
-        }
-        Long userId = task.getUserId();
-        Long tid = task.getId();
-        // 释放需带模型编码：四维限流按 全局/用户/模型/供应商 各自计数，缺一会导致模型/供应商维度泄漏。
-        String modelName = task.getModelName();
-        if (TransactionSynchronizationManager.isSynchronizationActive()) {
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override
-                public void afterCommit() {
-                    if (wasPending) {
-                        concurrencyLimiter.release(userId, modelName);
-                    }
-                    eventPublisher.publishEvent(new MediaTaskCompletedEvent(this, tid, userId));
-                }
-            });
-        } else {
-            if (wasPending) {
-                concurrencyLimiter.release(userId, modelName);
-            }
-            eventPublisher.publishEvent(new MediaTaskCompletedEvent(this, tid, userId));
-        }
-        return billingWon;
+        if (task == null) return false;
+        var reconciliation = submissionReconciliations.getObject();
+        if (reconciliation.hasRecoverableReceipt(task))
+            return reconciliation.reconcileSubmissionNow(taskId);
+        return completeSynchronousExecutionFailure(taskId, task.getExecutionPermitToken());
     }
 
     @Override
@@ -750,6 +898,11 @@ public class TaskCompletionServiceImpl implements TaskCompletionService {
         AidMediaTask task = aidMediaTaskMapper.selectById(taskId);
         if (Objects.isNull(task)) {
             log.info("取消排队媒体任务跳过，任务不存在: taskId={}", taskId);
+            return false;
+        }
+        if (BillingBudgetContext.isBudgetManagedBizTaskType(task.getBizTaskType())) {
+            log.info("budget-managed queued task requires runtime cancellation evidence, taskId={}, bizTaskType={}",
+                    taskId, task.getBizTaskType());
             return false;
         }
         if (!Objects.equals(userId, task.getUserId())) {
@@ -767,6 +920,10 @@ public class TaskCompletionServiceImpl implements TaskCompletionService {
         casWrapper.eq(AidMediaTask::getId, taskId);
         casWrapper.eq(AidMediaTask::getUserId, userId);
         casWrapper.eq(AidMediaTask::getStatus, MediaTaskStatus.QUEUED.name());
+        casWrapper.isNull(AidMediaTask::getExecutionPermitToken);
+        casWrapper.isNull(AidMediaTask::getUpstreamAcceptTime);
+        casWrapper.and(neverAccepted -> neverAccepted.isNull(AidMediaTask::getProviderTaskId)
+                .or().eq(AidMediaTask::getProviderTaskId, ""));
         casWrapper.set(AidMediaTask::getStatus, MediaTaskStatus.FAILED.name());
         casWrapper.set(AidMediaTask::getTerminalTime, new Date());
         casWrapper.set(AidMediaTask::getErrorMessage, safeMessage);
@@ -816,9 +973,29 @@ public class TaskCompletionServiceImpl implements TaskCompletionService {
                 && !MediaType.VIDEO.name().equals(task.getMediaType())) {
             throw new ServiceException("该媒体任务暂不支持取消");
         }
-        if (!"GENERIC_GENERATION".equals(task.getBizTaskType())) {
+        if (!"canvas_node".equals(task.getBizTaskType())
+                && !"GENERIC_GENERATION".equals(task.getBizTaskType())) {
             throw new ServiceException("该媒体任务由原业务管理，请使用原任务取消入口");
         }
+        return cancelUnsubmittedUserTask(task, userId);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public String cancelQueuedRuntimeTask(Long taskId, Long userId, Long runId) {
+        if (taskId == null || taskId <= 0 || userId == null || userId <= 0
+                || runId == null || runId <= 0) throw new ServiceException("任务参数错误");
+        AidMediaTask task = aidMediaTaskMapper.selectById(taskId);
+        if (task == null || !Objects.equals(task.getUserId(), userId)
+                || !"RUNTIME_RUN".equals(task.getBizTaskType())
+                || !Objects.equals(task.getBizTaskId(), runId)) {
+            throw new ServiceException("运行与媒体任务不匹配");
+        }
+        return cancelUnsubmittedUserTask(task, userId);
+    }
+
+    private String cancelUnsubmittedUserTask(AidMediaTask task, Long userId) {
+        Long taskId = task.getId();
         String state = task.getStatus();
         if (MediaTaskStatus.CANCELLED.name().equals(state)) return "ALREADY_CANCELLED";
         if (!MediaTaskStatus.QUEUED.name().equals(state)) {
@@ -835,6 +1012,7 @@ public class TaskCompletionServiceImpl implements TaskCompletionService {
         LambdaUpdateWrapper<AidMediaTask> update = new LambdaUpdateWrapper<>();
         update.eq(AidMediaTask::getId, taskId)
                 .eq(AidMediaTask::getUserId, userId)
+                .eq(AidMediaTask::getBizTaskType, task.getBizTaskType())
                 .eq(AidMediaTask::getStatus, MediaTaskStatus.QUEUED.name())
                 .and(w -> w.isNull(AidMediaTask::getProviderTaskId)
                         .or().eq(AidMediaTask::getProviderTaskId, ""))
@@ -893,5 +1071,156 @@ public class TaskCompletionServiceImpl implements TaskCompletionService {
         registerAfterCommitReleaseForUnsubmitted(task, true);
         log.info("合成未确认任务已重新排队, taskId={}", taskId);
         return true;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean deferUnsubmittedTask(Long taskId) {
+        AidMediaTask task = aidMediaTaskMapper.selectById(taskId);
+        if (task == null || !BillingBudgetContext.isBudgetManagedBizTaskType(task.getBizTaskType())
+                || StrUtil.isNotBlank(task.getProviderTaskId()) || task.getUpstreamAcceptTime() != null) return false;
+        if (MediaTaskStatus.QUEUED.name().equals(task.getStatus())) return true;
+        if (!MediaTaskStatus.PENDING.name().equals(task.getStatus())) return false;
+        LambdaUpdateWrapper<AidMediaTask> update = new LambdaUpdateWrapper<>();
+        update.eq(AidMediaTask::getId, taskId);
+        update.eq(AidMediaTask::getStatus, MediaTaskStatus.PENDING.name());
+        update.and(w -> w.isNull(AidMediaTask::getProviderTaskId)
+                .or().eq(AidMediaTask::getProviderTaskId, ""));
+        update.isNull(AidMediaTask::getUpstreamAcceptTime);
+        update.set(AidMediaTask::getStatus, MediaTaskStatus.QUEUED.name());
+        update.set(AidMediaTask::getNextPollTime, new Date(System.currentTimeMillis() + 60_000L));
+        update.set(AidMediaTask::getUpdateTime, new Date());
+        if (aidMediaTaskMapper.update(null, update) == 0) return false;
+        registerAfterCommitReleaseForUnsubmitted(task, true);
+        return true;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean deferCanvasVideoForProviderCapacity(Long taskId, String executionPermit) {
+        AidMediaTask task = aidMediaTaskMapper.selectById(taskId);
+        if (task == null || StrUtil.isBlank(executionPermit)
+                || !Objects.equals(task.getExecutionPermitToken(), executionPermit)) return false;
+        Date now = new Date();
+        int changed = aidMediaTaskMapper.update(null, new LambdaUpdateWrapper<AidMediaTask>()
+                .eq(AidMediaTask::getId, taskId)
+                .eq(AidMediaTask::getBizTaskType, "canvas_node")
+                .eq(AidMediaTask::getMediaType, MediaType.VIDEO.name())
+                .eq(AidMediaTask::getStatus, MediaTaskStatus.PENDING.name())
+                .eq(AidMediaTask::getExecutionPermitToken, executionPermit)
+                .eq(AidMediaTask::getBillingStatus, MediaBillingStatus.FROZEN.name())
+                .and(w -> w.isNull(AidMediaTask::getProviderTaskId).or().eq(AidMediaTask::getProviderTaskId, ""))
+                .isNull(AidMediaTask::getUpstreamAcceptTime)
+                .set(AidMediaTask::getStatus, MediaTaskStatus.QUEUED.name())
+                .set(AidMediaTask::getExecutionPermitToken, null)
+                .set(AidMediaTask::getNextPollTime, new Date(now.getTime() + CANVAS_PROVIDER_CAPACITY_DELAY_MS))
+                .set(AidMediaTask::getUpdateTime, now));
+        if (changed == 0) return false;
+        Runnable wakeQueue = () -> {
+            concurrencyLimiter.releaseToken(executionPermit);
+            eventPublisher.publishEvent(new MediaQueueSlotReleasedEvent(taskId));
+        };
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override public void afterCommit() {
+                    wakeQueue.run();
+                }
+            });
+        } else {
+            wakeQueue.run();
+        }
+        return true;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public MediaTaskCancellationResult cancelBudgetManagedUnsubmittedTask(Long taskId) {
+        // This compatibility entry also owns a transaction; a default-interface self-call cannot.
+        return cancelBudgetManagedUnsubmittedTask(MediaTaskCancellationRequest.stop(taskId));
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public MediaTaskCancellationResult cancelBudgetManagedUnsubmittedTask(
+            MediaTaskCancellationRequest request) {
+        Long taskId = request == null ? null : request.taskId();
+        if (taskId == null || taskId <= 0) {
+            throw new ServiceException("MEDIA_TASK_CANCELLATION_TASK_INVALID");
+        }
+        if (request.purpose() == null || (request.isReplan()
+                && (request.expectedRuntimeRunId() == null
+                || request.expectedRuntimeRunFencingToken() == null
+                || StrUtil.isBlank(request.leaseOwner())
+                || request.replanIntentId() == null
+                || request.replanIntentStateRevision() == null
+                || request.replanCommandId() == null))) {
+            throw new ServiceException("MEDIA_TASK_CANCELLATION_TICKET_INVALID");
+        }
+        // Routing read only: the business handler must acquire Runtime/Skill locks before the task CAS.
+        AidMediaTask task = aidMediaTaskMapper.selectById(taskId);
+        if (task == null || !BillingBudgetContext.isBudgetManagedBizTaskType(task.getBizTaskType())) {
+            return MediaTaskCancellationResult.RECONCILE_ONLY;
+        }
+        if (MediaTaskStatus.CANCELLED.name().equals(task.getStatus())
+                || MediaTaskStatus.SUCCEEDED.name().equals(task.getStatus())
+                || MediaTaskStatus.FAILED.name().equals(task.getStatus())) {
+            return MediaTaskCancellationResult.ALREADY_TERMINAL;
+        }
+        if (!Set.of(MediaTaskStatus.QUEUED.name(), MediaTaskStatus.PENDING.name()).contains(task.getStatus())
+                || StrUtil.isNotBlank(task.getProviderTaskId()) || task.getUpstreamAcceptTime() != null
+                || !MediaBillingStatus.FROZEN.name().equals(task.getBillingStatus())) {
+            return MediaTaskCancellationResult.RECONCILE_ONLY;
+        }
+        MediaTaskCancellationAdmissionDecision decision =
+                mediaTaskCancellationAdmissionGate.claimCancellation(task, request);
+        if (decision != MediaTaskCancellationAdmissionDecision.CANCEL_NOT_SUBMITTED) {
+            return MediaTaskCancellationResult.RECONCILE_ONLY;
+        }
+
+        boolean wasPending = MediaTaskStatus.PENDING.name().equals(task.getStatus());
+        String reason = request.purpose() == MediaTaskCancellationPurpose.REPLAN
+                ? "RUNTIME_REPLAN_CANCELLED_BEFORE_PROVIDER_ENTRY"
+                : "RUNTIME_STOPPED_BEFORE_PROVIDER_ENTRY";
+        MediaTaskArchiveService.PreparedTerminalPayload payload = mediaTaskArchiveService.prepareTerminalPayload(
+                task, MediaTaskStatus.CANCELLED.name(), task.getResponseJson());
+        LambdaUpdateWrapper<AidMediaTask> update = new LambdaUpdateWrapper<>();
+        update.eq(AidMediaTask::getId, task.getId())
+                .eq(AidMediaTask::getBizTaskType, task.getBizTaskType())
+                .eq(AidMediaTask::getBizTaskId, task.getBizTaskId())
+                .eq(AidMediaTask::getBillingSnapshotJson, task.getBillingSnapshotJson())
+                .eq(AidMediaTask::getBillingStatus, MediaBillingStatus.FROZEN.name())
+                .in(AidMediaTask::getStatus, MediaTaskStatus.QUEUED.name(), MediaTaskStatus.PENDING.name())
+                .and(w -> w.isNull(AidMediaTask::getProviderTaskId)
+                        .or().eq(AidMediaTask::getProviderTaskId, ""))
+                .isNull(AidMediaTask::getUpstreamAcceptTime);
+        Date now = new Date();
+        update.set(AidMediaTask::getStatus, MediaTaskStatus.CANCELLED.name());
+        update.set(AidMediaTask::getTerminalTime, now);
+        update.set(AidMediaTask::getErrorMessage, reason);
+        update.set(AidMediaTask::getErrorDetailJson, null);
+        update.set(AidMediaTask::getRequestJson, payload.getRequestJson());
+        update.set(AidMediaTask::getResponseJson, payload.getResponseJson());
+        update.set(AidMediaTask::getUpdateBy,
+                request.purpose() == MediaTaskCancellationPurpose.REPLAN
+                        ? "runtime-replan" : "runtime-stop");
+        update.set(AidMediaTask::getUpdateTime, now);
+        if (aidMediaTaskMapper.update(null, update) != 1) {
+            return MediaTaskCancellationResult.RECONCILE_ONLY;
+        }
+
+        AidMediaTask cancelled = aidMediaTaskMapper.selectById(taskId);
+        if (cancelled == null || !MediaTaskStatus.CANCELLED.name().equals(cancelled.getStatus())
+                || !billingFacadeService.refundBilling(cancelled)) {
+            throw new ServiceException("MEDIA_TASK_CANCELLATION_REFUND_INCOMPLETE");
+        }
+        aidMediaTaskMapper.update(null, new LambdaUpdateWrapper<AidMediaTask>()
+                .eq(AidMediaTask::getId, taskId)
+                .set(AidMediaTask::getBillingStatus, cancelled.getBillingStatus())
+                .set(AidMediaTask::getFrozenAmount, cancelled.getFrozenAmount())
+                .set(AidMediaTask::getActualCost, cancelled.getActualCost())
+                .set(AidMediaTask::getUpdateTime, new Date()));
+        mediaTaskArchiveService.archiveAfterCommit(payload);
+        registerAfterCommitReleaseForUnsubmitted(cancelled, wasPending);
+        return MediaTaskCancellationResult.CANCELLED;
     }
 }

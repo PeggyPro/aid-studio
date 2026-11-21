@@ -3,6 +3,7 @@
 /* eslint-disable @next/next/no-img-element -- 只读展示服务端素材 URL。 */
 import type { StudioFlowAssetFormPreview } from '@/types/studio'
 import { openImagePreviewModal } from '@/utils/openImagePreviewModal'
+import { StudioCanvasTooltip } from './StudioCanvasTooltip'
 
 export function StudioFlowAssetGallery({
   assetTitle,
@@ -20,7 +21,7 @@ export function StudioFlowAssetGallery({
               <strong>{form.name}</strong>
               <span>{form.images.length} 张图</span>
             </header>
-            {form.prompt ? <p title={form.prompt}>{form.prompt}</p> : null}
+            {form.prompt ? <StudioCanvasTooltip title={form.prompt}><p>{form.prompt}</p></StudioCanvasTooltip> : null}
             {form.images.length ? (
               <div className="studio-flow-asset-gallery__images">
                 {form.images.map((image, imageIndex) => (
