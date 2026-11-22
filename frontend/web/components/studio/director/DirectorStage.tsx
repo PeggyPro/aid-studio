@@ -58,6 +58,7 @@ import { syncDirectorLensToCameraFov } from '@/utils/studio/directorLens'
 import { DirectorCameraViewportHud } from './DirectorCameraViewportHud'
 import { useCanvasProjectRuntime } from '@/components/studio/free/CanvasProjectRuntimeContext'
 import { canvasResourceDisplayUrl } from '@/utils/canvas/canvasPublicationFiles'
+import { stableCanvasJson } from '@/utils/canvas/canvasWorkspaceAdapter'
 import { isDirectorPanoramaFile } from './directorPanorama'
 import { useDirectorManagedResourceRefresh } from './useDirectorManagedResourceRefresh'
 
@@ -146,6 +147,8 @@ function DirectorStageContent({ nodeId, document }: { nodeId: string; document: 
   const [localStatus, setLocalStatus] = useState('完整工程保存在本机')
   const [savedCloudScene, setSavedCloudScene] = useState<DirectorSceneData | null>(null)
   const [saving, setSaving] = useState(false)
+  const [closing, setClosing] = useState(false)
+  const closeInFlight = useRef(false)
   const [batchCapturing, setBatchCapturing] = useState(false)
   const [viewportKey, setViewportKey] = useState(0)
   const [viewportStatus, setViewportStatus] = useState<'loading' | 'ready' | 'error'>('loading')
@@ -158,15 +161,30 @@ function DirectorStageContent({ nodeId, document }: { nodeId: string; document: 
   const nodeMediaUrl = node?.data.mediaUrl
   const historyFingerprint = useRef('')
   const initialScene = useRef(scene)
+  const [initialPublishedScene] = useState(() => {
+    const published = storedScenes[scene.id]
+    return published && stableCanvasJson(normalizeDirectorScene(published)) === stableCanvasJson(scene) ? scene : undefined
+  })
+  const publishedScene = useRef(initialPublishedScene)
   const localRevision = useRef(document.revision)
-  const localFlight = useRef<Promise<void>>(Promise.resolve())
+  const localFlight = useRef<Promise<unknown>>(Promise.resolve())
   const localSaved = useRef<DirectorSceneData | undefined>(document.recovered)
+  const stageActive = useRef(true)
+  useEffect(() => {
+    stageActive.current = true
+    return () => { stageActive.current = false }
+  }, [])
+  const isCurrentDirector = useCallback((sceneId: string) => {
+    const workspace = useStudioUiStore.getState()
+    return stageActive.current && workspace.scopeKey === scopeKey && workspace.directorOpenNodeId === nodeId
+      && workspace.nodes.some(item => item.id === nodeId && item.data.directorSceneId === sceneId)
+  }, [nodeId, scopeKey])
   const saveLocalDocument = useCallback((allowCloudCommit = false) => {
     const snapshot = sceneRef.current
-    const current = () => useStudioUiStore.getState().scopeKey === scopeKey && useStudioUiStore.getState().nodes.some(item => item.id === nodeId && item.data.directorSceneId === snapshot.id)
+    const current = () => isCurrentDirector(snapshot.id)
     const task = localFlight.current.catch(() => undefined).then(async () => {
       if (!current()) throw new Error('画布或目标节点已变化，未覆盖当前工程')
-      if (localSaved.current === snapshot) return
+      if (localSaved.current === snapshot || publishedScene.current === snapshot) return snapshot
       setLocalStatus('正在保存本机完整工程…')
       let storedSnapshot = snapshot
       let recoveryWritten = true
@@ -196,8 +214,8 @@ function DirectorStageContent({ nodeId, document }: { nodeId: string; document: 
       } else {
         await writeRecovery()
       }
-      localSaved.current = storedSnapshot
-      if (sceneRef.current === snapshot && storedSnapshot !== snapshot) {
+      if (recoveryWritten) localSaved.current = storedSnapshot
+      if (current() && sceneRef.current === snapshot && storedSnapshot !== snapshot) {
         sceneRef.current = storedSnapshot
         setScene(storedSnapshot)
       }
@@ -205,13 +223,14 @@ function DirectorStageContent({ nodeId, document }: { nodeId: string; document: 
         setLocalError('')
         setLocalStatus(recoveryWritten ? '完整工程已保存在本机' : '已保留另一窗口的本机恢复记录')
       }
+      return storedSnapshot
     }).catch(error => {
       if (current()) { setLocalError(error instanceof Error ? error.message : '本机工程保存失败'); setLocalStatus('本机保存失败') }
       throw error
     })
     localFlight.current = task
     return task
-  }, [document.canvasBase, document.key, nodeId, scopeKey])
+  }, [document.canvasBase, document.key, isCurrentDirector])
   useEffect(() => {
     if (localError) return
     const timer = window.setTimeout(() => { void saveLocalDocument().catch(() => undefined) }, 600)
@@ -219,7 +238,10 @@ function DirectorStageContent({ nodeId, document }: { nodeId: string; document: 
   }, [scene, localError, saveLocalDocument])
   useEffect(() => {
     const warn = (event: BeforeUnloadEvent) => {
-      if (localSaved.current !== sceneRef.current) { event.preventDefault(); event.returnValue = '' }
+      if (localSaved.current !== sceneRef.current && publishedScene.current !== sceneRef.current) {
+        event.preventDefault()
+        event.returnValue = ''
+      }
     }
     window.addEventListener('beforeunload', warn)
     return () => window.removeEventListener('beforeunload', warn)
@@ -288,6 +310,7 @@ function DirectorStageContent({ nodeId, document }: { nodeId: string; document: 
   const phonePreviewFlush = useRef<number | undefined>(undefined)
   const getLiveScene = useCallback(() => sceneRef.current, [])
   const previewPhoneCamera = useCallback((next: DirectorSceneData, cameraId: string) => {
+    if (closeInFlight.current) return
     const current = sceneRef.current
     const camera = resolveDirectorCamera(next, cameraId)
     if (current.id !== next.id || !camera || isDirectorCameraLocked(current, cameraId)) return
@@ -346,9 +369,14 @@ function DirectorStageContent({ nodeId, document }: { nodeId: string; document: 
     }
   }
 
+  const applyRefreshedModelLinks = useCallback((next: DirectorSceneData) => {
+    // Refreshing asset access links does not change authored content.
+    if (publishedScene.current === sceneRef.current) publishedScene.current = next
+    replaceScene(next)
+  }, [replaceScene])
   const modelLinks = useDirectorManagedResourceRefresh({
     scene, nodeId, scopeKey, workspaceId: canvasRuntime?.project?.workspace.workspaceId,
-    getScene: () => sceneRef.current, applyScene: replaceScene,
+    getScene: getLiveScene, applyScene: applyRefreshedModelLinks,
   })
 
   const beginTransform = useCallback(() => {
@@ -540,79 +568,104 @@ function DirectorStageContent({ nodeId, document }: { nodeId: string; document: 
     setScene(sceneRef.current)
   }, [future])
 
-  const persistSceneLocally = useCallback((previewImageUrl?: string, sceneOnly = false) => {
-    const current = previewImageUrl
-      ? { ...sceneRef.current, previewImageUrl }
-      : sceneRef.current
-    const cleaned = persistentDirectorScene(current)
-    sceneRef.current = cleaned
-    setScene(cleaned)
-    setDirectorScene(cleaned)
-    const cameraCount = listDirectorAuthoredCameras(cleaned).length
-      + (cleaned.modeling?.project.scene.nodes.filter(node => node.kind === 'CAMERA').length ?? 0)
+  const publishSceneToCanvas = useCallback((snapshot: DirectorSceneData, previewImageUrl?: string, sceneOnly = false) => {
+    setDirectorScene(snapshot)
+    const cameraCount = listDirectorAuthoredCameras(snapshot).length
+      + (snapshot.modeling?.project.scene.nodes.filter(node => node.kind === 'CAMERA').length ?? 0)
     if (!sceneOnly) updateNodeData(nodeId, {
-      directorSceneId: cleaned.id,
+      directorSceneId: snapshot.id,
       status: 'success',
       ...(previewImageUrl ? { mediaKind: 'image' as const, mediaUrl: previewImageUrl } : {}),
-      resultSummary: `已保存 ${threePrevizObjectCount(cleaned)} 个对象、${cameraCount} 个机位、${cleaned.captures?.length ?? 0} 张截图`
+      resultSummary: `已保存 ${threePrevizObjectCount(snapshot)} 个对象、${cameraCount} 个机位、${snapshot.captures?.length ?? 0} 张截图`
     }, true)
-    return cleaned
   }, [nodeId, setDirectorScene, updateNodeData])
 
+  const prepareSceneForSave = useCallback((previewImageUrl?: string) => {
+    const current = sceneRef.current
+    const draft = { ...current, ...(previewImageUrl ? { previewImageUrl } : {}), updatedAt: new Date().toISOString() }
+    return replaceScene(persistentDirectorScene(draft))
+  }, [replaceScene])
+
   const capturePreviewUrl = useCallback(() => {
+    const fallback = sceneRef.current.previewImageUrl || nodeMediaUrl || undefined
     const viewport = viewportRef.current
-    const capturedUrl = viewportStatus === 'ready'
-      ? resolveDirectorActiveCameraId(sceneRef.current) ? viewport?.capture() : viewport?.captureCurrentView()
-      : ''
-    return capturedUrl || sceneRef.current.previewImageUrl || nodeMediaUrl || undefined
+    if (viewportStatus !== 'ready' || !viewport) return fallback
+    try {
+      const capturedUrl = resolveDirectorActiveCameraId(sceneRef.current) ? viewport.capture() : viewport.captureCurrentView()
+      return capturedUrl || fallback
+    } catch {
+      // A lost viewport must not prevent the editable scene from being saved.
+      return fallback
+    }
   }, [nodeMediaUrl, viewportStatus])
 
   const saveCompleteScene = useCallback(async (previewImageUrl?: string, adoption?: Omit<CanvasSceneAdoption, 'sceneId'>) => {
-    // Prepare the complete revision before publishing it into the canvas store.
-    // Publishing here would start autosave with the previous modeling history.
-    if (previewImageUrl) {
-      const prepared = persistentDirectorScene({ ...sceneRef.current, previewImageUrl })
-      sceneRef.current = prepared
-      setScene(prepared)
-    }
-    await saveLocalDocument(Boolean(canvasRuntime?.project))
-    const snapshot = persistSceneLocally(previewImageUrl, Boolean(adoption))
+    if (closeInFlight.current) throw new Error('正在返回画布')
+    prepareSceneForSave(previewImageUrl)
+    const snapshot = await saveLocalDocument(Boolean(canvasRuntime?.project))
+    if (!isCurrentDirector(snapshot.id) || closeInFlight.current) throw new Error('已离开当前预演，未提交本次保存')
+    publishSceneToCanvas(snapshot, previewImageUrl, Boolean(adoption))
     if (canvasRuntime?.project) {
       await canvasRuntime.saveNow(adoption && { ...adoption, sceneId: snapshot.id })
+      if (!isCurrentDirector(snapshot.id) || sceneRef.current !== snapshot) return
       const authoritative = useStudioUiStore.getState().directorScenes[snapshot.id] ?? snapshot
-      if (sceneRef.current === snapshot && authoritative !== snapshot) {
+      if (authoritative !== snapshot) {
         sceneRef.current = authoritative
         setScene(authoritative)
       }
+      publishedScene.current = authoritative
       setSavedCloudScene(authoritative)
+    } else {
+      publishedScene.current = snapshot
     }
-  }, [canvasRuntime, persistSceneLocally, saveLocalDocument])
+  }, [canvasRuntime, isCurrentDirector, prepareSceneForSave, publishSceneToCanvas, saveLocalDocument])
 
   const saveScene = useCallback(async (): Promise<boolean> => {
-    if (saving) return false
+    if (saving || closeInFlight.current) return false
     setSaving(true)
     try {
       await saveCompleteScene(capturePreviewUrl())
+      if (!isCurrentDirector(sceneRef.current.id) || closeInFlight.current) return false
       message.success(canvasRuntime?.project ? '3D预演场景已保存到当前画布' : '3D预演场景已保存到本机')
       return true
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '导演场景保存失败')
+      if (isCurrentDirector(sceneRef.current.id) && !closeInFlight.current) {
+        message.error(error instanceof Error ? error.message : '导演场景保存失败')
+      }
       return false
     } finally {
       setSaving(false)
     }
-  }, [canvasRuntime?.project, capturePreviewUrl, saveCompleteScene, saving, message])
+  }, [canvasRuntime, capturePreviewUrl, isCurrentDirector, saveCompleteScene, saving, message])
 
   const handleClose = useCallback(async () => {
-    if (recording || finishLock.current) return
-    try {
-      await saveCompleteScene(capturePreviewUrl())
-    } catch (error) {
-      message.warning(error instanceof Error ? `未能完整保存到画布：${error.message}` : '导演场景保存失败')
+    const sceneId = sceneRef.current.id
+    if (recording || finishLock.current || closeInFlight.current || !isCurrentDirector(sceneId)) return
+    if (publishedScene.current === sceneRef.current) {
+      closeDirector()
       return
     }
-    closeDirector()
-  }, [capturePreviewUrl, closeDirector, recording, saveCompleteScene, message])
+    closeInFlight.current = true
+    setClosing(true)
+    try {
+      const previewImageUrl = capturePreviewUrl()
+      // A camera or a user edit can still arrive while IndexedDB is writing.
+      // Only publish the exact draft that has been saved locally.
+      let snapshot: DirectorSceneData
+      do {
+        prepareSceneForSave(previewImageUrl)
+        snapshot = await saveLocalDocument()
+        if (!isCurrentDirector(sceneId)) return
+      } while (snapshot !== sceneRef.current)
+      publishSceneToCanvas(snapshot, previewImageUrl)
+      closeDirector()
+    } catch (error) {
+      if (isCurrentDirector(sceneId)) setLocalError(error instanceof Error ? error.message : '本机工程保存失败')
+    } finally {
+      closeInFlight.current = false
+      if (isCurrentDirector(sceneId)) setClosing(false)
+    }
+  }, [capturePreviewUrl, closeDirector, isCurrentDirector, prepareSceneForSave, publishSceneToCanvas, recording, saveLocalDocument])
   const setMode = useCallback((mode: DirectorTransformMode) => {
     const cameraSelected = selectedObjectId === 'main-camera' || sceneRef.current.cameraBookmarks?.some((item) => item.id === selectedObjectId)
     const nextMode = cameraSelected && mode === 'scale' ? 'translate' : mode
@@ -901,7 +954,7 @@ function DirectorStageContent({ nodeId, document }: { nodeId: string; document: 
     }
   }
   const openFinish = async () => {
-    if (finishLock.current || recording || saving) return
+    if (finishLock.current || closeInFlight.current || recording || saving) return
     const source = sceneRef.current
     if (!findDirectorPrevizVideo(nodeId, source.id)) {
       setRecordingOpen(true)
@@ -910,11 +963,12 @@ function DirectorStageContent({ nodeId, document }: { nodeId: string; document: 
     finishLock.current = true
     setOpeningFinish(true)
     try {
-      persistSceneLocally(capturePreviewUrl())
-      await saveLocalDocument()
-      const workspace = useStudioUiStore.getState()
-      if (workspace.scopeKey !== scopeKey || workspace.directorOpenNodeId !== nodeId) return
-      const { hasReferenceImage } = openDirectorFinishComposer(nodeId, sceneRef.current)
+      const previewImageUrl = capturePreviewUrl()
+      prepareSceneForSave(previewImageUrl)
+      const snapshot = await saveLocalDocument()
+      if (!isCurrentDirector(snapshot.id)) return
+      publishSceneToCanvas(snapshot, previewImageUrl)
+      const { hasReferenceImage } = openDirectorFinishComposer(nodeId, snapshot)
       closeDirector()
       message.success(hasReferenceImage
         ? '已建立成片草稿，确认参考素材、模型和报价后生成'
@@ -945,7 +999,7 @@ function DirectorStageContent({ nodeId, document }: { nodeId: string; document: 
     {tools => <div className="director-stage" role="dialog" aria-modal="true" aria-label="3D预演">
       <header className="director-topbar">
         <div className="director-topbar__identity">
-          <Button type="text" icon={<CloseOutlined />} loading={saving} onClick={() => void handleClose()} aria-label="保存并退出3D预演" />
+          <Button type="text" icon={<CloseOutlined />} loading={closing} onClick={() => void handleClose()} aria-label="保存并退出3D预演" />
           <strong>3D预演</strong>
           <Input value={scene.name} aria-label="导演场景名称" onChange={(event) => replaceScene({ ...scene, name: event.target.value })} />
         </div>
@@ -964,11 +1018,11 @@ function DirectorStageContent({ nodeId, document }: { nodeId: string; document: 
         />
         <div className="director-topbar__actions">
           <span className="director-save-status" role="status">
-            {canvasRuntime?.project && saving ? '正在保存到画布…' : savedCloudScene === scene ? '完整工程已保存到画布' : localStatus}
+            {closing ? '正在保存本机工程…' : canvasRuntime?.project && saving ? '正在保存到画布…' : savedCloudScene === scene || (canvasRuntime?.project && publishedScene.current === scene) ? '完整工程已保存到画布' : localStatus}
           </span>
           <Tooltip title="撤销 Ctrl/⌘ + Z"><Button type="text" icon={<UndoOutlined />} disabled={!past.length} onClick={undo} aria-label="撤销" /></Tooltip>
           <Tooltip title="重做 Ctrl/⌘ + Shift + Z"><Button type="text" icon={<RedoOutlined />} disabled={!future.length} onClick={redo} aria-label="重做" /></Tooltip>
-          <Button icon={<SaveOutlined />} aria-label="保存3D预演" data-previz-step="save" loading={saving} onClick={() => void saveScene()}>保存</Button>
+          <Button icon={<SaveOutlined />} aria-label="保存3D预演" data-previz-step="save" loading={saving} disabled={closing} onClick={() => void saveScene()}>保存</Button>
           <Dropdown
             menu={{
               items: [

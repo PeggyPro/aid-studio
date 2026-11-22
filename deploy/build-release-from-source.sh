@@ -1138,7 +1138,9 @@ start_host_stage() {
   if command -v systemd-run >/dev/null 2>&1 && command -v systemctl >/dev/null 2>&1 \
       && [ "$(ps -p 1 -o comm= 2>/dev/null | tr -d '[:space:]')" = systemd ]; then
     ACTIVE_HOST_UNIT="$host_group"
-    systemd-run --scope --quiet --unit "$ACTIVE_HOST_UNIT" -- \
+    # 显式配额使 systemd 在空机启用 scope 的 CPU 控制器。实际限额仍在恢复进程前按毫核回读。
+    systemd-run --scope --quiet --unit "$ACTIVE_HOST_UNIT" \
+      -p "CPUQuota=$(( (STAGE_CPU_MILLI + 9) / 10 ))%" -- \
       sh -c 'umask 077; printf "%s\n" "$$" > "$1"; pid_file="$1"; work_dir="$2"; shift 2; kill -STOP "$$"; cd "$work_dir" || exit 111; rm -f -- "$pid_file"; if command -v ionice >/dev/null 2>&1; then exec ionice -c 2 -n 7 nice -n 10 "$@"; else exec nice -n 10 "$@"; fi' \
       aid-stage "$ACTIVE_HOST_PID_FILE" "$work_dir" "$@" &
     ACTIVE_RUNNER_PID=$!
