@@ -50,7 +50,7 @@ if command -v curl >/dev/null 2>&1; then curl -fL --retry 3 -o aid-install.sh ht
 
 配置是首次部署的强制前置步骤：脚本先生成正式配置文件，要求管理员检查、校验并明确确认；在确认完成前不会检查或安装环境、拉取统一源码、构建程序、初始化数据库或启动服务。无人值守部署必须同时设置 `AID_ASSUME_YES=1` 与 `AID_CONFIG_CONFIRMED=1`，避免流水线误用默认配置直接上线。
 
-生成配置文件不等于已经部署。即使管理员在最终确认处选择 `n`，再次执行 `sudo env AID_REMOTE_BOOTSTRAP=1 bash aid-install.sh install` 仍会继续走首次部署，不会误进入升级流程；受管安装器一旦落盘就会创建 `sudo aid` 恢复命令，只有服务健康检查成功后才记录已部署状态。
+生成配置文件后，可按原方式继续首次部署。每次新装、继续或重试都重新执行上面的完整下载命令，手动部署执行对应的 `install-manual` 完整命令。下载成功后才运行本次取得的脚本。服务健康检查成功后才记录已部署状态。
 
 > 默认渠道为 `auto`：有正式版时安装正式版；尚无正式版时才选择最新 Beta，并用黄色/红色信息明确提醒。明确需要测试版时，在一行命令的 `sudo env` 后增加 `AID_RELEASE_CHANNEL=beta`。生产服务器不要长期使用 Beta 渠道。
 

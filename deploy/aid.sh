@@ -6561,6 +6561,24 @@ ensure_admin_entry_code() { # ensure_admin_entry_code <docker|manual>
   ok "已为新部署生成12位随机后台访问码"
 }
 
+repair_first_install_manifest_url() { # <docker|manual> <安装前部署状态>
+  [[ "$2" == "none" ]] || return 0
+  local query changed
+  # 旧的公开基线把官方 CDN 地址截成了相对路径。空值由后端回退到官方 HTTPS 源。
+  query="UPDATE aid_config SET config_value='' WHERE category='system_upgrade' AND config_name='manifest_url' AND BINARY config_value='/aid/release/latest.json'; SELECT ROW_COUNT();"
+  if [[ "$1" == "docker" ]]; then
+    changed="$(docker_mysql_tool mysql --batch --skip-column-names "$(env_get DB_NAME aid)" --execute "${query}")" \
+      || die "修复新装数据库的默认版本源失败"
+  else
+    changed="$(managed_mysql_business_exec mysql "$(conf_get DB_HOST 127.0.0.1)" "$(conf_get DB_PORT 3306)" \
+      "$(conf_get DB_NAME aid)" "$(conf_get DB_USERNAME aid)" "$(conf_get DB_PASSWORD '')" \
+      --batch --skip-column-names --execute "${query}")" || die "修复新装数据库的默认版本源失败"
+  fi
+  if [[ "${changed}" != "0" ]]; then
+    ok "已修复旧初始化 SQL 中的版本源，后台将使用内置官方源"
+  fi
+}
+
 docker_container_env_value() { # docker_container_env_value <容器> <变量名>
   docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$1" 2>/dev/null \
     | sed -n "s/^$2=//p" | head -n 1
@@ -7611,6 +7629,7 @@ do_install_docker() (
   fi
   prepare_docker_runtime_dependencies \
     || die "前置服务检查失败，AID 主程序尚未启动；请按上方组件日志处理后重试"
+  repair_first_install_manifest_url docker "${existingMode}"
   ensure_admin_entry_code docker
   disable_unused_docker_services
 
@@ -7950,6 +7969,7 @@ do_install_manual() (
     mark_sql_baseline_from_dir "${REPO_DIR}/sql" || die "初始化数据库迁移基线失败"
     ok "数据库初始化完成"
   fi
+  repair_first_install_manifest_url manual "${existingMode}"
   ensure_admin_entry_code manual
 
   place_artifacts "${package}"

@@ -1427,7 +1427,7 @@ INSERT INTO `aid_config` VALUES (336, 'basic', 'company_address', '', '公司地
 INSERT INTO `aid_config` VALUES (337, 'basic', 'service_email', '', '服务邮箱', '0', 14, '2026-07-16 14:56:46', 'admin', 'admin', '2026-07-21 22:53:40', NULL, 1, NULL, 0);
 INSERT INTO `aid_config` VALUES (338, 'basic', 'contact_phone', '', '联系电话', '0', 15, '2026-07-16 14:56:47', 'admin', 'admin', '2026-07-21 23:03:10', NULL, 1, NULL, 0);
 INSERT INTO `aid_config` VALUES (339, 'basic', 'work_publish_enabled', 'true', '作品发布', '0', 16, '2026-07-16 14:56:47', 'admin', 'admin', '2026-07-21 22:54:35', NULL, 1, NULL, 0);
-INSERT INTO `aid_config` VALUES (343, 'system_upgrade', 'manifest_url', '/aid/release/latest.json', '版本更新清单地址', '0', 1, '2026-07-20 08:43:42', 'admin', 'admin', '2026-07-23 01:17:23', NULL, NULL, NULL, 0);
+INSERT INTO `aid_config` VALUES (343, 'system_upgrade', 'manifest_url', '', '版本更新清单地址', '0', 1, '2026-07-20 08:43:42', 'admin', 'admin', '2026-07-23 01:17:23', NULL, NULL, NULL, 0);
 INSERT INTO `aid_config` VALUES (344, 'system_upgrade', 'updater_download_url', '', '升级器下载地址', '0', 2, '2026-07-20 08:43:42', 'admin', 'admin', '2026-07-20 16:43:12', NULL, NULL, NULL, 0);
 INSERT INTO `aid_config` VALUES (345, 'system_upgrade', 'updater_health_file', '', '升级器健康文件路径', '0', 3, '2026-07-20 08:43:42', 'admin', 'admin', '2026-07-20 16:43:12', NULL, NULL, NULL, 0);
 INSERT INTO `aid_config` VALUES (346, 'official_gateway', 'enabled', 'false', '官方统一网关总开关（true=全局厂商走官方网关）', '0', 1, '2026-07-20 08:43:42', 'admin', 'admin', '2026-07-22 16:33:46', NULL, NULL, NULL, 0);
