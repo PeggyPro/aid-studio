@@ -262,6 +262,8 @@ if command -v curl >/dev/null 2>&1; then curl -fL --retry 3 -o aid-install.sh ht
 
 Docker 模式不会要求宿主机另装 Git、JDK、Node、Go、FFmpeg、Nginx 或 Redis：Node.js 22.22.0 与 Maven/Go 使用一次性隔离构建容器；Oracle JDK 17.0.8、AID 自管 FFmpeg 8.1.2 与经过中文字形验证的字体共同生成标签为 `aid/openjdk:17.0.8-ffmpeg8.1.2-font2.004` 的本地固定运行镜像。复用镜像前会重新检查 Java、FFmpeg、FFprobe、编码器、滤镜、最小合成、中文字符集与 `drawtext`，任一能力不符都会重建。HTTP Nginx 为运行容器；MySQL、Redis、RocketMQ 与 HTTPS 由 `COMPOSE_PROFILES` 决定是否启动对应容器。宿主机只需要 Docker Engine 24+ 与 Compose v2；缺失时经管理员确认可由脚本安装。
 
+大陆线路首次构建运行镜像时，Debian 软件包索引与软件包优先从阿里云镜像下载。更新或下载校验失败时，安装器自动尝试 Debian 官方源。APT 使用 Debian 发布签名与软件包摘要进行验证。
+
 依赖处理由正式配置中的 `DEPENDENCY_INSTALL_MODE` 控制：
 
 | 值 | Docker 部署行为 | 手动 systemd 部署行为 |

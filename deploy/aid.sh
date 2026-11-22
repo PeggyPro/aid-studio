@@ -4405,6 +4405,52 @@ docker_jdk_runtime_matches() { # docker_jdk_runtime_matches <镜像>
   [[ "${firstLine}" == "java version \"${JDK_VERSION}\""* ]]
 }
 
+write_debian_runtime_package_installer() {
+  cat > "$1" <<'DEBIAN_RUNTIME_APT'
+#!/bin/sh
+set -eu
+export DEBIAN_FRONTEND=noninteractive
+workDir="$(mktemp -d)"
+trap 'rm -rf -- "$workDir"' EXIT
+repositories="upstream mirror"
+[ "$1" != cn ] || repositories="mirror upstream"
+
+apt_runtime() {
+  apt-get -o Acquire::Retries=0 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 "$@"
+}
+
+for repository in $repositories; do
+  set --
+  if [ "$repository" = mirror ]; then
+    label="Aliyun Debian mirror"
+    # Bookworm slim may not yet have CA certificates. Debian APT still checks
+    # the signed InRelease and package hashes when bootstrapping over HTTP.
+    source=/etc/apt/sources.list.d/debian.sources
+    [ -f "$source" ] || source=/etc/apt/sources.list
+    [ -f "$source" ] || continue
+    mirror="$workDir/${source##*/}"
+    sed -e 's|https\?://deb.debian.org/debian-security|http://mirrors.aliyun.com/debian-security|g' \
+        -e 's|https\?://deb.debian.org/debian|http://mirrors.aliyun.com/debian|g' \
+        "$source" > "$mirror"
+    grep -qF 'mirrors.aliyun.com/debian' "$mirror" || continue
+    set -- -o "Dir::Etc::sourcelist=$mirror" -o Dir::Etc::sourceparts=-
+  else
+    label="official Debian repositories"
+  fi
+
+  printf '[AID APT] Downloading from %s\n' "$label"
+  if apt_runtime "$@" -o APT::Update::Error-Mode=any update &&
+     apt_runtime "$@" -y --download-only --no-install-recommends install ca-certificates curl unzip fontconfig; then
+    apt_runtime "$@" -y --no-download --no-install-recommends install ca-certificates curl unzip fontconfig
+    printf '[AID APT] Runtime packages installed from %s\n' "$label"
+    exit 0
+  fi
+  printf '[AID APT] Download or verification failed for %s; trying the next source if available\n' "$label" >&2
+done
+exit 1
+DEBIAN_RUNTIME_APT
+}
+
 prepare_jdk_runtime_image() {
   local baseImage="debian:bookworm-slim" dockerfile context imageRuntime fontManager
   local totalMemoryMb runtimeCpuMilli runtimeMemoryMb runtimeSwapMb runtimeMemorySwapMb runtimeCpuQuota
@@ -4426,6 +4472,7 @@ prepare_jdk_runtime_image() {
     warn "现有 Java 运行镜像的 JDK、FFmpeg 或中文字体能力不完整，将按固定运行时重建"
   fi
   ensure_docker_image "${baseImage}" "Oracle JDK运行基础"
+  resolve_dependency_region
   context="$(mktemp -d "${DATA_ROOT}/build-cache/toolchains/.runtime-image.XXXXXX")" \
     || die "无法创建 Java/FFmpeg 镜像构建目录"
   mkdir -p "${context}/java" "${context}/ffmpeg"
@@ -4435,9 +4482,11 @@ prepare_jdk_runtime_image() {
     || { rm -rf -- "${context}"; die "复制 AID FFmpeg 运行时失败"; }
   fontManager="${context}/prepare-cjk-font.sh"
   write_aid_cjk_font_manager "${fontManager}"
+  write_debian_runtime_package_installer "${context}/install-debian-runtime-packages.sh"
   dockerfile="${context}/Dockerfile"
   cat > "${dockerfile}" <<EOF
 FROM ${baseImage}
+ARG AID_DEBIAN_APT_REGION=global
 ARG AID_CJK_FONT_TENCENT_URL=
 ARG AID_CJK_FONT_ALIYUN_URL=
 ENV JAVA_HOME=/opt/java/jdk
@@ -4448,18 +4497,12 @@ ENV PATH=/opt/java/jdk/bin:${FFMPEG_RUNTIME_ROOT}/current:\${PATH}
 COPY java/ /opt/java/jdk/
 COPY ffmpeg/ ${imageRuntime}/
 COPY prepare-cjk-font.sh /tmp/prepare-cjk-font.sh
+COPY install-debian-runtime-packages.sh /tmp/install-debian-runtime-packages.sh
 RUN set -eu; \
     mkdir -p ${FFMPEG_RUNTIME_ROOT}; \
     ln -s ffmpeg-${FFMPEG_RUNTIME_VERSION}-${FFMPEG_RUNTIME_ARCH} ${FFMPEG_RUNTIME_ROOT}/current; \
-    if ! apt-get update; then \
-      if [ -f /etc/apt/sources.list.d/debian.sources ]; then \
-        sed -i 's|http://deb.debian.org/debian-security|https://mirrors.aliyun.com/debian-security|g; s|http://deb.debian.org/debian|https://mirrors.aliyun.com/debian|g' /etc/apt/sources.list.d/debian.sources; \
-      else \
-        sed -i 's|http://deb.debian.org/debian-security|https://mirrors.aliyun.com/debian-security|g; s|http://deb.debian.org/debian|https://mirrors.aliyun.com/debian|g' /etc/apt/sources.list; \
-      fi; \
-      apt-get update; \
-    fi; \
-    apt-get install -y --no-install-recommends ca-certificates curl unzip fontconfig; \
+    sh /tmp/install-debian-runtime-packages.sh "\${AID_DEBIAN_APT_REGION}"; \
+    rm -f /tmp/install-debian-runtime-packages.sh; \
     rm -rf /var/lib/apt/lists/*; \
     java -version; \
     ${imageRuntime}/check-runtime.sh ${imageRuntime}/ffmpeg ${imageRuntime}/ffprobe /tmp \
@@ -4505,6 +4548,7 @@ EOF
   log "构建 Oracle JDK ${JDK_VERSION} + AID FFmpeg ${FFMPEG_RUNTIME_VERSION} + 中文字体固定运行镜像: ${JAVA_RUNTIME_IMAGE}"
   log "运行镜像构建资源上限：CPU ${runtimeCpuMilli}m，物理内存 ${runtimeMemoryMb}MiB，额外 Swap ${runtimeSwapMb}MiB，低 I/O 优先级"
   if ! "${runtimeBuildCommand[@]}" \
+      --build-arg "AID_DEBIAN_APT_REGION=${RESOLVED_DEPENDENCY_REGION}" \
       --build-arg "AID_CJK_FONT_TENCENT_URL=${AID_CJK_FONT_TENCENT_URL:-}" \
       --build-arg "AID_CJK_FONT_ALIYUN_URL=${AID_CJK_FONT_ALIYUN_URL:-}" \
       --pull=false --tag "${JAVA_RUNTIME_IMAGE}" --file "${dockerfile}" "${context}"; then
