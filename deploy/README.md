@@ -282,7 +282,9 @@ AID 不读取、替换或删除系统原有 FFmpeg，也不再通过 apt、yum�
 
 固定主地址使用不可变版本制品。若维护者已把相同文件上传到腾讯云 COS 或阿里云 OSS，可在执行安装命令时设置对应架构的 `AID_FFMPEG_TENCENT_URL_AMD64` / `AID_FFMPEG_TENCENT_URL_ARM64`、`AID_FFMPEG_ALIYUN_URL_AMD64` / `AID_FFMPEG_ALIYUN_URL_ARM64`；所有镜像必须提供同一字节文件，仍使用脚本内置 SHA256 验证。没有真实对象地址时不要填写，脚本不会使用虚构或可变镜像链接。
 
-固定制品由 John Van Sickle 的 Linux 静态构建原样归档，按 GPLv3 提供；版本归档同时公布双架构 SHA256 与对应 FFmpeg 源码地址。AID 仅在部署时下载并隔离使用该运行时，不覆盖系统二进制。
+Docker 和手动安装自动优先使用 AtomGit 的 3.0.0 发行版附件，按架构下载并验证固定的 SHA-256。手动指定的首选源优先，下载或校验失败时依次尝试备用源。[AtomGit 3.0.0 发行版](https://atomgit.com/shijue-aid/aid-studio/releases/tag/v3.0.0)
+
+固定制品由 John Van Sickle 的 Linux 静态构建原样归档，按 GPLv3 提供；版本归档同时公布双架构 SHA256 与对应 FFmpeg 源码地址。AID 仅在部署时下载并隔离使用该运行时，不覆盖系统二进制。[原始制品和源码说明](https://github.com/shijue-aid/aid-studio/releases/tag/v1.0.0-beta.6)
 
 初始化 SQL、升级 SQL、Docker 与手动部署均使用上述固定路径，用户无需安装后再修改后台。填写其他路径时必须同时提供容器或宿主机内可见的可执行绝对路径，保存时会校验版本、编码器、滤镜与最小合成。
 

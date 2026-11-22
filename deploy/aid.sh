@@ -345,6 +345,7 @@ GO_VERSION="1.22.12"
 GO_HOME=""
 FFMPEG_RUNTIME_VERSION="8.1.2"
 FFMPEG_MIN_VERSION="5.1"
+FFMPEG_RUNTIME_ATOMGIT_TAG="v3.0.0"
 FFMPEG_RUNTIME_MIRROR_TAG="v1.0.0-beta.6"
 FFMPEG_REQUIRED_ENCODERS="libx264 libx265 aac"
 FFMPEG_REQUIRED_FILTERS="tpad apad scale pad fps setpts concat overlay drawtext amix alimiter aresample atrim asetpts aformat"
@@ -1539,6 +1540,10 @@ ffmpeg_runtime_usable() {
     "${2:-${FFMPEG_RUNTIME_FFPROBE}}" "${3:-${FFMPEG_RUNTIME_ROOT}/checks}" "${exactVersion}"
 }
 
+ffmpeg_runtime_atomgit_url() { # ffmpeg_runtime_atomgit_url <amd64|arm64>
+  printf '%s\n' "https://api.atomgit.com/api/v5/repos/shijue-aid/aid-studio/releases/${FFMPEG_RUNTIME_ATOMGIT_TAG}/attach_files/ffmpeg-${FFMPEG_RUNTIME_VERSION}-$1-static.tar.xz/download"
+}
+
 ffmpeg_runtime_download_urls() { # ffmpeg_runtime_download_urls <amd64|arm64>
   local arch="$1" name="" url="" seen=$'\n'
   local custom="" tencent="" aliyun="" github=""
@@ -1555,7 +1560,7 @@ ffmpeg_runtime_download_urls() { # ffmpeg_runtime_download_urls <amd64|arm64>
       tencent="${AID_FFMPEG_TENCENT_URL_ARM64:-}"
       aliyun="${AID_FFMPEG_ALIYUN_URL_ARM64:-}" ;;
   esac
-  candidates=("${custom}" "${tencent}" "${aliyun}" "${github}")
+  candidates=("${custom}" "$(ffmpeg_runtime_atomgit_url "${arch}")" "${tencent}" "${aliyun}" "${github}")
   for url in "${candidates[@]}"; do
     [[ -n "${url}" && "${seen}" != *$'\n'"${url}"$'\n'* ]] || continue
     printf '%s\n' "${url}"
@@ -5031,6 +5036,10 @@ ensure_source_package() {
   : > "${buildLog}" || die "无法创建三端构建日志: ${buildLog}"
   chmod 600 "${buildLog}" 2>/dev/null || true
   log "三端编译实时日志将同时保存到: ${buildLog}"
+  # 固定业务标签中的旧 Docker 运行时脚本也识别这两个下载源覆盖项。
+  local AID_FFMPEG_PRIMARY_URL_AMD64="${AID_FFMPEG_PRIMARY_URL_AMD64:-$(ffmpeg_runtime_atomgit_url amd64)}"
+  local AID_FFMPEG_PRIMARY_URL_ARM64="${AID_FFMPEG_PRIMARY_URL_ARM64:-$(ffmpeg_runtime_atomgit_url arm64)}"
+  export AID_FFMPEG_PRIMARY_URL_AMD64 AID_FFMPEG_PRIMARY_URL_ARM64
   if [[ "${sourceBuildMode}" == "docker" ]]; then
     AID_DATA_ROOT="${DATA_ROOT}" AID_SOURCE_BUILD_MODE="${sourceBuildMode}" AID_MANIFEST_PUBLIC_KEY="${TRUSTED_MANIFEST_PUBLIC_KEY}" \
       AID_DEPENDENCY_REGION="$(dependency_region_setting)" \
